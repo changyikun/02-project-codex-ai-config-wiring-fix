@@ -1,0 +1,303 @@
+import { useEffect, useMemo, useState } from 'react';
+
+import type { DialoguePortraitConfig, DialoguePortraitSegment } from '../dialogue/GlobalDialogueStage';
+import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
+import {
+  NIGHTLY_SERVICE_INTERACTION_ACTIONS,
+  resolveNightlyServiceChoiceDelta,
+} from '../../game/lib/nightlyServiceRuntime';
+import type {
+  ConcubineProfile,
+  NightlyServiceGentleBranchId,
+  NightlyServiceInteractionActionId,
+  NightlyServiceInteractionChoice,
+  NightlyServicePendingEvent,
+} from '../../game/types';
+
+const EMPEROR_PORTRAIT_SRC = '/assets/characters/men/emperor.jpg';
+const YANGXIN_BACKGROUND_SRC = '/assets/ui/map-bg.jpg';
+export const OVERNIGHT_TRANSITION_MS = 900;
+
+type NightlyServiceViewPhase = 'notice' | 'choose' | 'feedback' | 'service' | 'overnight';
+type GentleSelectionStep = 'branch' | 'praise-target' | 'smear-target';
+
+interface NightlyServiceEventViewProps {
+  pendingEvent: NightlyServicePendingEvent;
+  playerName: string;
+  playerPortrait?: string;
+  playerStats?: Record<string, number>;
+  concubines?: ConcubineProfile[];
+  onComplete: (choices: NightlyServiceInteractionChoice[]) => void;
+}
+
+const actionOptions = NIGHTLY_SERVICE_INTERACTION_ACTIONS.map((action) => ({
+  id: action.id,
+  label: action.label,
+}));
+
+const resolveActionFeedback = (
+  choice: NightlyServiceInteractionChoice | null,
+  fallback: string | undefined,
+  concubines: ConcubineProfile[],
+): string => {
+  if (choice?.actionId !== 'gentle') {
+    return fallback ?? '你把话慢慢放轻，殿中气息也随之缓下来。';
+  }
+
+  if (choice.gentleBranchId === 'praise') {
+    const target = concubines.find((consort) => consort.id === choice.targetConsortId);
+    return target
+      ? `你没有顺着话头争宠，只在合适处替${target.rankLabel}${target.name}留了余地。容安听完并未多言，指尖却在折角处停了一停。`
+      : '你把话说得温和，殿中气息也随之缓下来。';
+  }
+
+  if (choice.gentleBranchId === 'smear') {
+    const target = concubines.find((consort) => consort.id === choice.targetConsortId);
+    return target
+      ? `你没有把话说重，只点到${target.rankLabel}${target.name}近来一处失当。容安抬眼看你片刻，殿中烛影微微一晃。`
+      : '你把话说得温和，殿中气息也随之缓下来。';
+  }
+
+  return fallback ?? '你没有急着求赏，只把今日见闻慢慢说给他听。话到末处，殿中静下来，像是连烛火也跟着温顺了些。';
+};
+
+export function NightlyServiceEventView({
+  pendingEvent,
+  playerName,
+  playerPortrait,
+  playerStats = {},
+  concubines = [],
+  onComplete,
+}: NightlyServiceEventViewProps) {
+  const [phase, setPhase] = useState<NightlyServiceViewPhase>('notice');
+  const [selectedChoices, setSelectedChoices] = useState<NightlyServiceInteractionChoice[]>([]);
+  const [latestChoice, setLatestChoice] = useState<NightlyServiceInteractionChoice | null>(null);
+  const [gentleSelectionStep, setGentleSelectionStep] = useState<GentleSelectionStep | null>(null);
+
+  const currentInterest = useMemo(
+    () =>
+      selectedChoices.reduce(
+        (interest, choice) => Math.max(20, Math.min(100, interest + resolveNightlyServiceChoiceDelta(choice, playerStats))),
+        pendingEvent.initialInterest,
+      ),
+    [pendingEvent.initialInterest, playerStats, selectedChoices],
+  );
+  const latestAction = NIGHTLY_SERVICE_INTERACTION_ACTIONS.find((action) => action.id === latestChoice?.actionId);
+  const remainingInteractions = Math.max(0, pendingEvent.maxInteractions - selectedChoices.length);
+  const hasThirdPartyChoice = selectedChoices.some((choice) => choice.actionId === 'gentle' && (choice.gentleBranchId === 'praise' || choice.gentleBranchId === 'smear'));
+  const friendlyConsorts = concubines.filter((consort) => consort.status === 'live' && Number(consort.stats.relationToPlayer ?? 0) > 0);
+  const hostileConsorts = concubines.filter((consort) => consort.status === 'live' && Number(consort.stats.relationToPlayer ?? 0) < 0);
+
+  const resolvePortrait = (segment: DialoguePortraitSegment): DialoguePortraitConfig | undefined => {
+    if (segment.characterName === playerName && playerPortrait) {
+      return {
+        label: `${playerName}立绘`,
+        placement: 'dialogue-left',
+        portrait: <img src={playerPortrait} alt={playerName} className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--player" />,
+      };
+    }
+
+    if (segment.characterName === '容安') {
+      return {
+        label: '容安立绘',
+        portrait: <img src={EMPEROR_PORTRAIT_SRC} alt="容安" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--emperor" />,
+      };
+    }
+
+    return undefined;
+  };
+
+  const addChoice = (choice: NightlyServiceInteractionChoice) => {
+    setLatestChoice(choice);
+    setSelectedChoices((current) => [...current, choice].slice(0, pendingEvent.maxInteractions));
+    setGentleSelectionStep(null);
+    setPhase('feedback');
+  };
+
+  const handleAction = (optionId: string) => {
+    const actionId = optionId as NightlyServiceInteractionActionId;
+    if (actionId === 'gentle') {
+      setGentleSelectionStep('branch');
+      return;
+    }
+
+    addChoice({ actionId });
+  };
+
+  const handleGentleBranch = (branchId: NightlyServiceGentleBranchId) => {
+    if (branchId === 'comfort') {
+      addChoice({ actionId: 'gentle', gentleBranchId: 'comfort' });
+      return;
+    }
+
+    setGentleSelectionStep(branchId === 'praise' ? 'praise-target' : 'smear-target');
+  };
+
+  const handleGentleTarget = (branchId: Exclude<NightlyServiceGentleBranchId, 'comfort'>, targetConsortId: string) => {
+    addChoice({ actionId: 'gentle', gentleBranchId: branchId, targetConsortId });
+  };
+
+  const handleFeedbackDone = () => {
+    if (selectedChoices.length >= pendingEvent.maxInteractions) {
+      setPhase('service');
+      return;
+    }
+
+    setPhase('choose');
+  };
+
+  useEffect(() => {
+    if (phase !== 'overnight') {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => onComplete(selectedChoices), OVERNIGHT_TRANSITION_MS);
+    return () => window.clearTimeout(timer);
+  }, [onComplete, phase, selectedChoices]);
+
+  if (phase === 'overnight') {
+    return (
+      <section className="nightly-service-event nightly-service-event--overnight nightly-service-event--fade-in" aria-label="一夜过去">
+        <div className="nightly-service-event__blackout" />
+      </section>
+    );
+  }
+
+  const stageClassName = `nightly-service-event nightly-service-event--${phase}`;
+  const showPersistentEmperorPortrait = phase === 'choose' || phase === 'feedback' || phase === 'service';
+  const commonProps = {
+    resolvePortrait,
+    className: 'global-dialogue-stage--nightly-service',
+    dialogueClassName: 'palace-dialogue-box--chamber',
+  };
+
+  const persistentEmperorPortrait = showPersistentEmperorPortrait ? (
+    <div className="nightly-service-event__emperor-stage" aria-label="容安立绘">
+      <div className="nightly-service-event__emperor-frame">
+        <img src={EMPEROR_PORTRAIT_SRC} alt="容安" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--emperor" />
+      </div>
+    </div>
+  ) : null;
+
+  if (phase === 'notice') {
+    return (
+      <section className={stageClassName} aria-label="侍寝太监通报">
+        <div className="nightly-service-event__background" style={{ backgroundImage: `url("${YANGXIN_BACKGROUND_SRC}")` }} />
+        <GlobalDialogueStage
+          {...commonProps}
+          sceneLabel="侍寝太监通报"
+          portraitLabel="旁白无立绘"
+          ariaLabel="侍寝太监通报"
+          characterIdentity="场景旁白"
+          characterName="夜间通报"
+          content={`夜色压到窗棂上时，外头忽然传来细碎脚步声。\n内侍在帘外躬身传话：“${pendingEvent.rankLabel}${pendingEvent.playerName}，养心殿传召。”\n这不是可推辞的邀约。宫人已候在廊下，灯笼一盏盏亮起来，照出通往养心殿的路。`}
+          nextActionLabel="前往养心殿"
+          onNextAction={() => setPhase('choose')}
+        />
+      </section>
+    );
+  }
+
+  if (phase === 'choose') {
+    return (
+      <section className={stageClassName} aria-label="养心殿侍寝互动">
+        <div className="nightly-service-event__background" style={{ backgroundImage: `url("${YANGXIN_BACKGROUND_SRC}")` }} />
+        {persistentEmperorPortrait}
+        <div className="nightly-service-event__interest">兴致 {currentInterest} / 100 · 还可互动 {remainingInteractions} 次</div>
+        {gentleSelectionStep ? (
+          <aside className="nightly-service-event__actions nightly-service-event__actions--branch" aria-label="温言絮语分支">
+            {gentleSelectionStep === 'branch' ? (
+              <>
+                <button type="button" onClick={() => handleGentleBranch('comfort')}>
+                  温柔抚慰
+                </button>
+                <button type="button" disabled={hasThirdPartyChoice || friendlyConsorts.length === 0} onClick={() => handleGentleBranch('praise')}>
+                  为交好妃嫔美言
+                </button>
+                <button type="button" disabled={hasThirdPartyChoice || hostileConsorts.length === 0} onClick={() => handleGentleBranch('smear')}>
+                  对交恶妃嫔进言
+                </button>
+                <button type="button" onClick={() => setGentleSelectionStep(null)}>
+                  返回
+                </button>
+              </>
+            ) : null}
+            {gentleSelectionStep === 'praise-target'
+              ? friendlyConsorts.map((consort) => (
+                  <button key={consort.id} type="button" onClick={() => handleGentleTarget('praise', consort.id)}>
+                    {consort.rankLabel}
+                    {consort.name}
+                  </button>
+                ))
+              : null}
+            {gentleSelectionStep === 'smear-target'
+              ? hostileConsorts.map((consort) => (
+                  <button key={consort.id} type="button" onClick={() => handleGentleTarget('smear', consort.id)}>
+                    {consort.rankLabel}
+                    {consort.name}
+                  </button>
+                ))
+              : null}
+          </aside>
+        ) : (
+          <aside className="nightly-service-event__actions" aria-label="养心殿侍寝操作">
+            {actionOptions.map((action) => (
+              <button key={action.id} type="button" onClick={() => handleAction(action.id)}>
+                {action.label}
+              </button>
+            ))}
+          </aside>
+        )}
+        <GlobalDialogueStage
+          {...commonProps}
+          sceneLabel="养心殿侍寝互动"
+          portraitLabel="旁白无立绘"
+          ariaLabel="养心殿侍寝互动"
+          characterIdentity="场景旁白"
+          characterName="养心殿"
+          content="养心殿内灯火压得很低，容安搁下手中折子，目光从案边移到你身上。你知道，今夜开口的分寸，会决定这一夜的冷暖。"
+        />
+      </section>
+    );
+  }
+
+  if (phase === 'feedback') {
+    return (
+      <section className={stageClassName} aria-label="侍寝互动反馈">
+        <div className="nightly-service-event__background" style={{ backgroundImage: `url("${YANGXIN_BACKGROUND_SRC}")` }} />
+        {persistentEmperorPortrait}
+        <div className="nightly-service-event__interest">兴致 {currentInterest} / 100 · 已互动 {selectedChoices.length} / {pendingEvent.maxInteractions}</div>
+        <GlobalDialogueStage
+          {...commonProps}
+          sceneLabel="侍寝互动反馈"
+          portraitLabel="旁白无立绘"
+          ariaLabel="侍寝互动反馈"
+          characterIdentity="场景旁白"
+          characterName="养心殿"
+          content={resolveActionFeedback(latestChoice, latestAction?.feedback, concubines)}
+          nextActionLabel={selectedChoices.length >= pendingEvent.maxInteractions ? '入帷' : '继续'}
+          onNextAction={handleFeedbackDone}
+        />
+      </section>
+    );
+  }
+
+  return (
+    <section className={stageClassName} aria-label="正式侍寝剧情">
+      <div className="nightly-service-event__background" style={{ backgroundImage: `url("${YANGXIN_BACKGROUND_SRC}")` }} />
+      {persistentEmperorPortrait}
+      <div className="nightly-service-event__interest">最终兴致 {currentInterest} / 100</div>
+      <GlobalDialogueStage
+        {...commonProps}
+        sceneLabel="正式侍寝剧情"
+        portraitLabel="旁白无立绘"
+        ariaLabel="正式侍寝剧情"
+        characterIdentity="场景旁白"
+        characterName="养心殿"
+        content="宫灯次第低下去，帷幔被夜风轻轻带动。殿外更漏声远了，近处只余衣料摩挲与压低的呼吸。今夜之后，宫中账册上会多记一笔，旁人的眼光也会随之改变。"
+        nextActionLabel="夜尽"
+        onNextAction={() => setPhase('overnight')}
+      />
+    </section>
+  );
+}

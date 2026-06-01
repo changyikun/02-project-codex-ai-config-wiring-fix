@@ -1,0 +1,19 @@
+node_modules/
+dist/
+dist-server/
+coverage/
+.env
+.env.local
+*.log
+
+# OS / editor noise
+.DS_Store
+
+# Local scratch artifacts
+.tmp/
+tmp/
+tmp_*
+tmp-*
+*-preview.png
+__pycache__/
+*.pyc

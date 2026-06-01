@@ -1,0 +1,4 @@
+interface:
+  display_name: "宫斗游戏前端"
+  short_description: "凤华录前端流程、UI常量、双AI接线与浏览器校验规范"
+  default_prompt: "Use $palace-game-frontend to continue the Fenghualu browser game frontend while preserving the current scene flow, UI constants, and dual-AI boundaries."

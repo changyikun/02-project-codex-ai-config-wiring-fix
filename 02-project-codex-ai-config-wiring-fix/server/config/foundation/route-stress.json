@@ -1,0 +1,26 @@
+[
+  {
+    "routeId": "lanyinxuguo",
+    "routeName": "兰因絮果",
+    "baseStressIncreasePerMonth": 4,
+    "reliefThreshold": 18
+  },
+  {
+    "routeId": "fushengrumeng",
+    "routeName": "浮生如梦",
+    "baseStressIncreasePerMonth": 3,
+    "reliefThreshold": 15
+  },
+  {
+    "routeId": "yingluoyeting",
+    "routeName": "影落掖庭",
+    "baseStressIncreasePerMonth": 6,
+    "reliefThreshold": 22
+  },
+  {
+    "routeId": "chenyuansucuo",
+    "routeName": "尘缘夙错",
+    "baseStressIncreasePerMonth": 5,
+    "reliefThreshold": 20
+  }
+]

@@ -1,0 +1,606 @@
+import { useMemo, useState } from 'react';
+import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
+import { AutoCutoutPortrait } from '../visual/AutoCutoutPortrait';
+import {
+  getConcubineDisplayRankText,
+  getConcubinePortraitPath,
+} from '../../game/data/concubineRoster';
+import {
+  requestTaiyiDialogueWithFallback,
+  type TaiyiDialogueActor,
+} from '../../game/lib/taiyiDialogueRuntime';
+import { buildLocationActionNarrative } from '../../game/lib/actionNarrativeRuntime';
+import { clampToRange, createDialogueId, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
+import { traceDialogue } from '../../game/lib/dialogueTrace';
+import { requestRelationshipJudgementWithFallback } from '../../game/lib/relationshipJudgeRuntime';
+import { requestTaiyiAmbientWithFallback } from '../../game/lib/taiyiAmbientRuntime';
+import { useGameFlowStore } from '../../game/store/gameFlowStore';
+import type {
+  ConcubineProfile,
+  ConsortDialogueOption,
+  ConsortDialogueTurn,
+} from '../../game/types';
+
+interface TaiHospitalViewProps {
+  concubines: ConcubineProfile[];
+}
+
+interface HistoryEntry {
+  speaker: string;
+  text: string;
+}
+
+interface TaiyiSceneActor extends TaiyiDialogueActor {
+  portraitSrc: string;
+  consortId?: string;
+}
+
+const JIANNING_PORTRAIT_SRC = '/assets/characters/men/jian-ning.png';
+const DOWAGER_PORTRAIT_SRC = '/assets/characters/women/taihou-cutout.png';
+const hashSeed = (seed: string): number =>
+  seed.split('').reduce((sum, char, index) => sum + char.charCodeAt(0) * (index + 31), 0);
+
+const buildJianNingActor = (favor: number, affection: number): TaiyiSceneActor => ({
+  id: 'jianning',
+  name: '简宁',
+  identity: '太医院医官',
+  residence: '太医院',
+  personality: '寡言冷静，医理扎实，极重轻重缓急，不爱空话，待人克制，却会在关键处给出真正有用的判断。',
+  summary: '太医院医官，常年接触脉案、诊方与宫闱秘病，对药理、病症与人心都看得极准，但从不轻易站队。',
+  currentGoodwill: favor,
+  currentAffection: affection,
+  actorKind: 'jianning',
+  portraitSrc: JIANNING_PORTRAIT_SRC,
+});
+
+const buildDowagerActor = (): TaiyiSceneActor => ({
+  id: 'dowager',
+  name: '太后',
+  identity: '太后',
+  residence: '建章宫',
+  personality: '清醒强势，极重规矩，擅长观察与驯化，记仇护短，会审时度势，欣赏聪明人，但更欣赏懂分寸的聪明人。',
+  summary: '她是后宫最高权力长辈角色，看人先看可用性，再看风骨，最后才轮到私心。',
+  currentGoodwill: 0,
+  currentAffection: 0,
+  actorKind: 'dowager',
+  portraitSrc: DOWAGER_PORTRAIT_SRC,
+});
+
+const buildConsortActor = (consort: ConcubineProfile): TaiyiSceneActor => ({
+  id: consort.id,
+  name: consort.name,
+  identity: getConcubineDisplayRankText(consort),
+  residence: consort.residence,
+  personality: consort.personality,
+  summary: consort.summary,
+  currentGoodwill: consort.stats.relationToPlayer,
+  currentAffection: consort.stats.affection,
+  actorKind: 'consort',
+  portraitSrc: getConcubinePortraitPath(consort.portraitId),
+  consortId: consort.id,
+});
+
+const buildPendingEncounterTurn = (actor: TaiyiSceneActor): ConsortDialogueTurn => {
+  let text = `${actor.identity} ${actor.name}在药廊间略略停步，像是先等你把这句开场落稳。`;
+
+  if (actor.actorKind === 'jianning') {
+    text = '简宁将指尖从脉案上收回，抬眼看向你，像是在等一句真正落到实处的话。';
+  } else if (actor.actorKind === 'dowager') {
+    text = '太后仍立在药柜前，只略略侧过脸，显然已经把你的动静听进去了。';
+  }
+
+  return {
+    mode: 'line',
+    phase: 'continue',
+    speakerIdentity: actor.identity,
+    speakerName: actor.name,
+    text,
+    nextActionLabel: '回应中',
+    sceneHint: '你已在药廊下把人拦住，对方正在接这句话。',
+    options: [],
+  };
+};
+
+export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
+  const {
+    state,
+    hiddenStats,
+    time,
+    medicalProgress,
+    patchMedicalProgress,
+    applyStoryEffects,
+    advanceTime,
+    applyConsortRelationshipJudgement,
+  } = useGameFlowStore();
+  const [activeActor, setActiveActor] = useState<TaiyiSceneActor | null>(null);
+  const [dialogueTurn, setDialogueTurn] = useState<ConsortDialogueTurn | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [sceneHint, setSceneHint] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [systemMessage, setSystemMessage] = useState('药香与水声在回廊里交错，太医院看似清净，实则最藏不住轻重缓急。');
+  const [activeEncounterLabel, setActiveEncounterLabel] = useState('太医院偶遇');
+  const [pendingJianNingUnlock, setPendingJianNingUnlock] = useState(false);
+
+  const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
+  const saveId = useMemo(() => `local:${state.routeId}:${encodeURIComponent(state.name)}`, [state.name, state.routeId]);
+  const dialogueOptions = dialogueTurn?.options ?? [];
+  const isJianNingMet = Boolean(state.flags.isJianNingMet || medicalProgress.jianNingMet);
+  const showConsultation = Number(state.stats.medicine ?? 0) >= 5;
+  const eligibleConsorts = useMemo(
+    () => concubines.filter((consort) => consort.status === 'live' && consort.residence !== '冷宫' && !consort.name.includes('太后')),
+    [concubines],
+  );
+  const currentSeed = `${state.routeId}:${time.year}-${time.month}-${time.xun}:${time.slotIndex}`;
+
+  const buildPayload = (
+    actor: TaiyiSceneActor,
+    topic: 'visit' | 'follow-up',
+    actionId: string,
+    actionLabel: string,
+    overrides?: {
+      actionResult?: string;
+      selectedOptionId?: string;
+      selectedOptionLabel?: string;
+      historyOverride?: HistoryEntry[];
+    },
+  ) => {
+    const activeHistory = trimDialogueHistory(overrides?.historyOverride ?? history);
+
+    return {
+      saveId,
+      sessionId: `session:taiyi:${actor.id}:${state.routeId}:${encodeURIComponent(state.name)}`,
+      requestId: createDialogueId(`request-taiyi-${actor.id}`),
+      sceneId: `taiyi:${actor.id}`,
+      routeId: state.routeId,
+      playerName: state.name,
+      playerRank: playerRankLabel,
+      playerResidence: state.residenceName,
+      playerOpeningTendency: state.openingTendency,
+      canPunish: false,
+      topic,
+      actionId,
+      actionLabel,
+      actionResult: overrides?.actionResult,
+      selectedOptionId: overrides?.selectedOptionId,
+      selectedOptionLabel: overrides?.selectedOptionLabel,
+      history: activeHistory,
+      recentContext: activeHistory.map((entry) => `${entry.speaker}：${entry.text}`),
+      playerContext: {
+        favor: state.favor,
+        stress: state.stress,
+        prestige: state.prestige,
+        trueHeart: state.trueHeart,
+        silver: state.silver,
+        stamina: state.stamina,
+        stats: state.stats,
+      },
+      consortContext: {
+        id: actor.id,
+        name: actor.name,
+        rank: actor.identity,
+        residence: actor.residence,
+        stateLabel: '寻常',
+        personality: actor.personality,
+        summary: actor.summary,
+        currentGoodwill: actor.currentGoodwill,
+        currentAffection: actor.currentAffection,
+        emperorFavor: 0,
+        stress: 0,
+        allies: [] as string[],
+        rivals: [] as string[],
+      },
+      timeContext: time,
+    } as const;
+  };
+
+  const runNarrativeTurn = async (
+    actor: TaiyiSceneActor,
+    topic: 'visit' | 'follow-up',
+    actionId: string,
+    actionLabel: string,
+    overrides?: {
+      actionResult?: string;
+      selectedOptionId?: string;
+      selectedOptionLabel?: string;
+      historyOverride?: HistoryEntry[];
+    },
+  ) => {
+    const payload = buildPayload(actor, topic, actionId, actionLabel, overrides);
+    const nextTurn = await requestTaiyiDialogueWithFallback(payload, actor);
+    const speakerLabel = `${nextTurn.speakerIdentity} · ${nextTurn.speakerName}`;
+    traceDialogue({
+      npcId: actor.id,
+      sceneId: payload.sceneId,
+      sessionId: payload.sessionId,
+      turnsRead: nextTurn.sessionMemory?.readTurnCount ?? 0,
+      candidatesRead: nextTurn.sessionMemory?.readMemoryCandidateCount ?? 0,
+      candidatesWritten: nextTurn.sessionMemory?.writtenMemoryCandidateCount ?? nextTurn.memoryCandidates?.length ?? 0,
+      relationCandidatesRead: nextTurn.sessionMemory?.readRelationCandidateCount ?? 0,
+      relationCandidatesWritten:
+        nextTurn.sessionMemory?.writtenRelationCandidateCount ?? nextTurn.relationCandidates?.length ?? 0,
+      relationPromotedCount: nextTurn.relationMemory?.promotedCount ?? 0,
+      relationRejectedCount: nextTurn.relationMemory?.rejectedCount ?? 0,
+      relationEntryCount: nextTurn.relationMemory?.totalEntryCount ?? 0,
+      usedFallback: Boolean(nextTurn.usedFallback),
+    });
+
+    setDialogueTurn(nextTurn);
+    setSceneHint(nextTurn.sceneHint ?? '');
+    setHistory((currentHistory) =>
+      trimDialogueHistory([...(overrides?.historyOverride ?? currentHistory), { speaker: speakerLabel, text: nextTurn.text }]),
+    );
+  };
+
+  const finalizeJianNingUnlockIfNeeded = () => {
+    if (!pendingJianNingUnlock) {
+      return;
+    }
+    applyStoryEffects({ flags: { isJianNingMet: true } });
+    patchMedicalProgress({ jianNingMet: true });
+    setPendingJianNingUnlock(false);
+    setSystemMessage('你已在太医院结识简宁，此后这里会长期留下他的入口。');
+  };
+
+  const beginEncounter = async (
+    actor: TaiyiSceneActor,
+    actionId: string,
+    actionLabel: string,
+    actionResult: string,
+  ) => {
+    setBusy(true);
+    setActiveActor(actor);
+    setDialogueTurn(buildPendingEncounterTurn(actor));
+    setHistory([]);
+    setSceneHint('你已在药廊下把人拦住，对方正在接这句话。');
+    setActiveEncounterLabel(actionLabel);
+
+    try {
+      await runNarrativeTurn(actor, 'visit', actionId, actionLabel, {
+        actionResult,
+        historyOverride: [],
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const closeEncounter = () => {
+    finalizeJianNingUnlockIfNeeded();
+    setActiveActor(null);
+    setDialogueTurn(null);
+    setHistory([]);
+    setSceneHint('');
+    setBusy(false);
+  };
+
+  const handleStroll = async () => {
+    if (busy) {
+      return;
+    }
+
+    setBusy(true);
+    advanceTime(1);
+    const nextCount = medicalProgress.strollCount + 1;
+    patchMedicalProgress({ strollCount: nextCount });
+
+    try {
+      if (!isJianNingMet && nextCount >= 5) {
+        const actor = buildJianNingActor(medicalProgress.jianNingFavor, medicalProgress.jianNingAffinity);
+        patchMedicalProgress({ lastEncounterNpcId: actor.id });
+        setPendingJianNingUnlock(true);
+        await beginEncounter(
+          actor,
+          'forced-meet',
+          '简宁结识',
+          '你在太医院连着闲逛到第五次时，正撞见简宁替一名宫人会诊。',
+        );
+        return;
+      }
+
+      const rollSeed = `${currentSeed}:taiyi-stroll:${nextCount}`;
+      const success = hashSeed(rollSeed) % 100 < 30;
+
+      if (!success) {
+        const ambient = await requestTaiyiAmbientWithFallback({
+          routeId: state.routeId,
+          playerName: state.name,
+          playerRank: playerRankLabel,
+          location: '太医院',
+          action: 'stroll-idle',
+          stateHint: `闲逛第${nextCount}次`,
+          timeContext: useGameFlowStore.getState().time,
+        });
+        patchMedicalProgress({ lastAmbientText: ambient });
+        setSystemMessage(
+          buildLocationActionNarrative({
+            locationId: 'tai-hospital',
+            actionId: 'stroll',
+            actionLabel: '闲逛',
+            resultText: ambient,
+          }),
+        );
+        return;
+      }
+
+      const actorPool: TaiyiSceneActor[] = [buildDowagerActor(), ...eligibleConsorts.map((consort) => buildConsortActor(consort))];
+      const actor = actorPool[hashSeed(`${rollSeed}:actor`) % actorPool.length];
+      patchMedicalProgress({ lastEncounterNpcId: actor.id });
+      setSystemMessage(
+        buildLocationActionNarrative({
+          locationId: 'tai-hospital',
+          actionId: 'meet',
+          actionLabel: '太医院闲逛',
+          resultText: `你在药廊里撞见了${actor.identity} ${actor.name}。`,
+        }),
+      );
+      await beginEncounter(
+        actor,
+        'stroll-encounter',
+        '太医院闲逛',
+        `你在太医院闲逛时，撞见了${actor.identity} ${actor.name}。`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleOpenJianNing = async () => {
+    if (busy) {
+      return;
+    }
+
+    setBusy(true);
+    advanceTime(1);
+
+    try {
+      const actor = buildJianNingActor(medicalProgress.jianNingFavor, medicalProgress.jianNingAffinity);
+      patchMedicalProgress({ lastEncounterNpcId: actor.id });
+      await beginEncounter(
+        actor,
+        'meet-jianning',
+        '与简宁说话',
+        '你绕过药柜与脉案，主动朝简宁走了过去。',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleConsultation = async () => {
+    if (busy) {
+      return;
+    }
+
+    setBusy(true);
+    advanceTime(1);
+    patchMedicalProgress({ consultationCount: medicalProgress.consultationCount + 1 });
+    applyStoryEffects({ stats: { medicine: 0.1 } });
+
+    try {
+      const ambient = await requestTaiyiAmbientWithFallback({
+        routeId: state.routeId,
+        playerName: state.name,
+        playerRank: playerRankLabel,
+        location: '太医院',
+        action: 'consult',
+        stateHint: isJianNingMet ? '跟着简宁旁听会诊' : '跟着医官旁听会诊',
+        timeContext: useGameFlowStore.getState().time,
+      });
+      setSystemMessage(
+        buildLocationActionNarrative({
+          locationId: 'tai-hospital',
+          actionId: 'consultation',
+          actionLabel: '会诊',
+          resultText: `${ambient} 药理略有进益。`,
+        }),
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleOptionSelect = async (optionId: string) => {
+    if (busy || !dialogueTurn || !activeActor) {
+      return;
+    }
+
+    const option = dialogueOptions.find((item) => item.id === optionId);
+    if (!option) {
+      return;
+    }
+
+    const nextHistory = trimDialogueHistory([
+      ...history,
+      {
+        speaker: `${playerRankLabel} · ${state.name}`,
+        text: option.label,
+      },
+    ]);
+
+    setBusy(true);
+
+    try {
+      const judgement = await requestRelationshipJudgementWithFallback(
+        {
+          routeId: state.routeId,
+          npcId: activeActor.id,
+          sceneType: `太医院·${activeEncounterLabel}`,
+          optionText: option.label,
+          npcProfile: `${activeActor.identity} ${activeActor.name}。${activeActor.summary}。性格：${activeActor.personality}`,
+          currentFavor: activeActor.currentGoodwill,
+          currentAffection: activeActor.currentAffection,
+          recentContext: nextHistory.map((entry) => `${entry.speaker}：${entry.text}`),
+        },
+        option.fallbackToneTag,
+      );
+
+      if (activeActor.actorKind === 'consort' && activeActor.consortId) {
+        const summary = applyConsortRelationshipJudgement(activeActor.consortId, 'greet', judgement);
+        const nextActor = {
+          ...activeActor,
+          currentGoodwill: clampToRange(activeActor.currentGoodwill + summary.appliedFavorDelta, -100, 100),
+          currentAffection: clampToRange(activeActor.currentAffection + summary.appliedAffectionDelta, 0, 100),
+        };
+        setActiveActor(nextActor);
+
+        await runNarrativeTurn(nextActor, 'follow-up', 'taiyi-follow-up', activeEncounterLabel, {
+          actionResult: `${judgement.reason} 本地关系结算已落地。`,
+          selectedOptionId: option.id,
+          selectedOptionLabel: option.label,
+          historyOverride: nextHistory,
+        });
+        return;
+      }
+
+      if (activeActor.actorKind === 'jianning') {
+        const nextFavor = clampToRange(medicalProgress.jianNingFavor + judgement.favorDelta, -100, 100);
+        const nextAffinity = clampToRange(medicalProgress.jianNingAffinity + judgement.affectionDelta, 0, 100);
+        patchMedicalProgress({
+          jianNingFavor: nextFavor,
+          jianNingAffinity: nextAffinity,
+          lastToneTag: judgement.toneTag,
+          lastEncounterNpcId: activeActor.id,
+        });
+        const nextActor = {
+          ...activeActor,
+          currentGoodwill: nextFavor,
+          currentAffection: nextAffinity,
+        };
+        setActiveActor(nextActor);
+
+        await runNarrativeTurn(nextActor, 'follow-up', 'jianning-follow-up', activeEncounterLabel, {
+          actionResult: `${judgement.reason} 系统已记下你与简宁这一轮的往来。`,
+          selectedOptionId: option.id,
+          selectedOptionLabel: option.label,
+          historyOverride: nextHistory,
+        });
+        return;
+      }
+
+      await runNarrativeTurn(activeActor, 'follow-up', 'dowager-follow-up', activeEncounterLabel, {
+        actionResult: `${judgement.reason} 这一句已被太后听进去了。`,
+        selectedOptionId: option.id,
+        selectedOptionLabel: option.label,
+        historyOverride: nextHistory,
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleNextAction = async () => {
+    if (busy || !dialogueTurn || !activeActor || dialogueOptions.length > 0) {
+      return;
+    }
+
+    if (dialogueTurn.phase === 'finish' || dialogueTurn.nextActionLabel !== '下一句') {
+      closeEncounter();
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      await runNarrativeTurn(activeActor, 'follow-up', 'keep-talking', activeEncounterLabel, {
+        actionResult: '你没有急着表态，只示意对方把这句话继续说完。',
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="taiyi-view" aria-label="太医院场景">
+      {!activeActor ? (
+        <header className="taiyi-view__header">
+          <div className="taiyi-view__heading">
+            <span>太医院 · 药香沉静</span>
+            <p>药柜、脉案与铜炉把整座太医院压得极稳。这里最像救人的地方，也最容易藏住不该外传的病症与秘密。</p>
+          </div>
+        </header>
+      ) : null}
+
+      {!activeActor ? (
+        <section className="taiyi-view__menu" aria-label="太医院主界面">
+          <div className="taiyi-view__menu-buttons">
+            <button type="button" onClick={() => void handleStroll()} disabled={busy}>
+              闲逛
+            </button>
+            {isJianNingMet ? (
+              <button type="button" onClick={() => void handleOpenJianNing()} disabled={busy}>
+                简宁
+              </button>
+            ) : null}
+            {showConsultation ? (
+              <button type="button" onClick={() => void handleConsultation()} disabled={busy}>
+                会诊
+              </button>
+            ) : null}
+          </div>
+          <div className="taiyi-view__note">
+            <strong>{`累计闲逛：${medicalProgress.strollCount} 次`}</strong>
+            <p>{systemMessage}</p>
+          </div>
+        </section>
+      ) : (
+        <section className="taiyi-view__encounter" aria-label={`${activeActor.name} 太医院对话`}>
+          <aside className="taiyi-view__actions" aria-label="太医院对话操作">
+            <button type="button" onClick={closeEncounter} disabled={busy}>
+              返回太医院
+            </button>
+            <p>{sceneHint || '药香与水声把一句话都衬得更轻，却也更难藏住真正的轻重。'}</p>
+          </aside>
+
+          <GlobalDialogueStage
+            sceneLabel={`${activeActor.name} 太医院对话场景`}
+            portraitLabel={`${activeActor.name} 立绘`}
+            portrait={
+              activeActor.actorKind === 'jianning' ? (
+                <AutoCutoutPortrait
+                  src={activeActor.portraitSrc}
+                  alt={activeActor.name}
+                  threshold={18}
+                  sampleInset={20}
+                  className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--taiyi global-dialogue-stage__portrait-media--jianning"
+                />
+              ) : activeActor.actorKind === 'dowager' ? (
+                <AutoCutoutPortrait
+                  src={activeActor.portraitSrc}
+                  alt={activeActor.name}
+                  threshold={34}
+                  sampleInset={8}
+                  className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--taiyi"
+                />
+              ) : (
+                <img
+                  src={activeActor.portraitSrc}
+                  alt={activeActor.name}
+                  className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--taiyi"
+                />
+              )
+            }
+            ariaLabel="太医院对话框"
+            className="global-dialogue-stage--taiyi global-dialogue-stage--with-side-panel"
+            dialogueClassName="palace-dialogue-box--taiyi-encounter"
+            characterIdentity={dialogueTurn?.speakerIdentity ?? activeActor.identity}
+            characterName={dialogueTurn?.speakerName ?? activeActor.name}
+            content={dialogueTurn?.text ?? '药香沉静，对方像是在等你先把这一句落下来。'}
+            options={dialogueOptions as ConsortDialogueOption[]}
+            onSelectOption={(optionId) => {
+              void handleOptionSelect(optionId);
+            }}
+            nextActionLabel={dialogueOptions.length === 0 ? dialogueTurn?.nextActionLabel : undefined}
+            onNextAction={
+              dialogueOptions.length === 0
+                ? () => {
+                    void handleNextAction();
+                  }
+                : undefined
+            }
+            busy={busy}
+          />
+        </section>
+      )}
+    </section>
+  );
+}

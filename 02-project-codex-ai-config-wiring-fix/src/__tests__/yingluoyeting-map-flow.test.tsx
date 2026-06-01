@@ -1,0 +1,370 @@
+/* @vitest-environment jsdom */
+
+import '@testing-library/jest-dom/vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import App from '../App';
+import { ConsortAudiencePanel } from '../components/consorts/ConsortAudiencePanel';
+import { getFavorTierByValue, STAMINA_INITIAL_PER_XUN } from '../config/constants';
+import { buildInitialBondProfile } from '../game/data/bondPresets';
+import { buildInitialConcubineRoster } from '../game/data/concubineRoster';
+import { cloneInitialInventory } from '../game/data/inventoryPresets';
+import { useGameFlowStore } from '../game/store/gameFlowStore';
+import {
+  YINGLUOYETING_EVIDENCE_ITEM_IDS,
+  YINGLUOYETING_STORY_FLAGS,
+} from '../game/lib/yingluoyetingStoryRuntime';
+
+const resetToYingluoyetingMap = () => {
+  const favorTier = getFavorTierByValue(10);
+  useGameFlowStore.setState((current) => ({
+    ...current,
+    currentView: 'map-main',
+    scene: 'map',
+    activeChamberPanel: 'main',
+    activeMapLocation: undefined,
+    activeAffairsSource: '宫斗事务',
+    routeId: 'yingluoyeting',
+    selectedRoute: undefined,
+    briefing: '',
+    dialogue: undefined,
+    mapEventText: '',
+    save: undefined,
+    state: {
+      ...current.state,
+      name: '沉璧',
+      family: '沈氏',
+      routeId: 'yingluoyeting',
+      residenceName: '掖庭院',
+      openingTendency: undefined,
+      actionPoints: 4,
+      stamina: STAMINA_INITIAL_PER_XUN,
+      silver: 50,
+      prestige: 50,
+      stress: 30,
+      favor: 10,
+      trueHeart: 0,
+      flags: {
+        mapGuideFinished: true,
+      },
+    },
+    hiddenStats: {
+      silver: 50,
+      prestige: 50,
+      stress: 30,
+      favor: 10,
+      trueHeart: 0,
+      favorLabel: favorTier.label,
+      favorColor: favorTier.color,
+      initialRank: undefined,
+    },
+    time: {
+      year: 1,
+      month: 2,
+      xun: 1,
+      slotIndex: 0,
+      slot: '清晨',
+      slotProgress: 0,
+    },
+    bondProfile: buildInitialBondProfile('yingluoyeting', '1-2-1'),
+    concubineRouteId: 'yingluoyeting',
+    concubines: buildInitialConcubineRoster('yingluoyeting'),
+    customConsorts: [],
+    inventory: cloneInitialInventory(),
+    merchantLedger: {},
+    consortInteractionMap: {},
+    settlementReports: [],
+    palaceStrifeCases: [],
+    latestSettlementReportId: undefined,
+    lastSeenSettlementReportId: undefined,
+  }));
+};
+
+const advanceDialoguePages = () => {
+  let dialogueContent = document.querySelector<HTMLElement>('[data-dialogue-page-state="more"]');
+  while (dialogueContent) {
+    fireEvent.click(dialogueContent);
+    dialogueContent = document.querySelector<HTMLElement>('[data-dialogue-page-state="more"]');
+  }
+};
+
+describe('影落掖庭地图主线体验', () => {
+  beforeEach(() => {
+    resetToYingluoyetingMap();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('enters cold palace story from the map and grants old testimony evidence through existing state and inventory', async () => {
+    const { container } = render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '冷宫' }));
+    fireEvent.click(screen.getByRole('button', { name: '进入此处' }));
+
+    const mapBackground = container.querySelector('.map-main__background') as HTMLElement;
+    expect(mapBackground).toHaveClass('is-location-scene');
+    expect(mapBackground.style.backgroundImage).toContain('affairs-ui.jpg');
+    expect(await screen.findByLabelText('冷宫主线剧情')).toBeInTheDocument();
+    expect(await screen.findByText(/冷宫门前的铜锁早已生锈/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('老宫人剪影')).not.toBeInTheDocument();
+    expect(screen.queryByText(/姑娘又来了/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '承诺替她遮掩此事' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '继续' })).not.toBeInTheDocument();
+
+    fireEvent.click(document.querySelector<HTMLElement>('[data-dialogue-page-state="more"]')!);
+
+    expect(screen.getByText(/姑娘又来了/)).toBeInTheDocument();
+    expect(screen.getByText('冷宫旧人 · 老宫人')).toBeInTheDocument();
+    expect(screen.getByLabelText('老宫人剪影')).toBeInTheDocument();
+    advanceDialoguePages();
+    fireEvent.click(screen.getByRole('button', { name: '承诺替她遮掩此事' }));
+
+    expect(await screen.findByText(/这半页残抄不能替沈家翻案/)).toBeInTheDocument();
+    const itemHint = await screen.findByText('获得证物：老宫人口供残抄');
+    expect(itemHint).toHaveClass('palace-dialogue-box__highlight');
+    const store = useGameFlowStore.getState();
+    expect(store.state.flags[YINGLUOYETING_STORY_FLAGS.coldPalaceClueDone]).toBe(true);
+    expect(store.state.flags[YINGLUOYETING_STORY_FLAGS.hasOldTestimony]).toBe(true);
+    expect(store.state.stress).toBe(31);
+    expect(store.inventory.some((item) => item.itemId === YINGLUOYETING_EVIDENCE_ITEM_IDS.oldTestimony)).toBe(true);
+  });
+
+  it('enters Tai Hospital old prescription story after cold palace evidence and grants original prescription', async () => {
+    useGameFlowStore.setState((current) => ({
+      ...current,
+      time: {
+        ...current.time,
+        month: 3,
+      },
+      state: {
+        ...current.state,
+        flags: {
+          ...current.state.flags,
+          [YINGLUOYETING_STORY_FLAGS.coldPalaceClueDone]: true,
+          [YINGLUOYETING_STORY_FLAGS.hasOldTestimony]: true,
+        },
+      },
+    }));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '太医院' }));
+    fireEvent.click(screen.getByRole('button', { name: '进入此处' }));
+
+    expect(await screen.findByText(/太医院旧档室里药气很沉/)).toBeInTheDocument();
+    advanceDialoguePages();
+    fireEvent.click(screen.getByRole('button', { name: '抄录原方' }));
+
+    expect(await screen.findByText(/沈氏旧案里至少有一页纸说了假话/)).toBeInTheDocument();
+    const store = useGameFlowStore.getState();
+    expect(store.state.flags[YINGLUOYETING_STORY_FLAGS.taiyiPrescriptionDone]).toBe(true);
+    expect(store.state.flags[YINGLUOYETING_STORY_FLAGS.hasOriginalPrescription]).toBe(true);
+    expect(store.inventory.some((item) => item.itemId === YINGLUOYETING_EVIDENCE_ITEM_IDS.originalPrescription)).toBe(true);
+  });
+
+  it('enters kitchen storage story after prescription mismatch and grants storage transfer list', async () => {
+    useGameFlowStore.setState((current) => ({
+      ...current,
+      time: {
+        ...current.time,
+        month: 4,
+      },
+      state: {
+        ...current.state,
+        flags: {
+          ...current.state.flags,
+          [YINGLUOYETING_STORY_FLAGS.taiyiPrescriptionDone]: true,
+          [YINGLUOYETING_STORY_FLAGS.prescriptionMismatchNoted]: true,
+        },
+      },
+    }));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '御膳房' }));
+    fireEvent.click(screen.getByRole('button', { name: '进入此处' }));
+
+    expect(await screen.findByText(/旧库的账册压在最底层/)).toBeInTheDocument();
+    advanceDialoguePages();
+    fireEvent.click(screen.getByRole('button', { name: '抄下调出日期' }));
+
+    expect(await screen.findByText(/沈氏案卷并非结案后再无人碰过/)).toBeInTheDocument();
+    const store = useGameFlowStore.getState();
+    expect(store.state.flags[YINGLUOYETING_STORY_FLAGS.storageTransferDone]).toBe(true);
+    expect(store.state.flags[YINGLUOYETING_STORY_FLAGS.hasStorageTransferList]).toBe(true);
+    expect(store.inventory.some((item) => item.itemId === YINGLUOYETING_EVIDENCE_ITEM_IDS.storageTransferList)).toBe(true);
+  });
+
+  it('enters Changchun Palace evidence box story after the evidence chain and grants forged testimony page', async () => {
+    useGameFlowStore.setState((current) => ({
+      ...current,
+      time: {
+        ...current.time,
+        month: 5,
+      },
+      state: {
+        ...current.state,
+        flags: {
+          ...current.state.flags,
+          [YINGLUOYETING_STORY_FLAGS.hasOldTestimony]: true,
+          [YINGLUOYETING_STORY_FLAGS.hasOriginalPrescription]: true,
+          [YINGLUOYETING_STORY_FLAGS.storageTransferDone]: true,
+          [YINGLUOYETING_STORY_FLAGS.hasStorageTransferList]: true,
+          [YINGLUOYETING_STORY_FLAGS.chenFirstMeetPlayed]: true,
+          [YINGLUOYETING_STORY_FLAGS.chenFirstMeetDone]: true,
+          [YINGLUOYETING_STORY_FLAGS.chenWanningMet]: true,
+        },
+      },
+    }));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '长春宫' }));
+    fireEvent.click(screen.getByRole('button', { name: '进入此处' }));
+
+    expect(await screen.findByText(/你终于见到了那只匣子/)).toBeInTheDocument();
+    advanceDialoguePages();
+    fireEvent.click(screen.getByRole('button', { name: '以证物与她交易' }));
+
+    expect(await screen.findByText(/若沈家的印是假的/)).toBeInTheDocument();
+    const store = useGameFlowStore.getState();
+    expect(store.state.flags[YINGLUOYETING_STORY_FLAGS.evidenceBoxDone]).toBe(true);
+    expect(store.state.flags[YINGLUOYETING_STORY_FLAGS.hasForgedTestimonyPage]).toBe(true);
+    expect(store.state.flags[YINGLUOYETING_STORY_FLAGS.chenWanningWatching]).toBe(true);
+    expect(store.inventory.some((item) => item.itemId === YINGLUOYETING_EVIDENCE_ITEM_IDS.forgedTestimonyPage)).toBe(true);
+  });
+
+  it('plays Chen Wanning first meet before Changchun Palace evidence box if Chen has not been met', async () => {
+    useGameFlowStore.setState((current) => ({
+      ...current,
+      time: {
+        ...current.time,
+        month: 5,
+      },
+      state: {
+        ...current.state,
+        flags: {
+          ...current.state.flags,
+          [YINGLUOYETING_STORY_FLAGS.hasOldTestimony]: true,
+          [YINGLUOYETING_STORY_FLAGS.hasOriginalPrescription]: true,
+          [YINGLUOYETING_STORY_FLAGS.storageTransferDone]: true,
+          [YINGLUOYETING_STORY_FLAGS.hasStorageTransferList]: true,
+        },
+      },
+    }));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '长春宫' }));
+    fireEvent.click(screen.getByRole('button', { name: '进入此处' }));
+
+    expect(await screen.findByText(/你第一次踏进后宫宫道时/)).toBeInTheDocument();
+    advanceDialoguePages();
+    fireEvent.click(screen.getByRole('button', { name: '谢她照拂，只字不提旧案' }));
+    expect(await screen.findByText(/陈婉宁笑意未改/)).toBeInTheDocument();
+
+    fireEvent.click(document.querySelector<HTMLElement>('[data-dialogue-page-state="last"]')!);
+
+    expect(await screen.findByText(/你终于见到了那只匣子/)).toBeInTheDocument();
+  });
+
+  it('enters harem palace overview after Chen Wanning first meet is completed from the harem map entrance', async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '后宫' }));
+    fireEvent.click(screen.getByRole('button', { name: '进入此处' }));
+
+    expect(await screen.findByText(/你第一次踏进后宫宫道时/)).toBeInTheDocument();
+    advanceDialoguePages();
+    fireEvent.click(screen.getByRole('button', { name: '谢她照拂，只字不提旧案' }));
+    expect(await screen.findByText(/陈婉宁笑意未改/)).toBeInTheDocument();
+
+    advanceDialoguePages();
+    fireEvent.click(document.querySelector<HTMLElement>('[data-dialogue-page-state="last"]')!);
+
+    expect(await screen.findByLabelText('后宫宫殿总览')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '昭阳宫' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('后宫主线剧情')).not.toBeInTheDocument();
+  });
+
+  it('plays Chen Wanning first meet before the player directly enters her harem audience', async () => {
+    const chenWanning = buildInitialConcubineRoster('yingluoyeting').find((consort) => consort.name === '陈婉宁');
+    expect(chenWanning).toBeDefined();
+
+    render(
+      <ConsortAudiencePanel
+        consort={chenWanning!}
+        palaceLabel="昭阳宫"
+        hallLabel="主殿"
+        concubines={buildInitialConcubineRoster('yingluoyeting')}
+        onBack={() => undefined}
+      />,
+    );
+
+    expect((await screen.findAllByLabelText('陈婉宁初见剧情')).length).toBeGreaterThan(0);
+    expect(await screen.findByText(/你第一次踏进后宫宫道时/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '送礼' })).not.toBeInTheDocument();
+
+    advanceDialoguePages();
+    fireEvent.click(screen.getByRole('button', { name: '谢她照拂，只字不提旧案' }));
+
+    await waitFor(() => {
+      expect(useGameFlowStore.getState().state.flags[YINGLUOYETING_STORY_FLAGS.chenWanningMet]).toBe(true);
+    });
+    expect(useGameFlowStore.getState().concubines.find((consort) => consort.name === '陈婉宁')?.stats.relationToPlayer).toBe(5);
+    expect(await screen.findByText(/陈婉宁笑意未改/)).toBeInTheDocument();
+
+    fireEvent.click(document.querySelector<HTMLElement>('[data-dialogue-page-state="last"]')!);
+
+    expect(await screen.findByLabelText('妃 陈婉宁 日常对话')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '送礼' })).toBeInTheDocument();
+  });
+
+  it('recognizes Chen Wanning first meet by character name when portrait id changes', async () => {
+    const chenWanning = buildInitialConcubineRoster('yingluoyeting').find((consort) => consort.name === '陈婉宁');
+    expect(chenWanning).toBeDefined();
+
+    render(
+      <ConsortAudiencePanel
+        consort={{ ...chenWanning!, portraitId: '姚铃儿' }}
+        palaceLabel="昭阳宫"
+        hallLabel="主殿"
+        concubines={buildInitialConcubineRoster('yingluoyeting')}
+        onBack={() => undefined}
+      />,
+    );
+
+    expect((await screen.findAllByLabelText('陈婉宁初见剧情')).length).toBeGreaterThan(0);
+    expect(await screen.findByText(/你第一次踏进后宫宫道时/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '送礼' })).not.toBeInTheDocument();
+  });
+
+  it('plays Chen Wanning first meet from harem audience when the store route fields are not fully synced', async () => {
+    const chenWanning = buildInitialConcubineRoster('yingluoyeting').find((consort) => consort.name === '陈婉宁');
+    expect(chenWanning).toBeDefined();
+    useGameFlowStore.setState((current) => ({
+      ...current,
+      routeId: 'yingluoyeting',
+      concubineRouteId: 'yingluoyeting',
+      state: {
+        ...current.state,
+        routeId: 'lanyinxuguo',
+        flags: {
+          mapGuideFinished: true,
+        },
+      },
+    }));
+
+    render(
+      <ConsortAudiencePanel
+        consort={chenWanning!}
+        palaceLabel="昭阳宫"
+        hallLabel="主殿"
+        concubines={buildInitialConcubineRoster('yingluoyeting')}
+        onBack={() => undefined}
+      />,
+    );
+
+    expect((await screen.findAllByLabelText('陈婉宁初见剧情')).length).toBeGreaterThan(0);
+    expect(await screen.findByText(/你第一次踏进后宫宫道时/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '送礼' })).not.toBeInTheDocument();
+  });
+});
