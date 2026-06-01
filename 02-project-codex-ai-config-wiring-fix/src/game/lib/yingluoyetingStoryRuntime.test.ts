@@ -105,6 +105,18 @@ describe('yingluoyetingStoryRuntime', () => {
     ).toBeUndefined();
   });
 
+  it('uses the current player name in direct story-event address', () => {
+    const event = resolveYingluoyetingMapEvent({
+      state: buildState({ name: '林晚照' }),
+      time: buildTime({ month: 1 }),
+      locationId: '后宫',
+      inventory: [],
+    });
+
+    expect(event?.text).toContain('你就是林晚照');
+    expect(event?.text).not.toContain('你就是沉璧');
+  });
+
   it('applies Chen Wanning first meet choices by closing the first-meet lifecycle', () => {
     const result = applyYingluoyetingStoryChoice({
       eventId: 'yingluo_02_chen_first_meet',
@@ -314,6 +326,26 @@ describe('yingluoyetingStoryRuntime', () => {
       'trade-evidence',
       'destroy-copy',
     ]);
+  });
+
+  it('uses the current player name when Chen Wanning catches the evidence-box action', () => {
+    const event = resolveYingluoyetingMapEvent({
+      state: buildState({
+        name: '林晚照',
+        flags: {
+          [YINGLUOYETING_STORY_FLAGS.hasOldTestimony]: true,
+          [YINGLUOYETING_STORY_FLAGS.hasOriginalPrescription]: true,
+          [YINGLUOYETING_STORY_FLAGS.storageTransferDone]: true,
+          [YINGLUOYETING_STORY_FLAGS.hasStorageTransferList]: true,
+        },
+      }),
+      time: buildTime({ month: 5 }),
+      locationId: '长春宫',
+      inventory: [],
+    });
+
+    expect(event?.text).toContain('林晚照，你不该碰这个');
+    expect(event?.text).not.toContain('沈璧，你不该碰这个');
   });
 
   it('applies the evidence trade choice by granting the forged testimony page and reducing stress', () => {

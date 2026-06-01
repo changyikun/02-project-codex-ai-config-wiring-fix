@@ -78,6 +78,13 @@
 
 - `state.residenceName` 现在是玩家当前住处的唯一前端真值来源。
 - 地图上的“寝殿热点”不再固定写死为 `椒房殿`，而是根据 `state.residenceName` 动态生成。
+
+### 4.5 开局年龄与用度说明
+
+- `AttributeAssignmentView` 的年龄不再使用随机按钮，改为 `AGE_RANGE` 范围内的加减步进调整。
+- 开场用度选择仍只有三档会写入 `monthlyExpenseStrategy`：`节衣缩食 / 量入为出 / 锦衣玉食`。
+- 开场对话新增第四个说明入口 `先问清用度`，由当前说话人按显式分页解释三档月度开销含义；该选项不写状态、不进入地图，说明结束后本地返回用度选择。
+- `ChamberUtilityViews` 中家族事务已在函数入口早退，后续宫斗 / 朝堂事务逻辑不再重复判断 `家族事务`，避免 TypeScript 收窄告警。
 - 点击地图上的当前住处，会直接等同 `回宫`，不会先弹“进入此处”确认。
 - 后宫布局里，玩家会按当前住处落到对应宫殿 / 主殿。
 
@@ -733,3 +740,62 @@ npm run build
 5. `build:web` 是否仍然通过
 
 如果这些基线有任一项变红，先收口现有语义和回归，不要直接扩新功能。
+
+### 15.9 玩家改名后的剧情称呼同步
+
+本轮修正了“属性页改名后，后续剧情仍以默认名称呼玩家”的问题。
+
+已经成立的规则：
+
+- `state.name` 是玩家当前姓名真值
+- 属性页改名走 `gameFlowStore.setPlayerName(name)`
+- `setPlayerName` 会同步更新 `selectedRoute.defaultName` 与 `selectedRoute.baseState.name`
+- 他人对玩家的直接称呼不得再写死路线默认名
+- 完整姓名、姓氏、`某氏` 统一由 `src/game/lib/playerNameRuntime.ts` 解析
+- 路线背景里的固定历史案名可以保留，但直接称呼玩家时必须读取当前姓名
+
+已修正的文本入口：
+
+- 影落掖庭开场：掖庭掌事称呼 `某氏`
+- 影落掖庭开场：御前问话后的 `某家 / 某氏旧案余眷`
+- 影落掖庭后宫初见：陈婉宁称呼当前玩家姓名
+- 影落掖庭长春宫证物匣：陈婉宁称呼当前玩家姓名
+
+关键文件：
+
+- `src/game/store/gameFlowStore.ts`
+- `src/views/AttributeAssignmentView.tsx`
+- `src/game/lib/playerNameRuntime.ts`
+- `src/game/lib/openingDialogueRuntime.ts`
+- `src/game/lib/yingluoyetingStoryRuntime.ts`
+- `src/__tests__/app-flow.test.tsx`
+- `src/game/lib/yingluoyetingStoryRuntime.test.ts`
+
+验证结果：
+
+- `npm run build:web` 通过
+- `npx vitest run src/game/lib/yingluoyetingStoryRuntime.test.ts` 通过
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "属性页改名会同步路线状态和影落掖庭开场称呼"` 通过
+- `npx vitest run src/__tests__/app-flow.test.tsx` 仍有 1 个既有失败：完整套跑时“寝殿家族事务显示设定内的家族接济而非占位方案”被夜晚侍寝通报覆盖；该用例单独运行通过
+
+### 15.10 属性加点按钮不可交互态
+
+本轮修正属性加点页 `+ / -` 按钮只在点击逻辑里防越界、但视觉和语义上仍可点的问题。
+
+已经成立的规则：
+
+- 当前属性值到达字段下限时，`减少` 按钮禁用
+- 当前属性值到达字段上限时，`增加` 按钮禁用
+- 剩余点数为 0 时，所有仍需消耗点数的 `增加` 按钮禁用
+- 路线锁定属性时，属性加减按钮继续全部禁用
+- 属性加减按钮带有 `aria-label` 与 `title`，格式为 `属性名增加 / 属性名减少`
+
+关键文件：
+
+- `src/views/AttributeAssignmentView.tsx`
+- `src/__tests__/app-flow.test.tsx`
+
+验证结果：
+
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "属性加点按钮会在下限、上限和点数不足时禁用"` 通过
+- `npm run build:web` 通过

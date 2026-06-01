@@ -17,3 +17,6 @@ tmp-*
 *-preview.png
 __pycache__/
 *.pyc
+
+# Codex local work documents
+codex-workdocs/

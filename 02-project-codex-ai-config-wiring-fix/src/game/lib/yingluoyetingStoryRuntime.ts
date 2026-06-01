@@ -1,4 +1,5 @@
 import type { GameNumericsState, InventoryItem, MapAreaId, PalaceTimeState } from '../types';
+import { resolvePlayerDisplayName } from './playerNameRuntime';
 
 export const YINGLUOYETING_EVIDENCE_ITEM_IDS = {
   oldTestimony: 'yingluo-evidence-old-testimony',
@@ -144,14 +145,14 @@ const isAfterThirdMonth = (time: PalaceTimeState): boolean => time.year > 1 || t
 const hasCompletedChenFirstMeet = (state: GameNumericsState): boolean =>
   hasFlag(state, YINGLUOYETING_STORY_FLAGS.chenFirstMeetPlayed);
 
-const chenFirstMeetEvent: YingluoyetingMapEvent = {
+const buildChenFirstMeetEvent = (playerName: string): YingluoyetingMapEvent => ({
   eventId: YINGLUOYETING_EVENT_IDS.chenFirstMeet,
   locationId: '后宫',
   speakerIdentity: '陈婉宁',
   speakerName: '陈婉宁',
   text: `你第一次踏进后宫宫道时，长春宫的宫人先停了步。
 陈婉宁立在廊下，衣色很浅，话也很轻。
-“你就是沉璧？”
+“你就是${resolvePlayerDisplayName(playerName, '沉璧')}？”
 她含笑看你，像只是寻常问候。
 “掖庭出来不易。往后若有什么难处，可以来长春宫递话。”
 话到这里，她的目光却轻轻一转。
@@ -173,7 +174,7 @@ const chenFirstMeetEvent: YingluoyetingMapEvent = {
       effectHint: '记下你逼问过陈婉宁，压力上升。',
     },
   ],
-};
+});
 
 const coldPalaceEvent: YingluoyetingMapEvent = {
   eventId: YINGLUOYETING_EVENT_IDS.coldPalaceClue,
@@ -281,7 +282,7 @@ const storageTransferListEvent: YingluoyetingMapEvent = {
   ],
 };
 
-const evidenceBoxEvent: YingluoyetingMapEvent = {
+const buildEvidenceBoxEvent = (playerName: string): YingluoyetingMapEvent => ({
   eventId: YINGLUOYETING_EVENT_IDS.evidenceBox,
   locationId: '长春宫',
   speakerIdentity: '陈婉宁',
@@ -296,7 +297,7 @@ const evidenceBoxEvent: YingluoyetingMapEvent = {
 也就是说，当年的认罪供状，至少有一处朱印不对。
 门外忽然传来脚步声。
 陈婉宁的声音隔着门响起。
-“沈璧，你不该碰这个。”`,
+“${resolvePlayerDisplayName(playerName, '沉璧')}，你不该碰这个。”`,
   options: [
     {
       id: 'take-evidence',
@@ -319,7 +320,7 @@ const evidenceBoxEvent: YingluoyetingMapEvent = {
       effectHint: '记录见过伪印供状副页，不获得硬证物，压力下降。',
     },
   ],
-};
+});
 
 export const resolveYingluoyetingMapEvent = (_input: {
   state: GameNumericsState;
@@ -336,7 +337,7 @@ export const resolveYingluoyetingMapEvent = (_input: {
       return undefined;
     }
 
-    return chenFirstMeetEvent;
+    return buildChenFirstMeetEvent(state.name);
   }
 
   if (locationId === '冷宫' && isAfterFirstMonth(time)) {
@@ -412,7 +413,7 @@ export const resolveYingluoyetingMapEvent = (_input: {
       return undefined;
     }
 
-    return evidenceBoxEvent;
+    return buildEvidenceBoxEvent(state.name);
   }
 
   return undefined;

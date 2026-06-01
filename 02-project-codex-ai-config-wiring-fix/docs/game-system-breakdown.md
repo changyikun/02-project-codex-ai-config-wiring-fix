@@ -59,7 +59,7 @@ flowchart TB
 | 游戏状态 | `src/game/store/gameFlowStore.ts` | 当前存档真值、时间、资源、妃嫔、物品、关系进度、结算报告 |
 | 游戏类型 | `src/game/types.ts` | 路线、时间、属性、道具、妃嫔、关系 AI、存档结构类型 |
 | 规则配置 | `src/config/*` | 时间、体力、位分、路线、地点开放、颜色、系统事件等硬规则 |
-| 前端运行时 | `src/game/lib/*Runtime.ts` | 本地兜底对话、地点交互、关系判定调用、寝殿工具函数 |
+| 前端运行时 | `src/game/lib/*Runtime.ts` | 本地兜底对话、地点交互、关系判定调用、寝殿工具函数、玩家姓名称呼解析 |
 | 后端入口 | `server/src/app.ts` | 装配 AI、Foundation、Memory、路由、缓存、错误处理 |
 | AI 路由 | `server/src/routes/aiRoutes.ts` | `/api/v1/ai/*` 对话、数值、关系、场景氛围接口 |
 | Foundation 路由 | `server/src/routes/foundationRoutes.ts` | `/api/v1/foundation/*` 家世、福德、月结、晋升、结局校验 |
@@ -98,6 +98,20 @@ flowchart LR
 | 地图 | `MapMainView` | `activeMapLocation`、`mapEventText`、地点热点、宫门 NPC |
 | 寝殿 | `ChamberMainView` | `activeChamberPanel`、训练行动、地点子场景、结算报告 |
 | 面板 | `components/chamber/*` | 妃嫔、情缘、纪事、库存、宫务、杂项信息 |
+
+姓名显示规范：
+
+- `state.name` 是玩家当前姓名真值。
+- 属性页修改姓名必须通过 `gameFlowStore.setPlayerName(name)`，同步 `state.name` 与 `selectedRoute.defaultName/baseState.name`。
+- 剧情文本需要称呼玩家时，优先使用 `src/game/lib/playerNameRuntime.ts` 生成完整姓名、姓氏或 `某氏`，避免继续写死路线默认名。
+- 路线历史背景中的家族案名可以保留固定设定；他人对玩家的直接称呼必须读取当前姓名。
+
+属性加点交互规范：
+
+- 属性加减按钮的 `disabled` 必须反映当前硬规则，而不是只在点击回调里阻止非法操作。
+- 当前值等于字段下限时禁用 `减少`；当前值等于字段上限时禁用 `增加`。
+- `pointsLeft` 为 0 时禁用所有需要消耗点数的 `增加` 操作，但仍允许对高于下限的属性执行 `减少` 以回收点数。
+- 路线锁定属性时，属性加减按钮全部禁用。
 
 ## 4. 核心玩法循环
 

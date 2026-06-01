@@ -3,6 +3,7 @@ import { DIALOGUE_CONFIG } from '../../config/dialogueConfig';
 import { GlobalDialogue } from './PalaceDialogueBox';
 
 const DIALOGUE_PAGE_CHAR_LIMIT = 80;
+export const DIALOGUE_EXPLICIT_PAGE_BREAK = '\n<<PAGE_BREAK>>\n';
 const narrationIdentity = '场景旁白';
 const quotedTextPattern = /“([^”]+)”/g;
 const nonSpeechQuoteContextPattern = /(纸上|账册|册上|案卷|供状|方子|药名|写着|写的是|批注|只剩|辨认|字样|四个字|这句|那句|回话)$/u;
@@ -163,6 +164,17 @@ const splitLongParagraph = (paragraph: string): string[] => {
 };
 
 const splitDialogueContentPages = (content: string): string[] => {
+  if (content.includes(DIALOGUE_EXPLICIT_PAGE_BREAK)) {
+    const explicitPages = content
+      .split(DIALOGUE_EXPLICIT_PAGE_BREAK)
+      .map((page) => normalizeSegmentText(page))
+      .filter(Boolean);
+
+    if (explicitPages.length > 0) {
+      return explicitPages;
+    }
+  }
+
   const paragraphs = content
     .split(/\n+/)
     .map((paragraph) => paragraph.trim())

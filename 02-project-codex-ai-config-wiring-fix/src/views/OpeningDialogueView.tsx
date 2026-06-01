@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
+import { DIALOGUE_EXPLICIT_PAGE_BREAK, GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
 import { GUIDE_TENDENCY_OPTIONS } from '../config/palaceUi';
 import { buildOpeningNarrativeContext } from '../game/data/openingNarrativeProfiles';
@@ -9,6 +9,18 @@ import { useGameFlowStore } from '../game/store/gameFlowStore';
 const openingBackground = '/assets/home-bg.png';
 const npcPortrait = '/assets/dialogue/jiaojiao-final.png';
 const npcName = '娇娇';
+const expenseExplanationOption = {
+  id: 'expense-explanation',
+  label: '先问清用度',
+  effectHint: '由当前说话人解释三档月度开销，不会定下策略。',
+} as const;
+const expenseExplanationNextActionLabel = '重新选择';
+const expenseExplanationText = [
+  '这三档说的是每月固定用度，不是一次性的赏赐。你现在选下，只是定本月按什么章法花银子。',
+  '节衣缩食：每月用月俸四分之一。好处是省银两；代价是起居和体面受损，声望-5，健康-1。',
+  '量入为出：每月用月俸一半。它最稳妥，不额外增减声望和健康。',
+  '锦衣玉食：每月用月俸四分之三。花费重些，但能撑住体面与起居，声望+10，健康+1。',
+].join(DIALOGUE_EXPLICIT_PAGE_BREAK);
 const routePortraitById: Record<string, string> = {
   lanyinxuguo: '/assets/player/lanyinxuguo-cutout.png',
   fushengrumeng: '/assets/player/ningxiaoman-cutout.png',
@@ -170,13 +182,44 @@ export function OpeningDialogueView() {
       return;
     }
 
-    const nextHistory = [...history, { speaker: speakerLabel, text: dialogueTurn.text }];
     const branchTurn = state.routeId === 'yingluoyeting' ? 5 : 3;
+
+    if (dialogueTurn.nextActionLabel === expenseExplanationNextActionLabel) {
+      const payload = buildRequest(branchTurn, history);
+      setTurn(branchTurn);
+      setDialogueTurn(buildLocalOpeningDialogue(payload));
+      return;
+    }
+
+    const nextHistory = [...history, { speaker: speakerLabel, text: dialogueTurn.text }];
     setHistory(nextHistory);
     void loadTurn(Math.min(turn + 1, branchTurn), nextHistory);
   };
 
   const handleSelectTendency = (optionId: string) => {
+    if (optionId === expenseExplanationOption.id) {
+      setDialogueTurn({
+        mode: 'line',
+        phase: 'continue',
+        speakerIdentity: dialogueTurn.speakerIdentity,
+        speakerName: dialogueTurn.speakerName,
+        text: expenseExplanationText,
+        nextActionLabel: expenseExplanationNextActionLabel,
+        timeCost: 0,
+        dataEffects: {
+          silver: 0,
+          stamina: 0,
+          favor: 0,
+          prestige: 0,
+          stress: 0,
+          trueHeart: 0,
+          stats: {},
+        },
+        options: [],
+      });
+      return;
+    }
+
     const selectedOption = GUIDE_TENDENCY_OPTIONS.find((option) => option.id === optionId);
     if (!selectedOption) {
       return;
@@ -243,11 +286,14 @@ export function OpeningDialogueView() {
           content={dialogueTurn.text}
           nextActionLabel={!showChoices ? dialogueTurn.nextActionLabel : undefined}
           onNextAction={!showChoices ? handleNextLine : undefined}
-          options={showChoices ? GUIDE_TENDENCY_OPTIONS.map((option) => ({
-            id: option.id,
-            label: option.label,
-            effectHint: option.effectHint,
-          })) : []}
+          options={showChoices ? [
+            ...GUIDE_TENDENCY_OPTIONS.map((option) => ({
+              id: option.id,
+              label: option.label,
+              effectHint: option.effectHint,
+            })),
+            expenseExplanationOption,
+          ] : []}
           onSelectOption={showChoices ? handleSelectTendency : undefined}
           busy={loading}
           controlsDisabled={false}

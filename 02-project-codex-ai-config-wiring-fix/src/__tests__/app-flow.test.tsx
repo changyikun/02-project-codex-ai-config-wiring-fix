@@ -1,7 +1,7 @@
 ﻿/* @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
 import { CONSORT_DIALOGUE_TIMEOUT_MS } from '../ai/consortDialogueAgent';
@@ -179,6 +179,115 @@ describe('App 主流程切换', () => {
     expect(GUIDE_TENDENCY_OPTIONS.map((option) => option.label)).toEqual(['节衣缩食', '量入为出', '锦衣玉食']);
     expect(GUIDE_TENDENCY_OPTIONS.map((option) => option.id)).toEqual(['frugal', 'balanced', 'luxury']);
     expect(GUIDE_TENDENCY_OPTIONS.every((option) => option.effects === undefined)).toBe(true);
+  });
+
+  it('年龄使用有边界的加减调整', async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+    fireEvent.click(await screen.findByRole('button', { name: '确定' }));
+    await screen.findByRole('button', { name: '确认进入剧情' });
+
+    const ageInput = screen.getByRole('textbox', { name: '年龄' }) as HTMLInputElement;
+    const decreaseAge = screen.getByRole('button', { name: '年龄减一' });
+    const increaseAge = screen.getByRole('button', { name: '年龄加一' });
+
+    for (let index = 0; index < 20; index += 1) {
+      fireEvent.click(decreaseAge);
+    }
+    expect(ageInput.value).toBe('15');
+    expect(decreaseAge).toBeDisabled();
+
+    for (let index = 0; index < 20; index += 1) {
+      fireEvent.click(increaseAge);
+    }
+    expect(ageInput.value).toBe('23');
+    expect(increaseAge).toBeDisabled();
+  });
+
+  it('属性加点按钮会在下限、上限和点数不足时禁用', async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+    fireEvent.click(await screen.findByRole('button', { name: '确定' }));
+    await screen.findByRole('button', { name: '确认进入剧情' });
+
+    const decreaseHealth = screen.getByRole('button', { name: '健康减少' });
+    const increaseHealth = screen.getByRole('button', { name: '健康增加' });
+
+    expect(decreaseHealth).toBeDisabled();
+    expect(increaseHealth).not.toBeDisabled();
+
+    act(() => {
+      useGameFlowStore.setState((current) => ({
+        state: {
+          ...current.state,
+          pointsLeft: 0,
+          stats: {
+            ...current.state.stats,
+            health: 3,
+          },
+        },
+      }));
+    });
+
+    await waitFor(() => {
+      expect(increaseHealth).toBeDisabled();
+      expect(decreaseHealth).not.toBeDisabled();
+    });
+
+    act(() => {
+      useGameFlowStore.setState((current) => ({
+        state: {
+          ...current.state,
+          pointsLeft: 10,
+          stats: {
+            ...current.state.stats,
+            health: 2,
+          },
+        },
+      }));
+    });
+
+    await waitFor(() => {
+      expect(decreaseHealth).toBeDisabled();
+      expect(increaseHealth).not.toBeDisabled();
+    });
+
+    for (let index = 0; index < 6; index += 1) {
+      fireEvent.click(increaseHealth);
+    }
+
+    expect(increaseHealth).toBeDisabled();
+    expect(decreaseHealth).not.toBeDisabled();
+
+    fireEvent.click(decreaseHealth);
+
+    expect(increaseHealth).not.toBeDisabled();
+  });
+
+  it('属性页改名会同步路线状态和影落掖庭开场称呼', async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+    fireEvent.click(await screen.findByRole('button', { name: '影落掖庭' }));
+    await screen.findByDisplayValue('沉璧');
+    fireEvent.click(screen.getByRole('button', { name: '确定' }));
+    await screen.findByRole('button', { name: '确认进入剧情' });
+
+    const nameInput = screen.getByDisplayValue('沉璧') as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: '林晚照' } });
+
+    expect(useGameFlowStore.getState().state.name).toBe('林晚照');
+    expect(useGameFlowStore.getState().selectedRoute?.defaultName).toBe('林晚照');
+    expect(useGameFlowStore.getState().selectedRoute?.baseState.name).toBe('林晚照');
+
+    fireEvent.click(screen.getByRole('button', { name: '确认进入剧情' }));
+
+    expect(await screen.findByText(/掖庭掌事把名册合上/)).toBeInTheDocument();
+    fireEvent.click(getDialoguePageTarget()!);
+    expect(await screen.findByText(/林氏，字写得不错/)).toBeInTheDocument();
+    expect(screen.queryByText(/沉氏，字写得不错/)).not.toBeInTheDocument();
   });
 
   it('对话正文逐字显示时点击文本框会立即补全', () => {
@@ -518,6 +627,39 @@ describe('App 主流程切换', () => {
     expect(screen.getByText('节衣缩食')).toBeInTheDocument();
     expect(screen.getByText('量入为出')).toBeInTheDocument();
     expect(screen.getByText('锦衣玉食')).toBeInTheDocument();
+    expect(screen.getByText('先问清用度')).toBeInTheDocument();
+  });
+
+  it('开场用度解释选项由说话人说明三档含义后返回选择', async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+    fireEvent.click(await screen.findByRole('button', { name: '确定' }));
+    fireEvent.click(await screen.findByRole('button', { name: '确认进入剧情' }));
+
+    await clickDialogueAdvance();
+    await clickDialogueAdvance();
+    await advanceDialoguePages();
+    fireEvent.click((await screen.findByText('先问清用度')).closest('button')!);
+
+    expect(await screen.findByText(/这三档说的是每月固定用度/)).toBeInTheDocument();
+    expect(screen.getByText(/· 娇娇/)).toBeInTheDocument();
+
+    fireEvent.click(getDialoguePageTarget()!);
+    expect(await screen.findByText(/节衣缩食：每月用月俸四分之一/)).toBeInTheDocument();
+
+    fireEvent.click(getDialoguePageTarget()!);
+    expect(await screen.findByText(/量入为出：每月用月俸一半/)).toBeInTheDocument();
+
+    fireEvent.click(getDialoguePageTarget()!);
+    expect(await screen.findByText(/锦衣玉食：每月用月俸四分之三/)).toBeInTheDocument();
+
+    await clickDialogueOnce();
+
+    expect(await screen.findByText('节衣缩食')).toBeInTheDocument();
+    expect(screen.getByText('量入为出')).toBeInTheDocument();
+    expect(screen.getByText('锦衣玉食')).toBeInTheDocument();
+    expect(screen.getByText('先问清用度')).toBeInTheDocument();
   });
 
   it('可从开场引导进入地图，再进入寝殿', async () => {

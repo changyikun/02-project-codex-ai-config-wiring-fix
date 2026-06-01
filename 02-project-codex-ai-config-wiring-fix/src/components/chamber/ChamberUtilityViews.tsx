@@ -693,7 +693,7 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
   const [resultText, setResultText] = useState('先依次选择对象、方式、合谋与道具，最后再点击“完成”。');
 
   useEffect(() => {
-    setActiveStep(entrySource === '家族事务' ? 'ally' : entrySource === '朝堂事务' ? 'method' : 'target');
+    setActiveStep(entrySource === '朝堂事务' ? 'method' : 'target');
   }, [entrySource]);
 
   const palaceAffairConcubines = useMemo(
@@ -717,9 +717,6 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
   );
 
   const allies = useMemo(() => {
-    if (entrySource === '家族事务') {
-      return ['父族旧部', '外家女眷', '门生故吏'];
-    }
     if (entrySource === '朝堂事务') {
       return ['御前近臣', '礼部旧识', '兵部耳目'];
     }

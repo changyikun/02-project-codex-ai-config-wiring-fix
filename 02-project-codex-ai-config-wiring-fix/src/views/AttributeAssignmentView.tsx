@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { AGE_RANGE } from '../config/constants';
 import { attributeFields } from '../game/data/config';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
 
@@ -48,7 +49,8 @@ const formatDisplayedValue = (key: string, value: number, locked: boolean): numb
 };
 
 export function AttributeAssignmentView() {
-  const { state, selectedRoute, patchState, setAttributeValue, setCurrentView, setScene } = useGameFlowStore();
+  const { state, selectedRoute, setPlayerName, patchState, setAttributeValue, setCurrentView, setScene } =
+    useGameFlowStore();
 
   const locked = Boolean(selectedRoute?.statsLocked);
   const pointsLeftDisplay = useMemo(() => {
@@ -72,7 +74,12 @@ export function AttributeAssignmentView() {
     }));
   }, [locked, selectedRoute?.id, state.stats]);
 
-  const randomizeAge = () => patchState({ age: randomInt(15, 23) });
+  const adjustAge = (direction: -1 | 1) => {
+    const nextAge = Math.min(AGE_RANGE[1], Math.max(AGE_RANGE[0], state.age + direction));
+    if (nextAge !== state.age) {
+      patchState({ age: nextAge });
+    }
+  };
 
   const randomizeFamily = () => {
     const options = selectedRoute?.familyOptions ?? [state.family];
@@ -161,15 +168,31 @@ export function AttributeAssignmentView() {
             <div className="attribute-assignment__identity">
               <label className="attribute-assignment__identity-field">
                 <span>姓名</span>
-                <input value={state.name} onChange={(event) => patchState({ name: event.target.value })} />
+                <input value={state.name} onChange={(event) => setPlayerName(event.target.value)} />
               </label>
               <label className="attribute-assignment__identity-field attribute-assignment__identity-field--age">
                 <span>年龄</span>
-                <div className="attribute-assignment__inline">
-                  <input className="attribute-assignment__input--compact" value={state.age} readOnly />
-                  <button type="button" onClick={randomizeAge}>
-                    <span className="attribute-assignment__tiny-random" aria-hidden="true" />
-                    <span className="visually-hidden">随机</span>
+                <div className="attribute-assignment__inline attribute-assignment__inline--age">
+                  <button
+                    type="button"
+                    className="attribute-assignment__age-step"
+                    onClick={() => adjustAge(-1)}
+                    disabled={state.age <= AGE_RANGE[0]}
+                    aria-label="年龄减一"
+                    title="年龄减一"
+                  >
+                    -
+                  </button>
+                  <input className="attribute-assignment__input--compact" aria-label="年龄" value={state.age} readOnly />
+                  <button
+                    type="button"
+                    className="attribute-assignment__age-step"
+                    onClick={() => adjustAge(1)}
+                    disabled={state.age >= AGE_RANGE[1]}
+                    aria-label="年龄加一"
+                    title="年龄加一"
+                  >
+                    +
                   </button>
                 </div>
               </label>
@@ -186,20 +209,38 @@ export function AttributeAssignmentView() {
             </div>
 
             <div className="attribute-assignment__grid">
-              {displayedFields.map((field) => (
-                <div key={field.key} className="attribute-assignment__item">
-                  <span>{field.label}</span>
-                  <div className="attribute-assignment__stepper">
-                    <button type="button" onClick={() => adjust(field.key, -1, field.min, field.max)} disabled={locked}>
-                      -
-                    </button>
-                    <strong>{field.displayValue}</strong>
-                    <button type="button" onClick={() => adjust(field.key, 1, field.min, field.max)} disabled={locked}>
-                      +
-                    </button>
+              {displayedFields.map((field) => {
+                const currentValue = state.stats[field.key] ?? field.min;
+                const canDecrease = !locked && currentValue > field.min;
+                const canIncrease = !locked && currentValue < field.max && (state.pointsLeft ?? 0) > 0;
+
+                return (
+                  <div key={field.key} className="attribute-assignment__item">
+                    <span>{field.label}</span>
+                    <div className="attribute-assignment__stepper">
+                      <button
+                        type="button"
+                        onClick={() => adjust(field.key, -1, field.min, field.max)}
+                        disabled={!canDecrease}
+                        aria-label={`${field.label}减少`}
+                        title={`${field.label}减少`}
+                      >
+                        -
+                      </button>
+                      <strong>{field.displayValue}</strong>
+                      <button
+                        type="button"
+                        onClick={() => adjust(field.key, 1, field.min, field.max)}
+                        disabled={!canIncrease}
+                        aria-label={`${field.label}增加`}
+                        title={`${field.label}增加`}
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         </div>

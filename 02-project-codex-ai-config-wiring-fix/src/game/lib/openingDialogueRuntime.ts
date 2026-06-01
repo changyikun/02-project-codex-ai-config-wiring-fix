@@ -5,6 +5,7 @@ import {
 } from '../../ai/openingDialogueAgent';
 import { shouldUseRealtimeAiGameplay } from '../../config/gameplayMode';
 import { MONTHLY_EXPENSE_STRATEGIES } from '../../config/monthlyExpenseStrategy';
+import { resolvePlayerClanLabel, resolvePlayerSurname } from './playerNameRuntime';
 
 const emptyEffects = () => ({
   silver: 0,
@@ -43,6 +44,8 @@ const resolveChoiceFocus = (payload: OpeningDialogueRequestPayload): string =>
   payload.routeContext?.choiceFocus?.trim() || '眼下最紧要的，是先定下待人行事的起手章法。';
 
 const buildYingluoyetingOpeningDialogue = (payload: OpeningDialogueRequestPayload): OpeningDialogueResponsePayload => {
+  const playerSurname = resolvePlayerSurname(payload.playerName, '沉');
+  const playerClanLabel = resolvePlayerClanLabel(payload.playerName, '沉');
   if (payload.turn <= 1) {
     return {
       mode: 'line',
@@ -50,7 +53,7 @@ const buildYingluoyetingOpeningDialogue = (payload: OpeningDialogueRequestPayloa
       speakerIdentity: '场景旁白',
       speakerName: payload.residenceName,
       text:
-        '掖庭掌事把名册合上时，屋中只剩纸页摩擦的轻响。\n“沉氏，字写得不错，规矩也还算稳。”\n她没有抬眼，只把一卷旧册推到你面前。\n“内廷缺人整理旧档，原本轮不到你。可你既识字，又是罪臣之后，若真出了差错，也没人替你说话。”\n这话说得难听，却也是机会。\n你接过旧册，指尖触到封皮上陈旧的灰。\n三日后，你免了最粗重的杂役，被拨去内廷听用。\n那时你仍不是小主，只是一个能抄字、能听差、也更容易被看住的罪臣女眷。\n真正改命的，是一份宫宴前夜的祝词。\n原稿堆在案角，辞藻浮艳，错漏处却无人肯担。你借着誊抄，把它改得清稳合礼，又故意留下一个不显眼的笔锋：不冒进，不邀功，却足够让看惯奉承的人多停一眼。',
+        `掖庭掌事把名册合上时，屋中只剩纸页摩擦的轻响。\n“${playerClanLabel}，字写得不错，规矩也还算稳。”\n她没有抬眼，只把一卷旧册推到你面前。\n“内廷缺人整理旧档，原本轮不到你。可你既识字，又是罪臣之后，若真出了差错，也没人替你说话。”\n这话说得难听，却也是机会。\n你接过旧册，指尖触到封皮上陈旧的灰。\n三日后，你免了最粗重的杂役，被拨去内廷听用。\n那时你仍不是小主，只是一个能抄字、能听差、也更容易被看住的罪臣女眷。\n真正改命的，是一份宫宴前夜的祝词。\n原稿堆在案角，辞藻浮艳，错漏处却无人肯担。你借着誊抄，把它改得清稳合礼，又故意留下一个不显眼的笔锋：不冒进，不邀功，却足够让看惯奉承的人多停一眼。`,
       nextActionLabel: '下一句',
       timeCost: 0,
       dataEffects: emptyEffects(),
@@ -65,7 +68,7 @@ const buildYingluoyetingOpeningDialogue = (payload: OpeningDialogueRequestPayloa
       speakerIdentity: '场景旁白',
       speakerName: payload.residenceName,
       text:
-        '那份祝词随待呈文书送到御前。\n容安看过后，叫人把改稿的宫人带到殿外问话。\n你隔着屏风行礼，只说自己是内廷听用宫人。皇帝问礼制，你答礼制；问曲名，你答曲名；问为何改那两处错漏，你只说：“旧词不合宫宴礼数，奴婢不敢照错誊上。”\n你没有提沈家，也没有喊冤。你要的不是怜悯，而是让他知道：掖庭里有一个懂规矩、识字、能办事的人。\n问话之后，内侍按例去查你的名籍，才发现你是沈氏旧案余眷。\n于是他只给了你一个最低的位号，把你放进后妃册最末。',
+        `那份祝词随待呈文书送到御前。\n容安看过后，叫人把改稿的宫人带到殿外问话。\n你隔着屏风行礼，只说自己是内廷听用宫人。皇帝问礼制，你答礼制；问曲名，你答曲名；问为何改那两处错漏，你只说：“旧词不合宫宴礼数，奴婢不敢照错誊上。”\n你没有提${playerSurname}家，也没有喊冤。你要的不是怜悯，而是让他知道：掖庭里有一个懂规矩、识字、能办事的人。\n问话之后，内侍按例去查你的名籍，才发现你是${playerClanLabel}旧案余眷。\n于是他只给了你一个最低的位号，把你放进后妃册最末。`,
       nextActionLabel: '听明白了',
       timeCost: 0,
       dataEffects: emptyEffects(),

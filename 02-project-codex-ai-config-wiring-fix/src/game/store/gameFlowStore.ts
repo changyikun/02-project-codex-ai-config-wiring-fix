@@ -113,6 +113,7 @@ export interface GameFlowStore {
   enterMapMain: () => void;
   setRoute: (routeId: GameNumericsState['routeId']) => void;
   applyRouteSelection: (profile: RouteSelectionProfile) => void;
+  setPlayerName: (name: string) => void;
   patchState: (patch: Partial<GameNumericsState>) => void;
   patchHiddenStats: (patch: Partial<HiddenStatsState>) => void;
   setBriefing: (briefing: string) => void;
@@ -913,8 +914,8 @@ export const useGameFlowStore = create<GameFlowStore>()(
           return {
             currentView: 'attribute-assignment',
             routeId: profile.id,
-          selectedRoute: profile,
-          state: validatePointsState({
+            selectedRoute: profile,
+            state: validatePointsState({
               ...current.state,
               ...profile.baseState,
               routeId: profile.id,
@@ -959,6 +960,23 @@ export const useGameFlowStore = create<GameFlowStore>()(
             lastSeenSettlementReportId: undefined,
           };
         }),
+      setPlayerName: (name) =>
+        set((current) => ({
+          state: {
+            ...current.state,
+            name,
+          },
+          selectedRoute: current.selectedRoute
+            ? {
+                ...current.selectedRoute,
+                defaultName: name,
+                baseState: {
+                  ...current.selectedRoute.baseState,
+                  name,
+                },
+              }
+            : current.selectedRoute,
+        })),
       patchState: (patch) =>
         set((current) => {
           const merged = { ...current.state, ...patch };
