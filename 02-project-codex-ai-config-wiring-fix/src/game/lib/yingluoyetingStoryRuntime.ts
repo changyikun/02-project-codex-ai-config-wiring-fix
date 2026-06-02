@@ -284,12 +284,12 @@ const storageTransferListEvent: YingluoyetingMapEvent = {
 
 const buildEvidenceBoxEvent = (playerName: string): YingluoyetingMapEvent => ({
   eventId: YINGLUOYETING_EVENT_IDS.evidenceBox,
-  locationId: '长春宫',
+  locationId: '昭阳宫',
   speakerIdentity: '陈婉宁',
   speakerName: '陈婉宁',
   text: `你终于见到了那只匣子。
 匣面没有花纹，封蜡已经旧得发暗。
-宫人说，这是长春宫旧年封存的杂物，原本该随废纸送出，后来不知为何一直压在侧库底下。
+宫人说，这是昭阳宫旧年封存的杂物，原本该随废纸送出，后来不知为何一直压在侧库底下。
 你打开匣盖。
 里面是一页残缺供状副页，纸角有反复折过的痕迹。
 供状上的名字被墨涂去大半，可落款处的朱印还在。
@@ -390,7 +390,7 @@ export const resolveYingluoyetingMapEvent = (_input: {
     return storageTransferListEvent;
   }
 
-  if (locationId === '长春宫') {
+  if (locationId === '昭阳宫') {
     const hasOldTestimonyLead =
       hasFlag(state, YINGLUOYETING_STORY_FLAGS.hasOldTestimony) ||
       hasInventoryItem(inventory, YINGLUOYETING_EVIDENCE_ITEM_IDS.oldTestimony);

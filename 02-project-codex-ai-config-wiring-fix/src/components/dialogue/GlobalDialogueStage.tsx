@@ -230,6 +230,7 @@ interface GlobalDialogueStageProps {
   ariaLabel?: string;
   className?: string;
   dialogueClassName?: string;
+  suppressPortrait?: boolean;
   nextActionLabel?: string;
   onNextAction?: (() => void) | undefined;
   options?: GlobalDialogueOption[];
@@ -255,6 +256,7 @@ export function GlobalDialogueStage({
   ariaLabel,
   className = '',
   dialogueClassName = '',
+  suppressPortrait = false,
   nextActionLabel,
   onNextAction,
   options = [],
@@ -294,7 +296,7 @@ export function GlobalDialogueStage({
   const hasMorePages = boundedPageIndex < contentPages.length - 1;
   const hasMoreSegments = boundedSegmentIndex < scriptSegments.length - 1;
   const hasOptions = options.length > 0 && !hasMorePages && !hasMoreSegments;
-  const showPortrait = !currentSegment.isNarration;
+  const showPortrait = !suppressPortrait && !currentSegment.isNarration;
   const resolvedPortrait = showPortrait ? resolvePortrait?.(currentSegment) : undefined;
   const currentSegmentMatchesBaseCharacter =
     currentSegment.characterIdentity === characterIdentity && currentSegment.characterName === characterName;

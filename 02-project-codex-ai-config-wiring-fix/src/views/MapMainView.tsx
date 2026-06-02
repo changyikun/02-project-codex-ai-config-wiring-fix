@@ -4,7 +4,7 @@ import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage'
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
 import type { ChamberPanelId } from '../config/bedchamber';
 import { HAREM_OVERVIEW_BACKGROUND, LOCATION_SCENE_BACKGROUNDS } from '../config/locationSceneBackgrounds';
-import { buildMapHotspots, MAP_GUIDE_LINES, MAP_SIDEBAR_BUTTONS, type MapHotspotConfig } from '../config/palaceUi';
+import { buildMapHotspots, MAP_GUIDE_LINES, MAP_SIDEBAR_BUTTONS, resolveMapBackgroundImage, type MapHotspotConfig } from '../config/palaceUi';
 import { buildDuNiangShopCatalog, getInventoryRecyclePrice, type DuNiangShopEntry } from '../game/data/inventoryPresets';
 import {
   requestGongmenToolDialogueWithFallback,
@@ -227,6 +227,7 @@ export function MapMainView() {
       : LOCATION_SCENE_BACKGROUNDS[activeYingluoyetingEvent.locationId]
     : undefined;
   const activeMapBackground = gongmenSceneActive ? LOCATION_SCENE_BACKGROUNDS['宫门'] : activeYingluoyetingBackground;
+  const mapBackgroundImage = activeMapBackground ?? resolveMapBackgroundImage(time.slot);
   const locationSceneActive = gongmenSceneActive || Boolean(activeYingluoyetingEvent);
   const activeYingluoyetingDialogueIsResult = Boolean(yingluoyetingResultText);
   const activeYingluoyetingDialogueIdentity = activeYingluoyetingDialogueIsResult
@@ -577,7 +578,7 @@ export function MapMainView() {
       <div className="map-main__frame">
         <div
           className={`map-main__background ${locationSceneActive ? 'is-location-scene' : ''}`}
-          style={activeMapBackground ? { backgroundImage: `url(${activeMapBackground})` } : undefined}
+          style={{ backgroundImage: `url(${mapBackgroundImage})` }}
         />
         <PalaceStatusBar />
 

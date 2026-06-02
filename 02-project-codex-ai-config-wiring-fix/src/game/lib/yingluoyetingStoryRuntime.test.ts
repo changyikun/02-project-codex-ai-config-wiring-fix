@@ -289,7 +289,7 @@ describe('yingluoyetingStoryRuntime', () => {
     expect(result.resultText).toContain('沈氏案卷并非结案后再无人碰过');
   });
 
-  it('resolves the Changchun Palace evidence box only after the three prior evidence links exist', () => {
+  it('resolves the Zhaoyang Palace evidence box only after the three prior evidence links exist', () => {
     expect(
       resolveYingluoyetingMapEvent({
         state: buildState({
@@ -299,7 +299,7 @@ describe('yingluoyetingStoryRuntime', () => {
           },
         }),
         time: buildTime({ month: 5 }),
-        locationId: '长春宫',
+        locationId: '昭阳宫',
         inventory: [],
       }),
     ).toBeUndefined();
@@ -314,11 +314,14 @@ describe('yingluoyetingStoryRuntime', () => {
         },
       }),
       time: buildTime({ month: 5 }),
-      locationId: '长春宫',
+      locationId: '昭阳宫',
       inventory: [],
     });
 
     expect(event?.eventId).toBe('yingluo_07_evidence_box');
+    expect(event?.locationId).toBe('昭阳宫');
+    expect(event?.text).toContain('昭阳宫旧年封存的杂物');
+    expect(event?.text).not.toContain('长春宫');
     expect(event?.speakerIdentity).toBe('陈婉宁');
     expect(event?.options.map((option) => option.id)).toEqual([
       'take-evidence',
@@ -340,7 +343,7 @@ describe('yingluoyetingStoryRuntime', () => {
         },
       }),
       time: buildTime({ month: 5 }),
-      locationId: '长春宫',
+      locationId: '昭阳宫',
       inventory: [],
     });
 

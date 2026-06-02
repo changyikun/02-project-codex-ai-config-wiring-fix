@@ -1,4 +1,4 @@
-import type { MapAreaId } from '../game/types';
+import type { MapAreaId, TimeSlot } from '../game/types';
 import { MONTHLY_EXPENSE_STRATEGIES } from './monthlyExpenseStrategy';
 
 export interface GuideTendencyOption {
@@ -39,6 +39,18 @@ export interface ChamberActionButtonConfig {
   stressDelta?: number;
 }
 
+export const MAP_BACKGROUND_BY_TIME_SLOT: Record<TimeSlot, string> = {
+  清晨: '/assets/map/map_spring_dawn.png',
+  上午: '/assets/map/map_spring_latemorning.png',
+  中午: '/assets/map/map_spring_noon.png',
+  下午: '/assets/map/map_spring_afternoon.png',
+  傍晚: '/assets/map/map_spring_dusk.png',
+  夜晚: '/assets/map/map_spring_night.png',
+  深夜: '/assets/map/map_spring_latenight.png',
+};
+
+export const resolveMapBackgroundImage = (slot: TimeSlot): string => MAP_BACKGROUND_BY_TIME_SLOT[slot];
+
 export const GUIDE_TENDENCY_OPTIONS: readonly GuideTendencyOption[] = MONTHLY_EXPENSE_STRATEGIES.map((strategy) => ({
   id: strategy.id,
   label: strategy.label,
@@ -69,23 +81,32 @@ export const CHAMBER_SIDEBAR_BUTTONS: readonly PalaceSidebarButtonConfig[] = [
 ] as const;
 
 export const MAP_HOTSPOTS: readonly MapHotspotConfig[] = [
-  { id: '御花园', label: '御花园', top: '12%', left: '18%', width: '5.4%', height: '17%', description: '御花园最适合偶遇与闲逛，也是后宫流言最爱生根的地方。', vertical: true },
-  { id: '建章宫', label: '建章宫', top: '8%', left: '34.5%', width: '5.6%', height: '20%', description: '建章宫多牵涉大事，往后部分主线会在这里推进。', vertical: true },
-  { id: '冷宫', label: '冷宫', top: '6.8%', left: '66.4%', width: '5.2%', height: '17.2%', description: '冷宫阴气重，进去容易，出来难。多数时候这里只能探听旧案。', vertical: true },
-  { id: '宝华殿', label: '宝华殿', top: '34%', left: '23%', width: '5.4%', height: '18%', description: '宝华殿可祈福、静心，也会触发寿命与因果类提示。', vertical: true },
-  { id: '御书房', label: '御书房', top: '24%', left: '44.5%', width: '5.3%', height: '20%', description: '御书房牵涉政治、朝臣与皇帝，后期通关条件多半在此发力。', vertical: true },
-  { id: '养心殿', label: '养心殿', top: '22%', left: '58.2%', width: '5.7%', height: '22%', description: '养心殿关系侍寝、陪伴与皇帝主线，重要剧情会在这里展开。', vertical: true },
-  { id: '后宫', label: '后宫', top: '36%', left: '73.5%', width: '7.5%', height: '28%', description: '后宫总览会汇聚各宫妃动向，是嫔妃与宫斗信息的集散地。', vertical: true, emphasis: 'large' },
-  { id: '椒房殿', label: '椒房殿', top: '33%', left: '89.5%', width: '6.2%', height: '21%', description: '椒房殿是中宫所在，也象征权力中心。', vertical: true },
-  { id: '妙音堂', label: '妙音堂', top: '57%', left: '14%', width: '5.4%', height: '18%', description: '妙音堂可习舞奏乐，也容易撞见擅长才艺的角色。', vertical: true },
-  { id: '御膳房', label: '御膳房', top: '52%', left: '34%', width: '5.2%', height: '20%', description: '御膳房能采买膳食，也常牵连赏赐、补品与偶发小事。', vertical: true },
-  { id: '正阳门', label: '正阳门', top: '49%', left: '54.8%', width: '5.4%', height: '19%', description: '正阳门是宫城交通要道，部分节庆、出入与大事件会从这里过。', vertical: true },
-  { id: '华清池', label: '华清池', top: '62%', left: '79%', width: '5.3%', height: '17%', description: '华清池偏重养颜与休息，也会承接部分亲密事件。', vertical: true },
-  { id: '太医院', label: '太医院', top: '73%', left: '22%', width: '5.2%', height: '18%', description: '太医院能请平安脉，也与怀孕、流产与下毒调查相关。', vertical: true },
-  { id: '宫门', label: '宫门', top: '78%', left: '50.2%', width: '5.2%', height: '17%', description: '宫门关系外来人物与特殊事件，也是部分路线支线的入口。', vertical: true },
-  { id: '重华宫', label: '重华宫', top: '71%', left: '90%', width: '5.8%', height: '19%', description: '重华宫与皇嗣教育相关，后续孩子三岁后会在这里成长。', vertical: true },
-  { id: '长春宫', label: '长春宫', top: '39%', left: '82.5%', width: '5.6%', height: '18%', description: '长春宫是陈婉宁所在宫室，影落掖庭中后段的交易、证物与立场变化会在这里推进。', vertical: true },
+  { id: '冷宫', label: '冷宫', top: '2%', left: '15.8%', width: '4.4%', height: '18.2%', description: '冷宫阴气重，进去容易，出来难。多数时候这里只能探听旧案。', vertical: true },
+  { id: '御花园', label: '御花园', top: '6.8%', left: '53%', width: '4.4%', height: '16.5%', description: '御花园最适合偶遇与闲逛，也是后宫流言最爱生根的地方。', vertical: true },
+  { id: '宝华殿', label: '宝华殿', top: '3%', left: '78.5%', width: '4.4%', height: '17.2%', description: '宝华殿可祈福、静心，也会触发寿命与因果类提示。', vertical: true },
+  { id: '华清池', label: '华清池', top: '20.4%', left: '31.5%', width: '4.4%', height: '18.8%', description: '华清池偏重养颜与休息，也会承接部分亲密事件。', vertical: true },
+  { id: '建章宫', label: '建章宫', top: '15.5%', left: '66.7%', width: '4.4%', height: '15.7%', description: '建章宫多牵涉大事，往后部分主线会在这里推进。', vertical: true },
+  { id: '后宫', label: '后宫', top: '33.2%', left: '18.3%', width: '4.4%', height: '18.7%', description: '后宫总览会汇聚各宫妃动向，是嫔妃与宫斗信息的集散地。', vertical: true, emphasis: 'large' },
+  { id: '正阳门', label: '正阳门', top: '28%', left: '45%', width: '4.4%', height: '18.1%', description: '正阳门是宫城交通要道，部分节庆、出入与大事件会从这里过。', vertical: true },
+  { id: '重华宫', label: '重华宫', top: '31.8%', left: '82.5%', width: '4.4%', height: '18.2%', description: '重华宫与皇嗣教育相关，后续孩子三岁后会在这里成长。', vertical: true },
+  { id: '妙音堂', label: '妙音堂', top: '58.8%', left: '17.8%', width: '4.4%', height: '16.7%', description: '妙音堂可习舞奏乐，也容易撞见擅长才艺的角色。', vertical: true },
+  { id: '太医院', label: '太医院', top: '67.3%', left: '25.9%', width: '4.4%', height: '18.1%', description: '太医院能请平安脉，也与怀孕、流产与下毒调查相关。', vertical: true },
+  { id: '养心殿', label: '养心殿', top: '50.3%', left: '38.4%', width: '4.4%', height: '17.1%', description: '养心殿关系侍寝、陪伴与皇帝主线，重要剧情会在这里展开。', vertical: true },
+  { id: '御书房', label: '御书房', top: '46.4%', left: '59.8%', width: '4.4%', height: '15.6%', description: '御书房牵涉政治、朝臣与皇帝，后期通关条件多半在此发力。', vertical: true },
+  { id: '御膳房', label: '御膳房', top: '55.6%', left: '70.2%', width: '4.4%', height: '17.7%', description: '御膳房能采买膳食，也常牵连赏赐、补品与偶发小事。', vertical: true },
+  { id: '宫门', label: '宫门', top: '73.8%', left: '57.4%', width: '4.4%', height: '18.2%', description: '宫门关系外来人物与特殊事件，也是部分路线支线的入口。', vertical: true },
+  { id: '椒房殿', label: '椒房殿', top: '64.5%', left: '81.7%', width: '4.4%', height: '18.2%', description: '椒房殿是中宫所在，也象征权力中心。', vertical: true },
 ] as const;
+
+const RESIDENCE_HOTSPOT_OVERRIDES: Partial<Record<MapAreaId, Partial<MapHotspotConfig>>> = {
+  掖庭院: {
+    label: '掖庭',
+    top: '64.5%',
+    left: '81.7%',
+    width: '4.4%',
+    height: '18.2%',
+  },
+};
 
 const buildResidenceHotspotDescription = (residenceName: MapAreaId): string =>
   `${residenceName}是娘娘当前居所。点这里会直接回宫，不再额外消耗时辰。`;
@@ -98,6 +119,7 @@ export const buildMapHotspots = (residenceName: MapAreaId): readonly MapHotspotC
           id: residenceName,
           label: residenceName,
           description: buildResidenceHotspotDescription(residenceName),
+          ...RESIDENCE_HOTSPOT_OVERRIDES[residenceName],
         }
       : hotspot,
   );

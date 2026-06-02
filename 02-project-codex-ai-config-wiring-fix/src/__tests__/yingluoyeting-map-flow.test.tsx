@@ -97,6 +97,24 @@ describe('影落掖庭地图主线体验', () => {
     cleanup();
   });
 
+  it('renders the time-matched spring map and short Yeting hotspot label', () => {
+    useGameFlowStore.setState((current) => ({
+      ...current,
+      time: {
+        ...current.time,
+        slotIndex: 4,
+        slot: '傍晚',
+      },
+    }));
+    const { container } = render(<App />);
+
+    const mapBackground = container.querySelector('.map-main__background') as HTMLElement;
+    expect(mapBackground).not.toHaveClass('is-location-scene');
+    expect(mapBackground.style.backgroundImage).toContain('map_spring_dusk.png');
+    expect(screen.getByRole('button', { name: '掖庭' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '掖庭院' })).not.toBeInTheDocument();
+  });
+
   it('enters cold palace story from the map and grants old testimony evidence through existing state and inventory', async () => {
     const { container } = render(<App />);
 
@@ -195,7 +213,7 @@ describe('影落掖庭地图主线体验', () => {
     expect(store.inventory.some((item) => item.itemId === YINGLUOYETING_EVIDENCE_ITEM_IDS.storageTransferList)).toBe(true);
   });
 
-  it('enters Changchun Palace evidence box story after the evidence chain and grants forged testimony page', async () => {
+  it('does not expose Changchun Palace as a main-map entrance after the evidence chain', async () => {
     useGameFlowStore.setState((current) => ({
       ...current,
       time: {
@@ -218,22 +236,10 @@ describe('影落掖庭地图主线体验', () => {
     }));
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '长春宫' }));
-    fireEvent.click(screen.getByRole('button', { name: '进入此处' }));
-
-    expect(await screen.findByText(/你终于见到了那只匣子/)).toBeInTheDocument();
-    advanceDialoguePages();
-    fireEvent.click(screen.getByRole('button', { name: '以证物与她交易' }));
-
-    expect(await screen.findByText(/若沈家的印是假的/)).toBeInTheDocument();
-    const store = useGameFlowStore.getState();
-    expect(store.state.flags[YINGLUOYETING_STORY_FLAGS.evidenceBoxDone]).toBe(true);
-    expect(store.state.flags[YINGLUOYETING_STORY_FLAGS.hasForgedTestimonyPage]).toBe(true);
-    expect(store.state.flags[YINGLUOYETING_STORY_FLAGS.chenWanningWatching]).toBe(true);
-    expect(store.inventory.some((item) => item.itemId === YINGLUOYETING_EVIDENCE_ITEM_IDS.forgedTestimonyPage)).toBe(true);
+    expect(screen.queryByRole('button', { name: '长春宫' })).not.toBeInTheDocument();
   });
 
-  it('plays Chen Wanning first meet before Changchun Palace evidence box if Chen has not been met', async () => {
+  it('keeps Chen Wanning first meet on the harem entrance without exposing Changchun Palace', async () => {
     useGameFlowStore.setState((current) => ({
       ...current,
       time: {
@@ -253,17 +259,15 @@ describe('影落掖庭地图主线体验', () => {
     }));
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '长春宫' }));
+    expect(screen.queryByRole('button', { name: '长春宫' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '后宫' }));
     fireEvent.click(screen.getByRole('button', { name: '进入此处' }));
 
     expect(await screen.findByText(/你第一次踏进后宫宫道时/)).toBeInTheDocument();
     advanceDialoguePages();
     fireEvent.click(screen.getByRole('button', { name: '谢她照拂，只字不提旧案' }));
     expect(await screen.findByText(/陈婉宁笑意未改/)).toBeInTheDocument();
-
-    fireEvent.click(document.querySelector<HTMLElement>('[data-dialogue-page-state="last"]')!);
-
-    expect(await screen.findByText(/你终于见到了那只匣子/)).toBeInTheDocument();
   });
 
   it('enters harem palace overview after Chen Wanning first meet is completed from the harem map entrance', async () => {

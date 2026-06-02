@@ -93,6 +93,16 @@ const resetFlowStore = () => {
       dangYiFavor: 0,
       dangYiAffinity: 0,
     },
+    nightlyService: {
+      playerNightFavorGauge: 0,
+      emperorMood: 40,
+      reports: [],
+      pendingEvent: undefined,
+      pendingNotice: undefined,
+      pendingMorningLines: undefined,
+      latestReportId: undefined,
+      queuedRolls: undefined,
+    },
     time: {
       year: 1,
       month: 1,
@@ -2748,6 +2758,7 @@ describe('App 主流程切换', () => {
     fireEvent.click(await screen.findByRole('button', { name: /主殿[\s\S]*姚铃儿/ }));
 
     expect(await screen.findByLabelText('贵妃 姚铃儿 日常对话')).toBeInTheDocument();
+    expect(screen.getByLabelText('姚铃儿常驻立绘')).toBeInTheDocument();
     expect(useGameFlowStore.getState().state.stamina).toBe(STAMINA_INITIAL_PER_XUN - 1);
     expect(useGameFlowStore.getState().time.slotIndex).toBe(2);
     expect(screen.getByRole('button', { name: '送礼' })).toBeInTheDocument();
@@ -3682,6 +3693,187 @@ describe('App 主流程切换', () => {
       { timeout: 2000 },
     );
   });
+
+  it('从妙音堂触发主角侍寝后，黑幕中仍会显示清晨通报并可淡出', async () => {
+    useGameFlowStore.setState((flow) => ({
+      ...flow,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '妙音堂',
+      state: {
+        ...flow.state,
+        favor: 80,
+        trueHeart: 35,
+        stamina: STAMINA_INITIAL_PER_XUN,
+        flags: {
+          ...flow.state.flags,
+          bedchamberIntroShown: true,
+        },
+      },
+      hiddenStats: {
+        ...flow.hiddenStats,
+        favor: 80,
+        trueHeart: 35,
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 5,
+        slot: '夜晚',
+        slotProgress: 0,
+      },
+      nightlyService: {
+        ...flow.nightlyService,
+        pendingEvent: {
+          id: 'nightly-service-player-miaoyin',
+          timeKey: '1-1-1',
+          year: 1,
+          month: 1,
+          xun: 1,
+          outcome: 'player-service',
+          playerName: flow.state.name,
+          rankLabel: flow.hiddenStats.initialRank ?? '宫妃',
+          initialInterest: 60,
+          currentInterest: 60,
+          interactionCount: 0,
+          maxInteractions: 3,
+          selectedActionIds: [],
+          stage: 'notice',
+          pregnancyRoll: 100,
+        },
+      },
+      settlementReports: [],
+      latestSettlementReportId: undefined,
+      lastSeenSettlementReportId: undefined,
+    }));
+
+    render(<App />);
+
+    await clickDialogueAdvance();
+
+    const actionPanel = await screen.findByLabelText('养心殿侍寝操作');
+    fireEvent.click(within(actionPanel).getByRole('button', { name: /鼓瑟/ }));
+    await clickDialogueAdvance();
+
+    fireEvent.click(await screen.findByRole('button', { name: /吟诗/ }));
+    await clickDialogueAdvance();
+
+    fireEvent.click(await screen.findByRole('button', { name: /温言/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /温柔/ }));
+    await clickDialogueAdvance();
+
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('正式侍寝剧情').length).toBeGreaterThan(0);
+    });
+    await clickDialogueAdvance();
+
+    expect(await screen.findByLabelText('一夜过去')).toBeInTheDocument();
+
+    await waitFor(
+      () => {
+        expect(screen.getByText('1年1月2旬（清晨）')).toBeInTheDocument();
+        expect(screen.getByText(/1年1月第2旬清晨通报/)).toBeInTheDocument();
+      },
+      { timeout: 2000 },
+    );
+
+    await clickDialogueAdvance();
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('一夜过去')).not.toBeInTheDocument();
+    });
+  });
+
+  it.each(['御膳房', '宝华殿', '华清池', '太医院', '建章宫'] as const)(
+    '从%s触发主角侍寝后，黑幕中仍会显示清晨通报',
+    async (locationName) => {
+      useGameFlowStore.setState((flow) => ({
+        ...flow,
+        currentView: 'bedchamber',
+        scene: 'activity',
+        activeChamberPanel: 'main',
+        activeMapLocation: locationName,
+        state: {
+          ...flow.state,
+          favor: 80,
+          trueHeart: 35,
+          stamina: STAMINA_INITIAL_PER_XUN,
+          flags: {
+            ...flow.state.flags,
+            bedchamberIntroShown: true,
+          },
+        },
+        hiddenStats: {
+          ...flow.hiddenStats,
+          favor: 80,
+          trueHeart: 35,
+        },
+        time: {
+          year: 1,
+          month: 1,
+          xun: 1,
+          slotIndex: 5,
+          slot: '夜晚',
+          slotProgress: 0,
+        },
+        nightlyService: {
+          ...flow.nightlyService,
+          pendingEvent: {
+            id: `nightly-service-player-${locationName}`,
+            timeKey: '1-1-1',
+            year: 1,
+            month: 1,
+            xun: 1,
+            outcome: 'player-service',
+            playerName: flow.state.name,
+            rankLabel: flow.hiddenStats.initialRank ?? '宫妃',
+            initialInterest: 60,
+            currentInterest: 60,
+            interactionCount: 0,
+            maxInteractions: 3,
+            selectedActionIds: [],
+            stage: 'notice',
+            pregnancyRoll: 100,
+          },
+        },
+        settlementReports: [],
+        latestSettlementReportId: undefined,
+        lastSeenSettlementReportId: undefined,
+      }));
+
+      render(<App />);
+
+      await clickDialogueAdvance();
+
+      const actionPanel = await screen.findByLabelText('养心殿侍寝操作');
+      fireEvent.click(within(actionPanel).getByRole('button', { name: /鼓瑟/ }));
+      await clickDialogueAdvance();
+
+      fireEvent.click(await screen.findByRole('button', { name: /吟诗/ }));
+      await clickDialogueAdvance();
+
+      fireEvent.click(await screen.findByRole('button', { name: /温言/ }));
+      fireEvent.click(await screen.findByRole('button', { name: /温柔/ }));
+      await clickDialogueAdvance();
+
+      await waitFor(() => {
+        expect(screen.getAllByLabelText('正式侍寝剧情').length).toBeGreaterThan(0);
+      });
+      await clickDialogueAdvance();
+
+      expect(await screen.findByLabelText('一夜过去')).toBeInTheDocument();
+
+      await waitFor(
+        () => {
+          expect(screen.getByText('1年1月2旬（清晨）')).toBeInTheDocument();
+          expect(screen.getByText(/1年1月第2旬清晨通报/)).toBeInTheDocument();
+        },
+        { timeout: 2000 },
+      );
+    },
+  );
 
   it('跨月时会生成月初通报并按月俸结算银两', () => {
     useGameFlowStore.setState((state) => ({

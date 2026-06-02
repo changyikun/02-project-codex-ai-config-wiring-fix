@@ -238,6 +238,15 @@ export function ChamberMainView() {
     () => settlementReports.find((report) => report.id === latestSettlementReportId),
     [latestSettlementReportId, settlementReports],
   );
+  const isOvernightSettlementPhase = overnightTransitionPhase === 'settlement';
+  const shouldSuppressSettlementReportForScene =
+    !isOvernightSettlementPhase &&
+    (isJianzhangAudience ||
+      isKitchenScene ||
+      isBaohuaHallScene ||
+      isHuaQingPoolScene ||
+      isTaiHospitalScene ||
+      isMiaoYinHallScene);
   const showSettlementReport = Boolean(
       latestSettlementReport &&
       latestSettlementReport.id !== lastSeenSettlementReportId &&
@@ -245,12 +254,7 @@ export function ChamberMainView() {
       !pendingNightlyServiceNotice &&
       (overnightTransitionPhase === 'hidden' || overnightTransitionPhase === 'settlement') &&
       activeChamberPanel === 'main' &&
-      !isJianzhangAudience &&
-      !isKitchenScene &&
-      !isBaohuaHallScene &&
-      !isHuaQingPoolScene &&
-      !isTaiHospitalScene &&
-      !isMiaoYinHallScene,
+      !shouldSuppressSettlementReportForScene,
   );
   const isJiaojiaoChamberDialogue = isJiaojiaoSpokenText(dialogueText);
   const chamberDialogueClassName = `global-dialogue-stage--chamber ${

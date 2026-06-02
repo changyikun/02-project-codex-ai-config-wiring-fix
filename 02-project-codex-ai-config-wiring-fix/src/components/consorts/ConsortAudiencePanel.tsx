@@ -150,6 +150,13 @@ export function ConsortAudiencePanel({
   const currentStateLabel = getConcubineConditionLabel(consort);
   const relationLabel = buildRelationLabel(consort);
   const isChenWanningAudience = isChenWanningConsort(consort);
+  const persistentConsortPortrait = (
+    <div className="harem-palace-view__audience-portrait-stage" aria-label={`${consort.name}常驻立绘`}>
+      <div className="harem-palace-view__audience-portrait-frame">
+        <img src={portraitSrc} alt={consort.name} className="harem-palace-view__audience-portrait" />
+      </div>
+    </div>
+  );
   const storyRouteId: RouteId =
     state.routeId === 'yingluoyeting' || routeId === 'yingluoyeting' || concubineRouteId === 'yingluoyeting'
       ? 'yingluoyeting'
@@ -338,13 +345,14 @@ export function ConsortAudiencePanel({
   if (chenFirstMeetActive) {
     return (
       <section className="harem-palace-view__audience" aria-label="陈婉宁初见剧情">
+        {persistentConsortPortrait}
         <GlobalDialogueStage
           sceneLabel="陈婉宁初见"
-          portraitLabel="陈婉宁立绘"
-          portrait={<img src={portraitSrc} alt="陈婉宁" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--consort" />}
+          portraitLabel="旁白无立绘"
           ariaLabel="陈婉宁初见剧情"
           className="global-dialogue-stage--consort"
           dialogueClassName="palace-dialogue-box--consort-audience"
+          suppressPortrait
           characterIdentity={chenFirstMeetResultText ? '场景旁白' : (chenFirstMeetEvent?.speakerIdentity ?? '陈婉宁')}
           characterName={chenFirstMeetResultText ? '陈婉宁初见' : (chenFirstMeetEvent?.speakerName ?? '陈婉宁')}
           content={chenFirstMeetResultText || chenFirstMeetEvent?.text || ''}
@@ -484,6 +492,8 @@ export function ConsortAudiencePanel({
         </article>
       </div>
 
+      {persistentConsortPortrait}
+
       <aside className="harem-palace-view__audience-actions" aria-label="宫内互动操作">
         {CONSORT_AUDIENCE_FIXED_ACTIONS.map((action) => (
           <button
@@ -525,11 +535,11 @@ export function ConsortAudiencePanel({
 
       <GlobalDialogueStage
         sceneLabel={`${displayRank} ${consort.name} 宫内对话场景`}
-        portraitLabel={`${consort.name} 立绘`}
-        portrait={<img src={portraitSrc} alt={consort.name} className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--consort" />}
+        portraitLabel="旁白无立绘"
         ariaLabel="妃嫔宫内对话框"
         className="global-dialogue-stage--consort global-dialogue-stage--with-side-panel"
         dialogueClassName="palace-dialogue-box--consort-audience"
+        suppressPortrait
         characterIdentity={dialogueTurn?.speakerIdentity ?? displayRank}
         characterName={dialogueTurn?.speakerName ?? consort.name}
         content={dialogueTurn?.text ?? ''}
