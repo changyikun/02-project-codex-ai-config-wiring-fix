@@ -12,7 +12,7 @@ describe('actionNarrativeRuntime', () => {
     const narrative = buildChamberActionNarrative({
       actionId: 'painting',
       actionLabel: '泼墨作画',
-      actionSummary: '丹青 +2',
+      actionSummary: '铺纸试墨',
       playerName: '谢令仪',
       residenceName: '椒房殿',
       timeLabel: '1年1月1旬上午',
@@ -20,8 +20,8 @@ describe('actionNarrativeRuntime', () => {
 
     expect(narrative).toContain('砚');
     expect(narrative).toContain('泼墨作画');
-    expect(narrative).toContain('丹青 +2');
-    expect(narrative).not.toBe('泼墨作画已记入今日行程。丹青 +2');
+    expect(narrative).toContain('铺纸试墨');
+    expect(narrative).not.toContain('丹青 +2');
   });
 
   it('builds transition feedback for map movement and returning chamber', () => {

@@ -32,6 +32,9 @@ describe('nightly service runtime', () => {
     expect(result.effects.playerFavorDelta).toBeGreaterThan(0);
     expect(result.effects.playerTrueHeartDelta).toBeGreaterThan(0);
     expect(result.lines.join(' ')).toContain('养心殿召娘娘侍寝');
+    expect(result.lines.join(' ')).not.toContain('宠爱+');
+    expect(result.lines.join(' ')).not.toContain('真心+');
+    expect(result.lines.join(' ')).not.toContain('声望+');
   });
 
   it('raises the player service gauge when the emperor sleeps alone', () => {
@@ -138,6 +141,9 @@ describe('nightly service runtime', () => {
     expect(result.effects.playerTrueHeartDelta).toBe(2);
     expect(result.report.outcome).toBe('player-service');
     expect(result.lines.join(' ')).toContain('侍寝保底值归零');
+    expect(result.lines.join(' ')).not.toContain('宠爱+');
+    expect(result.lines.join(' ')).not.toContain('真心+');
+    expect(result.lines.join(' ')).not.toContain('声望+');
   });
 
   it('checks pregnancy after player service using converted fortune value', () => {
@@ -241,7 +247,8 @@ describe('nightly service runtime', () => {
     });
     expect(result.thirdPartyEffect?.favorDelta).toBeGreaterThanOrEqual(3);
     expect(result.thirdPartyEffect?.favorDelta).toBeLessThanOrEqual(5);
-    expect(result.lines.join(' ')).toContain(`${ally.rankLabel}${ally.name}宠爱`);
+    expect(result.lines.join(' ')).toContain(`替${ally.rankLabel}${ally.name}留了余地`);
+    expect(result.lines.join(' ')).not.toContain(`${ally.rankLabel}${ally.name}宠爱`);
   });
   it('lets an allied consort praise the player after her own service', () => {
     const ally = buildInitialConcubineRoster('lanyinxuguo').find((consort) => consort.stats.relationToPlayer > 0)!;
@@ -280,6 +287,7 @@ describe('nightly service runtime', () => {
     expect(result.effects.playerFavorDelta).toBeGreaterThanOrEqual(3);
     expect(result.effects.playerFavorDelta).toBeLessThanOrEqual(5);
     expect(result.lines.join(' ')).toContain('替玩家美言');
+    expect(result.lines.join(' ')).not.toContain('玩家宠爱');
   });
 
   it('lets a hostile consort smear the player after her own service', () => {
@@ -319,5 +327,6 @@ describe('nightly service runtime', () => {
     expect(result.effects.playerFavorDelta).toBeLessThanOrEqual(-3);
     expect(result.effects.playerFavorDelta).toBeGreaterThanOrEqual(-5);
     expect(result.lines.join(' ')).toContain('向皇帝抹黑玩家');
+    expect(result.lines.join(' ')).not.toContain('玩家宠爱');
   });
 });

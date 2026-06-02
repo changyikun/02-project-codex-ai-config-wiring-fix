@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { AffairsPanelView, BondPanelView, ChroniclePanelView, InventoryPanelView, MiscInfoPanelView, YangxinHearingPanelView } from '../components/chamber/ChamberUtilityViews';
 import { BaohuaHallView } from '../components/chamber/BaohuaHallView';
 import { DowagerAudiencePanel } from '../components/chamber/DowagerAudiencePanel';
@@ -9,7 +9,7 @@ import { NightlyServiceEventView, OVERNIGHT_TRANSITION_MS } from '../components/
 import { TaiHospitalView } from '../components/chamber/TaiHospitalView';
 import { ConcubineListView } from '../components/consorts/ConcubineListView';
 import { HaremPalaceView } from '../components/consorts/HaremPalaceView';
-import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
+import { DIALOGUE_EXPLICIT_PAGE_BREAK, GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
 import { PlayerStatsView } from '../components/status/PlayerStatsView';
 import { AutoCutoutPortrait } from '../components/visual/AutoCutoutPortrait';
@@ -44,10 +44,18 @@ const bottomToolMessage: Record<string, string> = {
 };
 const ASSISTANT_PORTRAIT_SRC = '/assets/dialogue/jiaojiao-final.png';
 const LIANQIAO_PORTRAIT_SRC = '/assets/characters/women/lianqiao.jpg';
+const EXPENSE_EXPLANATION_OPTION_ID = 'expense-explanation';
+const EXPENSE_EXPLANATION_TEXT = [
+  '娘娘，这三档说的是每月固定用度，不是立刻花一笔银子。寝殿这里调整后，是登记下月用度，等跨月结算时才生效。',
+  '节衣缩食：每月用月俸四分之一。好处是省银两；代价是起居和体面受损，声望-5，健康-1。',
+  '量入为出：每月用月俸一半。它最稳妥，不额外增减声望和健康。',
+  '锦衣玉食：每月用月俸四分之三。花费重些，但能撑住体面与起居，声望+10，健康+1。',
+].join(DIALOGUE_EXPLICIT_PAGE_BREAK);
 
 const getCurrentXunKey = (year: number, month: number, xun: number): string => `${year}-${month}-${xun}`;
 const toXunIndex = (year: number, month: number, xun: number): number => year * 36 + (month - 1) * 3 + xun;
 type OvernightTransitionPhase = 'hidden' | 'fade-in' | 'settlement' | 'fade-out';
+type PendingChamberDialogueAction = 'enter-map' | 'reopen-expense-choice' | null;
 
 export function ChamberMainView() {
   const {
@@ -88,6 +96,9 @@ export function ChamberMainView() {
   const [overnightTransitionPhase, setOvernightTransitionPhase] = useState<OvernightTransitionPhase>('hidden');
   const [endXunAfterNightNotice, setEndXunAfterNightNotice] = useState(false);
   const [expenseStrategyPanelOpen, setExpenseStrategyPanelOpen] = useState(false);
+  const [pendingChamberDialogueAction, setPendingChamberDialogueAction] =
+    useState<PendingChamberDialogueAction>(null);
+  const overnightTransitionRunKeyRef = useRef<string | null>(null);
   const isResidenceLocation = activeMapLocation === state.residenceName;
   const isOutsideScene = Boolean(activeMapLocation && !isResidenceLocation);
   const isJianzhangAudience = activeChamberPanel === 'main' && activeMapLocation === '建章宫';
@@ -99,10 +110,17 @@ export function ChamberMainView() {
   const isHaremPanelActive = activeChamberPanel === 'harem';
   const pendingNightlyServiceEvent = nightlyService.pendingEvent;
   const pendingNightlyServiceNotice = nightlyService.pendingNotice;
+  const shouldDelayNightlyServiceOverlay = Boolean(dialogueText);
+  const shouldShowPendingNightlyServiceEvent = Boolean(pendingNightlyServiceEvent && !shouldDelayNightlyServiceOverlay);
+  const shouldShowPendingNightlyServiceNotice = Boolean(
+    !shouldShowPendingNightlyServiceEvent && pendingNightlyServiceNotice && !shouldDelayNightlyServiceOverlay,
+  );
   const isOvernightTransitionActive = overnightTransitionPhase !== 'hidden';
-  const isNightlyOverlayActive = Boolean(pendingNightlyServiceEvent || pendingNightlyServiceNotice || isOvernightTransitionActive);
+  const isNightlyOverlayActive = Boolean(
+    shouldShowPendingNightlyServiceEvent || shouldShowPendingNightlyServiceNotice || isOvernightTransitionActive,
+  );
   const shouldHideChamberUiForNightlyOverlay = Boolean(
-    pendingNightlyServiceEvent || pendingNightlyServiceNotice || overnightTransitionPhase === 'fade-in',
+    shouldShowPendingNightlyServiceEvent || shouldShowPendingNightlyServiceNotice || overnightTransitionPhase === 'fade-in',
   );
   const isFullSurfacePanel = activeChamberPanel !== 'main';
   const showResidenceUi = !isOutsideScene && !isFullSurfacePanel;
@@ -131,7 +149,13 @@ export function ChamberMainView() {
       return undefined;
     }
 
+    const transitionRunKey = `${overnightTransitionPhase}:${time.year}-${time.month}-${time.xun}-${time.slotIndex}-${time.slotProgress}`;
     const timer = window.setTimeout(() => {
+      if (overnightTransitionRunKeyRef.current === transitionRunKey) {
+        return;
+      }
+      overnightTransitionRunKeyRef.current = transitionRunKey;
+
       if (overnightTransitionPhase === 'fade-out') {
         setOvernightTransitionPhase('hidden');
         return;
@@ -143,7 +167,7 @@ export function ChamberMainView() {
     }, OVERNIGHT_TRANSITION_MS);
 
     return () => window.clearTimeout(timer);
-  }, [advanceTime, overnightTransitionPhase]);
+  }, [advanceTime, overnightTransitionPhase, time.month, time.slotIndex, time.slotProgress, time.xun, time.year]);
 
   useEffect(() => {
     if (!state.flags.bedchamberIntroShown) {
@@ -158,6 +182,7 @@ export function ChamberMainView() {
     }
 
     if (activeChamberPanel !== 'main') {
+      setPendingChamberDialogueAction(null);
       setDialogueText('');
       return;
     }
@@ -170,6 +195,7 @@ export function ChamberMainView() {
       activeMapLocation === '太医院' ||
       activeMapLocation === '妙音堂'
     ) {
+      setPendingChamberDialogueAction(null);
       setDialogueText('');
       return;
     }
@@ -203,6 +229,7 @@ export function ChamberMainView() {
     grantInventoryItem(giftItem);
     patchMusicHallProgress({ lastGiftXunIndex: currentXunIndex });
     setBedchamberGiftItemName(giftItem.name);
+    setPendingChamberDialogueAction(null);
     setDialogueText('');
   }, [
     activeChamberPanel,
@@ -234,10 +261,19 @@ export function ChamberMainView() {
     bondProfile.routeId === state.routeId ? bondProfile : buildInitialBondProfile(state.routeId, currentXunKey);
   const bondFavorDeltaThisXun = activeBondProfile.xunKey === currentXunKey ? activeBondProfile.favorDeltaThisXun : 0;
   const bondAffectionDeltaThisXun = activeBondProfile.xunKey === currentXunKey ? activeBondProfile.affectionDeltaThisXun : 0;
-  const latestSettlementReport = useMemo(
-    () => settlementReports.find((report) => report.id === latestSettlementReportId),
-    [latestSettlementReportId, settlementReports],
-  );
+  const latestSettlementReport = useMemo(() => {
+    if (!latestSettlementReportId) {
+      return undefined;
+    }
+    const latestIndex = settlementReports.findIndex((report) => report.id === latestSettlementReportId);
+    if (latestIndex < 0) {
+      return undefined;
+    }
+    const lastSeenIndex = lastSeenSettlementReportId
+      ? settlementReports.findIndex((report) => report.id === lastSeenSettlementReportId)
+      : -1;
+    return settlementReports.slice(Math.max(0, lastSeenIndex + 1), latestIndex + 1)[0];
+  }, [latestSettlementReportId, lastSeenSettlementReportId, settlementReports]);
   const isOvernightSettlementPhase = overnightTransitionPhase === 'settlement';
   const shouldSuppressSettlementReportForScene =
     !isOvernightSettlementPhase &&
@@ -250,6 +286,7 @@ export function ChamberMainView() {
   const showSettlementReport = Boolean(
       latestSettlementReport &&
       latestSettlementReport.id !== lastSeenSettlementReportId &&
+      !dialogueText &&
       !pendingNightlyServiceEvent &&
       !pendingNightlyServiceNotice &&
       (overnightTransitionPhase === 'hidden' || overnightTransitionPhase === 'settlement') &&
@@ -260,11 +297,19 @@ export function ChamberMainView() {
   const chamberDialogueClassName = `global-dialogue-stage--chamber ${
     isJiaojiaoChamberDialogue ? 'global-dialogue-stage--assistant' : 'global-dialogue-stage--narration'
   }`;
+  const isChamberDialogueBlocking = Boolean(
+    dialogueText || showSettlementReport || isNightlyOverlayActive || bedchamberGiftItemName,
+  );
+  const isChamberUiInteractionLocked = isChamberDialogueBlocking || expenseStrategyPanelOpen;
 
   const handleSidebar = (buttonId: string) => {
+    if (isChamberUiInteractionLocked) {
+      return;
+    }
+
     if (buttonId === 'map-main') {
-      setMapEventText(buildMapTransitionNarrative({ kind: 'enter-map', fromResidence: state.residenceName }));
-      enterMapMain();
+      setPendingChamberDialogueAction('enter-map');
+      setDialogueText(buildMapTransitionNarrative({ kind: 'enter-map', fromResidence: state.residenceName }));
       return;
     }
 
@@ -274,11 +319,13 @@ export function ChamberMainView() {
         return;
       }
       openChamberPanel(buttonId);
+      setPendingChamberDialogueAction(null);
       setDialogueText('');
     }
   };
 
   const beginOvernightTransition = () => {
+    setPendingChamberDialogueAction(null);
     setDialogueText('');
     setOvernightTransitionPhase('fade-in');
   };
@@ -306,17 +353,22 @@ export function ChamberMainView() {
   };
 
   const handleTrainingAction = (actionId: string) => {
+    if (isChamberUiInteractionLocked) {
+      return;
+    }
+
     const action = CHAMBER_ACTION_BUTTONS.find((item) => item.id === actionId);
     if (!action) return;
 
     if (action.id === 'explore') {
-      setMapEventText(buildMapTransitionNarrative({ kind: 'enter-map', fromResidence: state.residenceName }));
-      enterMapMain();
+      setPendingChamberDialogueAction('enter-map');
+      setDialogueText(buildMapTransitionNarrative({ kind: 'enter-map', fromResidence: state.residenceName }));
       return;
     }
 
     if (action.id === 'end-xun') {
       const stepsToNight = 5 - time.slotIndex;
+      setPendingChamberDialogueAction(null);
       setDialogueText('');
       if (stepsToNight > 0) {
         setEndXunAfterNightNotice(true);
@@ -329,6 +381,7 @@ export function ChamberMainView() {
     }
 
     if ((action.staminaCost ?? 0) > state.stamina) {
+      setPendingChamberDialogueAction(null);
       setDialogueText('娘娘眼下体力不足，还是先歇一歇，再做这些事。');
       return;
     }
@@ -340,6 +393,7 @@ export function ChamberMainView() {
       stats: action.statDeltas ?? {},
     });
     advanceTime(action.timeCost ?? 1);
+    setPendingChamberDialogueAction(null);
     setDialogueText(
       buildChamberActionNarrative({
         actionId: action.id,
@@ -353,32 +407,41 @@ export function ChamberMainView() {
   };
 
   const handleBottomTool = (toolLabel: string) => {
+    if (isChamberUiInteractionLocked) {
+      return;
+    }
+
     if (toolLabel === '道具管理') {
       openChamberPanel('inventory');
+      setPendingChamberDialogueAction(null);
       setDialogueText('');
       return;
     }
 
     if (toolLabel === '查看属性') {
       openChamberPanel('stats');
+      setPendingChamberDialogueAction(null);
       setDialogueText('');
       return;
     }
 
     if (toolLabel === '其他信息') {
       openChamberPanel('misc');
+      setPendingChamberDialogueAction(null);
       setDialogueText('');
       return;
     }
 
     if (toolLabel === '情缘管理') {
       openChamberPanel('bond');
+      setPendingChamberDialogueAction(null);
       setDialogueText('');
       return;
     }
 
     if (toolLabel === '调整用度') {
       setExpenseStrategyPanelOpen((open) => !open);
+      setPendingChamberDialogueAction(null);
       setDialogueText('');
       return;
     }
@@ -386,11 +449,46 @@ export function ChamberMainView() {
     if (toolLabel === '宫斗事务' || toolLabel === '家族事务' || toolLabel === '朝堂事务') {
       setActiveAffairsSource(toolLabel);
       openChamberPanel('affairs');
+      setPendingChamberDialogueAction(null);
       setDialogueText('');
       return;
     }
 
+    setPendingChamberDialogueAction(null);
     setDialogueText(bottomToolMessage[toolLabel] ?? `${toolLabel}入口已预留，后续会补全对应功能。`);
+  };
+
+  const handleQuickReturn = () => {
+    if (isChamberUiInteractionLocked) {
+      return;
+    }
+    enterMainChamber();
+  };
+
+  const handleChamberDialogueDone = () => {
+    if (pendingChamberDialogueAction === 'enter-map') {
+      setPendingChamberDialogueAction(null);
+      setDialogueText('');
+      setMapEventText('');
+      enterMapMain();
+      return;
+    }
+
+    if (pendingChamberDialogueAction === 'reopen-expense-choice') {
+      setPendingChamberDialogueAction(null);
+      setDialogueText('');
+      setExpenseStrategyPanelOpen(true);
+      return;
+    }
+
+    setPendingChamberDialogueAction(null);
+    setDialogueText('');
+  };
+
+  const handleExpenseExplanation = () => {
+    setExpenseStrategyPanelOpen(false);
+    setPendingChamberDialogueAction('reopen-expense-choice');
+    setDialogueText(EXPENSE_EXPLANATION_TEXT);
   };
 
   const handleExpenseStrategySelect = (strategyId: (typeof MONTHLY_EXPENSE_STRATEGIES)[number]['id']) => {
@@ -420,10 +518,18 @@ export function ChamberMainView() {
                 <span>{strategy.label}</span>
               </button>
             ))}
+            <button
+              key={EXPENSE_EXPLANATION_OPTION_ID}
+              type="button"
+              className="palace-dialogue-box__option"
+              onClick={handleExpenseExplanation}
+            >
+              <span>先问清用度</span>
+            </button>
           </section>
         ) : null}
 
-        {pendingNightlyServiceEvent ? (
+        {shouldShowPendingNightlyServiceEvent && pendingNightlyServiceEvent ? (
           <NightlyServiceEventView
             pendingEvent={pendingNightlyServiceEvent}
             playerName={state.name}
@@ -434,7 +540,7 @@ export function ChamberMainView() {
           />
         ) : null}
 
-        {!pendingNightlyServiceEvent && pendingNightlyServiceNotice ? (
+        {shouldShowPendingNightlyServiceNotice && pendingNightlyServiceNotice ? (
           <GlobalDialogueStage
             sceneLabel="夜晚侍寝通报"
             portraitLabel="场景旁白无立绘"
@@ -446,6 +552,7 @@ export function ChamberMainView() {
             content={pendingNightlyServiceNotice.lines.join('\n')}
             nextActionLabel="知道了"
             onNextAction={handleNightlyServiceNoticeDone}
+            numericFeedbackBucket="nightly-service"
           />
         ) : null}
 
@@ -472,7 +579,7 @@ export function ChamberMainView() {
             </button>
           ))}
           {isOutsideScene ? (
-            <button type="button" className="palace-sidebar__quick-return" aria-label="回宫" onClick={() => enterMainChamber()}>
+            <button type="button" className="palace-sidebar__quick-return" aria-label="回宫" onClick={handleQuickReturn}>
               <span>回</span>
               <span>宫</span>
             </button>
@@ -582,17 +689,18 @@ export function ChamberMainView() {
 
         {showSettlementReport && latestSettlementReport ? (
           <GlobalDialogueStage
-            sceneLabel="旬月通报场景"
+            sceneLabel={latestSettlementReport.kind === 'event' ? '宫宴通报场景' : '旬月通报场景'}
             portraitLabel="娇娇立绘"
             portrait={<img src={ASSISTANT_PORTRAIT_SRC} alt="娇娇" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant" />}
-            ariaLabel="娇娇旬月通报"
+            ariaLabel={latestSettlementReport.kind === 'event' ? '宫宴事件通报' : '娇娇旬月通报'}
             className="global-dialogue-stage--chamber global-dialogue-stage--assistant"
             dialogueClassName="palace-dialogue-box--chamber"
-            characterIdentity="贴身宫女"
-            characterName="娇娇"
+            characterIdentity={latestSettlementReport.kind === 'event' ? '司乐女官' : '贴身宫女'}
+            characterName={latestSettlementReport.kind === 'event' ? '掌册宫人' : '娇娇'}
             content={`${latestSettlementReport.title}。${latestSettlementReport.lines.join(' ')}`}
             nextActionLabel="记下"
             onNextAction={() => handleSettlementReportDone(latestSettlementReport.id)}
+            numericFeedbackBucket="settlement"
           />
         ) : null}
 
@@ -619,8 +727,14 @@ export function ChamberMainView() {
             characterIdentity={isJiaojiaoChamberDialogue ? '贴身宫女' : '场景旁白'}
             characterName={isJiaojiaoChamberDialogue ? '娇娇' : currentSceneLabel}
             content={dialogueText}
-            nextActionLabel="收起"
-            onNextAction={() => setDialogueText('')}
+            nextActionLabel={
+              pendingChamberDialogueAction === 'enter-map'
+                ? '前往地图'
+                : pendingChamberDialogueAction === 'reopen-expense-choice'
+                  ? '重新选择'
+                  : '收起'
+            }
+            onNextAction={handleChamberDialogueDone}
           />
         ) : null}
 

@@ -1,4 +1,4 @@
-﻿/* @vitest-environment jsdom */
+/* @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -15,6 +15,7 @@ import { buildInitialConcubineRoster } from '../game/data/concubineRoster';
 import { buildMusicScoreItem, cloneInitialInventory } from '../game/data/inventoryPresets';
 import { buildRouteProfiles } from '../game/data/routeProfiles';
 import { YINGLUOYETING_STORY_FLAGS } from '../game/lib/yingluoyetingStoryRuntime';
+import { SAVE_GAME_STORAGE_KEY } from '../game/save/saveGameV1';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
 
 const resetFlowStore = () => {
@@ -56,6 +57,7 @@ const resetFlowStore = () => {
     settlementReports: [],
     latestSettlementReportId: undefined,
     lastSeenSettlementReportId: undefined,
+    numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
     bondProfile: buildInitialBondProfile('lanyinxuguo', '1-1-1'),
     concubineRouteId: 'lanyinxuguo',
     concubines: buildInitialConcubineRoster('lanyinxuguo'),
@@ -85,6 +87,9 @@ const resetFlowStore = () => {
       lianQiaoMet: false,
       lianQiaoFavor: 0,
       lianQiaoAffection: 0,
+    },
+    palaceBanquetProgress: {
+      submissionCount: 0,
     },
     templeProgress: {
       worshipCount: 0,
@@ -162,6 +167,15 @@ const finishOpeningGuide = async () => {
   fireEvent.click((await screen.findByText('节衣缩食')).closest('button')!);
   await clickDialogueAdvance();
   await clickMapGuideReturnToChamber();
+  await waitFor(() => expect(screen.getByText(/诵读经典/)).toBeInTheDocument());
+  if (screen.queryByLabelText('寝殿对白')) {
+    await clickDialogueAdvance();
+  }
+};
+
+const clickStartNewGame = async () => {
+  fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+  fireEvent.click(await screen.findByRole('button', { name: '确认新开' }));
 };
 
 describe('App 主流程切换', () => {
@@ -180,9 +194,150 @@ describe('App 主流程切换', () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+    expect(await screen.findByRole('dialog', { name: '新游戏确认' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+    expect(screen.queryByRole('dialog', { name: '新游戏确认' })).not.toBeInTheDocument();
 
+    await clickStartNewGame();
     expect(await screen.findByText('通关要求')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '确定' })).toBeInTheDocument();
+  });
+
+  it('开始新游戏会二级确认、清空旧存档并创建新存档', async () => {
+    act(() => {
+      useGameFlowStore.setState((state) => ({
+        ...state,
+        time: {
+          year: 7,
+          month: 8,
+          xun: 3,
+          slotIndex: 5,
+          slot: '夜晚',
+          slotProgress: 0,
+        },
+        settlementReports: [
+          {
+            id: 'stale-report',
+            kind: 'xun',
+            year: 7,
+            month: 8,
+            xun: 3,
+            title: '旧局通报',
+            summary: '不应进入新局',
+            lines: ['不应进入新局'],
+          },
+        ],
+        palaceStrifeCases: [
+          {
+            id: 'stale-case',
+            xunKey: '7-8-3',
+            year: 7,
+            month: 8,
+            xun: 3,
+            actorId: 'player',
+            targetConsortId: 'consort-cui',
+            targetName: '崔令蓉',
+            actionKind: 'rumor',
+            methodLabel: '散布流言',
+            itemLabel: '不使用',
+            allyLabel: '无',
+            severity: 'light',
+            actionSuccessRate: 52,
+            concealmentSuccessRate: 61,
+            actionRoll: 12,
+            concealmentRoll: 88,
+            actionSucceeded: true,
+            concealmentSucceeded: false,
+            status: 'investigating',
+            outcome: 'pending',
+            investigationXunsElapsed: 0,
+            convictionRate: 35,
+            summary: '旧局案件。',
+          },
+        ],
+      }));
+    });
+    const staleSave = useGameFlowStore.getState().exportSaveGameV1('2026-06-02T00:00:00.000Z');
+    localStorage.setItem(SAVE_GAME_STORAGE_KEY, JSON.stringify({ state: { saveGame: staleSave }, version: 0 }));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+    expect(await screen.findByRole('dialog', { name: '新游戏确认' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '确认新开' }));
+
+    const flow = useGameFlowStore.getState();
+    expect(flow.currentView).toBe('route-selection');
+    expect(flow.time).toMatchObject({
+      year: 1,
+      month: 1,
+      xun: 1,
+      slot: '清晨',
+    });
+    expect(flow.settlementReports).toEqual([]);
+    expect(flow.palaceStrifeCases).toEqual([]);
+
+    await waitFor(() => {
+      const persisted = JSON.parse(localStorage.getItem(SAVE_GAME_STORAGE_KEY) ?? '{}');
+      expect(persisted.state.saveGame.world.time.year).toBe(1);
+      expect(persisted.state.saveGame.world.settlementReports).toEqual([]);
+      expect(persisted.state.saveGame.cases.palaceStrifeCases).toEqual([]);
+    });
+  });
+
+  it('回溯会读取上一次存档并进入对应游戏阶段', async () => {
+    const routeProfile = buildRouteProfiles()[0];
+    act(() => {
+      useGameFlowStore.getState().applyRouteSelection(routeProfile);
+      useGameFlowStore.setState((state) => ({
+        ...state,
+        currentView: 'start',
+        state: {
+          ...state.state,
+          name: '谢令仪',
+          flags: {
+            ...state.state.flags,
+            openingGuideFinished: true,
+            mapGuideFinished: true,
+          },
+        },
+        time: {
+          year: 3,
+          month: 4,
+          xun: 2,
+          slotIndex: 3,
+          slot: '下午',
+          slotProgress: 0,
+        },
+      }));
+    });
+    const saveGame = useGameFlowStore.getState().exportSaveGameV1('2026-06-02T01:00:00.000Z');
+    localStorage.setItem(SAVE_GAME_STORAGE_KEY, JSON.stringify({ state: { saveGame }, version: 0 }));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '回溯历史进度' }));
+
+    expect(await screen.findByLabelText('寝殿左侧功能栏')).toBeInTheDocument();
+    const flow = useGameFlowStore.getState();
+    expect(flow.currentView).toBe('bedchamber');
+    expect(flow.state.name).toBe('谢令仪');
+    expect(flow.time).toMatchObject({
+      year: 3,
+      month: 4,
+      xun: 2,
+      slot: '下午',
+    });
+  });
+
+  it('没有存档时回溯会留在开始页并显示提示', async () => {
+    localStorage.clear();
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '回溯历史进度' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('暂无可回溯的存档。');
+    expect(screen.getByRole('button', { name: '开始新游戏' })).toBeInTheDocument();
   });
 
   it('开局三选项是用度策略，不再是一次性性格加成', () => {
@@ -194,7 +349,7 @@ describe('App 主流程切换', () => {
   it('年龄使用有边界的加减调整', async () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+    await clickStartNewGame();
     fireEvent.click(await screen.findByRole('button', { name: '确定' }));
     await screen.findByRole('button', { name: '确认进入剧情' });
 
@@ -218,7 +373,7 @@ describe('App 主流程切换', () => {
   it('属性加点按钮会在下限、上限和点数不足时禁用', async () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+    await clickStartNewGame();
     fireEvent.click(await screen.findByRole('button', { name: '确定' }));
     await screen.findByRole('button', { name: '确认进入剧情' });
 
@@ -276,10 +431,29 @@ describe('App 主流程切换', () => {
     expect(increaseHealth).not.toBeDisabled();
   });
 
+  it('角色初始化和属性调整阶段不会显示数值变化 toast', async () => {
+    render(<App />);
+
+    await clickStartNewGame();
+    fireEvent.click(await screen.findByRole('button', { name: '确定' }));
+    const confirmStory = await screen.findByRole('button', { name: '确认进入剧情' });
+
+    expect(screen.queryByLabelText('数值变化提示')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '健康增加' }));
+    await waitFor(() => {
+      expect(screen.queryByLabelText('数值变化提示')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(confirmStory);
+    await screen.findByLabelText('开场对话框');
+    expect(screen.queryByLabelText('数值变化提示')).not.toBeInTheDocument();
+  });
+
   it('属性页改名会同步路线状态和影落掖庭开场称呼', async () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+    await clickStartNewGame();
     fireEvent.click(await screen.findByRole('button', { name: '影落掖庭' }));
     await screen.findByDisplayValue('沉璧');
     fireEvent.click(screen.getByRole('button', { name: '确定' }));
@@ -331,6 +505,8 @@ describe('App 主流程切换', () => {
   });
 
   it('全局对话舞台会把长段剧情分页展示，翻完前不显示分支选项', () => {
+    const onSelectOption = vi.fn();
+
     render(
       <GlobalDialogueStage
         sceneLabel="测试剧情舞台"
@@ -344,11 +520,12 @@ describe('App 主流程切换', () => {
           '“姑娘又来了。”',
         ].join('\n')}
         options={[{ id: 'take', label: '只收下残抄' }]}
-        onSelectOption={vi.fn()}
+        onSelectOption={onSelectOption}
         typewriter={false}
       />,
     );
 
+    expect(document.querySelector('.global-dialogue-stage__interaction-lock')).toBeInTheDocument();
     expect(screen.getByText(/冷宫门前的铜锁早已生锈/)).toBeInTheDocument();
     expect(screen.queryByText(/姑娘又来了/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '只收下残抄' })).not.toBeInTheDocument();
@@ -358,6 +535,11 @@ describe('App 主流程切换', () => {
 
     expect(screen.getByText(/姑娘又来了/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '只收下残抄' })).toBeInTheDocument();
+    expect(screen.getByLabelText('对话正文')).toHaveAttribute('tabindex', '-1');
+    expect(document.querySelector('.palace-dialogue-box__content')).toHaveAttribute('data-dialogue-interaction', 'disabled');
+
+    fireEvent.click(document.querySelector('.palace-dialogue-box__content')!);
+    expect(onSelectOption).not.toHaveBeenCalled();
   });
 
   it('全局对话舞台按当前对白说话人切换立绘，不把原角色立绘误用于拆出的其他角色对白', () => {
@@ -450,7 +632,7 @@ describe('App 主流程切换', () => {
   it('可从路线选择页进入属性页，再进入开场引导', async () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+    await clickStartNewGame();
     fireEvent.click(await screen.findByRole('button', { name: '确定' }));
 
     expect(await screen.findByText(/剩余点数/)).toBeInTheDocument();
@@ -643,7 +825,7 @@ describe('App 主流程切换', () => {
   it('开场用度解释选项由说话人说明三档含义后返回选择', async () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+    await clickStartNewGame();
     fireEvent.click(await screen.findByRole('button', { name: '确定' }));
     fireEvent.click(await screen.findByRole('button', { name: '确认进入剧情' }));
 
@@ -675,7 +857,7 @@ describe('App 主流程切换', () => {
   it('可从开场引导进入地图，再进入寝殿', async () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+    await clickStartNewGame();
     fireEvent.click(await screen.findByRole('button', { name: '确定' }));
     fireEvent.click(await screen.findByRole('button', { name: '确认进入剧情' }));
 
@@ -693,6 +875,247 @@ describe('App 主流程切换', () => {
       expect(screen.getByText(/诵读经典/)).toBeInTheDocument();
       expect(screen.queryByText(/更换装扮/)).not.toBeInTheDocument();
     });
+  });
+
+  it('点击外出会先停留在寝殿展示出行提示，收起后再进入地图', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      state: {
+        ...state.state,
+        residenceName: '椒房殿',
+        flags: {
+          ...state.state.flags,
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '外出' }));
+
+    expect(useGameFlowStore.getState().currentView).toBe('bedchamber');
+    const chamberDialogue = await screen.findByLabelText('寝殿对白');
+    expect(within(chamberDialogue).getByText(/宫中各处都在眼前/)).toBeInTheDocument();
+    expect(screen.getByText('贴身宫女 · 娇娇')).toBeInTheDocument();
+
+    await clickDialogueAdvance();
+
+    await waitFor(() => {
+      expect(useGameFlowStore.getState().currentView).toBe('map-main');
+    });
+  });
+
+  it('寝殿剧情对白未收起时会屏蔽其他寝殿按钮点击', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      state: {
+        ...state.state,
+        stamina: STAMINA_INITIAL_PER_XUN,
+        flags: {
+          ...state.state.flags,
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 0,
+        slot: '清晨',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '泼墨作画' }));
+
+    const actionDialogue = await screen.findByLabelText('寝殿对白');
+    expect(within(actionDialogue).getByText(/泼墨作画告一段落/)).toBeInTheDocument();
+    const flowAfterFirstAction = useGameFlowStore.getState();
+
+    fireEvent.click(screen.getByRole('button', { name: '诵读经典' }));
+    fireEvent.click(screen.getByRole('button', { name: '家族事务' }));
+
+    const flowAfterBlockedClicks = useGameFlowStore.getState();
+    expect(flowAfterBlockedClicks.time.slotIndex).toBe(flowAfterFirstAction.time.slotIndex);
+    expect(flowAfterBlockedClicks.state.stamina).toBe(flowAfterFirstAction.state.stamina);
+    expect(flowAfterBlockedClicks.activeChamberPanel).toBe('main');
+    expect(within(actionDialogue).getByText(/泼墨作画告一段落/)).toBeInTheDocument();
+  });
+
+  it('地图剧情对白未收起时会屏蔽地图侧栏和热点点击', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'map-main',
+      scene: 'map',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      mapEventText: '宫道上有人低声传来一句话，示意你先听完再动身。',
+      state: {
+        ...state.state,
+        residenceName: '椒房殿',
+        flags: {
+          ...state.state.flags,
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+    }));
+
+    render(<App />);
+
+    const mapDialogue = await screen.findByLabelText('地图引导对话框');
+    expect(within(mapDialogue).getByText(/先听完再动身/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '回宫' }));
+    fireEvent.click(screen.getByRole('button', { name: '御花园' }));
+
+    const flowAfterBlockedClicks = useGameFlowStore.getState();
+    expect(flowAfterBlockedClicks.currentView).toBe('map-main');
+    expect(flowAfterBlockedClicks.activeMapLocation).toBeUndefined();
+    expect(screen.queryByLabelText('御花园 地点弹窗')).not.toBeInTheDocument();
+    expect(within(mapDialogue).getByText(/先听完再动身/)).toBeInTheDocument();
+  });
+
+  it('跨旬行动会先展示本次行动结果，再展示下一旬通报', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      state: {
+        ...state.state,
+        stamina: STAMINA_INITIAL_PER_XUN,
+        flags: {
+          ...state.state.flags,
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 6,
+        slot: '深夜',
+        slotProgress: 0,
+      },
+      nightlyService: {
+        ...state.nightlyService,
+        pendingEvent: undefined,
+        pendingNotice: undefined,
+        pendingMorningLines: ['夜里无事，宫门照例落钥。'],
+      },
+      settlementReports: [],
+      latestSettlementReportId: undefined,
+      lastSeenSettlementReportId: undefined,
+    }));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '请平安脉' }));
+
+    const actionDialogue = await screen.findByLabelText('寝殿对白');
+    expect(within(actionDialogue).getByText(/请平安脉告一段落/)).toBeInTheDocument();
+    expect(screen.queryByText(/1年1月第2旬清晨通报/)).not.toBeInTheDocument();
+
+    await clickDialogueAdvance();
+
+    expect(await screen.findByText(/1年1月第2旬清晨通报/)).toBeInTheDocument();
+  });
+
+  it('玩家数值变化会显示可叠加的具体变化 toast，但不显示体力和宠爱', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      state: {
+        ...state.state,
+        stamina: STAMINA_INITIAL_PER_XUN,
+        flags: {
+          ...state.state.flags,
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 0,
+        slot: '清晨',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '泼墨作画' }));
+
+    const toastLayer = await screen.findByLabelText('数值变化提示');
+    expect(within(toastLayer).queryByText('体力 -1')).not.toBeInTheDocument();
+    expect(within(toastLayer).getByText('丹青 +2')).toBeInTheDocument();
+    expect(within(toastLayer).getAllByRole('status').map((toast) => toast.textContent?.trim())).toEqual(
+      expect.arrayContaining(['丹青 +2']),
+    );
+
+    const targetConsort = useGameFlowStore.getState().concubines[0];
+    act(() => {
+      useGameFlowStore.setState((flow) => ({
+        ...flow,
+        state: {
+          ...flow.state,
+          favor: Number(flow.state.favor ?? 0) + 4,
+          prestige: Number(flow.state.prestige ?? 0) + 5,
+        },
+        hiddenStats: {
+          ...flow.hiddenStats,
+          favor: Number(flow.hiddenStats.favor ?? 0) + 4,
+          prestige: Number(flow.hiddenStats.prestige ?? 0) + 5,
+        },
+        concubines: flow.concubines.map((consort) =>
+          consort.id === targetConsort.id
+            ? {
+                ...consort,
+                stats: {
+                  ...consort.stats,
+                  favor: Number(consort.stats.favor ?? 0) + 4,
+                  prestige: Number(consort.stats.prestige ?? 0) + 4,
+                },
+              }
+            : consort,
+        ),
+      }));
+    });
+
+    expect(within(toastLayer).queryByText('宠爱 +4')).not.toBeInTheDocument();
+    expect(within(toastLayer).queryByText('声望 +5')).not.toBeInTheDocument();
+    expect(within(toastLayer).queryByText(`${targetConsort.rankLabel}${targetConsort.name}宠爱 +4`)).not.toBeInTheDocument();
+    expect(within(toastLayer).queryByText(`${targetConsort.rankLabel}${targetConsort.name}声望 +4`)).not.toBeInTheDocument();
+
+    act(() => {
+      useGameFlowStore.getState().markNumericFeedbackEvent('chamber-action');
+    });
+
+    expect(await within(toastLayer).findByText('声望 +5')).toBeInTheDocument();
+    expect(await within(toastLayer).findByText(`${targetConsort.rankLabel}${targetConsort.name}声望 +4`)).toBeInTheDocument();
+    expect(within(toastLayer).queryByText('宠爱 +4')).not.toBeInTheDocument();
+    expect(within(toastLayer).queryByText(`${targetConsort.rankLabel}${targetConsort.name}宠爱 +4`)).not.toBeInTheDocument();
   });
 
   it('太医院遇到简宁时会进入对话场景', async () => {
@@ -1018,8 +1441,50 @@ describe('App 主流程切换', () => {
 
     await waitFor(() => {
       expect(useGameFlowStore.getState().musicHallProgress.signUpCount).toBe(1);
+      expect(useGameFlowStore.getState().palaceBanquetProgress.submittedScore?.itemId).toBe('score-phoenix-return');
       expect(useGameFlowStore.getState().inventory.some((item) => item.itemId === 'score-phoenix-return')).toBe(false);
     });
+  });
+
+  it('妙音堂听曲的压力变化会随本次行动显示 toast', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '妙音堂',
+      state: {
+        ...state.state,
+        stress: 30,
+        flags: {
+          ...state.state.flags,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        ...state.hiddenStats,
+        stress: 30,
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 6,
+        slot: '深夜',
+        slotProgress: 0,
+      },
+      settlementReports: [],
+      latestSettlementReportId: undefined,
+      lastSeenSettlementReportId: undefined,
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '听曲' }));
+
+    const toastLayer = await screen.findByLabelText('数值变化提示');
+    expect(await within(toastLayer).findByText(/压力 -/)).toBeInTheDocument();
+    expect(screen.queryByText(/第2旬清晨通报/)).not.toBeInTheDocument();
   });
 
   it('位分低于容华时不能进入华清池', async () => {
@@ -1963,7 +2428,7 @@ describe('App 主流程切换', () => {
   it('寝殿情缘面板默认只显示主线对象的只读心声', async () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+    await clickStartNewGame();
     fireEvent.click(await screen.findByRole('button', { name: '确定' }));
     fireEvent.click(await screen.findByRole('button', { name: '确认进入剧情' }));
 
@@ -2342,7 +2807,7 @@ describe('App 主流程切换', () => {
   it('寝殿嫔妃面板可切换状态并展示对应名单', async () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+    await clickStartNewGame();
     fireEvent.click(await screen.findByRole('button', { name: '确定' }));
     fireEvent.click(await screen.findByRole('button', { name: '确认进入剧情' }));
 
@@ -3488,7 +3953,7 @@ describe('App 主流程切换', () => {
   it('结束本旬后会进入下一旬清晨并弹出娇娇通报，纪事页同步留档', async () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+    await clickStartNewGame();
     fireEvent.click(await screen.findByRole('button', { name: '确定' }));
     fireEvent.click(await screen.findByRole('button', { name: '确认进入剧情' }));
 
@@ -3505,6 +3970,7 @@ describe('App 主流程切换', () => {
       expect(screen.getByText('1年1月1旬（上午）')).toBeInTheDocument();
       expect(screen.getByText(`体力：${STAMINA_INITIAL_PER_XUN - 1}`)).toBeInTheDocument();
     });
+    await clickDialogueAdvance();
 
     useGameFlowStore.setState((flow) => ({
       ...flow,
@@ -3540,6 +4006,7 @@ describe('App 主流程切换', () => {
       expect(screen.getByText(`体力：${STAMINA_INITIAL_PER_XUN}`)).toBeInTheDocument();
       expect(screen.getByText(/1年1月第2旬清晨通报/)).toBeInTheDocument();
     });
+    expect(useGameFlowStore.getState().settlementReports.filter((report) => report.title === '1年1月第2旬清晨通报')).toHaveLength(1);
     expect(screen.getByLabelText('一夜过去')).toBeInTheDocument();
 
     await clickDialogueAdvance();
@@ -3548,15 +4015,16 @@ describe('App 主流程切换', () => {
       expect(screen.queryByText(/1年1月第2旬清晨通报/)).not.toBeInTheDocument();
       expect(screen.queryByLabelText('一夜过去')).not.toBeInTheDocument();
     });
+    expect(useGameFlowStore.getState().settlementReports.filter((report) => report.title === '1年1月第2旬清晨通报')).toHaveLength(1);
 
     fireEvent.click(screen.getByRole('button', { name: '纪事' }));
     fireEvent.click(await screen.findByRole('button', { name: '事件' }));
 
     expect(await screen.findByText('1年1月第2旬清晨通报')).toBeInTheDocument();
     expect(screen.getByText(new RegExp(`体力按新旬口径恢复为${STAMINA_INITIAL_PER_XUN}`))).toBeInTheDocument();
-  });
+  }, 10000);
 
-  it('普通行动推进到夜晚时，非主角侍寝通报后仍保留夜晚行动回合', async () => {
+  it('普通行动推进到夜晚时，会先展示本次行动结果，再展示非主角侍寝通报', async () => {
     useGameFlowStore.setState((flow) => ({
       ...flow,
       currentView: 'bedchamber',
@@ -3599,6 +4067,12 @@ describe('App 主流程切换', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '殿内小酣' }));
 
+    const actionDialogue = await screen.findByLabelText('寝殿对白');
+    expect(within(actionDialogue).getByText(/殿内小酣告一段落/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('夜晚侍寝通报')).not.toBeInTheDocument();
+
+    await clickDialogueAdvance();
+
     await waitFor(() => {
       expect(screen.getByText('1年1月1旬（夜晚）')).toBeInTheDocument();
       expect(screen.getAllByLabelText('夜晚侍寝通报').length).toBeGreaterThan(0);
@@ -3611,6 +4085,87 @@ describe('App 主流程切换', () => {
       expect(screen.queryByLabelText('一夜过去')).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: '殿内小酣' })).toBeInTheDocument();
     });
+  }, 10000);
+
+  it('他人侍寝影响玩家宠爱时，不显示宠爱 toast', async () => {
+    const ally = buildInitialConcubineRoster('lanyinxuguo').find((consort) => consort.stats.relationToPlayer > 0)!;
+
+    useGameFlowStore.setState((flow) => ({
+      ...flow,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      state: {
+        ...flow.state,
+        favor: 1,
+        stamina: STAMINA_INITIAL_PER_XUN,
+        flags: {
+          ...flow.state.flags,
+          bedchamberIntroShown: true,
+        },
+      },
+      hiddenStats: {
+        ...flow.hiddenStats,
+        favor: 1,
+      },
+      concubines: [
+        {
+          ...ally,
+          stats: {
+            ...ally.stats,
+            favor: 90,
+            relationToPlayer: 60,
+          },
+        },
+      ],
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 4,
+        slot: '傍晚',
+        slotProgress: 0,
+      },
+      nightlyService: {
+        ...flow.nightlyService,
+        queuedRolls: {
+          alone: 100,
+          player: 100,
+          pool: 1,
+          interest: 60,
+          thirdParty: 80,
+          pregnancy: 100,
+        },
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '殿内小酣' }));
+    await screen.findByLabelText('寝殿对白');
+    await clickDialogueAdvance();
+
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('夜晚侍寝通报').length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText(/^宠爱 \+[3-5]$/)).not.toBeInTheDocument();
+
+    await clickDialogueAdvance();
+    await waitFor(() => {
+      expect(screen.queryByLabelText('夜晚侍寝通报')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '结束本旬' })).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/^宠爱 \+[3-5]$/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '结束本旬' }));
+
+    expect(await screen.findByLabelText('一夜过去')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/1年1月第2旬清晨通报/)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/^宠爱 \+[3-5]$/)).not.toBeInTheDocument();
   });
 
   it('结束本旬触发主角侍寝时，会先进养心殿互动，侍寝后再黑幕到清晨通报', async () => {
@@ -4101,6 +4656,11 @@ describe('App 主流程切换', () => {
         ...state.state,
         silver: 1000,
         prestige: 1000,
+        flags: {
+          ...state.state.flags,
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
       },
       hiddenStats: {
         ...state.hiddenStats,
@@ -4169,12 +4729,59 @@ describe('App 主流程切换', () => {
     expect(document.querySelector('.chamber-main__expense-choice-overlay')).toHaveClass('palace-dialogue-box__options');
     expect(screen.getByText('节衣缩食').closest('button')).toHaveClass('palace-dialogue-box__option');
     expect(screen.getByText('量入为出').closest('button')).toHaveClass('palace-dialogue-box__option');
+    expect(screen.getByText('先问清用度').closest('button')).toHaveClass('palace-dialogue-box__option');
     const luxuryStrategyButton = screen.getByRole('button', { name: '锦衣玉食' });
     expect(luxuryStrategyButton).toHaveClass('palace-dialogue-box__option');
     fireEvent.click(luxuryStrategyButton);
 
     expect(useGameFlowStore.getState().state.nextMonthlyExpenseStrategy).toBe('luxury');
     expect(document.querySelector('.chamber-main__expense-choice-overlay')).not.toBeInTheDocument();
+  });
+
+  it('寝殿调整用度说明由娇娇解释三档含义后返回选择', async () => {
+    const lanyinRoute = buildRouteProfiles().find((route) => route.id === 'lanyinxuguo')!;
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      routeId: 'lanyinxuguo',
+      selectedRoute: {
+        ...lanyinRoute,
+        defaultName: state.state.name,
+        familyDisplay: state.state.family,
+        residenceDisplay: state.state.residenceName,
+        baseState: {},
+        hiddenStats: state.hiddenStats,
+      },
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        monthlyExpenseStrategy: 'balanced',
+        nextMonthlyExpenseStrategy: undefined,
+        flags: {
+          ...state.state.flags,
+          bedchamberIntroShown: true,
+        },
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '调整用度' }));
+    fireEvent.click(screen.getByRole('button', { name: '先问清用度' }));
+
+    expect(await screen.findByLabelText('寝殿对白')).toBeInTheDocument();
+    expect(screen.getByText(/这三档说的是每月固定用度/)).toBeInTheDocument();
+    expect(screen.getByText(/· 娇娇/)).toBeInTheDocument();
+    expect(document.querySelector('.chamber-main__expense-choice-overlay')).not.toBeInTheDocument();
+
+    await clickDialogueAdvance();
+
+    expect(document.querySelector('.chamber-main__expense-choice-overlay')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '节衣缩食' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '先问清用度' })).toBeInTheDocument();
+    expect(useGameFlowStore.getState().state.nextMonthlyExpenseStrategy).toBeUndefined();
   });
 
   it('跨月时会按位分推进更新住处，并在月报里留下迁宫记录', () => {
@@ -4272,7 +4879,7 @@ describe('App 主流程切换', () => {
   it('请平安脉不消耗体力，殿内小酣可恢复体力', async () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+    await clickStartNewGame();
     fireEvent.click(await screen.findByRole('button', { name: '确定' }));
     fireEvent.click(await screen.findByRole('button', { name: '确认进入剧情' }));
 
@@ -4288,12 +4895,14 @@ describe('App 主流程切换', () => {
       expect(useGameFlowStore.getState().state.stamina).toBe(STAMINA_INITIAL_PER_XUN);
       expect(screen.getByText('1年1月1旬（上午）')).toBeInTheDocument();
     });
+    await clickDialogueAdvance();
 
     fireEvent.click(screen.getByRole('button', { name: '习舞奏乐' }));
 
     await waitFor(() => {
       expect(useGameFlowStore.getState().state.stamina).toBe(STAMINA_INITIAL_PER_XUN - 2);
     });
+    await clickDialogueAdvance();
 
     fireEvent.click(screen.getByRole('button', { name: '殿内小酣' }));
 
@@ -4306,7 +4915,7 @@ describe('App 主流程切换', () => {
   it('寝殿日常行动会显示对应剧情反馈', async () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '开始新游戏' }));
+    await clickStartNewGame();
     fireEvent.click(await screen.findByRole('button', { name: '确定' }));
     fireEvent.click(await screen.findByRole('button', { name: '确认进入剧情' }));
     await finishOpeningGuide();
@@ -4316,7 +4925,7 @@ describe('App 主流程切换', () => {
     const chamberDialogue = await screen.findByLabelText('寝殿对白');
     expect(within(chamberDialogue).getByText(/砚/)).toBeInTheDocument();
     expect(within(chamberDialogue).getByText(/泼墨作画/)).toBeInTheDocument();
-    expect(within(chamberDialogue).getByText(/丹青 \+2/)).toBeInTheDocument();
+    expect(within(chamberDialogue).queryByText(/丹青 \+2/)).not.toBeInTheDocument();
     expect(screen.queryByAltText('娇娇')).not.toBeInTheDocument();
     expect(screen.getByText('场景旁白 · 椒房殿')).toBeInTheDocument();
   });

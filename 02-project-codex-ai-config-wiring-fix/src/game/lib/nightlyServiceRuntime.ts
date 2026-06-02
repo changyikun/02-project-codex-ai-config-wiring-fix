@@ -156,7 +156,7 @@ const resolveOtherConsortPlayerFavorEffect = (
     const playerFavorDelta = getThirdPartyFavorMagnitude(`${seed}:other-consort-praise:${consort.id}`);
     return {
       playerFavorDelta,
-      line: `${consortLabel}侍寝后替玩家美言，玩家宠爱+${playerFavorDelta}。`,
+      line: `${consortLabel}侍寝后替玩家美言，皇帝对娘娘的态度略有松动。`,
     };
   }
 
@@ -164,7 +164,7 @@ const resolveOtherConsortPlayerFavorEffect = (
     const playerFavorDelta = -getThirdPartyFavorMagnitude(`${seed}:other-consort-smear:${consort.id}`);
     return {
       playerFavorDelta,
-      line: `${consortLabel}侍寝后向皇帝抹黑玩家，玩家宠爱${playerFavorDelta}。`,
+      line: `${consortLabel}侍寝后向皇帝抹黑玩家，娘娘在御前的处境多了几分阴影。`,
     };
   }
 
@@ -468,7 +468,7 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
 
     const effects = getInterestEffects(interest);
     const lines = [
-      `夜里太监来报：养心殿召娘娘侍寝。本次兴致${interest}，宠爱${effects.favorDelta >= 0 ? '+' : ''}${effects.favorDelta}，真心${effects.trueHeartDelta >= 0 ? '+' : ''}${effects.trueHeartDelta}${effects.prestigeDelta ? `，声望+${effects.prestigeDelta}` : ''}。`,
+      `夜里太监来报：养心殿召娘娘侍寝。本次兴致${interest}。`,
       '本旬玩家已承宠，侍寝保底值归零。',
     ];
     const report = buildReport({
@@ -551,7 +551,7 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
     seed,
   );
   const lines = [
-    `夜里太监来报：本旬由${target.rankLabel}${target.name}侍寝。本次兴致${interest}，其宠爱${effects.favorDelta >= 0 ? '+' : ''}${effects.favorDelta}。`,
+    `夜里太监来报：本旬由${target.rankLabel}${target.name}侍寝。本次兴致${interest}。`,
     ...(playerFavorEffect.line ? [playerFavorEffect.line] : []),
     `玩家本旬未被召幸，侍寝保底值+2，当前为${nextGauge}。`,
   ];
@@ -611,15 +611,13 @@ export const resolvePlayerNightlyServiceEvent = (
   const thirdPartyEffect = resolveGentleThirdPartyEffect(choices, input.concubines, input.pendingEvent);
   const pregnancy = resolvePlayerServicePregnancy(input.pendingEvent, input.player.stats);
   const lines = [
-    `养心殿侍寝已毕。本次兴致${finalInterest}，宠爱${effects.favorDelta >= 0 ? '+' : ''}${effects.favorDelta}，真心${
-      effects.trueHeartDelta >= 0 ? '+' : ''
-    }${effects.trueHeartDelta}${effects.prestigeDelta ? `，声望+${effects.prestigeDelta}` : ''}。`,
+    `养心殿侍寝已毕。本次兴致${finalInterest}。`,
     ...(pregnancy?.succeeded ? ['太医请脉后低声回禀：娘娘脉象有喜，已按例记入内廷医案。'] : []),
     ...(thirdPartyEffect
       ? [
           thirdPartyEffect.branchId === 'praise'
-            ? `你在言语间替${thirdPartyEffect.targetName}留了余地，${thirdPartyEffect.targetName}宠爱+${thirdPartyEffect.favorDelta}。`
-            : `你在言语间点到${thirdPartyEffect.targetName}的错处，${thirdPartyEffect.targetName}宠爱${thirdPartyEffect.favorDelta}。`,
+            ? `你在言语间替${thirdPartyEffect.targetName}留了余地，御前听来颇觉顺耳。`
+            : `你在言语间点到${thirdPartyEffect.targetName}的错处，御前一时静了下来。`,
         ]
       : []),
     '本旬玩家已承宠，侍寝保底值归零。',

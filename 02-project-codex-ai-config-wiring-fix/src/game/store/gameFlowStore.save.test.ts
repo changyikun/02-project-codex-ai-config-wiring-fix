@@ -2,6 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { PRESTIGE_RANGE } from '../../config/constants';
 import { YINGLUOYETING_STORY_FLAGS } from '../lib/yingluoyetingStoryRuntime';
 import { SAVE_GAME_SCHEMA_VERSION } from '../save/saveGameV1';
 import { useGameFlowStore } from './gameFlowStore';
@@ -94,6 +95,108 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     expect(encoded).not.toContain('temporary line');
   });
 
+  it('creates a dedicated palace banquet registration notice during the signup window', () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      time: {
+        year: 1,
+        month: 11,
+        xun: 3,
+        slotIndex: 6,
+        slot: '深夜',
+        slotProgress: 0,
+      },
+      palaceBanquetProgress: {
+        submissionCount: 0,
+      },
+      settlementReports: [],
+      latestSettlementReportId: undefined,
+      lastSeenSettlementReportId: undefined,
+    }));
+
+    useGameFlowStore.getState().advanceTime(1);
+
+    const flow = useGameFlowStore.getState();
+    expect(flow.palaceBanquetProgress.lastRegistrationNoticeSeasonKey).toBe('2-3-1-palace-banquet');
+    expect(flow.settlementReports.at(-1)).toMatchObject({
+      kind: 'event',
+      title: '宫宴报名开启',
+    });
+  });
+
+  it('resolves the system palace banquet once when time reaches the banquet slot', () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      state: {
+        ...state.state,
+        prestige: 2500,
+        stats: {
+          ...state.state.stats,
+          talent: 10,
+        },
+      },
+      hiddenStats: {
+        ...state.hiddenStats,
+        prestige: 2500,
+      },
+      time: {
+        year: 1,
+        month: 3,
+        xun: 1,
+        slotIndex: 3,
+        slot: '下午',
+        slotProgress: 0,
+      },
+      musicHallProgress: {
+        ...state.musicHallProgress,
+        listenCount: 6,
+        lianQiaoMet: true,
+        lianQiaoFavor: 60,
+        lianQiaoAffection: 60,
+      },
+      palaceBanquetProgress: {
+        submissionCount: 1,
+        submittedScore: {
+          itemId: 'score-phoenix-return',
+          name: '凤归云阙谱',
+          color: 'red',
+          rarity: 'red',
+          seasonKey: '1-3-1-palace-banquet',
+          submittedAt: {
+            year: 1,
+            month: 1,
+            xun: 1,
+            slotIndex: 1,
+            slot: '上午',
+            slotProgress: 0,
+          },
+        },
+      },
+      settlementReports: [],
+      latestSettlementReportId: undefined,
+      lastSeenSettlementReportId: undefined,
+      nightlyService: {
+        ...state.nightlyService,
+        pendingEvent: undefined,
+        pendingNotice: undefined,
+      },
+    }));
+
+    useGameFlowStore.getState().advanceTime(1);
+    const flow = useGameFlowStore.getState();
+    const latestReport = flow.settlementReports.at(-1);
+
+    expect(flow.time.slot).toBe('深夜');
+    expect(flow.state.prestige).toBeGreaterThan(2500);
+    expect(flow.palaceBanquetProgress.lastResolvedSeasonKey).toBe('1-3-1-palace-banquet');
+    expect(flow.palaceBanquetProgress.lastResult?.scoreName).toBe('凤归云阙谱');
+    expect(latestReport).toMatchObject({
+      kind: 'event',
+      title: '系统宫宴通报',
+    });
+    expect(flow.nightlyService.pendingEvent).toBeUndefined();
+  });
+
   it('loads SaveGameV1 durable fields and resets transient UI state', () => {
     const saveGame = useGameFlowStore.getState().exportSaveGameV1('2026-05-22T06:00:00.000Z');
 
@@ -179,7 +282,7 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     expect(persisted.dialogue).toBeUndefined();
   });
 
-  it('starts a selected route with fresh route flags instead of carrying flags from the previous persisted run', () => {
+  it('starts a selected route with fresh durable state instead of carrying the previous persisted run', () => {
     const previous = useGameFlowStore.getState();
     const yingluoyeting = {
       id: 'yingluoyeting',
@@ -228,16 +331,113 @@ describe('gameFlowStore SaveGameV1 integration', () => {
             bedchamberIntroShown: true,
           },
         },
+        time: {
+          year: 9,
+          month: 12,
+          xun: 3,
+          slotIndex: 5,
+          slot: '夜晚',
+          slotProgress: 0,
+        },
+        mapEventText: '旧局地图事件',
+        briefing: '旧局简报',
+        nightlyService: {
+          ...state.nightlyService,
+          playerNightFavorGauge: 88,
+          reports: [
+            {
+              id: 'nightly-stale',
+              xunKey: '9-12-3',
+              year: 9,
+              month: 12,
+              xun: 3,
+              outcome: 'player-companion',
+              interest: 12,
+              playerFavorDelta: 1,
+              playerTrueHeartDelta: 0,
+              playerPrestigeDelta: 0,
+              emperorMoodDelta: 0,
+              summary: '旧局侍寝通报',
+              lines: ['旧局侍寝通报'],
+            },
+          ],
+          pendingMorningLines: ['旧局清晨通报'],
+        },
+        settlementReports: [
+          {
+            id: 'settlement-stale',
+            kind: 'xun',
+            year: 9,
+            month: 12,
+            xun: 3,
+            title: '旧局旬报',
+            summary: '不应带入新局',
+            lines: ['不应带入新局'],
+          },
+        ],
+        palaceStrifeCases: [
+          {
+            id: 'palace-strife-stale',
+            xunKey: '9-12-3',
+            year: 9,
+            month: 12,
+            xun: 3,
+            actorId: 'player',
+            targetConsortId: 'consort-cui',
+            targetName: '崔令蓉',
+            actionKind: 'rumor',
+            methodLabel: '散布流言',
+            itemLabel: '不使用',
+            allyLabel: '无',
+            severity: 'light',
+            actionSuccessRate: 52,
+            concealmentSuccessRate: 61,
+            actionRoll: 12,
+            concealmentRoll: 88,
+            actionSucceeded: true,
+            concealmentSucceeded: false,
+            status: 'investigating',
+            outcome: 'pending',
+            investigationXunsElapsed: 0,
+            convictionRate: 35,
+            summary: '旧局案件。',
+          },
+        ],
+        latestSettlementReportId: 'settlement-stale',
+        lastSeenSettlementReportId: 'settlement-stale',
+        merchantLedger: { stale: 2 },
       }));
 
       useGameFlowStore.getState().applyRouteSelection(yingluoyeting!);
 
-      const flags = useGameFlowStore.getState().state.flags;
+      const flow = useGameFlowStore.getState();
+      const flags = flow.state.flags;
       expect(flags[YINGLUOYETING_STORY_FLAGS.chenFirstMeetPlayed]).toBeUndefined();
       expect(flags[YINGLUOYETING_STORY_FLAGS.evidenceBoxDone]).toBeUndefined();
       expect(flags.mapGuideFinished).toBeUndefined();
       expect(flags.bedchamberIntroShown).toBeUndefined();
       expect(flags.routeLockedStats).toBe(Boolean(yingluoyeting.statsLocked));
+      expect(flow.time).toMatchObject({
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 0,
+        slot: '清晨',
+        slotProgress: 0,
+      });
+      expect(flow.mapEventText).toBe('');
+      expect(flow.briefing).toBe('');
+      expect(flow.nightlyService).toMatchObject({
+        playerNightFavorGauge: 0,
+        emperorMood: 40,
+        reports: [],
+      });
+      expect(flow.nightlyService.pendingMorningLines).toBeUndefined();
+      expect(flow.settlementReports).toEqual([]);
+      expect(flow.palaceStrifeCases).toEqual([]);
+      expect(flow.latestSettlementReportId).toBeUndefined();
+      expect(flow.lastSeenSettlementReportId).toBeUndefined();
+      expect(flow.merchantLedger).toEqual({});
     } finally {
       randomSpy.mockRestore();
       useGameFlowStore.setState(previous, true);
@@ -489,19 +689,45 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     expect(flow.palaceStrifeCases[0].convictionRate).toBe(35);
   });
 
+  it('allows player prestige losses to go below zero within the configured range', () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      state: {
+        ...state.state,
+        prestige: 100,
+      },
+      hiddenStats: {
+        ...state.hiddenStats,
+        prestige: 100,
+      },
+    }));
+
+    useGameFlowStore.getState().applyStoryEffects({ prestige: -250 });
+
+    const flow = useGameFlowStore.getState();
+    expect(flow.state.prestige).toBe(-150);
+    expect(flow.hiddenStats.prestige).toBe(-150);
+
+    useGameFlowStore.getState().applyStoryEffects({ prestige: -5000 });
+
+    const clampedFlow = useGameFlowStore.getState();
+    expect(clampedFlow.state.prestige).toBe(PRESTIGE_RANGE[0]);
+    expect(clampedFlow.hiddenStats.prestige).toBe(PRESTIGE_RANGE[0]);
+  });
+
   it('applies player penalties once when a palace strife case becomes convicted', () => {
     useGameFlowStore.setState((state) => ({
       ...state,
       state: {
         ...state.state,
         family: '未知',
-        prestige: 1000,
+        prestige: 100,
         favor: 50,
         stress: 20,
       },
       hiddenStats: {
         ...state.hiddenStats,
-        prestige: 1000,
+        prestige: 100,
         favor: 50,
         stress: 20,
       },
@@ -549,17 +775,17 @@ describe('gameFlowStore SaveGameV1 integration', () => {
 
     const afterConviction = useGameFlowStore.getState();
     expect(afterConviction.palaceStrifeCases[0].outcome).toBe('convicted');
-    expect(afterConviction.state.prestige).toBe(250);
+    expect(afterConviction.state.prestige).toBe(-650);
     expect(afterConviction.state.favor).toBe(40);
     expect(afterConviction.state.stress).toBe(30);
-    expect(afterConviction.hiddenStats.prestige).toBe(250);
+    expect(afterConviction.hiddenStats.prestige).toBe(-650);
     expect(afterConviction.hiddenStats.favor).toBe(40);
     expect(afterConviction.settlementReports[0].lines.join(' ')).toContain('扣声望750');
 
     useGameFlowStore.getState().advanceTime(7);
 
     const afterNextXun = useGameFlowStore.getState();
-    expect(afterNextXun.state.prestige).toBe(250);
+    expect(afterNextXun.state.prestige).toBe(-650);
     expect(afterNextXun.state.favor).toBe(40);
     expect(afterNextXun.state.stress).toBe(30);
   });

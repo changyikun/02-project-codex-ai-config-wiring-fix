@@ -776,7 +776,7 @@ npm run build
 - `npm run build:web` 通过
 - `npx vitest run src/game/lib/yingluoyetingStoryRuntime.test.ts` 通过
 - `npx vitest run src/__tests__/app-flow.test.tsx -t "属性页改名会同步路线状态和影落掖庭开场称呼"` 通过
-- `npx vitest run src/__tests__/app-flow.test.tsx` 仍有 1 个既有失败：完整套跑时“寝殿家族事务显示设定内的家族接济而非占位方案”被夜晚侍寝通报覆盖；该用例单独运行通过
+- 2026-06-02 已修复完整套跑中的夜晚侍寝通报状态污染；`npx vitest run src/__tests__/app-flow.test.tsx` 现已全量通过
 
 ### 15.10 属性加点按钮不可交互态
 
@@ -799,3 +799,332 @@ npm run build
 
 - `npx vitest run src/__tests__/app-flow.test.tsx -t "属性加点按钮会在下限、上限和点数不足时禁用"` 通过
 - `npm run build:web` 通过
+
+### 15.11 外出反馈、跨旬顺序与数值 toast
+
+本轮修正寝殿主循环反馈的三个问题：外出提示不会再被转场立刻吞掉，跨旬行动会先展示本次行动结果再展示下一旬通报，玩家核心数值变化会出现可叠加 toast。
+
+已经成立的规则：
+
+- 寝殿点击外出或寝殿行动里的外出探索时，只先设置寝殿对白，不立即进入地图
+- 外出对白确认按钮显示 `前往地图`，确认后才调用 `enterMapMain()`
+- 旬月通报必须等待当前寝殿对白收起后再展示
+- `NumericChangeToastLayer` 挂在 `App` 转场层之外，页面切换不卸载 toast
+- toast 观察玩家银两、声望、压力、真心与属性字段，按界面展示口径显示具体差值；后续修正后体力与宠爱不再触发 toast
+- 每个数值差异独立生成一条 toast，多个 toast 可共存，最多保留 10 条，并使用独立定时器自动消失
+
+关键文件：
+
+- `src/views/ChamberMainView.tsx`
+- `src/components/status/NumericChangeToastLayer.tsx`
+- `src/App.tsx`
+- `src/index.css`
+- `src/__tests__/app-flow.test.tsx`
+- `codex-workdocs/2026-06-02-feedback-toast-and-numeric-text-audit.md`
+
+验证结果：
+
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "点击外出会先停留在寝殿展示出行提示|跨旬行动会先展示本次行动结果|玩家数值变化会显示可叠加"` 通过
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "寝殿日常行动会显示对应剧情反馈|回宫反馈收起后不会覆盖后续寝殿行动剧情|普通行动推进到夜晚|结束本旬后会进入下一旬|结束本旬触发主角侍寝"` 通过
+- `npm run build:web` 通过
+- 2026-06-02 已修复完整套跑中的夜晚侍寝通报状态污染；`npx vitest run src/__tests__/app-flow.test.tsx` 现已全量通过
+
+### 15.12 测试重置中的夜晚侍寝状态隔离
+
+本轮修复完整 `app-flow` 套跑时“夜晚侍寝通报覆盖家族事务按钮”的状态污染问题。根因是测试辅助函数 `resetFlowStore()` 没有重置 `nightlyService`，前序用例留下的 `pendingNotice` 会进入后续直接渲染寝殿的用例，导致寝殿按钮被夜晚通报遮挡。
+
+已经成立的规则：
+
+- 测试级状态重置必须清空 `nightlyService.pendingEvent`
+- 测试级状态重置必须清空 `nightlyService.pendingNotice`
+- 测试级状态重置必须清空 `nightlyService.pendingMorningLines`
+- 测试级状态重置必须清空 `nightlyService.queuedRolls`
+- 直接渲染寝殿类测试不得继承前序夜晚通报状态
+
+关键文件：
+
+- `src/__tests__/app-flow.test.tsx`
+
+验证结果：
+
+- `npx vitest run src/__tests__/app-flow.test.tsx` 通过，75 passed
+- `npm run build:web` 通过
+
+### 15.13 数值变化文本收口到 toast
+
+本轮按策划要求移除了寝殿行动反馈和侍寝通报里的直接数值加减文案。实际数值结算仍然保留，玩家侧反馈统一通过 toast 展示。
+
+已经成立的规则：
+
+- 寝殿行动 `summary` 不再写 `诗词 +2`、`丹青 +2`、`健康 +3`、`体力 +3` 等数值文案
+- 寝殿行动结果对白只写叙事和行动收束，不直接展示属性上升 / 下降
+- 侍寝通报不再写玩家宠爱、真心、声望的具体变化
+- 他人侍寝或玩家在侍寝中替他人说话 / 点错时，不再在文本中写妃嫔宠爱变化
+- `NumericChangeToastLayer` 已扩展到妃嫔与自定义妃嫔的宠爱 / 声望 / 压力变化，用于承接他人数值变化反馈
+- `NumericChangeToastLayer` 只在 `map-main` 和 `bedchamber` 显示变化；角色选择、属性分配、开场剧情阶段只刷新基线，不弹初始化差值
+
+关键文件：
+
+- `src/config/palaceUi.ts`
+- `src/game/lib/nightlyServiceRuntime.ts`
+- `src/components/status/NumericChangeToastLayer.tsx`
+- `src/game/lib/actionNarrativeRuntime.test.ts`
+- `src/game/lib/nightlyServiceRuntime.test.ts`
+- `src/__tests__/app-flow.test.tsx`
+
+验证结果：
+
+- `npx vitest run src/game/lib/actionNarrativeRuntime.test.ts src/game/lib/nightlyServiceRuntime.test.ts src/__tests__/app-flow.test.tsx -t "builds scene feedback|prioritizes the player|settles the player service|lets an allied consort|lets a hostile consort|寝殿日常行动会显示对应剧情反馈|玩家数值变化会显示可叠加"` 通过
+- `npx vitest run src/game/lib/actionNarrativeRuntime.test.ts src/game/lib/nightlyServiceRuntime.test.ts src/__tests__/app-flow.test.tsx` 通过，87 passed
+- `npm run build:web` 通过，仍有 Vite 大 chunk 警告
+- 浏览器刷新 5173 页面后无 console error
+
+### 15.14 初始化阶段不显示数值 toast
+
+本轮修复角色初始化时显示大量数值变化 toast 的问题。toast 层仍然持续记录数值快照，但只有进入正式游玩视图后才显示变化。
+
+已经成立的规则：
+
+- `start` / `route-selection` / `attribute-assignment` / `opening-dialogue` 阶段不显示数值 toast
+- 初始化阶段发生的路线初始数值、属性调整、开场状态变化只更新 toast 基线
+- `map-main` / `bedchamber` 阶段继续显示玩家和妃嫔数值变化
+- 离开正式游玩视图时会清掉当前 toast 与定时器，避免初始化界面残留旧提示
+
+关键文件：
+
+- `src/components/status/NumericChangeToastLayer.tsx`
+- `src/__tests__/app-flow.test.tsx`
+
+验证结果：
+
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "角色初始化和属性调整阶段不会显示数值变化 toast|玩家数值变化会显示可叠加"` 通过
+- `npm run build:web` 通过，仍有 Vite 大 chunk 警告
+
+### 15.15 对话选项态、夜晚通报顺序与 toast 拆分
+
+本轮继续收口寝殿主循环反馈：
+
+- 共享对话进入选项态后，对话正文不再响应点击，也不再因鼠标点击显示焦点框；键盘焦点样式改为 `:focus-visible`
+- 选项态仍保留上一句正文可读，但实际交互只能落在选项按钮上
+- 普通寝殿行动推进到夜晚时，先展示本次行动结果对白；对白收起后才展示夜晚侍寝通报或侍寝事件
+- toast 改为每个数值差异独立一条，不再把同一时间点的多个变化塞进同一个 toast
+- toast 最大可见数量从 5 调整为 10，以免同一事件多项变化被立即截断
+- 2026-06-02 追加：toast 不再由状态变化直接显示；`NumericChangeToastLayer` 订阅 store 的每次状态提交，把差值按 `chamber-action` / `map-event` / `nightly-service` / `settlement` 事件桶排队
+- 共享对话实际显示正文时会标记对应事件反馈点，toast 只在事件反馈出现后释放；夜晚通报和旬月通报分别使用专用事件桶，避免行动消耗和后续结算提前混在一起显示
+
+关键文件：
+
+- `src/components/dialogue/PalaceDialogueBox.jsx`
+- `src/components/dialogue/GlobalDialogueStage.tsx`
+- `src/views/ChamberMainView.tsx`
+- `src/game/store/gameFlowStore.ts`
+- `src/game/types.ts`
+- `src/components/status/NumericChangeToastLayer.tsx`
+- `src/index.css`
+- `src/__tests__/app-flow.test.tsx`
+- `codex-workdocs/2026-06-02-dialogue-nightly-toast-loop.md`
+
+验证结果：
+
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "玩家数值变化会显示可叠加|普通行动推进到夜晚|跨旬行动会先展示|角色初始化和属性调整阶段不会显示"` 通过
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "全局对话舞台会把长段剧情分页展示|玩家数值变化会显示可叠加|普通行动推进到夜晚"` 通过
+- `npx vitest run src/game/lib/actionNarrativeRuntime.test.ts src/game/lib/nightlyServiceRuntime.test.ts src/__tests__/app-flow.test.tsx` 通过，88 passed
+- `npm run build:web` 通过，仍有 Vite 大 chunk 警告
+- 浏览器刷新 `http://127.0.0.1:5173/` 后首页正常加载，console error 为 0
+
+### 15.16 侍寝反馈、体力排除与通报去重
+
+本轮继续修正夜晚侍寝到次日清晨这一段反馈节奏。
+
+已经成立的规则：
+
+- 他人侍寝导致玩家宠爱变化时，数值真值仍在夜间规则结算中写入
+- 2026-06-02 后续修正：宠爱变化不再触发 toast，因此不再需要清晨释放宠爱 toast
+- 体力增减不触发 toast，体力变化只通过常驻状态栏体现
+- 清晨通报生成时会对最近一条同类、同年月旬、同标题通报做去重，避免同一次过夜推进重复追加
+- 寝殿过夜转场 effect 增加 run key，避免同一过夜阶段被重复推进
+
+关键文件：
+
+- `src/components/status/NumericChangeToastLayer.tsx`
+- `src/game/store/gameFlowStore.ts`
+- `src/views/ChamberMainView.tsx`
+- `src/__tests__/app-flow.test.tsx`
+
+验证结果：
+
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "玩家数值变化会显示可叠加|他人侍寝影响玩家宠爱|结束本旬后会进入下一旬|普通行动推进到夜晚"` 通过
+- `npx vitest run src/game/lib/actionNarrativeRuntime.test.ts src/game/lib/nightlyServiceRuntime.test.ts src/__tests__/app-flow.test.tsx src/game/store/gameFlowStore.save.test.ts` 通过，108 passed
+- `npm run build:web` 通过，仍有 Vite 大 chunk 警告
+- 浏览器刷新 `http://127.0.0.1:5173/` 后首页正常加载，console error 为 0
+
+### 15.17 宠爱 toast 排除、声望 toast 与寝殿用度说明
+
+本轮继续收口数值反馈和寝殿主界面用度调整。
+
+已经成立的规则：
+
+- 玩家宠爱 `favor` 不再进入 `NumericChangeToastLayer`
+- 妃嫔 / 自定义妃嫔的宠爱变化也不再进入 `NumericChangeToastLayer`
+- 玩家声望、妃嫔声望仍会进入 toast，并继续按事件桶等待对应对白 / 通报出现后释放
+- 体力仍不进入 toast
+- 寝殿“调整用度”现在与开场一致，包含 `节衣缩食 / 量入为出 / 锦衣玉食 / 先问清用度` 四个选项
+- `先问清用度` 由娇娇解释三档含义，解释结束后返回用度选择，不写入下月策略
+
+当前已接入的玩家声望来源：
+
+- 月结用度：`锦衣玉食` 每月声望 `+10`，`量入为出` 为 `0`，`节衣缩食` 为 `-5`
+- 家世月补贴：国公 / 一品 / 二三品 / 四品 / 六品等家世会在月结给不同声望补贴；商贾、罪臣会扣声望
+- 家族事务接济：花费 `120` 银两登记家族接济，季度结算额外声望 `+12`
+- 主角侍寝：侍寝兴致达到 `100` 时，规则层给玩家声望 `+10`
+- 宫斗案件：玩家作为作案方定罪时会扣声望，轻 / 中 / 重分别按规则扣除
+
+关键文件：
+
+- `src/components/status/NumericChangeToastLayer.tsx`
+- `src/views/ChamberMainView.tsx`
+- `src/__tests__/app-flow.test.tsx`
+- `docs/economy-governance-architecture.md`
+
+验证结果：
+
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "玩家数值变化会显示可叠加|他人侍寝影响玩家宠爱|寝殿调整用度"` 通过
+- `npx tsc -p tsconfig.json --noEmit` 通过
+- `npx vitest run src/game/lib/actionNarrativeRuntime.test.ts src/game/lib/nightlyServiceRuntime.test.ts src/__tests__/app-flow.test.tsx src/game/store/gameFlowStore.save.test.ts` 通过，109 passed
+- `npm run build:web` 通过，仍有 Vite 大 chunk 警告
+- 浏览器刷新 `http://127.0.0.1:5173/` 后首页正常加载，console error 为 0
+
+### 15.18 声望负值、新局状态重建与前尘 / 回溯核查
+
+本轮修正了两个会影响长期主循环的状态问题。
+
+规则口径：
+
+- 玩家声望与妃嫔声望扣减不再以 0 为下限，统一按 `PRESTIGE_RANGE = [-2000, 5000]` 裁剪。
+- `applyStoryEffects`、旬 / 月结算、玩家侍寝结算、NPC 宫斗定罪惩罚都使用同一个声望范围。
+- 新建路线 / 新存档时，`applyRouteSelection` 从 `initialState` 与路线档案重建一局，不再把旧局 `current.state` 当底板合并。
+- 路线选择会重置 `time`、临时文本、对话、结算通报、宫斗案件、侍寝状态、库存、交易记录、关系进度与自定义妃嫔，避免旧局时间和事件串入新局。
+
+启动菜单核查：
+
+- `StartScene` 中存在 `开始 / 前尘 / 回溯 / 设置` 四个按钮。
+- 当时 `App.tsx` 只处理 `开始`，`前尘` 与 `回溯` 均未接入独立页面或读档逻辑。
+- 2026-06-02 后续已接入 `回溯` 的单槽读档能力，最新口径见 15.19 与 `docs/save-system-maintenance.md`。
+- `前尘` 仍未检索到可执行策划规则，目前只保留按钮文案。
+
+关键文件：
+
+- `src/game/store/gameFlowStore.ts`
+- `src/game/store/gameFlowStore.save.test.ts`
+- `src/views/StartScene.tsx`
+- `src/App.tsx`
+
+验证结果：
+
+- `npx vitest run src/game/store/gameFlowStore.save.test.ts -t "fresh durable state|prestige losses|player penalties"` 通过
+- `npx tsc -p tsconfig.json --noEmit` 通过
+- `npx vitest run src/game/store/gameFlowStore.save.test.ts src/__tests__/app-flow.test.tsx` 通过，98 passed；仍有既有 React `act(...)` 测试警告
+- `npm run build:web` 通过，仍有 Vite 大 chunk 警告
+- 浏览器刷新 `http://127.0.0.1:5173/` 后首页正常加载，console error 为 0
+
+### 15.19 启动页存档入口与单槽回溯
+
+本轮把启动页按钮纳入存档系统，而不是只做视图跳转。
+
+已经成立的规则：
+
+- `SaveGameV1` 仍是当前前端存档真值，`localStorage` key 统一为 `palace-galgame-flow`。
+- `src/game/save/saveGameV1.ts` 新增 `SAVE_GAME_STORAGE_KEY`、`readSaveGameV1FromStorage()`、`clearSaveGameV1Storage()`。
+- 启动页“开始”不再直接进入路线选择，而是先弹二级确认。
+- 确认新开后调用 `gameFlowStore.startNewGame()`：清空旧存档，从初始状态重建新局，进入 `route-selection`，并由 persist 写入新存档。
+- 启动页“回溯”调用 `gameFlowStore.resumeLastSave()`：读取上一次 `SaveGameV1`，恢复 durable state，并按存档进度进入路线选择、属性页、地图或寝殿。
+- 无存档时，回溯留在启动页并显示“暂无可回溯的存档。”。
+- `前尘` 仍未接入玩法；`设置` 仍未接入设置页。
+
+维护规范：
+
+- 新增 `docs/save-system-maintenance.md` 作为存档功能全局维护文档。
+- 后续新增长期字段必须同步 `SaveGameV1Source`、`SaveGameV1`、`buildSaveGameV1()`、`restoreSaveGameV1Fields()`、新局重置路径与测试。
+- 不得再用 `setCurrentView('route-selection')` 表示“开始新游戏”。
+
+关键文件：
+
+- `src/App.tsx`
+- `src/views/StartScene.tsx`
+- `src/game/save/saveGameV1.ts`
+- `src/game/store/gameFlowStore.ts`
+- `src/__tests__/app-flow.test.tsx`
+- `docs/save-system-maintenance.md`
+
+验证结果：
+
+- `npx tsc -p tsconfig.json --noEmit` 通过
+- `npx vitest run src/game/save/saveGameV1.test.ts src/game/store/gameFlowStore.save.test.ts src/__tests__/app-flow.test.tsx -t "开始新游戏|回溯|SaveGameV1|fresh durable state"` 通过
+- `npx vitest run src/game/save/saveGameV1.test.ts src/game/store/gameFlowStore.save.test.ts src/__tests__/app-flow.test.tsx` 通过，104 passed；仍有既有 React `act(...)` 测试警告
+- `npm run build:web` 通过，仍有 Vite 大 chunk 警告
+- `web_game_playwright_client` 点击启动页“开始”后截图确认二级确认弹窗可见
+- in-app browser 刷新 `http://127.0.0.1:5173/` 后能看到“开始 / 回溯”入口，console error 为 0
+
+### 15.20 剧情 / 对话显示期间屏蔽背景 UI
+
+本轮修复“剧情、旁白或对话文本显示时，背景按钮仍可点击并触发行动 / 面板 / 转场”的问题。
+
+已经成立的规则：
+
+- `GlobalDialogueStage` 新增 `global-dialogue-stage__interaction-lock`，在共享对话舞台内提供透明点击拦截层。
+- 该拦截层只负责吃掉对话框外的鼠标事件；对话框正文、下一步按钮和分支选项仍保持可交互。
+- `ChamberMainView` 新增寝殿交互锁：寝殿对白、旬月通报、侍寝通报、过夜遮罩、连翘赠礼和用度选项期间，侧栏、行动按钮、底部工具和快速回宫不会执行。
+- `MapMainView` 新增地图交互锁：地图剧情 / 引导、掖庭剧情和宫门 NPC 对话期间，地图侧栏、热点、进入地点和热点快捷入口不会越过当前剧情。
+- 旧测试中连续点击多个寝殿行动的写法已调整：当前行动反馈必须先收起，才能触发下一次行动。
+
+维护口径：
+
+- 新剧情文本优先复用 `GlobalDialogueStage`，默认继承交互锁。
+- 如果某个场景需要对白显示时保留旁侧操作，必须明确它属于同场景操作，并确认层级与 handler 不会让背景主循环继续结算。
+- 不能只依赖 CSS 遮挡；主循环关键 handler 仍要有阻塞态判断，防止键盘、测试或程序化点击绕过。
+
+关键文件：
+
+- `src/components/dialogue/GlobalDialogueStage.tsx`
+- `src/index.css`
+- `src/views/ChamberMainView.tsx`
+- `src/views/MapMainView.tsx`
+- `src/__tests__/app-flow.test.tsx`
+- `codex-workdocs/2026-06-02-dialogue-ui-lock.md`
+
+验证结果：
+
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "屏蔽|全局对话舞台会把长段剧情分页展示"` 通过
+- `npx vitest run src/__tests__/app-flow.test.tsx` 通过，83 passed；仍有既有 React `act(...)` 警告
+- `npx tsc -p tsconfig.json --noEmit` 通过
+- `npm run build:web` 通过，仍有 Vite 大 chunk 警告
+- Playwright 实测：对白显示时点击背景“泼墨作画”不会改变清晨 / 体力 10；收起对白后同按钮正常推进到上午 / 体力 9
+
+### 15.21 系统宫宴第一版闭环
+
+本轮处理两件事：妙音堂听曲 toast 延迟，以及系统宫宴报名 / 结算闭环。
+
+已经成立的规则：
+
+- 妙音堂听曲先结算压力变化，再推进时间，并在妙音堂行动结果出现时触发 `chamber-action` toast；不再等到后续旬月通报才集中显示。
+- `PalaceBanquetProgressState` 是系统宫宴真值，保存当前宫宴季、曲谱报名快照、报名提醒标记、已结算宫宴季和最近结果。
+- 宫宴报名提醒只在跨入报名开启节点时生成，不在玩家已经处于报名期的任意行动后补弹，避免打断普通流程。
+- 妙音堂报名期由 `palaceBanquetSchedule` 判断；每届只记录一张有效曲谱，曲谱提交后写入快照并消耗库存。
+- 系统宫宴在 3 月上旬傍晚触发，结算后占用傍晚 / 夜晚并停到深夜；同届通过 `lastResolvedSeasonKey` 防重复。
+- 宫宴表现由 `palaceBanquetRuntime` 结算：曲谱品质、才艺、听曲次数和连翘关系影响完成度，完成度影响声望变化和通报文本。
+- 宫宴报名提醒与结算通报使用 `SettlementReportKind = 'event'`，继续走全局通报遮罩和背景 UI 锁。
+
+关键文件：
+
+- `src/game/lib/palaceBanquetSchedule.ts`
+- `src/game/lib/palaceBanquetRuntime.ts`
+- `src/game/store/gameFlowStore.ts`
+- `src/game/save/saveGameV1.ts`
+- `src/components/chamber/MiaoYinHallView.tsx`
+- `src/views/ChamberMainView.tsx`
+- `src/components/status/NumericChangeToastLayer.tsx`
+
+验证结果：
+
+- `npx tsc -p tsconfig.json --noEmit` 通过
+- `npx vitest run src/game/save/saveGameV1.test.ts src/game/store/gameFlowStore.save.test.ts src/__tests__/app-flow.test.tsx` 通过，109 passed；仍有既有 React `act(...)` 测试警告

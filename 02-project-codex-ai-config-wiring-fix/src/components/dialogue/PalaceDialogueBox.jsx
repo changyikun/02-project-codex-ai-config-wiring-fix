@@ -28,6 +28,7 @@ const DEFAULT_TYPEWRITER_ENABLED = !(import.meta.env?.MODE === 'test' || import.
  *   onSelectOption?: ((optionId: string) => void) | undefined
  *   busy?: boolean
  *   controlsDisabled?: boolean
+ *   contentDisabled?: boolean
  *   typewriter?: boolean
  * }} props
  */
@@ -46,6 +47,7 @@ export function GlobalDialogue({
   onSelectOption,
   busy = false,
   controlsDisabled = busy,
+  contentDisabled = false,
   typewriter = DEFAULT_TYPEWRITER_ENABLED,
 }) {
   const rootClassName = ['palace-dialogue-box', className].filter(Boolean).join(' ');
@@ -60,8 +62,9 @@ export function GlobalDialogue({
     [contentChars, contentText, shouldUseTypewriter, visibleCharCount],
   );
   const showOptions = hasOptions && isContentComplete;
+  const contentInteractionDisabled = contentDisabled || showOptions;
   const showNextAction = false;
-  const canAdvancePage = Boolean(onAdvancePage) && isContentComplete;
+  const canAdvancePage = Boolean(onAdvancePage) && isContentComplete && !contentInteractionDisabled;
   const speakerLabel =
     characterIdentity && characterName && characterIdentity !== characterName
       ? `${characterIdentity} · ${characterName}`
@@ -86,6 +89,10 @@ export function GlobalDialogue({
   }, [contentChars.length, isContentComplete, shouldUseTypewriter, visibleCharCount]);
 
   const handleContentClick = () => {
+    if (contentInteractionDisabled) {
+      return;
+    }
+
     if (!isContentComplete) {
       setVisibleCharCount(contentChars.length);
       return;
@@ -102,9 +109,19 @@ export function GlobalDialogue({
   };
 
   const handleTextKeyDown = (event) => {
+    if (contentInteractionDisabled) {
+      return;
+    }
+
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       handleContentClick();
+    }
+  };
+
+  const handleContentMouseDown = (event) => {
+    if (contentInteractionDisabled) {
+      event.preventDefault();
     }
   };
 
@@ -135,15 +152,17 @@ export function GlobalDialogue({
       <div
         className="palace-dialogue-box__content"
         onClick={handleContentClick}
+        onMouseDown={handleContentMouseDown}
         data-typing={isContentComplete ? 'complete' : 'typing'}
         data-dialogue-page-state={canAdvancePage ? 'more' : 'last'}
+        data-dialogue-interaction={contentInteractionDisabled ? 'disabled' : 'enabled'}
       >
         <header className="palace-dialogue-box__speaker">{speakerLabel}</header>
         <div className="palace-dialogue-box__text-container" aria-busy={busy}>
           <div className="palace-dialogue-box__text-plate">
             <div
               className="palace-dialogue-box__text-scroll"
-              tabIndex={0}
+              tabIndex={contentInteractionDisabled ? -1 : 0}
               aria-label={!isContentComplete ? '对话正文，点击显示完整内容' : canAdvancePage ? '对话正文，点击翻页' : '对话正文'}
               onKeyDown={handleTextKeyDown}
               data-typing={isContentComplete ? 'complete' : 'typing'}

@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { PLAYER_FAVOR_RANGE, STAMINA_INITIAL_PER_XUN, STAMINA_MAX, getFavorTierByValue } from '../../config/constants';
+import {
+  PLAYER_FAVOR_RANGE,
+  PRESTIGE_RANGE,
+  STAMINA_INITIAL_PER_XUN,
+  STAMINA_MAX,
+  getFavorTierByValue,
+} from '../../config/constants';
 import type { ChamberPanelId } from '../../config/bedchamber';
 import {
   DEFAULT_MONTHLY_EXPENSE_STRATEGY,
@@ -41,7 +47,20 @@ import {
   resolveYangxinHearing,
 } from '../lib/palaceStrifeRuntime';
 import { resolveNightlyService, resolvePlayerNightlyServiceEvent } from '../lib/nightlyServiceRuntime';
-import { buildSaveGameV1, type SaveGameV1 } from '../save/saveGameV1';
+import { resolvePalaceBanquet } from '../lib/palaceBanquetRuntime';
+import {
+  didCrossPalaceBanquetEvent,
+  getPalaceBanquetEventTime,
+  resolvePalaceBanquetSeasonKeyForTime,
+  shouldShowPalaceBanquetRegistrationNotice,
+} from '../lib/palaceBanquetSchedule';
+import {
+  buildSaveGameV1,
+  clearSaveGameV1Storage,
+  readSaveGameV1FromStorage,
+  SAVE_GAME_STORAGE_KEY,
+  type SaveGameV1,
+} from '../save/saveGameV1';
 import type {
   AffairSourceLabel,
   BondProfileState,
@@ -61,6 +80,7 @@ import type {
   NightlyServiceInteractionActionId,
   NightlyServiceInteractionChoice,
   NightlyServiceState,
+  PalaceBanquetProgressState,
   PalaceStrifeCaseState,
   PalaceStrifeResolution,
   PalaceStrifeStartInput,
@@ -70,8 +90,14 @@ import type {
   RouteSelectionProfile,
   SceneId,
   MapAreaId,
+  NumericFeedbackBucket,
   SettlementReport,
 } from '../types';
+
+interface NumericFeedbackSignal {
+  sequence: number;
+  bucket: NumericFeedbackBucket;
+}
 
 export interface GameFlowStore {
   currentView: CurrentView;
@@ -98,12 +124,14 @@ export interface GameFlowStore {
   kitchenProgress: KitchenProgressState;
   medicalProgress: MedicalProgressState;
   musicHallProgress: MusicHallProgressState;
+  palaceBanquetProgress: PalaceBanquetProgressState;
   templeProgress: TempleProgressState;
   nightlyService: NightlyServiceState;
   settlementReports: SettlementReport[];
   palaceStrifeCases: PalaceStrifeCaseState[];
   latestSettlementReportId?: string;
   lastSeenSettlementReportId?: string;
+  numericFeedbackSignal: NumericFeedbackSignal;
   setCurrentView: (view: CurrentView) => void;
   setScene: (scene: SceneId) => void;
   openChamberPanel: (panel: ChamberPanelId) => void;
@@ -129,6 +157,7 @@ export interface GameFlowStore {
   patchKitchenProgress: (patch: Partial<KitchenProgressState>) => void;
   patchMedicalProgress: (patch: Partial<MedicalProgressState>) => void;
   patchMusicHallProgress: (patch: Partial<MusicHallProgressState>) => void;
+  patchPalaceBanquetProgress: (patch: Partial<PalaceBanquetProgressState>) => void;
   patchTempleProgress: (patch: Partial<TempleProgressState>) => void;
   consumeInventoryItem: (itemId: string) => boolean;
   grantInventoryItem: (item: InventoryItem, quantity?: number) => void;
@@ -155,7 +184,10 @@ export interface GameFlowStore {
   resolveYangxinPalaceStrifeCase: (caseId: string, stance: YangxinHearingStance) => { success: boolean; message: string };
   exportSaveGameV1: (savedAt?: string) => SaveGameV1;
   loadSaveGameV1: (saveGame: SaveGameV1) => void;
+  startNewGame: () => void;
+  resumeLastSave: () => { success: boolean; message: string };
   applyStoryEffects: (effects: Partial<GameNumericsState> & { stats?: Record<string, number>; flags?: Record<string, boolean> }) => void;
+  markNumericFeedbackEvent: (bucket: NumericFeedbackBucket) => void;
 }
 
 const initialStats = Object.fromEntries(attributeFields.map((field) => [field.key, field.value]));
@@ -369,7 +401,7 @@ const applyNpcPalaceStrifeConvictionPenalties = (
       ...consort,
       stats: {
         ...consort.stats,
-        prestige: Math.max(0, Number(consort.stats.prestige ?? 0) + penalty.prestigeDelta),
+        prestige: normalizePrestige(Number(consort.stats.prestige ?? 0) + penalty.prestigeDelta),
         favor: Number(consort.stats.favor ?? 0) + penalty.favorDelta,
         stress: Number(consort.stats.stress ?? 0) + penalty.stressDelta,
         relationToPlayer: Math.min(Number(consort.stats.relationToPlayer ?? 0), -20),
@@ -412,6 +444,7 @@ const applyNightlyServiceConsortEffect = (
 const sanitizeRelationshipDelta = (value: number): number => Math.max(-1, Math.min(1, Math.trunc(value || 0)));
 const resolveXunStartingStamina = (): number => clampInt(STAMINA_INITIAL_PER_XUN, 0, STAMINA_MAX);
 const normalizePlayerFavor = (favor: number): number => clampToRange(Number(favor ?? 0), PLAYER_FAVOR_RANGE);
+const normalizePrestige = (prestige: number): number => clampToRange(Number(prestige ?? 0), PRESTIGE_RANGE);
 const MAX_SETTLEMENT_REPORTS = 20;
 
 const baseMonthlyStipendByRank: Record<string, number> = {
@@ -563,6 +596,61 @@ const buildSettlementReport = ({
     lines,
   };
 };
+
+const isDuplicateSettlementReport = (previous: SettlementReport | undefined, next: SettlementReport | null): boolean =>
+  Boolean(
+    previous &&
+      next &&
+      previous.kind === next.kind &&
+      previous.year === next.year &&
+      previous.month === next.month &&
+      previous.xun === next.xun &&
+      previous.title === next.title,
+  );
+
+const buildPalaceBanquetRegistrationReport = ({
+  seasonKey,
+  eventTime,
+  reportIndex,
+}: {
+  seasonKey: string;
+  eventTime: PalaceTimeState;
+  reportIndex: number;
+}): SettlementReport => ({
+  id: `palace-banquet-registration-${seasonKey}-${reportIndex}`,
+  kind: 'event',
+  year: eventTime.year,
+  month: eventTime.month,
+  xun: eventTime.xun,
+  title: '宫宴报名开启',
+  summary: `司乐女官来报：本届宫宴定于${eventTime.month}月第${eventTime.xun}旬${eventTime.slot}，妙音堂今日起收录曲谱。`,
+  lines: [
+    `司乐女官来报：本届宫宴定于${eventTime.month}月第${eventTime.xun}旬${eventTime.slot}。`,
+    '妙音堂今日起收录曲谱，若娘娘手中有合适曲谱，可在宫宴前递交报名。',
+    '报名截止在宫宴开始前，逾时便只能随班入席。',
+  ],
+});
+
+const buildPalaceBanquetResultReport = ({
+  seasonKey,
+  completedAt,
+  lines,
+  reportIndex,
+}: {
+  seasonKey: string;
+  completedAt: PalaceTimeState;
+  lines: string[];
+  reportIndex: number;
+}): SettlementReport => ({
+  id: `palace-banquet-result-${seasonKey}-${reportIndex}`,
+  kind: 'event',
+  year: completedAt.year,
+  month: completedAt.month,
+  xun: completedAt.xun,
+  title: '系统宫宴通报',
+  summary: lines.join(' '),
+  lines,
+});
 
 const enforceRosterFavorCaps = (concubines: ConcubineProfile[], playerFavor: number): ConcubineProfile[] =>
   enforceConcubineFavorTierCaps(concubines, [playerFavor]);
@@ -793,10 +881,72 @@ const createInitialMusicHallProgress = (): MusicHallProgressState => ({
   lianQiaoAffection: 0,
 });
 
+const createInitialPalaceBanquetProgress = (): PalaceBanquetProgressState => ({
+  submissionCount: 0,
+});
+
 const createInitialNightlyService = (): NightlyServiceState => ({
   playerNightFavorGauge: 0,
   emperorMood: 40,
   reports: [],
+});
+
+const resolveSceneForView = (currentView: CurrentView): SceneId => {
+  if (currentView === 'start') {
+    return 'menu';
+  }
+  if (currentView === 'map-main') {
+    return 'map';
+  }
+  return 'activity';
+};
+
+const resolveResumeViewFromSave = (saveGame: SaveGameV1): CurrentView => {
+  if (!saveGame.route.selectedRoute) {
+    return 'route-selection';
+  }
+  if (!saveGame.player.state.flags.openingGuideFinished) {
+    return 'attribute-assignment';
+  }
+  if (!saveGame.player.state.flags.mapGuideFinished) {
+    return 'map-main';
+  }
+  return 'bedchamber';
+};
+
+const createInitialGameFlowFields = (currentView: CurrentView): Partial<GameFlowStore> => ({
+  currentView,
+  scene: resolveSceneForView(currentView),
+  activeChamberPanel: 'main',
+  activeMapLocation: undefined,
+  activeAffairsSource: DEFAULT_AFFAIRS_SOURCE,
+  routeId: 'lanyinxuguo',
+  state: initialState,
+  hiddenStats: initialHiddenStats,
+  time: initialTime,
+  briefing: '',
+  mapEventText: '',
+  dialogue: undefined,
+  save: undefined,
+  selectedRoute: undefined,
+  bondProfile: initialBondProfile,
+  concubineRouteId: 'lanyinxuguo',
+  concubines: initialConcubines,
+  customConsorts: [],
+  inventory: cloneInitialInventory(),
+  merchantLedger: {},
+  consortInteractionMap: {},
+  kitchenProgress: createInitialKitchenProgress(),
+  medicalProgress: createInitialMedicalProgress(),
+  musicHallProgress: createInitialMusicHallProgress(),
+  palaceBanquetProgress: createInitialPalaceBanquetProgress(),
+  templeProgress: createInitialTempleProgress(),
+  nightlyService: createInitialNightlyService(),
+  settlementReports: [],
+  palaceStrifeCases: [],
+  latestSettlementReportId: undefined,
+  lastSeenSettlementReportId: undefined,
+  numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
 });
 
 const restoreSaveGameV1Fields = (saveGame: SaveGameV1): Partial<GameFlowStore> => ({
@@ -832,12 +982,14 @@ const restoreSaveGameV1Fields = (saveGame: SaveGameV1): Partial<GameFlowStore> =
   kitchenProgress: saveGame.progress.kitchen,
   medicalProgress: saveGame.progress.medical,
   musicHallProgress: saveGame.progress.musicHall,
+  palaceBanquetProgress: saveGame.progress.palaceBanquet ?? createInitialPalaceBanquetProgress(),
   templeProgress: saveGame.progress.temple,
   nightlyService: saveGame.progress.nightlyService ?? createInitialNightlyService(),
   settlementReports: saveGame.world.settlementReports,
   palaceStrifeCases: saveGame.cases?.palaceStrifeCases ?? [],
   latestSettlementReportId: saveGame.world.latestSettlementReportId,
   lastSeenSettlementReportId: saveGame.world.lastSeenSettlementReportId,
+  numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
 });
 
 export const useGameFlowStore = create<GameFlowStore>()(
@@ -867,12 +1019,14 @@ export const useGameFlowStore = create<GameFlowStore>()(
       kitchenProgress: createInitialKitchenProgress(),
       medicalProgress: createInitialMedicalProgress(),
       musicHallProgress: createInitialMusicHallProgress(),
+      palaceBanquetProgress: createInitialPalaceBanquetProgress(),
       templeProgress: createInitialTempleProgress(),
       nightlyService: createInitialNightlyService(),
       settlementReports: [],
       palaceStrifeCases: [],
       latestSettlementReportId: undefined,
       lastSeenSettlementReportId: undefined,
+      numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
       setCurrentView: (currentView) => set({ currentView }),
       setScene: (scene) => set({ scene }),
       openChamberPanel: (activeChamberPanel) => set({ activeChamberPanel }),
@@ -902,6 +1056,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
           kitchenProgress: createInitialKitchenProgress(),
           medicalProgress: createInitialMedicalProgress(),
           musicHallProgress: createInitialMusicHallProgress(),
+          palaceBanquetProgress: createInitialPalaceBanquetProgress(),
           templeProgress: createInitialTempleProgress(),
           nightlyService: createInitialNightlyService(),
           settlementReports: [],
@@ -909,14 +1064,18 @@ export const useGameFlowStore = create<GameFlowStore>()(
           lastSeenSettlementReportId: undefined,
         })),
       applyRouteSelection: (profile) =>
-        set((current) => {
+        set(() => {
           const nextFavor = normalizePlayerFavor(profile.hiddenStats.favor);
           return {
             currentView: 'attribute-assignment',
+            scene: 'activity',
+            activeChamberPanel: 'main',
+            activeMapLocation: undefined,
+            activeAffairsSource: DEFAULT_AFFAIRS_SOURCE,
             routeId: profile.id,
             selectedRoute: profile,
             state: validatePointsState({
-              ...current.state,
+              ...initialState,
               ...profile.baseState,
               routeId: profile.id,
               name: profile.baseState.name ?? profile.defaultName,
@@ -926,15 +1085,15 @@ export const useGameFlowStore = create<GameFlowStore>()(
               nextMonthlyExpenseStrategy: profile.baseState.nextMonthlyExpenseStrategy,
               familyAidBonus: profile.baseState.familyAidBonus ?? 0,
               familyAidPrestigePending: profile.baseState.familyAidPrestigePending ?? 0,
-              age: profile.baseState.age ?? current.state.age,
+              age: profile.baseState.age ?? initialState.age,
               stamina: profile.baseState.stamina ?? STAMINA_INITIAL_PER_XUN,
               silver: profile.hiddenStats.silver,
               prestige: profile.hiddenStats.prestige,
               stress: profile.hiddenStats.stress,
               favor: nextFavor,
               trueHeart: profile.hiddenStats.trueHeart,
-              pointsTotal: profile.baseState.pointsTotal ?? current.state.pointsTotal,
-              pointsLeft: profile.baseState.pointsTotal ?? profile.baseState.pointsLeft ?? current.state.pointsLeft,
+              pointsTotal: profile.baseState.pointsTotal ?? initialState.pointsTotal,
+              pointsLeft: profile.baseState.pointsTotal ?? profile.baseState.pointsLeft ?? initialState.pointsLeft,
               flags: {
                 routeLockedStats: Boolean(profile.statsLocked),
               },
@@ -944,20 +1103,29 @@ export const useGameFlowStore = create<GameFlowStore>()(
               favor: nextFavor,
               ...resolveFavorPresentation(nextFavor),
             },
-            bondProfile: buildInitialBondProfile(profile.id, getCurrentXunKey(current.time)),
+            time: initialTime,
+            briefing: '',
+            mapEventText: '',
+            dialogue: undefined,
+            save: undefined,
+            bondProfile: buildInitialBondProfile(profile.id, getCurrentXunKey(initialTime)),
             concubineRouteId: profile.id,
-            concubines: buildRouteConcubines(profile.id, current.customConsorts, nextFavor),
+            concubines: buildRouteConcubines(profile.id, [], nextFavor),
+            customConsorts: [],
             inventory: cloneInitialInventory(),
             merchantLedger: {},
             consortInteractionMap: {},
             kitchenProgress: createInitialKitchenProgress(),
             medicalProgress: createInitialMedicalProgress(),
             musicHallProgress: createInitialMusicHallProgress(),
+            palaceBanquetProgress: createInitialPalaceBanquetProgress(),
             templeProgress: createInitialTempleProgress(),
             nightlyService: createInitialNightlyService(),
             settlementReports: [],
+            palaceStrifeCases: [],
             latestSettlementReportId: undefined,
             lastSeenSettlementReportId: undefined,
+            numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
           };
         }),
       setPlayerName: (name) =>
@@ -1120,6 +1288,13 @@ export const useGameFlowStore = create<GameFlowStore>()(
         set((current) => ({
           musicHallProgress: {
             ...current.musicHallProgress,
+            ...patch,
+          },
+        })),
+      patchPalaceBanquetProgress: (patch) =>
+        set((current) => ({
+          palaceBanquetProgress: {
+            ...current.palaceBanquetProgress,
             ...patch,
           },
         })),
@@ -1438,7 +1613,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             silver: Math.max(0, current.state.silver + (effects.silver ?? 0)),
             stamina: Math.max(0, Math.min(STAMINA_MAX, current.state.stamina + (effects.stamina ?? 0))),
             favor: normalizePlayerFavor(current.state.favor + (effects.favor ?? 0)),
-            prestige: Math.max(0, current.state.prestige + (effects.prestige ?? 0)),
+            prestige: normalizePrestige(current.state.prestige + (effects.prestige ?? 0)),
             stress: Math.max(0, current.state.stress + (effects.stress ?? 0)),
             trueHeart: current.state.trueHeart + (effects.trueHeart ?? 0),
             stats: {
@@ -1470,6 +1645,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
         }),
       advanceTime: (steps = 1) =>
         set((current) => {
+          const previousTime = current.time;
           let year = current.time.year;
           let month = current.time.month;
           let xun = current.time.xun;
@@ -1517,7 +1693,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
           const quarterlyFamilyAidPrestigeDelta =
             familyQuarterSettlements > 0 ? current.state.familyAidPrestigePending ?? 0 : 0;
           const monthlyExpenseHealthDelta = economy ? economy.strategy.healthDelta * monthTransitions : 0;
-          const nextTime = {
+          let nextTime = {
             year,
             month,
             xun,
@@ -1525,8 +1701,46 @@ export const useGameFlowStore = create<GameFlowStore>()(
             slot: timeSlots[slotIndex],
             slotProgress,
           };
+          const palaceBanquetCrossing = didCrossPalaceBanquetEvent(previousTime, nextTime);
+          const shouldResolvePalaceBanquet =
+            palaceBanquetCrossing.crossed &&
+            current.palaceBanquetProgress.lastResolvedSeasonKey !== palaceBanquetCrossing.seasonKey;
+          const palaceBanquetEventYear = Number(palaceBanquetCrossing.seasonKey.split('-')[0]);
+          const palaceBanquetEventTime = getPalaceBanquetEventTime(palaceBanquetEventYear);
+          const palaceBanquetSettlement = shouldResolvePalaceBanquet
+            ? resolvePalaceBanquet({
+                state: current.state,
+                musicHallProgress: current.musicHallProgress,
+                palaceBanquetProgress: current.palaceBanquetProgress,
+                seasonKey: palaceBanquetCrossing.seasonKey,
+                completedAt: palaceBanquetEventTime,
+              })
+            : null;
+          if (
+            palaceBanquetSettlement &&
+            nextTime.year === palaceBanquetEventTime.year &&
+            nextTime.month === palaceBanquetEventTime.month &&
+            nextTime.xun === palaceBanquetEventTime.xun &&
+            nextTime.slotIndex < palaceBanquetEventTime.slotIndex + 2
+          ) {
+            const nextSlotIndex = Math.min(timeSlots.length - 1, palaceBanquetEventTime.slotIndex + 2);
+            nextTime = {
+              ...nextTime,
+              slotIndex: nextSlotIndex,
+              slot: timeSlots[nextSlotIndex],
+              slotProgress: 0,
+            };
+          }
+          const registrationNotice = shouldResolvePalaceBanquet
+            ? { shouldShow: false, seasonKey: palaceBanquetCrossing.seasonKey, eventTime: palaceBanquetEventTime }
+            : shouldShowPalaceBanquetRegistrationNotice(
+                previousTime,
+                nextTime,
+                current.palaceBanquetProgress.lastRegistrationNoticeSeasonKey,
+                current.palaceBanquetProgress.lastResolvedSeasonKey,
+              );
           const shouldResolveNightlyService =
-            enteredNight || (xunTransitions > 0 && !current.nightlyService.pendingMorningLines);
+            !palaceBanquetSettlement && (enteredNight || (xunTransitions > 0 && !current.nightlyService.pendingMorningLines));
           const nightlyServiceSettlement =
             shouldResolveNightlyService
               ? resolveNightlyService({
@@ -1580,13 +1794,13 @@ export const useGameFlowStore = create<GameFlowStore>()(
             }),
             { prestigeDelta: 0, favorDelta: 0, stressDelta: 0 },
           );
-          const postSettlementPrestige = Math.max(
-            0,
+          const postSettlementPrestige = normalizePrestige(
             current.state.prestige +
               monthlyExpensePrestigeDelta +
               monthlyFamilyPrestigeDelta +
               quarterlyFamilyAidPrestigeDelta +
               convictionPenaltyTotals.prestigeDelta +
+              (palaceBanquetSettlement?.result.prestigeDelta ?? 0) +
               (nightlyServiceSettlement?.effects.playerPrestigeDelta ?? 0),
           );
           const postSettlementFavor = normalizePlayerFavor(
@@ -1617,7 +1831,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
                   nextResidenceName,
                 }
               : null;
-          const nextState = xunTransitions > 0 || nightlyServiceSettlement
+          const nextState = xunTransitions > 0 || nightlyServiceSettlement || palaceBanquetSettlement
             ? {
                 ...current.state,
                 stamina: xunTransitions > 0 ? resolveXunStartingStamina() : current.state.stamina,
@@ -1689,14 +1903,35 @@ export const useGameFlowStore = create<GameFlowStore>()(
                 palaceStrifeLines,
                 reportIndex: current.settlementReports.length + 1,
               });
-          const settlementReports = settlementReport
-            ? [...current.settlementReports, settlementReport].slice(-MAX_SETTLEMENT_REPORTS)
-            : current.settlementReports;
+          const registrationReport = registrationNotice.shouldShow
+            ? buildPalaceBanquetRegistrationReport({
+                seasonKey: registrationNotice.seasonKey,
+                eventTime: registrationNotice.eventTime,
+                reportIndex: current.settlementReports.length + 2,
+              })
+            : null;
+          const palaceBanquetReport = palaceBanquetSettlement
+            ? buildPalaceBanquetResultReport({
+                seasonKey: palaceBanquetCrossing.seasonKey,
+                completedAt: palaceBanquetEventTime,
+                lines: palaceBanquetSettlement.lines,
+                reportIndex: current.settlementReports.length + 3,
+              })
+            : null;
+          let settlementReports = current.settlementReports;
+          let latestSettlementReportId = current.latestSettlementReportId;
+          [settlementReport, registrationReport, palaceBanquetReport].forEach((report) => {
+            if (!report || isDuplicateSettlementReport(settlementReports.at(-1), report)) {
+              return;
+            }
+            settlementReports = [...settlementReports, report].slice(-MAX_SETTLEMENT_REPORTS);
+            latestSettlementReportId = report.id;
+          });
 
           return {
             state: nextState,
             hiddenStats:
-              xunTransitions > 0 || nightlyServiceSettlement
+              xunTransitions > 0 || nightlyServiceSettlement || palaceBanquetSettlement
                 ? {
                     ...current.hiddenStats,
                     silver: nextState.silver,
@@ -1710,6 +1945,17 @@ export const useGameFlowStore = create<GameFlowStore>()(
                 : current.hiddenStats,
             concubines: enforceRosterFavorCaps(nextConcubines, nextState.favor),
             customConsorts: nextCustomConsorts,
+            palaceBanquetProgress: {
+              ...current.palaceBanquetProgress,
+              currentSeasonKey: resolvePalaceBanquetSeasonKeyForTime(nextTime),
+              ...(registrationNotice.shouldShow ? { lastRegistrationNoticeSeasonKey: registrationNotice.seasonKey } : {}),
+              ...(palaceBanquetSettlement
+                ? {
+                    lastResolvedSeasonKey: palaceBanquetCrossing.seasonKey,
+                    lastResult: palaceBanquetSettlement.result,
+                  }
+                : {}),
+            },
             nightlyService:
               nightlyServiceSettlement
                 ? {
@@ -1736,7 +1982,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             palaceStrifeCases: nextPalaceStrifeCases,
             time: nextTime,
             settlementReports,
-            latestSettlementReportId: settlementReport?.id ?? current.latestSettlementReportId,
+            latestSettlementReportId,
           };
         }),
       acknowledgeSettlementReport: (reportId) =>
@@ -1778,7 +2024,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
           const nextState = {
             ...current.state,
             stamina: resolveXunStartingStamina(),
-            prestige: Math.max(0, current.state.prestige + result.effects.playerPrestigeDelta),
+            prestige: normalizePrestige(current.state.prestige + result.effects.playerPrestigeDelta),
             favor: normalizePlayerFavor(current.state.favor + result.effects.playerFavorDelta),
             trueHeart: current.state.trueHeart + result.effects.playerTrueHeartDelta,
             flags: {
@@ -1809,7 +2055,8 @@ export const useGameFlowStore = create<GameFlowStore>()(
             palaceStrifeLines: [],
             reportIndex: current.settlementReports.length + 1,
           });
-          const settlementReports = settlementReport
+          const shouldAppendSettlementReport = !isDuplicateSettlementReport(current.settlementReports.at(-1), settlementReport);
+          const settlementReports = settlementReport && shouldAppendSettlementReport
             ? [...current.settlementReports, settlementReport].slice(-MAX_SETTLEMENT_REPORTS)
             : current.settlementReports;
 
@@ -1836,7 +2083,8 @@ export const useGameFlowStore = create<GameFlowStore>()(
             customConsorts: nextCustomConsorts,
             time: nextTime,
             settlementReports,
-            latestSettlementReportId: settlementReport?.id ?? current.latestSettlementReportId,
+            latestSettlementReportId:
+              settlementReport && shouldAppendSettlementReport ? settlementReport.id : current.latestSettlementReportId,
           };
         }),
       spendFamilyAid: () => {
@@ -1997,9 +2245,39 @@ export const useGameFlowStore = create<GameFlowStore>()(
       },
       exportSaveGameV1: (savedAt) => buildSaveGameV1(get(), savedAt),
       loadSaveGameV1: (saveGame) => set(restoreSaveGameV1Fields(saveGame)),
+      startNewGame: () => {
+        clearSaveGameV1Storage();
+        set(createInitialGameFlowFields('route-selection'));
+      },
+      resumeLastSave: () => {
+        const saveGame = readSaveGameV1FromStorage();
+        if (!saveGame) {
+          return { success: false, message: '暂无可回溯的存档。' };
+        }
+        const currentView = resolveResumeViewFromSave(saveGame);
+        set({
+          ...restoreSaveGameV1Fields(saveGame),
+          currentView,
+          scene: resolveSceneForView(currentView),
+          activeChamberPanel: 'main',
+          activeMapLocation: undefined,
+          activeAffairsSource: DEFAULT_AFFAIRS_SOURCE,
+          dialogue: undefined,
+          mapEventText: '',
+          briefing: '',
+        });
+        return { success: true, message: '已读取上一次存档。' };
+      },
+      markNumericFeedbackEvent: (bucket) =>
+        set((current) => ({
+          numericFeedbackSignal: {
+            sequence: current.numericFeedbackSignal.sequence + 1,
+            bucket,
+          },
+        })),
     }),
     {
-      name: 'palace-galgame-flow',
+      name: SAVE_GAME_STORAGE_KEY,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) =>
         ({
@@ -2043,6 +2321,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
         kitchenProgress: (persisted as Partial<GameFlowStore>)?.kitchenProgress ?? createInitialKitchenProgress(),
         medicalProgress: (persisted as Partial<GameFlowStore>)?.medicalProgress ?? createInitialMedicalProgress(),
         musicHallProgress: (persisted as Partial<GameFlowStore>)?.musicHallProgress ?? createInitialMusicHallProgress(),
+        palaceBanquetProgress: (persisted as Partial<GameFlowStore>)?.palaceBanquetProgress ?? createInitialPalaceBanquetProgress(),
         templeProgress: (persisted as Partial<GameFlowStore>)?.templeProgress ?? createInitialTempleProgress(),
         settlementReports: (persisted as Partial<GameFlowStore>)?.settlementReports ?? [],
         palaceStrifeCases: (persisted as Partial<GameFlowStore>)?.palaceStrifeCases ?? [],

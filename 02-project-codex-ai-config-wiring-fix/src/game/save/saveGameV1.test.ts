@@ -1,6 +1,15 @@
+/* @vitest-environment jsdom */
+
 import { describe, expect, it } from 'vitest';
 
-import { buildSaveGameV1, SAVE_GAME_SCHEMA_VERSION, type SaveGameV1Source } from './saveGameV1';
+import {
+  buildSaveGameV1,
+  clearSaveGameV1Storage,
+  readSaveGameV1FromStorage,
+  SAVE_GAME_SCHEMA_VERSION,
+  SAVE_GAME_STORAGE_KEY,
+  type SaveGameV1Source,
+} from './saveGameV1';
 import { buildInitialBondProfile } from '../data/bondPresets';
 import { buildInitialConcubineRoster } from '../data/concubineRoster';
 import { cloneInitialInventory } from '../data/inventoryPresets';
@@ -83,6 +92,9 @@ const source: SaveGameV1Source = {
     lianQiaoFavor: 0,
     lianQiaoAffection: 0,
   },
+  palaceBanquetProgress: {
+    submissionCount: 0,
+  },
   templeProgress: {
     worshipCount: 0,
     prayerCount: 1,
@@ -154,6 +166,7 @@ describe('SaveGameV1', () => {
     expect(saveGame.roster.concubines.length).toBeGreaterThan(0);
     expect(saveGame.inventory.items.length).toBeGreaterThan(0);
     expect(saveGame.progress.medical.jianNingMet).toBe(true);
+    expect(saveGame.progress.palaceBanquet?.submissionCount).toBe(0);
     expect(saveGame.relations.bondProfile.npcId).toBe(source.bondProfile.npcId);
   });
 
@@ -166,5 +179,16 @@ describe('SaveGameV1', () => {
     expect(encoded).not.toContain('dialogue');
     expect(encoded).not.toContain('mapEventText');
     expect(encoded).not.toContain('briefing');
+  });
+
+  it('reads and clears the persisted SaveGameV1 envelope', () => {
+    const saveGame = buildSaveGameV1(source, '2026-05-22T05:00:00.000Z');
+    localStorage.setItem(SAVE_GAME_STORAGE_KEY, JSON.stringify({ state: { saveGame }, version: 0 }));
+
+    expect(readSaveGameV1FromStorage()?.savedAt).toBe('2026-05-22T05:00:00.000Z');
+
+    clearSaveGameV1Storage();
+
+    expect(readSaveGameV1FromStorage()).toBeUndefined();
   });
 });

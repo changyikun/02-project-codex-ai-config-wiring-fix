@@ -193,6 +193,7 @@ export function NightlyServiceEventView({
           content={`夜色压到窗棂上时，外头忽然传来细碎脚步声。\n内侍在帘外躬身传话：“${pendingEvent.rankLabel}${pendingEvent.playerName}，养心殿传召。”\n这不是可推辞的邀约。宫人已候在廊下，灯笼一盏盏亮起来，照出通往养心殿的路。`}
           nextActionLabel="前往养心殿"
           onNextAction={() => setPhase('choose')}
+          numericFeedbackBucket="nightly-service"
         />
       </section>
     );

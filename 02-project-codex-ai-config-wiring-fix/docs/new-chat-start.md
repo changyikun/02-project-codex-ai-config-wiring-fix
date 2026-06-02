@@ -42,6 +42,7 @@
 如需纯文本版本，再读：
 
 - `C:\02-project\docs\system-hard-rules-integrated.md`
+- `C:\02-project\docs\save-system-maintenance.md`
 - `C:\02-project\docs\palace-strife-architecture.md`
 - `C:\02-project\docs\nightly-pregnancy-architecture.md`
 - `C:\02-project\docs\emperor-behavior-architecture.md`
@@ -65,11 +66,19 @@
   - `OpeningDialogueView`
   - `MapMainView`
   - `ChamberMainView`
+- 存档入口必须遵守 `docs/save-system-maintenance.md`：
+  - 启动页“开始”必须二级确认，并通过 `startNewGame()` 清空旧存档后新建。
+  - 启动页“回溯”必须通过 `resumeLastSave()` 读取上一次 `SaveGameV1`。
+  - 不得用 `setCurrentView('route-selection')` 代替新局创建。
+- 剧情 / 对话 UI 必须遵守交互锁：
+  - 共享剧情文本优先使用 `GlobalDialogueStage`，由 `global-dialogue-stage__interaction-lock` 屏蔽背景点击。
+  - 寝殿和地图背景按钮还必须保留 handler 级兜底，不允许对白未收起时继续结算行动、切面板或切地图地点。
 
 ## 4. 当前核心代码入口
 
 - `C:\02-project\src\App.tsx`
 - `C:\02-project\src\game\store\gameFlowStore.ts`
+- `C:\02-project\src\game\save\saveGameV1.ts`
 - `C:\02-project\src\game\data\routeProfiles.ts`
 - `C:\02-project\src\config\palaceUi.ts`
 - `C:\02-project\src\views\StartScene.tsx`

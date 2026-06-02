@@ -257,6 +257,7 @@ export function MapMainView() {
   const mapDialogueClassName = `global-dialogue-stage--map ${
     isJiaojiaoMapDialogue ? 'global-dialogue-stage--assistant' : 'global-dialogue-stage--narration'
   }`;
+  const isMapDialogueBlocking = Boolean((dialogueText && !selectedHotspot) || activeYingluoyetingEvent || activeNpcProfile);
 
   const resetGongmenScene = () => {
     gongmenAiRequestRef.current += 1;
@@ -296,6 +297,10 @@ export function MapMainView() {
   };
 
   const handleSidebar = (buttonId: string) => {
+    if (isMapDialogueBlocking) {
+      return;
+    }
+
     if (guideActive) {
       setMapEventText('先跟着娇娇把地图认熟，等回宫之后，再细看这些常驻入口。');
       return;
@@ -313,6 +318,10 @@ export function MapMainView() {
   };
 
   const handleHotspot = (hotspotId: MapHotspotConfig['id']) => {
+    if (isMapDialogueBlocking) {
+      return;
+    }
+
     if (guideActive) {
       setMapEventText('先把地图和入口认熟，待会儿回寝殿后，娘娘再随时外出。');
       return;
@@ -329,6 +338,10 @@ export function MapMainView() {
   };
 
   const handleEnterHotspot = () => {
+    if (isMapDialogueBlocking) {
+      return;
+    }
+
     if (!selectedHotspot) return;
 
     if (selectedHotspot.id === state.residenceName) {
@@ -408,6 +421,10 @@ export function MapMainView() {
   };
 
   const handleHotspotQuickAction = (action: HotspotQuickAction) => {
+    if (isMapDialogueBlocking) {
+      return;
+    }
+
     advanceTime(1);
     setSelectedHotspotId(null);
     setMapEventText('');

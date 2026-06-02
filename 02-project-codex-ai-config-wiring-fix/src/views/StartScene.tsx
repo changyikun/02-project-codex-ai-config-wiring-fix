@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 const menuItems = [
   { id: '开始', label: '开始', title: '开始新的篇章', ariaLabel: '开始新游戏' },
   { id: '前尘', label: '前尘', title: '查看前尘往事', ariaLabel: '前尘成就回顾' },
@@ -27,18 +27,34 @@ const lightOrbs = Array.from({ length: 20 }, (_, index) => ({
 interface StartSceneProps {
   backgroundImage?: string;
   title?: string;
+  notice?: string;
   onAction?: (action: string) => void;
 }
 
 export function StartScene({
   backgroundImage,
   title = '凤华录',
+  notice,
   onAction,
 }: StartSceneProps) {
+  const [confirmingNewGame, setConfirmingNewGame] = useState(false);
   const stageStyle = {
     ['--start-scene-bg' as string]: `url('${backgroundImage ?? '/assets/start-scene-bg-hq.png'}')`,
     ['--start-scene-logo-mask' as string]: "url('/assets/fenghualu-mask.png')",
   } as CSSProperties;
+  const handleMenuAction = (action: string) => {
+    if (action === '开始') {
+      setConfirmingNewGame(true);
+      return;
+    }
+    setConfirmingNewGame(false);
+    onAction?.(action);
+  };
+
+  const confirmNewGame = () => {
+    setConfirmingNewGame(false);
+    onAction?.('开始');
+  };
 
   return (
     <main className="start-scene-shell">
@@ -95,14 +111,36 @@ export function StartScene({
                   className="start-scene__menu-button"
                   title={item.title}
                   aria-label={item.ariaLabel}
-                  onClick={() => onAction?.(item.id)}
+                  onClick={() => handleMenuAction(item.id)}
                 >
                   <span className="start-scene__menu-label">{item.label}</span>
                 </button>
               ))}
             </nav>
+            {notice ? (
+              <p className="start-scene__notice" role="status">
+                {notice}
+              </p>
+            ) : null}
           </div>
         </section>
+
+        {confirmingNewGame ? (
+          <section className="start-scene__confirm-backdrop" role="dialog" aria-label="新游戏确认" aria-modal="true">
+            <div className="start-scene__confirm-panel">
+              <h2>另开新局</h2>
+              <p>开始新游戏会清空当前存档，并立即创建新的存档。</p>
+              <div className="start-scene__confirm-actions">
+                <button type="button" className="start-scene__confirm-button" onClick={confirmNewGame}>
+                  确认新开
+                </button>
+                <button type="button" className="start-scene__confirm-button is-secondary" onClick={() => setConfirmingNewGame(false)}>
+                  取消
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : null}
       </div>
     </main>
   );

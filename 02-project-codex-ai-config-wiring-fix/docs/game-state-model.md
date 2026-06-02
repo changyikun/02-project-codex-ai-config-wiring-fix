@@ -90,6 +90,19 @@ interface SaveGameV1 {
 }
 ```
 
+### 3.1 当前前端落地
+
+当前前端已经落地单槽 `SaveGameV1`，实现位置为 `src/game/save/saveGameV1.ts` 与 `src/game/store/gameFlowStore.ts`。完整维护规则见 `docs/save-system-maintenance.md`。
+
+当前持久化口径：
+
+- 浏览器存储 key 为 `palace-galgame-flow`。
+- `localStorage` 中保存的是 Zustand persist envelope：`{ state: { saveGame: SaveGameV1 }, version }`。
+- `SaveGameV1` 只保存长期真值，不保存 `currentView`、弹窗、临时对白、地图临时文本等 UI 状态。
+- 启动页“开始”会二级确认，确认后清空旧 envelope，从初始状态创建新局并写入新存档。
+- 启动页“回溯”会读取上一次 `SaveGameV1`，并根据 durable state 推断恢复到路线选择、属性页、地图或寝殿。
+- 系统宫宴进度保存于 `progress.palaceBanquet`，包括当前宫宴季、已提交曲谱快照、报名提醒标记、已结算宫宴季和最近一次宫宴结果。
+
 ## 4. 顶层模块定义
 
 ### 4.1 `meta`
@@ -481,3 +494,10 @@ interface PregnancyState {
   - 全 NPC 独立经济系统
   - 复杂遗诏和储位争夺
 - 但必须预留字段，不允许以后推翻存档结构。
+
+## 9. UI 临时态边界
+
+- 剧情 / 对话是否正在显示属于 UI 临时态，不写入 `SaveGameV1`。
+- `dialogueText`、`mapEventText`、`selectedHotspotId`、`activeGongmenNpc`、`expenseStrategyPanelOpen` 等只用于当前页面交互，不是长期存档真值。
+- 这些临时态仍然会影响点击合法性：对白、通报或剧情结果未收起前，背景按钮必须被交互锁屏蔽。
+- 后续若要把某段剧情推进变为长期进度，必须新增独立的 `flags` / `progress` 字段，而不是依赖当前是否有对话框显示。

@@ -1,6 +1,7 @@
 export type RouteId = 'lanyinxuguo' | 'fushengrumeng' | 'yingluoyeting' | 'chenyuansucuo';
 export type SceneId = 'menu' | 'attribute' | 'briefing' | 'dialogue' | 'activity' | 'map';
 export type CurrentView = 'start' | 'route-selection' | 'attribute-assignment' | 'opening-dialogue' | 'map-main' | 'bedchamber';
+export type NumericFeedbackBucket = 'chamber-action' | 'map-event' | 'nightly-service' | 'settlement';
 export type TimeSlot = '清晨' | '上午' | '中午' | '下午' | '傍晚' | '夜晚' | '深夜';
 export type AffairSourceLabel = '宫斗事务' | '家族事务' | '朝堂事务';
 export type ActivityId =
@@ -149,7 +150,7 @@ export interface PalaceStrifeResolution {
   resultText: string;
 }
 
-export type SettlementReportKind = 'xun' | 'month';
+export type SettlementReportKind = 'xun' | 'month' | 'event';
 
 export interface SettlementReport {
   id: string;
@@ -540,6 +541,33 @@ export interface MusicHallProgressState {
   lastAmbientText?: string;
   lastGiftXunIndex?: number;
   lastSubmittedMusicScoreId?: string;
+}
+
+export interface PalaceBanquetSubmittedScore {
+  itemId: string;
+  name: string;
+  color?: string;
+  rarity?: string;
+  submittedAt: PalaceTimeState;
+  seasonKey: string;
+}
+
+export interface PalaceBanquetResultState {
+  seasonKey: string;
+  completedAt: PalaceTimeState;
+  scoreName?: string;
+  completionPercent: number;
+  prestigeDelta: number;
+  summary: string;
+}
+
+export interface PalaceBanquetProgressState {
+  currentSeasonKey?: string;
+  submittedScore?: PalaceBanquetSubmittedScore;
+  submissionCount: number;
+  lastRegistrationNoticeSeasonKey?: string;
+  lastResolvedSeasonKey?: string;
+  lastResult?: PalaceBanquetResultState;
 }
 
 export interface ResourceMappingEntry {

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DIALOGUE_CONFIG } from '../../config/dialogueConfig';
+import { useGameFlowStore } from '../../game/store/gameFlowStore';
+import type { NumericFeedbackBucket } from '../../game/types';
 import { GlobalDialogue } from './PalaceDialogueBox';
 
 const DIALOGUE_PAGE_CHAR_LIMIT = 80;
@@ -238,6 +240,7 @@ interface GlobalDialogueStageProps {
   busy?: boolean;
   controlsDisabled?: boolean;
   typewriter?: boolean;
+  numericFeedbackBucket?: NumericFeedbackBucket;
 }
 
 export function GlobalDialogueStage({
@@ -264,7 +267,10 @@ export function GlobalDialogueStage({
   busy = false,
   controlsDisabled = busy,
   typewriter,
+  numericFeedbackBucket,
 }: GlobalDialogueStageProps) {
+  const currentView = useGameFlowStore((store) => store.currentView);
+  const markNumericFeedbackEvent = useGameFlowStore((store) => store.markNumericFeedbackEvent);
   const boxClassName = ['palace-dialogue-box--global-lock', dialogueClassName].filter(Boolean).join(' ');
   const scriptSegments = useMemo(
     () =>
@@ -332,6 +338,14 @@ export function GlobalDialogueStage({
     setPageIndex(0);
   }, [boundedSegmentIndex]);
 
+  useEffect(() => {
+    if (!currentContent) {
+      return;
+    }
+
+    markNumericFeedbackEvent(numericFeedbackBucket ?? (currentView === 'map-main' ? 'map-event' : 'chamber-action'));
+  }, [currentContent, currentView, markNumericFeedbackEvent, numericFeedbackBucket]);
+
   const handleAdvancePageOrSegment = () => {
     if (hasMorePages) {
       setPageIndex((current) => Math.min(current + 1, contentPages.length - 1));
@@ -345,6 +359,8 @@ export function GlobalDialogueStage({
 
   return (
     <section className={rootClassName} aria-label={sceneLabel} data-dialogue-lock={DIALOGUE_CONFIG.lockVersion}>
+      <div className="global-dialogue-stage__interaction-lock" aria-hidden="true" />
+
       {showPortrait ? (
         <div className={portraitStageClassName} aria-label={currentPortraitLabel}>
           <div className="global-dialogue-stage__portrait-frame">{currentPortrait}</div>
@@ -382,6 +398,7 @@ export function GlobalDialogueStage({
         onSelectOption={undefined}
         busy={busy}
         controlsDisabled={controlsDisabled}
+        contentDisabled={hasOptions}
         typewriter={typewriter}
       />
     </section>

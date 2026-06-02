@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { SYSTEM_EVENT_RULES } from '../../config/constants';
 import {
   buildMusicScoreRewardBundle,
   buildRandomMusicScoreItem,
@@ -17,6 +16,12 @@ import { buildLocationActionNarrative } from '../../game/lib/actionNarrativeRunt
 import { clampToRange, createDialogueId, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
 import { traceDialogue } from '../../game/lib/dialogueTrace';
 import { requestMiaoYinAmbientWithFallback } from '../../game/lib/miaoyinAmbientRuntime';
+import {
+  getPalaceBanquetEventTime,
+  isPalaceBanquetRegistrationOpen,
+  resolvePalaceBanquetSeasonKeyForTime,
+  resolvePalaceBanquetYearForTime,
+} from '../../game/lib/palaceBanquetSchedule';
 import { requestRelationshipJudgementWithFallback } from '../../game/lib/relationshipJudgeRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type {
@@ -94,12 +99,15 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     time,
     inventory,
     musicHallProgress,
+    palaceBanquetProgress,
     patchMusicHallProgress,
+    patchPalaceBanquetProgress,
     applyStoryEffects,
     advanceTime,
     applyConsortRelationshipJudgement,
     consumeInventoryItem,
     grantInventoryItem,
+    markNumericFeedbackEvent,
   } = useGameFlowStore();
   const [activeActor, setActiveActor] = useState<MiaoYinSceneActor | null>(null);
   const [dialogueTurn, setDialogueTurn] = useState<ConsortDialogueTurn | null>(null);
@@ -123,9 +131,12 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
   );
   const currentSeed = `${state.routeId}:${time.year}-${time.month}-${time.xun}:${time.slotIndex}`;
   const currentXunIndex = toXunIndex(time.year, time.month, time.xun);
-  const banquetMonth = SYSTEM_EVENT_RULES.palaceBanquet.month;
-  const monthsUntilBanquet = ((banquetMonth - time.month + 12) % 12) || 12;
-  const canSignUp = monthsUntilBanquet <= 3;
+  const banquetYear = resolvePalaceBanquetYearForTime(time);
+  const banquetEventTime = getPalaceBanquetEventTime(banquetYear);
+  const palaceBanquetSeasonKey = resolvePalaceBanquetSeasonKeyForTime(time);
+  const canSignUp = isPalaceBanquetRegistrationOpen(time);
+  const submittedScore =
+    palaceBanquetProgress.submittedScore?.seasonKey === palaceBanquetSeasonKey ? palaceBanquetProgress.submittedScore : undefined;
   const ownedMusicScores = useMemo(
     () => inventory.filter((item) => isMusicScoreItem(item) && item.quantity > 0),
     [inventory],
@@ -323,11 +334,11 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     }
 
     setBusy(true);
-    advanceTime(1);
     const nextCount = musicHallProgress.listenCount + 1;
     const stressRelief = (hashSeed(`${currentSeed}:listen-stress:${nextCount}`) % 2) + 1;
     patchMusicHallProgress({ listenCount: nextCount });
     applyStoryEffects({ stress: -stressRelief });
+    advanceTime(1);
 
     try {
       const ambient = await requestMiaoYinAmbientWithFallback({
@@ -347,6 +358,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
           resultText: `${ambient} 压力-${stressRelief}。`,
         }),
       );
+      markNumericFeedbackEvent('chamber-action');
 
       if (!musicHallProgress.lianQiaoFirstMet && nextCount >= 3) {
         patchMusicHallProgress({ lianQiaoFirstMet: true, lastEncounterNpcId: 'lianqiao' });
@@ -476,7 +488,14 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     }
 
     if (!canSignUp) {
-      setSystemMessage('宫宴报名册尚未开启。要到宫宴前的三个月里，妙音堂才会正式收谱。');
+      setSystemMessage(
+        `宫宴报名册尚未开启。本届宫宴定于${banquetEventTime.month}月第${banquetEventTime.xun}旬${banquetEventTime.slot}，妙音堂会在宫宴前三个月收谱。`,
+      );
+      return;
+    }
+
+    if (submittedScore) {
+      setSystemMessage(`你本届宫宴已经递交《${submittedScore.name}》，掌册宫人说名录暂不重复改写。`);
       return;
     }
 
@@ -511,6 +530,18 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     patchMusicHallProgress({
       signUpCount: musicHallProgress.signUpCount + 1,
       lastSubmittedMusicScoreId: itemId,
+    });
+    patchPalaceBanquetProgress({
+      currentSeasonKey: palaceBanquetSeasonKey,
+      submissionCount: palaceBanquetProgress.submissionCount + 1,
+      submittedScore: {
+        itemId,
+        name: selectedItem.name,
+        color: selectedItem.color,
+        rarity: selectedItem.rarity,
+        submittedAt: time,
+        seasonKey: palaceBanquetSeasonKey,
+      },
     });
 
     try {
@@ -694,6 +725,13 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
 
           <div className="miaoyin-view__note">
             <strong>{`累计听曲：${musicHallProgress.listenCount} 次｜已报名：${musicHallProgress.signUpCount} 次`}</strong>
+            <p>
+              {submittedScore
+                ? `本届宫宴已递交：《${submittedScore.name}》。`
+                : `本届宫宴：${banquetEventTime.month}月第${banquetEventTime.xun}旬${banquetEventTime.slot}，${
+                    canSignUp ? '报名册已开。' : '报名册未开。'
+                  }`}
+            </p>
             <p>{systemMessage}</p>
           </div>
         </section>
@@ -765,7 +803,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
         <div className="miaoyin-view__picker-backdrop" role="dialog" aria-label="妙音堂曲谱报名">
           <div className="miaoyin-view__picker">
             <h3>提交曲谱报名</h3>
-            <p>宫宴前的三个月里，妙音堂会收录你手中的曲谱。请选择一张提交。</p>
+            <p>{`本届宫宴定于${banquetEventTime.month}月第${banquetEventTime.xun}旬${banquetEventTime.slot}。请选择一张曲谱递交，提交后本届不再重复改写。`}</p>
             <div className="miaoyin-view__picker-list">
               {ownedMusicScores.map((item) => (
                 <button key={item.itemId} type="button" onClick={() => void handleSubmitMusicScore(item.itemId)} disabled={busy}>
