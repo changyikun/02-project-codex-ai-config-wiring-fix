@@ -25,6 +25,8 @@ import type {
 } from '../../game/types';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
 import { AutoCutoutPortrait } from '../visual/AutoCutoutPortrait';
+import { LocationActionResultStage } from './LocationActionResultStage';
+import { useLocationActionFlow, type TimedLocationActionOutcome } from './useLocationActionFlow';
 
 interface HuaQingPoolViewProps {
   concubines: ConcubineProfile[];
@@ -90,12 +92,12 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
     hiddenStats,
     time,
     musicHallProgress,
-    advanceTime,
     applyStoryEffects,
     patchConcubineById,
     patchMusicHallProgress,
     applyConsortRelationshipJudgement,
   } = useGameFlowStore();
+  const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [activeActor, setActiveActor] = useState<HuaqingSceneActor | null>(null);
   const [dialogueTurn, setDialogueTurn] = useState<ConsortDialogueTurn | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -103,6 +105,8 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
   const [busy, setBusy] = useState(false);
   const [showInvitePicker, setShowInvitePicker] = useState(false);
   const [systemMessage, setSystemMessage] = useState('池上水雾缭绕，石阶与灯影都被暖意泡软了，越近的距离，越难把一句话说得全无波澜。');
+  const [actionResultText, setActionResultText] = useState('');
+  const [pendingTimedActionOutcome, setPendingTimedActionOutcome] = useState<TimedLocationActionOutcome | null>(null);
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const dialogueOptions = dialogueTurn?.options ?? [];
@@ -250,12 +254,33 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
     }
   };
 
+  const showActionResult = (text: string, outcome: TimedLocationActionOutcome) => {
+    setSystemMessage(text);
+    setActionResultText(text);
+    setPendingTimedActionOutcome(outcome.shouldSleep ? outcome : null);
+  };
+
+  const holdTimedActionOutcome = (outcome: TimedLocationActionOutcome) => {
+    setActionResultText('');
+    setPendingTimedActionOutcome(outcome.shouldSleep ? outcome : null);
+  };
+
+  const closeActionResult = () => {
+    const outcome = pendingTimedActionOutcome;
+    setActionResultText('');
+    setPendingTimedActionOutcome(null);
+    finishTimedLocationAction(outcome);
+  };
+
   const closeEncounter = () => {
+    const outcome = pendingTimedActionOutcome;
     setActiveActor(null);
     setDialogueTurn(null);
     setHistory([]);
     setSceneHint('');
     setBusy(false);
+    setPendingTimedActionOutcome(null);
+    finishTimedLocationAction(outcome);
   };
 
   const handleSoloBath = () => {
@@ -263,12 +288,15 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
       return;
     }
 
-    advanceTime(1);
+    const actionOutcome = beginTimedLocationAction();
     applyStoryEffects({
       stamina: HOT_SPRING_SOLO_STAMINA_RECOVER,
       stress: -HOT_SPRING_SOLO_STRESS_REDUCE,
     });
-    setSystemMessage(`你独自在华清池里泡了一回，热气把肩背间的疲意慢慢化开。体力+${HOT_SPRING_SOLO_STAMINA_RECOVER}，压力-${HOT_SPRING_SOLO_STRESS_REDUCE}。`);
+    showActionResult(
+      `你独自在华清池里泡了一回，热气把肩背间的疲意慢慢化开。体力+${HOT_SPRING_SOLO_STAMINA_RECOVER}，压力-${HOT_SPRING_SOLO_STRESS_REDUCE}。`,
+      actionOutcome,
+    );
   };
 
   const handleOpenSharedBath = () => {
@@ -293,7 +321,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
       return;
     }
 
-    advanceTime(1);
+    const actionOutcome = beginTimedLocationAction();
     applyStoryEffects({ stress: -HOT_SPRING_SHARED_STRESS_REDUCE });
 
     if (invite.actorKind === 'lianqiao') {
@@ -304,6 +332,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
         lianQiaoAffection: nextAffection,
         lastEncounterNpcId: 'lianqiao',
       });
+      holdTimedActionOutcome(actionOutcome);
       await beginEncounter(
         buildLianQiaoActor(nextFavor, nextAffection),
         deepNightActive ? 'late-night-shared-bath' : 'shared-bath',
@@ -326,10 +355,11 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
 
     const sourceConsort = concubines.find((consort) => consort.id === invite.consortId);
     if (!sourceConsort) {
-      setSystemMessage('这位妃嫔眼下不在华清池可邀请名单里。');
+      showActionResult('这位妃嫔眼下不在华清池可邀请名单里。', actionOutcome);
       return;
     }
 
+    holdTimedActionOutcome(actionOutcome);
     await beginEncounter(
       {
         ...buildConsortActor(sourceConsort),
@@ -525,6 +555,18 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
           />
         </section>
       )}
+
+      {!activeActor && actionResultText ? (
+        <LocationActionResultStage
+          locationName="华清池"
+          className="global-dialogue-stage--huaqing"
+          dialogueClassName="palace-dialogue-box--huaqing-encounter"
+          content={actionResultText}
+          nextActionLabel={pendingTimedActionOutcome?.shouldSleep ? '回宫歇下' : '收起'}
+          onNextAction={closeActionResult}
+          busy={busy}
+        />
+      ) : null}
 
       {showInvitePicker ? (
         <div className="huaqing-view__picker-backdrop" role="dialog" aria-label="华清池邀请列表">

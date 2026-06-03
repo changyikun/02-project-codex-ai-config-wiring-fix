@@ -15,7 +15,6 @@ const buildState = (overrides: Partial<GameNumericsState> = {}): GameNumericsSta
   pointsTotal: 20,
   pointsLeft: 0,
   routeId: 'yingluoyeting',
-  actionPoints: 4,
   stamina: 10,
   silver: 50,
   prestige: 50,

@@ -18,7 +18,6 @@ const playerState = {
   pointsTotal: 56,
   pointsLeft: 0,
   routeId: 'lanyinxuguo',
-  actionPoints: 3,
   stamina: 8,
   silver: 1120,
   prestige: 2600,

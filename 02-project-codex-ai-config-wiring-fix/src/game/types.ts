@@ -64,7 +64,6 @@ export interface GameNumericsState {
   pointsTotal: number;
   pointsLeft: number;
   routeId: RouteId;
-  actionPoints: number;
   stamina: number;
   silver: number;
   prestige: number;

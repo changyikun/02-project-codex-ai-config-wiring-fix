@@ -37,7 +37,6 @@ const resetToYingluoyetingMap = () => {
       routeId: 'yingluoyeting',
       residenceName: '掖庭院',
       openingTendency: undefined,
-      actionPoints: 4,
       stamina: STAMINA_INITIAL_PER_XUN,
       silver: 50,
       prestige: 50,

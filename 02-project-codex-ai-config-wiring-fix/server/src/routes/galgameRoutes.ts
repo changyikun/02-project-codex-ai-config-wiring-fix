@@ -8,7 +8,6 @@ const runtimeStateSchema = z.object({
   family: z.string(),
   pointsLeft: z.number(),
   routeId: z.enum(['lanyinxuguo', 'fushengrumeng', 'yingluoyeting', 'chenyuansucuo']),
-  actionPoints: z.number(),
   silver: z.number(),
   prestige: z.number(),
   stress: z.number(),

@@ -20,6 +20,8 @@ import type {
   ConsortDialogueOption,
   ConsortDialogueTurn,
 } from '../../game/types';
+import { LocationActionResultStage } from './LocationActionResultStage';
+import { useLocationActionFlow, type TimedLocationActionOutcome } from './useLocationActionFlow';
 
 interface TaiHospitalViewProps {
   concubines: ConcubineProfile[];
@@ -109,9 +111,9 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     medicalProgress,
     patchMedicalProgress,
     applyStoryEffects,
-    advanceTime,
     applyConsortRelationshipJudgement,
   } = useGameFlowStore();
+  const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [activeActor, setActiveActor] = useState<TaiyiSceneActor | null>(null);
   const [dialogueTurn, setDialogueTurn] = useState<ConsortDialogueTurn | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -120,6 +122,8 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
   const [systemMessage, setSystemMessage] = useState('药香与水声在回廊里交错，太医院看似清净，实则最藏不住轻重缓急。');
   const [activeEncounterLabel, setActiveEncounterLabel] = useState('太医院偶遇');
   const [pendingJianNingUnlock, setPendingJianNingUnlock] = useState(false);
+  const [actionResultText, setActionResultText] = useState('');
+  const [pendingTimedActionOutcome, setPendingTimedActionOutcome] = useState<TimedLocationActionOutcome | null>(null);
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const saveId = useMemo(() => `local:${state.routeId}:${encodeURIComponent(state.name)}`, [state.name, state.routeId]);
@@ -264,13 +268,34 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     }
   };
 
+  const showActionResult = (text: string, outcome: TimedLocationActionOutcome) => {
+    setSystemMessage(text);
+    setActionResultText(text);
+    setPendingTimedActionOutcome(outcome.shouldSleep ? outcome : null);
+  };
+
+  const holdTimedActionOutcome = (outcome: TimedLocationActionOutcome) => {
+    setActionResultText('');
+    setPendingTimedActionOutcome(outcome.shouldSleep ? outcome : null);
+  };
+
+  const closeActionResult = () => {
+    const outcome = pendingTimedActionOutcome;
+    setActionResultText('');
+    setPendingTimedActionOutcome(null);
+    finishTimedLocationAction(outcome);
+  };
+
   const closeEncounter = () => {
+    const outcome = pendingTimedActionOutcome;
     finalizeJianNingUnlockIfNeeded();
     setActiveActor(null);
     setDialogueTurn(null);
     setHistory([]);
     setSceneHint('');
     setBusy(false);
+    setPendingTimedActionOutcome(null);
+    finishTimedLocationAction(outcome);
   };
 
   const handleStroll = async () => {
@@ -279,7 +304,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     }
 
     setBusy(true);
-    advanceTime(1);
+    const actionOutcome = beginTimedLocationAction();
     const nextCount = medicalProgress.strollCount + 1;
     patchMedicalProgress({ strollCount: nextCount });
 
@@ -288,6 +313,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
         const actor = buildJianNingActor(medicalProgress.jianNingFavor, medicalProgress.jianNingAffinity);
         patchMedicalProgress({ lastEncounterNpcId: actor.id });
         setPendingJianNingUnlock(true);
+        holdTimedActionOutcome(actionOutcome);
         await beginEncounter(
           actor,
           'forced-meet',
@@ -311,13 +337,14 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
           timeContext: useGameFlowStore.getState().time,
         });
         patchMedicalProgress({ lastAmbientText: ambient });
-        setSystemMessage(
+        showActionResult(
           buildLocationActionNarrative({
             locationId: 'tai-hospital',
             actionId: 'stroll',
             actionLabel: '闲逛',
             resultText: ambient,
           }),
+          actionOutcome,
         );
         return;
       }
@@ -333,6 +360,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
           resultText: `你在药廊里撞见了${actor.identity} ${actor.name}。`,
         }),
       );
+      holdTimedActionOutcome(actionOutcome);
       await beginEncounter(
         actor,
         'stroll-encounter',
@@ -350,7 +378,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     }
 
     setBusy(true);
-    advanceTime(1);
+    const actionOutcome = beginTimedLocationAction();
 
     try {
       const actor = buildJianNingActor(medicalProgress.jianNingFavor, medicalProgress.jianNingAffinity);
@@ -361,6 +389,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
         '与简宁说话',
         '你绕过药柜与脉案，主动朝简宁走了过去。',
       );
+      holdTimedActionOutcome(actionOutcome);
     } finally {
       setBusy(false);
     }
@@ -372,7 +401,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     }
 
     setBusy(true);
-    advanceTime(1);
+    const actionOutcome = beginTimedLocationAction();
     patchMedicalProgress({ consultationCount: medicalProgress.consultationCount + 1 });
     applyStoryEffects({ stats: { medicine: 0.1 } });
 
@@ -386,13 +415,14 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
         stateHint: isJianNingMet ? '跟着简宁旁听会诊' : '跟着医官旁听会诊',
         timeContext: useGameFlowStore.getState().time,
       });
-      setSystemMessage(
+      showActionResult(
         buildLocationActionNarrative({
           locationId: 'tai-hospital',
           actionId: 'consultation',
           actionLabel: '会诊',
           resultText: `${ambient} 药理略有进益。`,
         }),
+        actionOutcome,
       );
     } finally {
       setBusy(false);
@@ -601,6 +631,18 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
           />
         </section>
       )}
+
+      {!activeActor && actionResultText ? (
+        <LocationActionResultStage
+          locationName="太医院"
+          className="global-dialogue-stage--taiyi"
+          dialogueClassName="palace-dialogue-box--taiyi-encounter"
+          content={actionResultText}
+          nextActionLabel={pendingTimedActionOutcome?.shouldSleep ? '回宫歇下' : '收起'}
+          onNextAction={closeActionResult}
+          busy={busy}
+        />
+      ) : null}
     </section>
   );
 }

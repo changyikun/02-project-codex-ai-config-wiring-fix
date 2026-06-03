@@ -19,6 +19,8 @@ import type {
   ConsortDialogueTurn,
   InventoryItem,
 } from '../../game/types';
+import { LocationActionResultStage } from './LocationActionResultStage';
+import { useLocationActionFlow, type TimedLocationActionOutcome } from './useLocationActionFlow';
 
 interface KitchenViewProps {
   concubines: ConcubineProfile[];
@@ -77,6 +79,7 @@ export function KitchenView({ concubines }: KitchenViewProps) {
     patchKitchenProgress,
     applyConsortRelationshipJudgement,
   } = useGameFlowStore();
+  const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [activeActor, setActiveActor] = useState<KitchenSceneActor | null>(null);
   const [dialogueTurn, setDialogueTurn] = useState<ConsortDialogueTurn | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -85,6 +88,8 @@ export function KitchenView({ concubines }: KitchenViewProps) {
   const [shopOpen, setShopOpen] = useState(false);
   const [systemMessage, setSystemMessage] = useState('御膳房热气蒸腾，锅勺声与宫人脚步混成一片。');
   const [activeEncounterLabel, setActiveEncounterLabel] = useState('御膳房偶遇');
+  const [actionResultText, setActionResultText] = useState('');
+  const [pendingTimedActionOutcome, setPendingTimedActionOutcome] = useState<TimedLocationActionOutcome | null>(null);
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const kitchenCatalog = useMemo(() => buildKitchenFoodCatalog(), []);
@@ -203,12 +208,33 @@ export function KitchenView({ concubines }: KitchenViewProps) {
     }
   };
 
+  const showActionResult = (text: string, outcome: TimedLocationActionOutcome) => {
+    setSystemMessage(text);
+    setActionResultText(text);
+    setPendingTimedActionOutcome(outcome.shouldSleep ? outcome : null);
+  };
+
+  const holdTimedActionOutcome = (outcome: TimedLocationActionOutcome) => {
+    setActionResultText('');
+    setPendingTimedActionOutcome(outcome.shouldSleep ? outcome : null);
+  };
+
+  const closeActionResult = () => {
+    const outcome = pendingTimedActionOutcome;
+    setActionResultText('');
+    setPendingTimedActionOutcome(null);
+    finishTimedLocationAction(outcome);
+  };
+
   const closeEncounter = () => {
+    const outcome = pendingTimedActionOutcome;
     setActiveActor(null);
     setDialogueTurn(null);
     setHistory([]);
     setSceneHint('');
     setBusy(false);
+    setPendingTimedActionOutcome(null);
+    finishTimedLocationAction(outcome);
   };
 
   const handleBuyFood = (item: InventoryItem) => {
@@ -228,6 +254,7 @@ export function KitchenView({ concubines }: KitchenViewProps) {
       return;
     }
 
+    const actionOutcome = beginTimedLocationAction();
     const nextCount = kitchenProgress.strollCount + 1;
     patchKitchenProgress({ strollCount: nextCount });
 
@@ -246,6 +273,7 @@ export function KitchenView({ concubines }: KitchenViewProps) {
           resultText: '你在第四次闲逛时，于灶间深处撞见了布自游。',
         }),
       );
+      holdTimedActionOutcome(actionOutcome);
       await beginEncounter(
         actor,
         'forced-meet',
@@ -258,13 +286,14 @@ export function KitchenView({ concubines }: KitchenViewProps) {
     const rollSeed = `${currentSeed}:stroll:${nextCount}`;
     const success = hashSeed(rollSeed) % 100 < 50;
     if (!success || eligibleConsorts.length === 0) {
-      setSystemMessage(
+      showActionResult(
         buildLocationActionNarrative({
           locationId: 'kitchen',
           actionId: 'stroll',
           actionLabel: '闲逛',
           resultText: '御膳房炊烟袅袅，并无他人。',
         }),
+        actionOutcome,
       );
       return;
     }
@@ -281,6 +310,7 @@ export function KitchenView({ concubines }: KitchenViewProps) {
         resultText: `你在膳房廊下撞见了${actor.identity} ${actor.name}。`,
       }),
     );
+    holdTimedActionOutcome(actionOutcome);
     await beginEncounter(
       actor,
       'stroll-encounter',
@@ -471,6 +501,18 @@ export function KitchenView({ concubines }: KitchenViewProps) {
           />
         </section>
       )}
+
+      {!activeActor && actionResultText ? (
+        <LocationActionResultStage
+          locationName="御膳房"
+          className="global-dialogue-stage--kitchen"
+          dialogueClassName="palace-dialogue-box--kitchen-encounter"
+          content={actionResultText}
+          nextActionLabel={pendingTimedActionOutcome?.shouldSleep ? '回宫歇下' : '收起'}
+          onNextAction={closeActionResult}
+          busy={busy}
+        />
+      ) : null}
 
       {shopOpen ? (
         <section className="kitchen-view__shop-modal" role="dialog" aria-label="御膳房购买美食弹窗">

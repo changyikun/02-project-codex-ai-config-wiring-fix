@@ -55,7 +55,19 @@ const EXPENSE_EXPLANATION_TEXT = [
 const getCurrentXunKey = (year: number, month: number, xun: number): string => `${year}-${month}-${xun}`;
 const toXunIndex = (year: number, month: number, xun: number): number => year * 36 + (month - 1) * 3 + xun;
 type OvernightTransitionPhase = 'hidden' | 'fade-in' | 'settlement' | 'fade-out';
-type PendingChamberDialogueAction = 'enter-map' | 'reopen-expense-choice' | null;
+type PendingChamberDialogueAction = 'enter-map' | 'reopen-expense-choice' | 'overnight-reminder' | 'overnight-transition' | null;
+
+const buildOvernightReminderText = (origin: 'map' | 'chamber', reason: 'deep-night' | 'stamina'): string => {
+  if (origin === 'map') {
+    return reason === 'stamina'
+      ? '娘娘，今日体力已经尽了。奴婢陪您回宫歇下，余下的事明儿清晨再听回禀。'
+      : '娘娘，夜已经深了。奴婢陪您回宫歇下，等明儿清晨再听各处回禀。';
+  }
+
+  return reason === 'stamina'
+    ? '娘娘，今日体力已经尽了。奴婢替您收拾灯烛，先歇下吧。'
+    : '娘娘，已经深夜了。奴婢替您放下帐子，先歇下吧。';
+};
 
 export function ChamberMainView() {
   const {
@@ -90,6 +102,8 @@ export function ChamberMainView() {
     latestSettlementReportId,
     lastSeenSettlementReportId,
     acknowledgeSettlementReport,
+    pendingOvernightReturn,
+    clearOvernightReturn,
   } = useGameFlowStore();
   const [dialogueText, setDialogueText] = useState('');
   const [bedchamberGiftItemName, setBedchamberGiftItemName] = useState('');
@@ -309,6 +323,15 @@ export function ChamberMainView() {
     }
 
     if (buttonId === 'map-main') {
+      if (isOutsideScene) {
+        setPendingChamberDialogueAction(null);
+        setDialogueText('');
+        setMapEventText('');
+        enterMapMain();
+        return;
+      }
+
+      closeChamberPanel();
       setPendingChamberDialogueAction('enter-map');
       setDialogueText(buildMapTransitionNarrative({ kind: 'enter-map', fromResidence: state.residenceName }));
       return;
@@ -325,11 +348,48 @@ export function ChamberMainView() {
     }
   };
 
+  const handleReturnHomeFromLocation = () => {
+    if (isChamberUiInteractionLocked) {
+      return;
+    }
+
+    setPendingChamberDialogueAction(null);
+    setDialogueText('');
+    setMapEventText('');
+    enterMainChamber();
+  };
+
   const beginOvernightTransition = () => {
+    enterMainChamber();
     setPendingChamberDialogueAction(null);
     setDialogueText('');
     setOvernightTransitionPhase('fade-in');
   };
+
+  useEffect(() => {
+    if (
+      !pendingOvernightReturn ||
+      activeChamberPanel !== 'main' ||
+      isNightlyOverlayActive ||
+      dialogueText ||
+      bedchamberGiftItemName
+    ) {
+      return;
+    }
+
+    enterMainChamber();
+    setPendingChamberDialogueAction('overnight-transition');
+    setDialogueText(buildOvernightReminderText(pendingOvernightReturn.origin, pendingOvernightReturn.reason));
+    clearOvernightReturn();
+  }, [
+    activeChamberPanel,
+    bedchamberGiftItemName,
+    clearOvernightReturn,
+    dialogueText,
+    enterMainChamber,
+    isNightlyOverlayActive,
+    pendingOvernightReturn,
+  ]);
 
   const handleNightlyServiceNoticeDone = () => {
     const noticeOutcome = pendingNightlyServiceNotice?.outcome;
@@ -393,7 +453,12 @@ export function ChamberMainView() {
       stress: action.stressDelta ?? 0,
       stats: action.statDeltas ?? {},
     });
-    advanceTime(action.timeCost ?? 1);
+    const hasTimeCost = Boolean(action.timeCost && action.timeCost > 0);
+    const nextStamina = Math.max(0, state.stamina - (action.staminaCost ?? 0));
+    const shouldSleepAfterAction = hasTimeCost && (time.slot === '深夜' || nextStamina <= 0);
+    if (time.slot !== '深夜') {
+      advanceTime(action.timeCost ?? 1);
+    }
     setPendingChamberDialogueAction(null);
     setDialogueText(
       buildChamberActionNarrative({
@@ -405,6 +470,9 @@ export function ChamberMainView() {
         timeLabel: `${time.year}年${time.month}月${time.xun}旬${time.slot}`,
       }),
     );
+    if (shouldSleepAfterAction) {
+      setPendingChamberDialogueAction('overnight-reminder');
+    }
   };
 
   const handleBottomTool = (toolLabel: string) => {
@@ -459,13 +527,6 @@ export function ChamberMainView() {
     setDialogueText(bottomToolMessage[toolLabel] ?? `${toolLabel}入口已预留，后续会补全对应功能。`);
   };
 
-  const handleQuickReturn = () => {
-    if (isChamberUiInteractionLocked) {
-      return;
-    }
-    enterMainChamber();
-  };
-
   const handleChamberDialogueDone = () => {
     if (pendingChamberDialogueAction === 'enter-map') {
       setPendingChamberDialogueAction(null);
@@ -479,6 +540,18 @@ export function ChamberMainView() {
       setPendingChamberDialogueAction(null);
       setDialogueText('');
       setExpenseStrategyPanelOpen(true);
+      return;
+    }
+
+    if (pendingChamberDialogueAction === 'overnight-reminder') {
+      const reason = state.stamina <= 0 ? 'stamina' : 'deep-night';
+      setPendingChamberDialogueAction('overnight-transition');
+      setDialogueText(buildOvernightReminderText('chamber', reason));
+      return;
+    }
+
+    if (pendingChamberDialogueAction === 'overnight-transition') {
+      beginOvernightTransition();
       return;
     }
 
@@ -568,19 +641,21 @@ export function ChamberMainView() {
 
         {!shouldHideChamberUiForNightlyOverlay ? (
         <nav className="palace-sidebar palace-sidebar--chamber" aria-label="寝殿左侧功能栏">
-          {CHAMBER_SIDEBAR_BUTTONS.map((button) => (
-            <button
-              key={button.id}
-              type="button"
-              className={`palace-sidebar__diamond ${activeChamberPanel === button.id ? 'is-active' : ''}`}
-              style={{ top: button.top }}
-              onClick={() => handleSidebar(button.id)}
-            >
-              <span>{button.label}</span>
-            </button>
-          ))}
+          {CHAMBER_SIDEBAR_BUTTONS.map((button) => {
+            return (
+              <button
+                key={button.id}
+                type="button"
+                className={`palace-sidebar__diamond ${activeChamberPanel === button.id ? 'is-active' : ''}`}
+                style={{ top: button.top }}
+                onClick={() => handleSidebar(button.id)}
+              >
+                <span>{button.label}</span>
+              </button>
+            );
+          })}
           {isOutsideScene ? (
-            <button type="button" className="palace-sidebar__quick-return" aria-label="回宫" onClick={handleQuickReturn}>
+            <button type="button" className="palace-sidebar__quick-return" aria-label="回宫" onClick={handleReturnHomeFromLocation}>
               <span>回</span>
               <span>宫</span>
             </button>
@@ -733,7 +808,9 @@ export function ChamberMainView() {
                 ? '前往地图'
                 : pendingChamberDialogueAction === 'reopen-expense-choice'
                   ? '重新选择'
-                  : '收起'
+                  : pendingChamberDialogueAction === 'overnight-transition'
+                    ? '歇下'
+                    : '收起'
             }
             onNextAction={handleChamberDialogueDone}
           />

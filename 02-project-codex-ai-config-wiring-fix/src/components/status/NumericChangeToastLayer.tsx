@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { attributeFields } from '../../game/data/config';
 import { type GameFlowStore, useGameFlowStore } from '../../game/store/gameFlowStore';
-import type { ConcubineProfile, ConcubineStats, GameNumericsState, NumericFeedbackBucket } from '../../game/types';
+import type { ConcubineProfile, ConcubineStats, GameNumericsState, InventoryItem, NumericFeedbackBucket } from '../../game/types';
 
 interface NumericChangeToast {
   id: string;
   change: string;
 }
 
-type NumericSnapshot = Record<string, { label: string; value: number }>;
+type NumericSnapshot = Record<string, { label: string; value: number; trackMissingAsZero?: boolean }>;
 
 interface QueuedNumericChange {
   change: string;
@@ -70,10 +70,21 @@ const addConsortSnapshot = (snapshot: NumericSnapshot, consorts: ConcubineProfil
   });
 };
 
+const addInventorySnapshot = (snapshot: NumericSnapshot, inventory: InventoryItem[]) => {
+  inventory.forEach((item) => {
+    snapshot[`inventory.${item.itemId}`] = {
+      label: item.name,
+      value: normalizeDisplayNumber(item.quantity),
+      trackMissingAsZero: true,
+    };
+  });
+};
+
 const buildNumericSnapshot = (
   state: GameNumericsState,
   concubines: ConcubineProfile[],
   customConsorts: ConcubineProfile[],
+  inventory: InventoryItem[],
 ): NumericSnapshot => {
   const snapshot: NumericSnapshot = {};
 
@@ -94,25 +105,33 @@ const buildNumericSnapshot = (
 
   addConsortSnapshot(snapshot, concubines, 'consorts');
   addConsortSnapshot(snapshot, customConsorts, 'customConsorts');
+  addInventorySnapshot(snapshot, inventory);
 
   return snapshot;
 };
 
 const buildChangeLines = (previous: NumericSnapshot, next: NumericSnapshot): NumericChangeLine[] =>
-  Object.entries(next).flatMap(([key, entry]) => {
+  Array.from(new Set([...Object.keys(previous), ...Object.keys(next)])).flatMap((key) => {
+    const entry = next[key];
     const previousEntry = previous[key];
-    if (!previousEntry) {
-      return [];
+    if (!entry || !previousEntry) {
+      if (!(entry?.trackMissingAsZero || previousEntry?.trackMissingAsZero)) {
+        return [];
+      }
     }
 
-    const delta = normalizeDisplayNumber(entry.value - previousEntry.value);
+    const nextValue = entry?.value ?? 0;
+    const previousValue = previousEntry?.value ?? 0;
+    const delta = normalizeDisplayNumber(nextValue - previousValue);
     if (delta === 0) {
       return [];
     }
 
+    const label = entry?.label ?? previousEntry?.label ?? key;
+
     return {
       key,
-      change: `${entry.label} ${formatDelta(delta)}`,
+      change: `${label} ${formatDelta(delta)}`,
     };
   });
 
@@ -145,7 +164,7 @@ const classifyNumericFeedbackBucket = (store: GameFlowStore, change: NumericChan
 };
 
 const buildSnapshotFromStore = (store: GameFlowStore): NumericSnapshot =>
-  buildNumericSnapshot(store.state, store.concubines, store.customConsorts);
+  buildNumericSnapshot(store.state, store.concubines, store.customConsorts, store.inventory);
 
 export function NumericChangeToastLayer() {
   const numericFeedbackSignal = useGameFlowStore((store) => store.numericFeedbackSignal);

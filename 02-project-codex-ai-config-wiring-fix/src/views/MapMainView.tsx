@@ -22,7 +22,9 @@ import {
   type YingluoyetingMapEvent,
 } from '../game/lib/yingluoyetingStoryRuntime';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
-import type { AffairSourceLabel } from '../game/types';
+import type { AffairSourceLabel, PalaceTimeState } from '../game/types';
+
+const MAP_ACTION_STAMINA_COST = 1;
 
 type GongmenNpcId = 'du-niang' | 'aling';
 type GongmenTradeMode = 'buy' | 'sell';
@@ -105,16 +107,21 @@ export function MapMainView() {
     concubines,
     merchantLedger,
     mapEventText,
+    settlementReports,
+    latestSettlementReportId,
+    lastSeenSettlementReportId,
     openChamberPanel,
     setMapEventText,
     setActiveAffairsSource,
     patchState,
     advanceTime,
     enterMainChamber,
+    requestOvernightReturn,
     buyInventoryItem,
     grantInventoryItem,
     sellInventoryItem,
     patchConcubineById,
+    acknowledgeSettlementReport,
   } = useGameFlowStore();
   const [guideStep, setGuideStep] = useState(0);
   const [selectedHotspotId, setSelectedHotspotId] = useState<MapHotspotConfig['id'] | null>(null);
@@ -253,11 +260,35 @@ export function MapMainView() {
     }
     return '';
   }, [guideActive, guideStep, mapEventText, selectedHotspot]);
+  const latestSettlementReport = useMemo(() => {
+    if (!latestSettlementReportId) {
+      return undefined;
+    }
+    const latestIndex = settlementReports.findIndex((report) => report.id === latestSettlementReportId);
+    if (latestIndex < 0) {
+      return undefined;
+    }
+    const lastSeenIndex = lastSeenSettlementReportId
+      ? settlementReports.findIndex((report) => report.id === lastSeenSettlementReportId)
+      : -1;
+    return settlementReports.slice(Math.max(0, lastSeenIndex + 1), latestIndex + 1)[0];
+  }, [latestSettlementReportId, lastSeenSettlementReportId, settlementReports]);
+  const showSettlementReport = Boolean(
+    latestSettlementReport &&
+      latestSettlementReport.id !== lastSeenSettlementReportId &&
+      !dialogueText &&
+      !selectedHotspot &&
+      !activeYingluoyetingEvent &&
+      !activeNpcProfile &&
+      !gongmenSceneActive,
+  );
   const isJiaojiaoMapDialogue = guideActive || isJiaojiaoSpokenText(dialogueText);
   const mapDialogueClassName = `global-dialogue-stage--map ${
     isJiaojiaoMapDialogue ? 'global-dialogue-stage--assistant' : 'global-dialogue-stage--narration'
   }`;
-  const isMapDialogueBlocking = Boolean((dialogueText && !selectedHotspot) || activeYingluoyetingEvent || activeNpcProfile);
+  const isMapDialogueBlocking = Boolean(
+    (dialogueText && !selectedHotspot) || showSettlementReport || activeYingluoyetingEvent || activeNpcProfile,
+  );
 
   const resetGongmenScene = () => {
     gongmenAiRequestRef.current += 1;
@@ -275,6 +306,30 @@ export function MapMainView() {
     setPendingYingluoyetingEventAfterFirstMeet(null);
     setYingluoyetingResultText('');
     setYingluoyetingResultHint('');
+  };
+
+  const shouldReturnHomeAfterMapAction = (
+    previousTime: PalaceTimeState,
+    nextStamina: number,
+  ) => {
+    const actionUsedDeepNight = previousTime.slot === '深夜';
+    const staminaDepleted = nextStamina <= 0;
+
+    if (!actionUsedDeepNight && !staminaDepleted) {
+      return false;
+    }
+
+    setSelectedHotspotId(null);
+    setMapEventText('');
+    resetYingluoyetingEvent();
+    resetGongmenScene();
+
+    requestOvernightReturn({
+      origin: 'map',
+      reason: staminaDepleted ? 'stamina' : 'deep-night',
+    });
+    enterMainChamber();
+    return true;
   };
 
   const jumpToChamberPanel = (panelId: 'consorts' | 'stats' | 'chronicle' | 'bond' | 'main') => {
@@ -385,7 +440,15 @@ export function MapMainView() {
       return;
     }
 
-    advanceTime(1);
+    const previousTime = time;
+    const nextStamina = Math.max(0, state.stamina - MAP_ACTION_STAMINA_COST);
+    patchState({ stamina: nextStamina });
+    if (previousTime.slot !== '深夜') {
+      advanceTime(1);
+    }
+    if (shouldReturnHomeAfterMapAction(previousTime, nextStamina)) {
+      return;
+    }
     setMapEventText('');
 
     if (selectedHotspot.id === '宫门') {
@@ -425,7 +488,15 @@ export function MapMainView() {
       return;
     }
 
-    advanceTime(1);
+    const previousTime = time;
+    const nextStamina = Math.max(0, state.stamina - MAP_ACTION_STAMINA_COST);
+    patchState({ stamina: nextStamina });
+    if (previousTime.slot !== '深夜') {
+      advanceTime(1);
+    }
+    if (shouldReturnHomeAfterMapAction(previousTime, nextStamina)) {
+      return;
+    }
     setSelectedHotspotId(null);
     setMapEventText('');
     resetYingluoyetingEvent();
@@ -855,6 +926,29 @@ export function MapMainView() {
               </section>
             ) : null}
           </>
+        ) : null}
+
+        {showSettlementReport && latestSettlementReport ? (
+          <GlobalDialogueStage
+            sceneLabel={latestSettlementReport.kind === 'event' ? '地图事件通报场景' : '地图时间通报场景'}
+            portraitLabel="娇娇立绘"
+            portrait={
+              <img
+                src={ASSISTANT_PORTRAIT_SRC}
+                alt="娇娇"
+                className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant"
+              />
+            }
+            ariaLabel={latestSettlementReport.kind === 'event' ? '地图事件通报' : '娇娇时间通报'}
+            className="global-dialogue-stage--map global-dialogue-stage--assistant"
+            dialogueClassName="palace-dialogue-box--map"
+            characterIdentity={latestSettlementReport.kind === 'event' ? '司乐女官' : '贴身宫女'}
+            characterName={latestSettlementReport.kind === 'event' ? '掌册宫人' : '娇娇'}
+            content={`${latestSettlementReport.title}。${latestSettlementReport.lines.join(' ')}`}
+            nextActionLabel="记下"
+            onNextAction={() => acknowledgeSettlementReport(latestSettlementReport.id)}
+            numericFeedbackBucket="settlement"
+          />
         ) : null}
 
         {(dialogueText || guideActive) && !selectedHotspot ? (

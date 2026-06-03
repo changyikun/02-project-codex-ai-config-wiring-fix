@@ -457,6 +457,27 @@ export function ConsortAudiencePanel({
     }
   };
 
+  const handleAudienceDialogueNextAction = async () => {
+    if (busy || !dialogueTurn) {
+      return;
+    }
+
+    if (dialogueTurn.phase === 'continue' && dialogueTurn.nextActionLabel === '下一句') {
+      setBusy(true);
+      try {
+        await runNarrativeTurn(consort, 'follow-up', actionId, actionLabel, {
+          actionResult: '你暂且没有改换话题，只顺着这一句等对方继续说下去。',
+        });
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    setDialogueTurn(null);
+    setSceneHint('');
+  };
+
   return (
     <section className="harem-palace-view__audience" aria-label={`${displayRank} ${consort.name} 日常对话`}>
       <header className="harem-palace-view__audience-header">
@@ -533,21 +554,23 @@ export function ConsortAudiencePanel({
         </section>
       ) : null}
 
-      <GlobalDialogueStage
-        sceneLabel={`${displayRank} ${consort.name} 宫内对话场景`}
-        portraitLabel="旁白无立绘"
-        ariaLabel="妃嫔宫内对话框"
-        className="global-dialogue-stage--consort global-dialogue-stage--with-side-panel"
-        dialogueClassName="palace-dialogue-box--consort-audience"
-        suppressPortrait
-        characterIdentity={dialogueTurn?.speakerIdentity ?? displayRank}
-        characterName={dialogueTurn?.speakerName ?? consort.name}
-        content={dialogueTurn?.text ?? ''}
-        nextActionLabel={undefined}
-        onNextAction={undefined}
-        options={[]}
-        busy={busy}
-      />
+      {dialogueTurn || busy ? (
+        <GlobalDialogueStage
+          sceneLabel={`${displayRank} ${consort.name} 宫内对话场景`}
+          portraitLabel="旁白无立绘"
+          ariaLabel="妃嫔宫内对话框"
+          className="global-dialogue-stage--consort global-dialogue-stage--with-side-panel"
+          dialogueClassName="palace-dialogue-box--consort-audience"
+          suppressPortrait
+          characterIdentity={dialogueTurn?.speakerIdentity ?? displayRank}
+          characterName={dialogueTurn?.speakerName ?? consort.name}
+          content={dialogueTurn?.text ?? '宫人正低声通传，对方还未开口。'}
+          nextActionLabel={dialogueTurn?.nextActionLabel ?? '收起'}
+          onNextAction={dialogueTurn ? () => void handleAudienceDialogueNextAction() : undefined}
+          options={[]}
+          busy={busy}
+        />
+      ) : null}
     </section>
   );
 }

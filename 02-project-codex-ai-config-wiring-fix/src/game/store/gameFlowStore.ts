@@ -99,6 +99,12 @@ interface NumericFeedbackSignal {
   bucket: NumericFeedbackBucket;
 }
 
+interface PendingOvernightReturn {
+  id: string;
+  origin: 'map' | 'chamber';
+  reason: 'deep-night' | 'stamina';
+}
+
 export interface GameFlowStore {
   currentView: CurrentView;
   scene: SceneId;
@@ -132,6 +138,7 @@ export interface GameFlowStore {
   latestSettlementReportId?: string;
   lastSeenSettlementReportId?: string;
   numericFeedbackSignal: NumericFeedbackSignal;
+  pendingOvernightReturn?: PendingOvernightReturn;
   setCurrentView: (view: CurrentView) => void;
   setScene: (scene: SceneId) => void;
   openChamberPanel: (panel: ChamberPanelId) => void;
@@ -147,6 +154,8 @@ export interface GameFlowStore {
   setBriefing: (briefing: string) => void;
   setDialogue: (dialogue?: DialogueTurn) => void;
   setMapEventText: (text: string) => void;
+  requestOvernightReturn: (payload: Omit<PendingOvernightReturn, 'id'>) => void;
+  clearOvernightReturn: () => void;
   setSave: (save: NumericSaveEnvelope) => void;
   setAttributeValue: (key: string, value: number) => void;
   validatePoints: () => void;
@@ -814,7 +823,6 @@ const initialState: GameNumericsState = validatePointsState({
   pointsTotal: 48,
   pointsLeft: 24,
   routeId: 'lanyinxuguo',
-  actionPoints: 4,
   stamina: STAMINA_INITIAL_PER_XUN,
   silver: 1000,
   prestige: 2500,
@@ -947,6 +955,7 @@ const createInitialGameFlowFields = (currentView: CurrentView): Partial<GameFlow
   latestSettlementReportId: undefined,
   lastSeenSettlementReportId: undefined,
   numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
+  pendingOvernightReturn: undefined,
 });
 
 const restoreSaveGameV1Fields = (saveGame: SaveGameV1): Partial<GameFlowStore> => ({
@@ -990,6 +999,7 @@ const restoreSaveGameV1Fields = (saveGame: SaveGameV1): Partial<GameFlowStore> =
   latestSettlementReportId: saveGame.world.latestSettlementReportId,
   lastSeenSettlementReportId: saveGame.world.lastSeenSettlementReportId,
   numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
+  pendingOvernightReturn: undefined,
 });
 
 export const useGameFlowStore = create<GameFlowStore>()(
@@ -1027,6 +1037,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
       latestSettlementReportId: undefined,
       lastSeenSettlementReportId: undefined,
       numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
+      pendingOvernightReturn: undefined,
       setCurrentView: (currentView) => set({ currentView }),
       setScene: (scene) => set({ scene }),
       openChamberPanel: (activeChamberPanel) => set({ activeChamberPanel }),
@@ -1044,6 +1055,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
           currentView: 'map-main',
           scene: 'map',
           activeChamberPanel: 'main',
+          activeMapLocation: undefined,
         }),
       setRoute: (routeId) =>
         set((current) => ({
@@ -1194,6 +1206,14 @@ export const useGameFlowStore = create<GameFlowStore>()(
       setBriefing: (briefing) => set({ briefing }),
       setDialogue: (dialogue) => set({ dialogue }),
       setMapEventText: (text) => set({ mapEventText: text }),
+      requestOvernightReturn: (payload) =>
+        set({
+          pendingOvernightReturn: {
+            ...payload,
+            id: `overnight-${payload.origin}-${payload.reason}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          },
+        }),
+      clearOvernightReturn: () => set({ pendingOvernightReturn: undefined }),
       setSave: (save) => set({ save }),
       setAttributeValue: (key, value) =>
         set((current) => {
@@ -1334,7 +1354,15 @@ export const useGameFlowStore = create<GameFlowStore>()(
             })
             .filter((item) => item.quantity > 0);
 
-          return consumed ? { inventory: nextInventory } : current;
+          return consumed
+            ? {
+                inventory: nextInventory,
+                numericFeedbackSignal: {
+                  sequence: current.numericFeedbackSignal.sequence + 1,
+                  bucket: current.currentView === 'map-main' ? 'map-event' : 'chamber-action',
+                },
+              }
+            : current;
         });
         return consumed;
       },
@@ -1367,6 +1395,10 @@ export const useGameFlowStore = create<GameFlowStore>()(
 
           return {
             inventory: nextInventory,
+            numericFeedbackSignal: {
+              sequence: current.numericFeedbackSignal.sequence + 1,
+              bucket: current.currentView === 'map-main' ? 'map-event' : 'chamber-action',
+            },
           };
         }),
       buyInventoryItem: (item, stockLimit) => {
@@ -1443,6 +1475,10 @@ export const useGameFlowStore = create<GameFlowStore>()(
               ...current.hiddenStats,
               silver: nextSilver,
             },
+            numericFeedbackSignal: {
+              sequence: current.numericFeedbackSignal.sequence + 1,
+              bucket: current.currentView === 'map-main' ? 'map-event' : 'chamber-action',
+            },
           };
         });
 
@@ -1499,6 +1535,10 @@ export const useGameFlowStore = create<GameFlowStore>()(
             hiddenStats: {
               ...current.hiddenStats,
               silver: nextSilver,
+            },
+            numericFeedbackSignal: {
+              sequence: current.numericFeedbackSignal.sequence + 1,
+              bucket: current.currentView === 'map-main' ? 'map-event' : 'chamber-action',
             },
           };
         });

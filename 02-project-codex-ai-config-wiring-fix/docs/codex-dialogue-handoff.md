@@ -66,8 +66,9 @@
 ### 4.3 寝殿与地图切换语义
 
 - 从地图点进玩家自己的宫殿，不再进入空白外景，而是回到正常寝殿主界面。
-- 外景左侧现在保留 `外出`，其语义始终是“回地图视角”。
-- 外景左侧新增独立 `回宫` 快捷按钮，语义始终是“直接回寝殿”。
+- 寝殿主界面的 `外出` 表示前往地图；若当前打开了属性、物品、宫务等面板，点击 `外出` 必须先关闭面板并展示出行提示，再由玩家确认进入地图。
+- 外景 / 地点场景的左侧中位按钮改为唯一 `回宫`，语义是“直接回寝殿”；不要再额外渲染第二个回宫按钮。
+- 地点内不再保留 `外出` 作为“回地图视角”的入口，避免地点场景和地图主视角互相卡住。
 
 核心文件：
 
@@ -644,12 +645,15 @@ npm run build
 
 已经成立的语义：
 
-- `外出` 永远表示“回地图视角”
+- 寝殿主界面的 `外出` 表示“前往地图视角”
 - `回宫` 永远表示“直接回寝殿”
-- 外景场景里，左侧会并存 `外出` 与 `回宫`
+- 外景场景里，左侧中位按钮 `外出` 表示“返回地图主视角”；独立 `回宫` 入口表示“直接回寝殿”
+- 寝殿面板打开时点击 `外出`，必须先关闭面板并展示出行提示，再由玩家确认进入地图
 - 从地图点进玩家当前住处，会直接等同 `回宫`
 - 地图上的玩家寝殿热点不再写死为 `椒房殿`
 - 地图寝殿热点、后宫落位、回宫入口都由 `state.residenceName` 驱动
+- 普通地图行动若把时间推进到 `深夜`，玩家仍可保留一次深夜行动；深夜行动后或体力归零后，才由娇娇提醒回宫 / 睡觉，再进入黑屏过夜链路。
+- 华清池深夜双人沐浴等明确依赖深夜入口的特殊场景可以在夜晚行动后落到深夜，但深夜行动完成后同样要归寝。
 
 关键文件：
 
@@ -660,9 +664,13 @@ npm run build
 
 后续如果要继续改地图或寝殿，不要再引回这些旧语义：
 
-- “外出”和“回宫”二选一
+- “外景里只剩回宫，不能返回地图主视角”
+- “外景里把 `外出` 当成回宫”
+- “面板打开时直接设置出行对白但不关闭面板”
 - “玩家寝殿固定是椒房殿”
 - “点玩家宫殿一定先弹进入确认”
+- “到达深夜就等于自动跨到清晨”
+- “地图上能看到通报就等于完成睡觉收束”
 
 ### 15.5 位分推进与迁宫规则
 
@@ -1128,3 +1136,81 @@ npm run build
 
 - `npx tsc -p tsconfig.json --noEmit` 通过
 - `npx vitest run src/game/save/saveGameV1.test.ts src/game/store/gameFlowStore.save.test.ts src/__tests__/app-flow.test.tsx` 通过，109 passed；仍有既有 React `act(...)` 测试警告
+
+### 15.22 地图显示时间通报
+
+本轮修复“贴身宫女通报只在寝殿主界面展示，玩家留在地图时不会出现”的问题。
+
+已经成立的规则：
+
+- 时间通报和系统事件通报归属于 `settlementReports` 队列，不归属于寝殿界面。
+- `MapMainView` 现在会读取最新未读通报，并在地图没有地图引导、地点弹窗、掖庭剧情或宫门 NPC 场景时展示。
+- 地图通报使用 `GlobalDialogueStage`，说话人沿用贴身宫女娇娇；`event` 类通报沿用司乐女官 / 掌册宫人。
+- 地图通报显示期间会进入地图交互锁，侧栏和热点点击不会越过通报。
+- 玩家收起地图通报后调用 `acknowledgeSettlementReport(reportId)`，与寝殿共用同一已读标记。
+
+关键文件：
+
+- `src/views/MapMainView.tsx`
+- `src/__tests__/app-flow.test.tsx`
+
+验证结果：
+
+- `npx tsc -p tsconfig.json --noEmit` 通过
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "地图上也会显示绑定时间|地图剧情对白未收起|跨旬行动会先展示"` 通过
+
+### 15.23 外出末格归寝规则
+
+本轮修正上节地图通报的语义缺口：贴身宫女绑定时间，不代表玩家可以一直留在地图或外景中过夜。但 `深夜` 本身仍是最后一个可行动时段，不能在刚进入深夜时立刻跨到清晨。
+
+已经成立的规则：
+
+- `MapMainView` 的普通热点进入和热点快捷入口会消耗 1 点体力；若当前不是深夜，才立即 `advanceTime(1)`。
+- 若地图普通行动只是从夜晚推进到深夜，玩家会进入对应地点，保留最后一次深夜行动。
+- 若行动发生在深夜，或本次行动后体力归零，地图会清理热点、宫门、掖庭等局部状态，请求寝殿过夜提醒，并调用 `enterMainChamber()` 回到玩家当前寝宫。
+- 地点子场景的耗时行动必须走 `useLocationActionFlow()`，不要在各地点组件里直接 `advanceTime(1)`；普通结果用 `LocationActionResultStage` 展示，NPC 对话则在 `closeEncounter()` 后完成待定归寝。
+- `ChamberMainView` 会先展示本次行动结果，再展示娇娇回宫 / 睡觉提醒；玩家确认后复用原有 `beginOvernightTransition()` 黑屏转场。
+- 黑屏转场内部仍由 `advanceTime(Math.max(1, 7 - currentSlotIndex))` 推进到下一旬清晨，因此夜晚侍寝后续和娇娇旬月通报仍归时间主循环生成。
+- 后续不要在状态栏或规则反馈中展示独立“行动值”；体力就是玩家常规行动预算。
+
+关键文件：
+
+- `src/views/MapMainView.tsx`
+- `src/views/ChamberMainView.tsx`
+- `src/components/chamber/useLocationActionFlow.ts`
+- `src/components/chamber/LocationActionResultStage.tsx`
+- `src/__tests__/app-flow.test.tsx`
+
+验证结果：
+
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "普通外出行动推进到深夜|深夜普通外出行动后|体力归零后|深夜时华清池"` 通过
+
+### 15.24 对话锁混合场景、物品 toast 与妙音堂归寝
+
+本轮修复全局对话遮罩落地后的混合场景问题，并把道具增减纳入 toast。
+
+已经成立的规则：
+
+- 全局剧情遮罩仍然默认屏蔽背景 UI；不要为了修复混合场景而放宽 `GlobalDialogueStage` 的遮罩。
+- 如果场景是“对白 + 场景内固定按钮”，对白必须能先结束或收起，再开放底层按钮；侍寝和妃嫔会面已经按这个口径处理。
+- `NightlyServiceEventView` 的养心殿初始说明需要玩家确认后才显示互动按钮，避免对白遮罩盖住侍寝操作。
+- `ConsortAudiencePanel` 的妃嫔对白可以点击正文收起；收起后固定操作按钮仍留在会面页，不退出场景。
+- 物品获得 / 失去纳入 `NumericChangeToastLayer`，新增物品按缺省 0 计算正向变化，消耗到 0 也会显示负向变化。
+- `grantInventoryItem`、`consumeInventoryItem`、`buyInventoryItem`、`sellInventoryItem` 会在成功改变背包后同步发出 toast 信号；角色初始化仍不能通过这些方法刷出初始化 toast。
+- 妙音堂深夜听曲必须先展示听曲结果与本次压力 toast，再由玩家确认回宫，之后复用娇娇睡觉提醒、黑屏过夜和清晨通报链路。
+
+关键文件：
+
+- `src/components/chamber/NightlyServiceEventView.tsx`
+- `src/components/consorts/ConsortAudiencePanel.tsx`
+- `src/components/chamber/MiaoYinHallView.tsx`
+- `src/components/status/NumericChangeToastLayer.tsx`
+- `src/game/store/gameFlowStore.ts`
+- `src/views/ChamberMainView.tsx`
+
+验证结果：
+
+- `npx tsc -p tsconfig.json --noEmit` 通过
+- `npx vitest run src/__tests__/app-flow.test.tsx` 通过，97 passed；仍有既有 React `act(...)` 测试警告
+- `npm run build:web`、`npm run build:api` 通过；`build:web` 仍有既有 Vite 大 chunk 警告
+- in-app browser 打开 `http://127.0.0.1:5173/` 可正常加载，console error 为 0

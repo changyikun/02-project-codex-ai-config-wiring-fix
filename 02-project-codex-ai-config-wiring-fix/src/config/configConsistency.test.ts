@@ -58,7 +58,7 @@ describe('config consistency', () => {
     }
 
     for (const assetRef of publicAssetRefs) {
-      expect(existsSync(resolve(configDir, '../../public', assetRef.slice('/'.length))), assetRef).toBe(true);
+      expect(existsSync(resolve(configDir, '../../public', decodeURI(assetRef).slice('/'.length))), assetRef).toBe(true);
     }
   });
 

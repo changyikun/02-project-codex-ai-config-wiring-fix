@@ -73,6 +73,7 @@ export function NightlyServiceEventView({
   const [selectedChoices, setSelectedChoices] = useState<NightlyServiceInteractionChoice[]>([]);
   const [latestChoice, setLatestChoice] = useState<NightlyServiceInteractionChoice | null>(null);
   const [gentleSelectionStep, setGentleSelectionStep] = useState<GentleSelectionStep | null>(null);
+  const [chooseIntroVisible, setChooseIntroVisible] = useState(true);
 
   const currentInterest = useMemo(
     () =>
@@ -143,6 +144,7 @@ export function NightlyServiceEventView({
       return;
     }
 
+    setChooseIntroVisible(false);
     setPhase('choose');
   };
 
@@ -192,7 +194,10 @@ export function NightlyServiceEventView({
           characterName="夜间通报"
           content={`夜色压到窗棂上时，外头忽然传来细碎脚步声。\n内侍在帘外躬身传话：“${pendingEvent.rankLabel}${pendingEvent.playerName}，养心殿传召。”\n这不是可推辞的邀约。宫人已候在廊下，灯笼一盏盏亮起来，照出通往养心殿的路。`}
           nextActionLabel="前往养心殿"
-          onNextAction={() => setPhase('choose')}
+          onNextAction={() => {
+            setChooseIntroVisible(true);
+            setPhase('choose');
+          }}
           numericFeedbackBucket="nightly-service"
         />
       </section>
@@ -205,7 +210,7 @@ export function NightlyServiceEventView({
         <div className="nightly-service-event__background" style={{ backgroundImage: `url("${YANGXIN_BACKGROUND_SRC}")` }} />
         {persistentEmperorPortrait}
         <div className="nightly-service-event__interest">兴致 {currentInterest} / 100 · 还可互动 {remainingInteractions} 次</div>
-        {gentleSelectionStep ? (
+        {!chooseIntroVisible && gentleSelectionStep ? (
           <aside className="nightly-service-event__actions nightly-service-event__actions--branch" aria-label="温言絮语分支">
             {gentleSelectionStep === 'branch' ? (
               <>
@@ -240,7 +245,7 @@ export function NightlyServiceEventView({
                 ))
               : null}
           </aside>
-        ) : (
+        ) : !chooseIntroVisible ? (
           <aside className="nightly-service-event__actions" aria-label="养心殿侍寝操作">
             {actionOptions.map((action) => (
               <button key={action.id} type="button" onClick={() => handleAction(action.id)}>
@@ -248,16 +253,20 @@ export function NightlyServiceEventView({
               </button>
             ))}
           </aside>
-        )}
-        <GlobalDialogueStage
-          {...commonProps}
-          sceneLabel="养心殿侍寝互动"
-          portraitLabel="旁白无立绘"
-          ariaLabel="养心殿侍寝互动"
-          characterIdentity="场景旁白"
-          characterName="养心殿"
-          content="养心殿内灯火压得很低，容安搁下手中折子，目光从案边移到你身上。你知道，今夜开口的分寸，会决定这一夜的冷暖。"
-        />
+        ) : null}
+        {chooseIntroVisible ? (
+          <GlobalDialogueStage
+            {...commonProps}
+            sceneLabel="养心殿侍寝互动"
+            portraitLabel="旁白无立绘"
+            ariaLabel="养心殿侍寝互动"
+            characterIdentity="场景旁白"
+            characterName="养心殿"
+            content="养心殿内灯火压得很低，容安搁下手中折子，目光从案边移到你身上。你知道，今夜开口的分寸，会决定这一夜的冷暖。"
+            nextActionLabel="开始互动"
+            onNextAction={() => setChooseIntroVisible(false)}
+          />
+        ) : null}
       </section>
     );
   }

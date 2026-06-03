@@ -94,6 +94,7 @@ describe('NightlyServiceEventView', () => {
 
     clickDialogueToEnd();
     clickDialogueContent();
+    clickDialogueContent();
 
     const actionPanel = screen.getByLabelText('养心殿侍寝操作');
     expect(actionPanel).toHaveClass('nightly-service-event__actions');

@@ -4,7 +4,6 @@ export interface RuntimeState {
   family: string;
   pointsLeft: number;
   routeId: 'lanyinxuguo' | 'fushengrumeng' | 'yingluoyeting' | 'chenyuansucuo';
-  actionPoints: number;
   silver: number;
   prestige: number;
   stress: number;

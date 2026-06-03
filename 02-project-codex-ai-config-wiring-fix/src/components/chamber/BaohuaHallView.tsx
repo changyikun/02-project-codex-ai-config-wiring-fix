@@ -19,6 +19,8 @@ import type {
   ConsortDialogueOption,
   ConsortDialogueTurn,
 } from '../../game/types';
+import { LocationActionResultStage } from './LocationActionResultStage';
+import { useLocationActionFlow, type TimedLocationActionOutcome } from './useLocationActionFlow';
 
 interface BaohuaHallViewProps {
   concubines: ConcubineProfile[];
@@ -87,9 +89,9 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     templeProgress,
     patchTempleProgress,
     applyStoryEffects,
-    advanceTime,
     applyConsortRelationshipJudgement,
   } = useGameFlowStore();
+  const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [activeActor, setActiveActor] = useState<BaohuaSceneActor | null>(null);
   const [dialogueTurn, setDialogueTurn] = useState<ConsortDialogueTurn | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -98,6 +100,8 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
   const [systemMessage, setSystemMessage] = useState('梵音低回，香雾袅袅，宝华殿里连脚步声都被压得很轻。');
   const [activeEncounterLabel, setActiveEncounterLabel] = useState('宝华殿偶遇');
   const [pendingDangYiUnlock, setPendingDangYiUnlock] = useState(false);
+  const [actionResultText, setActionResultText] = useState('');
+  const [pendingTimedActionOutcome, setPendingTimedActionOutcome] = useState<TimedLocationActionOutcome | null>(null);
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const dialogueOptions = dialogueTurn?.options ?? [];
@@ -220,13 +224,34 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     }
   };
 
+  const showActionResult = (text: string, outcome: TimedLocationActionOutcome) => {
+    setSystemMessage(text);
+    setActionResultText(text);
+    setPendingTimedActionOutcome(outcome.shouldSleep ? outcome : null);
+  };
+
+  const holdTimedActionOutcome = (outcome: TimedLocationActionOutcome) => {
+    setActionResultText('');
+    setPendingTimedActionOutcome(outcome.shouldSleep ? outcome : null);
+  };
+
+  const closeActionResult = () => {
+    const outcome = pendingTimedActionOutcome;
+    setActionResultText('');
+    setPendingTimedActionOutcome(null);
+    finishTimedLocationAction(outcome);
+  };
+
   const closeEncounter = () => {
+    const outcome = pendingTimedActionOutcome;
     finalizeDangYiUnlockIfNeeded();
     setActiveActor(null);
     setDialogueTurn(null);
     setHistory([]);
     setSceneHint('');
     setBusy(false);
+    setPendingTimedActionOutcome(null);
+    finishTimedLocationAction(outcome);
   };
 
   const handleWorship = async () => {
@@ -235,7 +260,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     }
 
     setBusy(true);
-    advanceTime(1);
+    const actionOutcome = beginTimedLocationAction();
     const nextCount = templeProgress.worshipCount + 1;
     patchTempleProgress({ worshipCount: nextCount });
 
@@ -249,26 +274,29 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
         stateHint: `累计礼佛${nextCount}次`,
         timeContext: time,
       });
-      setSystemMessage(
-        buildLocationActionNarrative({
+      const resultText = buildLocationActionNarrative({
           locationId: 'baohua-hall',
           actionId: 'worship',
           actionLabel: '礼佛',
           resultText: ambient,
-        }),
-      );
+      });
 
       if (!isDangYiMet && nextCount >= 3) {
         const actor = buildDangYiActor(templeProgress.dangYiFavor, templeProgress.dangYiAffinity);
         patchTempleProgress({ lastEncounterNpcId: actor.id });
         setPendingDangYiUnlock(true);
+        setSystemMessage(resultText);
+        holdTimedActionOutcome(actionOutcome);
         await beginEncounter(
           actor,
           'forced-meet',
           '当一结识',
           '你连着在宝华殿礼佛至第三回，于供灯后见到了当一。',
         );
+        return;
       }
+
+      showActionResult(resultText, actionOutcome);
     } finally {
       setBusy(false);
     }
@@ -280,7 +308,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     }
 
     setBusy(true);
-    advanceTime(1);
+    const actionOutcome = beginTimedLocationAction();
     patchTempleProgress({ prayerCount: templeProgress.prayerCount + 1 });
     applyStoryEffects({ stats: { fortune: 1 } });
 
@@ -294,13 +322,14 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
         stateHint: `累计祈福${templeProgress.prayerCount + 1}次`,
         timeContext: time,
       });
-      setSystemMessage(
+      showActionResult(
         buildLocationActionNarrative({
           locationId: 'baohua-hall',
           actionId: 'pray',
           actionLabel: '祈福',
           resultText: `${ambient} 福德微增。`,
         }),
+        actionOutcome,
       );
     } finally {
       setBusy(false);
@@ -313,6 +342,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     }
 
     setBusy(true);
+    const actionOutcome = beginTimedLocationAction();
     const nextCount = templeProgress.strollCount + 1;
     patchTempleProgress({ strollCount: nextCount });
     const rollSeed = `${currentSeed}:baohua-stroll:${nextCount}`;
@@ -330,13 +360,14 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
           timeContext: time,
         });
         patchTempleProgress({ lastAmbientText: ambient });
-        setSystemMessage(
+        showActionResult(
           buildLocationActionNarrative({
             locationId: 'baohua-hall',
             actionId: 'stroll',
             actionLabel: '闲逛',
             resultText: ambient,
           }),
+          actionOutcome,
         );
         return;
       }
@@ -352,6 +383,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
           resultText: `你在殿中回廊撞见了${actor.identity} ${actor.name}。`,
         }),
       );
+      holdTimedActionOutcome(actionOutcome);
       await beginEncounter(
         actor,
         'stroll-encounter',
@@ -575,6 +607,18 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
           />
         </section>
       )}
+
+      {!activeActor && actionResultText ? (
+        <LocationActionResultStage
+          locationName="宝华殿"
+          className="global-dialogue-stage--baohua"
+          dialogueClassName="palace-dialogue-box--baohua-encounter"
+          content={actionResultText}
+          nextActionLabel={pendingTimedActionOutcome?.shouldSleep ? '回宫歇下' : '收起'}
+          onNextAction={closeActionResult}
+          busy={busy}
+        />
+      ) : null}
     </section>
   );
 }

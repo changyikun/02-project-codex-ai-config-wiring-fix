@@ -242,7 +242,6 @@ classDiagram
     family
     residenceName
     routeId
-    actionPoints
     stamina
     silver
     prestige
@@ -417,7 +416,11 @@ flowchart LR
   Check -- 是 --> Apply["applyStoryEffects\n扣体力/加属性/改资源"]
   Apply --> Time["advanceTime\n推进时间格"]
   Time --> ActionText["展示本次行动结果"]
-  ActionText --> Report["收起后展示可能触发的旬月通报"]
+  ActionText --> SleepCheck{"深夜行动或体力归零?"}
+  SleepCheck -- 否 --> Report["收起后展示可能触发的旬月通报"]
+  SleepCheck -- 是 --> SleepHint["娇娇提醒回宫 / 睡觉"]
+  SleepHint --> Blackout["黑屏过夜"]
+  Blackout --> Report
 ```
 
 寝殿反馈顺序：
@@ -425,7 +428,36 @@ flowchart LR
 - 普通行动：先结算数值并显示行动结果对白，再进入后续通报或夜晚事件
 - 跨旬行动：若行动推进到下一旬，仍先展示本次行动结果，玩家收起后再显示新旬通报
 - 外出探索：先显示出行提示，玩家确认后再切到地图，避免提示被转场立即盖掉
+- 寝殿面板打开时点击外出：必须先关闭面板并展示出行提示，再切地图，避免对白被面板条件吞掉
 - 结束本旬：仍保留原有夜晚/侍寝/清晨通报链路
+
+归寝与清晨落点：
+
+- 玩家角色不能在普通地图 / 外景中无限停留到次日；普通外出行动若推进到 `深夜`，只表示进入最后一个可行动时段，不立刻跨到清晨。
+- 深夜行动完成后，或体力归零后，需要先由贴身宫女提醒回宫 / 睡觉，再进入黑屏过夜转场。
+- 睡醒后的落点必须是 `currentView='bedchamber'`、`activeChamberPanel='main'`、`activeMapLocation=undefined`，再展示夜晚侍寝后续或清晨娇娇通报。
+- 寝殿主行动和地图普通行动只使用体力作为行动消耗；不要在 UI 或规则反馈中再引入独立“行动值”。
+- 华清池深夜双人沐浴等明确以深夜为入口的玩法，仍允许玩家在夜晚行动后落到深夜场景，再使用深夜行动。
+- 地点子场景的耗时行动统一通过 `useLocationActionFlow()` 结算；普通行动结果必须用 `LocationActionResultStage` 或等价的 `GlobalDialogueStage` 显示，不能只写静态说明文本。
+- 若地点行动触发 NPC 对话，深夜 / 体力归零的睡觉收束要延后到该对话关闭时完成，避免剧情被过夜流程打断。
+
+地图 / 外景入口语义：
+
+- 寝殿主界面的 `外出` 表示前往地图。
+- 外景 / 地点场景左侧的 `外出` 表示返回地图主视角；独立 `回宫` 入口才表示直接回寝殿。
+- `enterMapMain()` 必须清理 `activeMapLocation`，否则从地点回地图会残留地点状态并造成转场卡住。
+
+时间通报归属：
+
+- 旬月通报与系统事件通报绑定在时间主循环和 `settlementReports` 队列上，不绑定具体界面。
+- 寝殿主界面和地图主界面都必须能展示未读通报；玩家在地图上时，贴身宫女仍会出现并说明时间结算结果。
+- 通报显示期间应屏蔽背景 UI 点击，收起后写入 `lastSeenSettlementReportId`。
+
+toast 反馈口径：
+
+- 数值 toast 由状态差异队列驱动，体力和宠爱不显示 toast。
+- 声望、压力、银两、玩家副属性、妃嫔声望 / 压力，以及物品获得 / 失去应显示 toast。
+- 道具新增按 0 -> 当前数量计算正向变化；道具消耗到 0 也必须显示负向变化。
 
 ## 10. 后宫关系系统
 

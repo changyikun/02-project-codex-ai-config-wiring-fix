@@ -32,6 +32,8 @@ import type {
 } from '../../game/types';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
 import { AutoCutoutPortrait } from '../visual/AutoCutoutPortrait';
+import { LocationActionResultStage } from './LocationActionResultStage';
+import { useLocationActionFlow, type TimedLocationActionOutcome } from './useLocationActionFlow';
 
 interface MiaoYinHallViewProps {
   concubines: ConcubineProfile[];
@@ -103,12 +105,11 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     patchMusicHallProgress,
     patchPalaceBanquetProgress,
     applyStoryEffects,
-    advanceTime,
     applyConsortRelationshipJudgement,
     consumeInventoryItem,
     grantInventoryItem,
-    markNumericFeedbackEvent,
   } = useGameFlowStore();
+  const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [activeActor, setActiveActor] = useState<MiaoYinSceneActor | null>(null);
   const [dialogueTurn, setDialogueTurn] = useState<ConsortDialogueTurn | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -120,6 +121,8 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
   const [pendingLianQiaoUnlock, setPendingLianQiaoUnlock] = useState(false);
   const [pendingUnlockReward, setPendingUnlockReward] = useState<InventoryItem[]>([]);
   const [showSignUpPicker, setShowSignUpPicker] = useState(false);
+  const [actionResultText, setActionResultText] = useState('');
+  const [pendingTimedActionOutcome, setPendingTimedActionOutcome] = useState<TimedLocationActionOutcome | null>(null);
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const saveId = useMemo(() => `local:${state.routeId}:${encodeURIComponent(state.name)}`, [state.name, state.routeId]);
@@ -283,7 +286,26 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     }
   };
 
+  const showActionResult = (text: string, outcome: TimedLocationActionOutcome) => {
+    setSystemMessage(text);
+    setActionResultText(text);
+    setPendingTimedActionOutcome(outcome.shouldSleep ? outcome : null);
+  };
+
+  const holdTimedActionOutcome = (outcome: TimedLocationActionOutcome) => {
+    setActionResultText('');
+    setPendingTimedActionOutcome(outcome.shouldSleep ? outcome : null);
+  };
+
+  const closeActionResult = () => {
+    const outcome = pendingTimedActionOutcome;
+    setActionResultText('');
+    setPendingTimedActionOutcome(null);
+    finishTimedLocationAction(outcome);
+  };
+
   const closeEncounter = () => {
+    const outcome = pendingTimedActionOutcome;
     finalizeLianQiaoUnlockIfNeeded();
     setActiveActor(null);
     setDialogueTurn(null);
@@ -291,6 +313,8 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     setSceneHint('');
     setActiveEncounterKind('regular');
     setBusy(false);
+    setPendingTimedActionOutcome(null);
+    finishTimedLocationAction(outcome);
   };
 
   useEffect(() => {
@@ -336,9 +360,9 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     setBusy(true);
     const nextCount = musicHallProgress.listenCount + 1;
     const stressRelief = (hashSeed(`${currentSeed}:listen-stress:${nextCount}`) % 2) + 1;
+    const actionOutcome = beginTimedLocationAction();
     patchMusicHallProgress({ listenCount: nextCount });
     applyStoryEffects({ stress: -stressRelief });
-    advanceTime(1);
 
     try {
       const ambient = await requestMiaoYinAmbientWithFallback({
@@ -350,18 +374,17 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
         stateHint: `累计听曲${nextCount}次`,
         timeContext: time,
       });
-      setSystemMessage(
-        buildLocationActionNarrative({
+      const resultText = buildLocationActionNarrative({
           locationId: 'miaoyin-hall',
           actionId: 'listen',
           actionLabel: '听曲',
           resultText: `${ambient} 压力-${stressRelief}。`,
-        }),
-      );
-      markNumericFeedbackEvent('chamber-action');
+      });
 
       if (!musicHallProgress.lianQiaoFirstMet && nextCount >= 3) {
         patchMusicHallProgress({ lianQiaoFirstMet: true, lastEncounterNpcId: 'lianqiao' });
+        setSystemMessage(resultText);
+        holdTimedActionOutcome(actionOutcome);
         await beginEncounter(
           buildLianQiaoActor(musicHallProgress.lianQiaoFavor, musicHallProgress.lianQiaoAffection),
           'first-meet',
@@ -375,6 +398,8 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
       if (!isLianQiaoMet && nextCount >= 6) {
         patchMusicHallProgress({ lastEncounterNpcId: 'lianqiao' });
         setPendingLianQiaoUnlock(true);
+        setSystemMessage(resultText);
+        holdTimedActionOutcome(actionOutcome);
         await beginEncounter(
           buildLianQiaoActor(musicHallProgress.lianQiaoFavor, musicHallProgress.lianQiaoAffection),
           'meet-lianqiao',
@@ -387,6 +412,8 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
 
       const emperorRoll = hashSeed(`${currentSeed}:emperor-listen:${nextCount}`) % 100 < 20;
       if (state.favor > 40 && emperorRoll) {
+        setSystemMessage(resultText);
+        holdTimedActionOutcome(actionOutcome);
         await beginEncounter(
           buildEmperorActor(),
           'emperor-invite',
@@ -394,7 +421,10 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
           '你在妙音堂听曲时，被皇帝容安留意到了。',
           'emperor',
         );
+        return;
       }
+
+      showActionResult(resultText, actionOutcome);
     } finally {
       setBusy(false);
     }
@@ -406,6 +436,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     }
 
     setBusy(true);
+    const actionOutcome = beginTimedLocationAction();
     const nextCount = musicHallProgress.strollCount + 1;
     patchMusicHallProgress({ strollCount: nextCount });
     const success = hashSeed(`${currentSeed}:miaoyin-stroll:${nextCount}`) % 100 < 20;
@@ -422,25 +453,27 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
           timeContext: time,
         });
         patchMusicHallProgress({ lastAmbientText: ambient });
-        setSystemMessage(
+        showActionResult(
           buildLocationActionNarrative({
             locationId: 'miaoyin-hall',
             actionId: 'stroll',
             actionLabel: '闲逛',
             resultText: ambient,
           }),
+          actionOutcome,
         );
         return;
       }
 
       if (eligibleConsorts.length === 0) {
-        setSystemMessage(
+        showActionResult(
           buildLocationActionNarrative({
             locationId: 'miaoyin-hall',
             actionId: 'stroll',
             actionLabel: '闲逛',
             resultText: '今日妙音堂里来去的人不少，却并无值得你停步的人。',
           }),
+          actionOutcome,
         );
         return;
       }
@@ -455,6 +488,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
           resultText: `你在妙音堂里撞见了${actor.identity} ${actor.name}。`,
         }),
       );
+      holdTimedActionOutcome(actionOutcome);
       await beginEncounter(
         actor,
         'stroll-encounter',
@@ -798,6 +832,18 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
           />
         </section>
       )}
+
+      {!activeActor && actionResultText ? (
+        <LocationActionResultStage
+          locationName="妙音堂"
+          className="global-dialogue-stage--miaoyin"
+          dialogueClassName="palace-dialogue-box--miaoyin-encounter"
+          content={actionResultText}
+          nextActionLabel={pendingTimedActionOutcome?.shouldSleep ? '回宫歇下' : '收起'}
+          onNextAction={closeActionResult}
+          busy={busy}
+        />
+      ) : null}
 
       {showSignUpPicker ? (
         <div className="miaoyin-view__picker-backdrop" role="dialog" aria-label="妙音堂曲谱报名">
