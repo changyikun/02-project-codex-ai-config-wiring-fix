@@ -18,7 +18,7 @@ import {
   DEFAULT_MONTHLY_EXPENSE_STRATEGY,
   MONTHLY_EXPENSE_STRATEGIES,
 } from '../config/monthlyExpenseStrategy';
-import { LOCATION_SCENE_BACKGROUNDS } from '../config/locationSceneBackgrounds';
+import { LOCATION_SCENE_BACKGROUNDS, PLAYER_HOME_BACKGROUND } from '../config/locationSceneBackgrounds';
 import { buildRandomMusicScoreItem } from '../game/data/inventoryPresets';
 import { buildInitialBondProfile } from '../game/data/bondPresets';
 import {
@@ -125,7 +125,8 @@ export function ChamberMainView() {
   const isFullSurfacePanel = activeChamberPanel !== 'main';
   const showResidenceUi = !isOutsideScene && !isFullSurfacePanel;
   const currentSceneLabel = isHaremPanelActive ? '后宫' : activeMapLocation ?? state.residenceName;
-  const currentSceneBackground = isOutsideScene && activeMapLocation ? LOCATION_SCENE_BACKGROUNDS[activeMapLocation] : undefined;
+  const currentSceneBackground =
+    isOutsideScene && activeMapLocation ? LOCATION_SCENE_BACKGROUNDS[activeMapLocation] : PLAYER_HOME_BACKGROUND;
   const chamberBackgroundStyle = useMemo<CSSProperties | undefined>(
     () =>
       currentSceneBackground

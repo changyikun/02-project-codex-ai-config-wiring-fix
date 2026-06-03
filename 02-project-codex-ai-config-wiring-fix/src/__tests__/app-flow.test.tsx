@@ -877,6 +877,29 @@ describe('App 主流程切换', () => {
     });
   });
 
+  it('回宫后的寝殿使用 routes/home 的主角寝殿背景', () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      state: {
+        ...state.state,
+        flags: {
+          ...state.state.flags,
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+    }));
+
+    const { container } = render(<App />);
+
+    const chamberBackground = container.querySelector('.chamber-main__background') as HTMLElement;
+    expect(chamberBackground.style.backgroundImage).toContain('/assets/routes/home/home_yeting_dawn%20till%20dask.png');
+  });
+
   it('点击外出会先停留在寝殿展示出行提示，收起后再进入地图', async () => {
     useGameFlowStore.setState((state) => ({
       ...state,

@@ -7,8 +7,9 @@ export const MISC_INFO_UI_BACKGROUND = '/assets/ui/misc-ui.jpg';
 export const BOND_UI_BACKGROUND = '/assets/ui/bond-ui.jpg';
 export const AFFAIRS_UI_BACKGROUND = '/assets/ui/affairs-ui.jpg';
 export const INVENTORY_UI_BACKGROUND = '/assets/ui/inventory-ui.jpg';
+export const PLAYER_HOME_BACKGROUND = '/assets/routes/home/home_yeting_dawn%20till%20dask.png';
 
-const residenceBackground = '/assets/ui/bedchamber-bg.jpg';
+const residenceBackground = PLAYER_HOME_BACKGROUND;
 const locationBackground = '/assets/ui/map-bg.jpg';
 const haremBackground = '/assets/ui/consorts-ui.jpg';
 const affairsBackground = '/assets/ui/affairs-ui.jpg';
