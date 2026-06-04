@@ -15,7 +15,7 @@ import type {
 } from '../../game/types';
 
 const EMPEROR_PORTRAIT_SRC = '/assets/characters/men/emperor.jpg';
-const YANGXIN_BACKGROUND_SRC = '/assets/ui/map-bg.jpg';
+const YANGXIN_BACKGROUND_SRC = '/assets/routes/backgrounds/shiqin.png';
 export const OVERNIGHT_TRANSITION_MS = 900;
 
 type NightlyServiceViewPhase = 'notice' | 'choose' | 'feedback' | 'service' | 'overnight';

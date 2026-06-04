@@ -1,18 +1,24 @@
-import type { MapAreaId } from '../game/types';
+import type { MapAreaId, TimeSlot } from '../game/types';
 
-export const HAREM_OVERVIEW_BACKGROUND = '/assets/ui/consorts-ui.jpg';
+export const HAREM_OVERVIEW_BACKGROUND = '/assets/routes/backgrounds/hougong_daytime.png';
 export const PLAYER_STATS_BACKGROUND = '/assets/ui/stats-ui.jpg';
 export const CHRONICLE_UI_BACKGROUND = '/assets/ui/chronicle-ui.jpg';
 export const MISC_INFO_UI_BACKGROUND = '/assets/ui/misc-ui.jpg';
 export const BOND_UI_BACKGROUND = '/assets/ui/bond-ui.jpg';
 export const AFFAIRS_UI_BACKGROUND = '/assets/ui/affairs-ui.jpg';
 export const INVENTORY_UI_BACKGROUND = '/assets/ui/inventory-ui.jpg';
-export const PLAYER_HOME_BACKGROUND = '/assets/routes/home/home_yeting_dawn%20till%20dask.png';
+export const PLAYER_HOME_DAY_BACKGROUND = '/assets/routes/home/home_yeting_dawn%20till%20dask.png';
+export const PLAYER_HOME_NIGHT_BACKGROUND = '/assets/routes/home/home_yeting_night%20till%20latenight.png';
+export const PLAYER_HOME_BACKGROUND = PLAYER_HOME_DAY_BACKGROUND;
+
+export const resolvePlayerHomeBackground = (slot: TimeSlot): string =>
+  slot === '夜晚' || slot === '深夜' ? PLAYER_HOME_NIGHT_BACKGROUND : PLAYER_HOME_DAY_BACKGROUND;
 
 const residenceBackground = PLAYER_HOME_BACKGROUND;
 const locationBackground = '/assets/ui/map-bg.jpg';
-const haremBackground = '/assets/ui/consorts-ui.jpg';
+const haremBackground = HAREM_OVERVIEW_BACKGROUND;
 const affairsBackground = '/assets/ui/affairs-ui.jpg';
+const coldPalaceBackground = '/assets/routes/backgrounds/lenggong_daytime.png';
 
 export const LOCATION_SCENE_BACKGROUNDS: Partial<Record<MapAreaId, string>> = {
   宝华殿: locationBackground,
@@ -23,7 +29,7 @@ export const LOCATION_SCENE_BACKGROUNDS: Partial<Record<MapAreaId, string>> = {
   临华殿: residenceBackground,
   太医院: locationBackground,
   妙音堂: locationBackground,
-  冷宫: affairsBackground,
+  冷宫: coldPalaceBackground,
   御膳房: locationBackground,
   御花园: locationBackground,
   启祥宫: residenceBackground,

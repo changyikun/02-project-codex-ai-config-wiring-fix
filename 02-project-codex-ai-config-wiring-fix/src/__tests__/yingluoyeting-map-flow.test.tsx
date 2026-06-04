@@ -122,7 +122,7 @@ describe('影落掖庭地图主线体验', () => {
 
     const mapBackground = container.querySelector('.map-main__background') as HTMLElement;
     expect(mapBackground).toHaveClass('is-location-scene');
-    expect(mapBackground.style.backgroundImage).toContain('affairs-ui.jpg');
+    expect(mapBackground.style.backgroundImage).toContain('/assets/routes/backgrounds/lenggong_daytime.png');
     expect(await screen.findByLabelText('冷宫主线剧情')).toBeInTheDocument();
     expect(await screen.findByText(/冷宫门前的铜锁早已生锈/)).toBeInTheDocument();
     expect(screen.queryByLabelText('老宫人剪影')).not.toBeInTheDocument();
@@ -270,11 +270,14 @@ describe('影落掖庭地图主线体验', () => {
   });
 
   it('enters harem palace overview after Chen Wanning first meet is completed from the harem map entrance', async () => {
-    render(<App />);
+    const { container } = render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: '后宫' }));
     fireEvent.click(screen.getByRole('button', { name: '进入此处' }));
 
+    expect((container.querySelector('.map-main__background') as HTMLElement).style.backgroundImage).toContain(
+      '/assets/routes/backgrounds/hougong_daytime.png',
+    );
     expect(await screen.findByText(/你第一次踏进后宫宫道时/)).toBeInTheDocument();
     advanceDialoguePages();
     fireEvent.click(screen.getByRole('button', { name: '谢她照拂，只字不提旧案' }));

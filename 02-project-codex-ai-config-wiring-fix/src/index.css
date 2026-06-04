@@ -1786,6 +1786,38 @@ button {
   z-index: 0;
 }
 
+.chamber-main__background {
+  transition:
+    opacity 680ms ease,
+    filter 680ms ease,
+    transform 680ms ease;
+  will-change: opacity, filter, transform;
+}
+
+.chamber-main__background--current {
+  opacity: 1;
+}
+
+.chamber-main__background--previous {
+  z-index: 1;
+  pointer-events: none;
+  animation: chamber-background-fade-out 680ms ease forwards;
+}
+
+@keyframes chamber-background-fade-out {
+  from {
+    opacity: 1;
+    filter: blur(0);
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    filter: blur(2px);
+    transform: scale(1.015);
+  }
+}
+
 .map-main__background {
   background-image: url('/assets/ui/map-bg.jpg');
 }
@@ -2026,7 +2058,8 @@ button {
   z-index: 20;
 }
 
-.chamber-main.is-harem-open .chamber-main__title-bar {
+.chamber-main.is-harem-open .chamber-main__title-bar,
+.chamber-main.is-jiaojiao-open .chamber-main__title-bar {
   display: none;
 }
 
@@ -2053,10 +2086,10 @@ button {
 
 .chamber-main__portrait-stage {
   position: absolute;
-  left: 18%;
-  top: 21%;
-  width: 27%;
-  height: 58%;
+  left: 8.2%;
+  top: 25.4%;
+  width: 34.2%;
+  height: 77.8%;
   z-index: 12;
   isolation: isolate;
 }
@@ -2095,6 +2128,232 @@ button {
 
 .chamber-main__skill-item strong {
   font-size: 32px;
+}
+
+.chamber-main__scene-actions,
+.chamber-main__jiaojiao-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 24;
+  pointer-events: none;
+}
+
+.chamber-main__scene-button {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(67, 25, 18, 0.58);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(123, 78, 43, 0.94), rgba(82, 47, 29, 0.94));
+  color: #1d0e0c;
+  box-shadow:
+    0 12px 20px rgba(54, 27, 28, 0.18),
+    inset 0 0 0 1px rgba(235, 198, 152, 0.28);
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: clamp(17px, 1.65vw, 24px);
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgba(184, 132, 86, 0.52);
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    filter 180ms ease;
+}
+
+.chamber-main__scene-button span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chamber-main__scene-button--vertical span {
+  flex-direction: column;
+  letter-spacing: 0;
+  gap: 0.12em;
+  width: 100%;
+  height: 100%;
+}
+
+.chamber-main__scene-button-char {
+  display: block;
+  width: 1em;
+  height: 1em;
+  line-height: 1;
+  text-align: center;
+}
+
+.chamber-main__scene-button--horizontal {
+  border-radius: 999px;
+  font-size: clamp(18px, 1.65vw, 26px);
+  white-space: nowrap;
+}
+
+.chamber-main__scene-button:hover {
+  transform: translateY(-3px);
+  filter: saturate(1.08) brightness(1.04);
+  box-shadow:
+    0 16px 28px rgba(54, 27, 28, 0.24),
+    inset 0 0 0 1px rgba(255, 230, 190, 0.4);
+}
+
+.chamber-main__scene-button--dismiss {
+  background: linear-gradient(180deg, rgba(247, 172, 205, 0.96), rgba(234, 139, 184, 0.96));
+  color: #4b1520;
+  border-color: rgba(170, 71, 112, 0.42);
+  text-shadow: 0 1px 0 rgba(255, 230, 240, 0.52);
+}
+
+.chamber-main__jiaojiao-entry {
+  position: absolute;
+  left: 7.8%;
+  top: 25.4%;
+  width: 8.4%;
+  height: 23.8%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 26;
+}
+
+.chamber-main__jiaojiao-entry img {
+  position: absolute;
+  left: 6%;
+  bottom: 0;
+  width: 76%;
+  height: 94%;
+  object-fit: contain;
+  object-position: bottom center;
+  filter: drop-shadow(0 10px 12px rgba(68, 39, 42, 0.22));
+  transform: translateX(16%) scale(1.12);
+  transform-origin: bottom center;
+}
+
+.chamber-main__jiaojiao-entry span {
+  position: absolute;
+  right: -24%;
+  top: 19%;
+  width: 38%;
+  min-height: 70%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 6px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(127, 86, 47, 0.94), rgba(89, 54, 32, 0.94));
+  color: #1d0e0c;
+  box-shadow:
+    0 10px 18px rgba(54, 27, 28, 0.16),
+    inset 0 0 0 1px rgba(235, 198, 152, 0.26);
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: clamp(18px, 1.7vw, 25px);
+  font-weight: 800;
+  line-height: 1.08;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 0;
+}
+
+.chamber-main__jiaojiao-entry:hover img {
+  filter: drop-shadow(0 14px 16px rgba(68, 39, 42, 0.28)) saturate(1.03);
+}
+
+.chamber-main__jiaojiao-entry:hover span {
+  transform: translateY(-3px);
+  filter: saturate(1.08) brightness(1.04);
+}
+
+.chamber-main__jiaojiao-portrait {
+  position: absolute;
+  left: 16.4%;
+  bottom: 15.0%;
+  width: 31.6%;
+  height: 72.0%;
+  object-fit: contain;
+  object-position: bottom center;
+  z-index: 22;
+  filter: drop-shadow(0 18px 22px rgba(67, 42, 46, 0.2));
+  pointer-events: none;
+}
+
+.chamber-main__jiaojiao-prompt {
+  position: absolute;
+  left: 43.8%;
+  top: 13.8%;
+  width: 31%;
+  min-height: 10.6%;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 22px 15px;
+  border: 1px solid rgba(130, 74, 82, 0.32);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 248, 242, 0.94), rgba(248, 225, 220, 0.9)),
+    rgba(255, 244, 238, 0.92);
+  box-shadow:
+    0 14px 24px rgba(92, 41, 47, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.34);
+  color: #4b151d;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  pointer-events: none;
+}
+
+.chamber-main__jiaojiao-prompt header {
+  color: #8b4d56;
+  font-size: clamp(15px, 1.18vw, 18px);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.chamber-main__jiaojiao-prompt p {
+  margin: 0;
+  color: #48151d;
+  font-size: clamp(22px, 2vw, 31px);
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.chamber-main__skills-strip {
+  position: absolute;
+  left: 36.8%;
+  right: 4.2%;
+  bottom: 3.6%;
+  z-index: 24;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(248, 192, 199, 0.78);
+  box-shadow:
+    0 12px 20px rgba(105, 48, 72, 0.14),
+    inset 0 0 0 1px rgba(255, 236, 242, 0.42);
+  padding: 0 22px;
+}
+
+.chamber-main__skills-strip .chamber-main__skills {
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 0 16px;
+  width: 100%;
+}
+
+.chamber-main__skills-strip .chamber-main__skill-item {
+  flex: 0 0 auto;
+  gap: 5px;
+  white-space: nowrap;
+  font-size: clamp(19px, 1.55vw, 25px);
+}
+
+.chamber-main__skills-strip .chamber-main__skill-item strong {
+  font-size: clamp(20px, 1.65vw, 26px);
 }
 
 .chamber-main__action-grid {
@@ -4972,19 +5231,23 @@ button {
 .player-stats-view__close {
   position: absolute;
   right: 28px;
-  bottom: 8px;
+  bottom: 18px;
   width: 126px;
   height: 118px;
   border: none;
-  background: transparent;
+  background: url('/assets/routes/buttons/back.png') center / contain no-repeat;
   color: transparent;
   cursor: pointer;
-  z-index: 2;
-  transition: transform 180ms ease;
+  z-index: 12;
+  filter: drop-shadow(0 10px 14px rgba(88, 44, 51, 0.2));
+  transition:
+    transform 180ms ease,
+    filter 180ms ease;
 }
 
 .player-stats-view__close:hover {
   transform: translateY(-2px) scale(1.02);
+  filter: drop-shadow(0 14px 18px rgba(88, 44, 51, 0.26));
 }
 
 .player-stats-view__close:focus-visible {

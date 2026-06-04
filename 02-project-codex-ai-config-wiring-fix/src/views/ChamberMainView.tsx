@@ -13,12 +13,18 @@ import { DIALOGUE_EXPLICIT_PAGE_BREAK, GlobalDialogueStage } from '../components
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
 import { PlayerStatsView } from '../components/status/PlayerStatsView';
 import { AutoCutoutPortrait } from '../components/visual/AutoCutoutPortrait';
-import { CHAMBER_ACTION_BUTTONS, CHAMBER_BOTTOM_TOOLS, CHAMBER_SIDEBAR_BUTTONS } from '../config/palaceUi';
+import type { ChamberPanelId } from '../config/bedchamber';
+import {
+  CHAMBER_ACTION_BUTTONS,
+  CHAMBER_HOME_ACTION_LAYOUTS,
+  CHAMBER_SIDEBAR_BUTTONS,
+  JIAOJIAO_COMMAND_LAYOUTS,
+} from '../config/palaceUi';
 import {
   DEFAULT_MONTHLY_EXPENSE_STRATEGY,
   MONTHLY_EXPENSE_STRATEGIES,
 } from '../config/monthlyExpenseStrategy';
-import { LOCATION_SCENE_BACKGROUNDS, PLAYER_HOME_BACKGROUND } from '../config/locationSceneBackgrounds';
+import { HAREM_OVERVIEW_BACKGROUND, LOCATION_SCENE_BACKGROUNDS, resolvePlayerHomeBackground } from '../config/locationSceneBackgrounds';
 import { buildRandomMusicScoreItem } from '../game/data/inventoryPresets';
 import { buildInitialBondProfile } from '../game/data/bondPresets';
 import {
@@ -43,6 +49,7 @@ const bottomToolMessage: Record<string, string> = {
   皇嗣管理: '皇嗣管理入口已预留，后续会接入孩子成长、教育与立储判定。',
 };
 const ASSISTANT_PORTRAIT_SRC = '/assets/dialogue/jiaojiao-final.png';
+const JIAOJIAO_COMMAND_PROMPT = '娘娘，有何吩咐？';
 const LIANQIAO_PORTRAIT_SRC = '/assets/characters/women/lianqiao.jpg';
 const EXPENSE_EXPLANATION_OPTION_ID = 'expense-explanation';
 const EXPENSE_EXPLANATION_TEXT = [
@@ -51,11 +58,22 @@ const EXPENSE_EXPLANATION_TEXT = [
   '量入为出：每月用月俸一半。它最稳妥，不额外增减声望和健康。',
   '锦衣玉食：每月用月俸四分之三。花费重些，但能撑住体面与起居，声望+10，健康+1。',
 ].join(DIALOGUE_EXPLICIT_PAGE_BREAK);
+const CHAMBER_BACKGROUND_CROSSFADE_MS = 680;
 
 const getCurrentXunKey = (year: number, month: number, xun: number): string => `${year}-${month}-${xun}`;
 const toXunIndex = (year: number, month: number, xun: number): number => year * 36 + (month - 1) * 3 + xun;
 type OvernightTransitionPhase = 'hidden' | 'fade-in' | 'settlement' | 'fade-out';
 type PendingChamberDialogueAction = 'enter-map' | 'reopen-expense-choice' | 'overnight-reminder' | 'overnight-transition' | null;
+
+const buildChamberBackgroundStyle = (backgroundImage?: string): CSSProperties | undefined =>
+  backgroundImage
+    ? {
+        backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)), url("${backgroundImage}")`,
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: 'cover',
+      }
+    : undefined;
 
 const buildOvernightReminderText = (origin: 'map' | 'chamber', reason: 'deep-night' | 'stamina'): string => {
   if (origin === 'map') {
@@ -110,6 +128,7 @@ export function ChamberMainView() {
   const [overnightTransitionPhase, setOvernightTransitionPhase] = useState<OvernightTransitionPhase>('hidden');
   const [endXunAfterNightNotice, setEndXunAfterNightNotice] = useState(false);
   const [expenseStrategyPanelOpen, setExpenseStrategyPanelOpen] = useState(false);
+  const [utilityReturnPanel, setUtilityReturnPanel] = useState<ChamberPanelId | null>(null);
   const [pendingChamberDialogueAction, setPendingChamberDialogueAction] =
     useState<PendingChamberDialogueAction>(null);
   const overnightTransitionRunKeyRef = useRef<string | null>(null);
@@ -136,22 +155,26 @@ export function ChamberMainView() {
   const shouldHideChamberUiForNightlyOverlay = Boolean(
     shouldShowPendingNightlyServiceEvent || shouldShowPendingNightlyServiceNotice || overnightTransitionPhase === 'fade-in',
   );
-  const isFullSurfacePanel = activeChamberPanel !== 'main';
+  const isJiaojiaoPanel = activeChamberPanel === 'jiaojiao';
+  const isFullSurfacePanel = activeChamberPanel !== 'main' && !isJiaojiaoPanel;
   const showResidenceUi = !isOutsideScene && !isFullSurfacePanel;
   const currentSceneLabel = isHaremPanelActive ? '后宫' : activeMapLocation ?? state.residenceName;
   const currentSceneBackground =
-    isOutsideScene && activeMapLocation ? LOCATION_SCENE_BACKGROUNDS[activeMapLocation] : PLAYER_HOME_BACKGROUND;
+    isHaremPanelActive
+      ? HAREM_OVERVIEW_BACKGROUND
+      : isOutsideScene && activeMapLocation
+        ? LOCATION_SCENE_BACKGROUNDS[activeMapLocation]
+        : resolvePlayerHomeBackground(time.slot);
+  const [displayedSceneBackground, setDisplayedSceneBackground] = useState(currentSceneBackground);
+  const [fadingSceneBackground, setFadingSceneBackground] = useState<string | undefined>();
+  const [pendingSceneBackground, setPendingSceneBackground] = useState<string | undefined>();
   const chamberBackgroundStyle = useMemo<CSSProperties | undefined>(
-    () =>
-      currentSceneBackground
-        ? {
-            backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)), url("${currentSceneBackground}")`,
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-            backgroundSize: 'cover',
-          }
-        : undefined,
-    [currentSceneBackground],
+    () => buildChamberBackgroundStyle(displayedSceneBackground),
+    [displayedSceneBackground],
+  );
+  const fadingChamberBackgroundStyle = useMemo<CSSProperties | undefined>(
+    () => buildChamberBackgroundStyle(fadingSceneBackground),
+    [fadingSceneBackground],
   );
 
   useEffect(() => {
@@ -196,7 +219,7 @@ export function ChamberMainView() {
       return;
     }
 
-    if (activeChamberPanel !== 'main') {
+    if (activeChamberPanel !== 'main' && activeChamberPanel !== 'jiaojiao') {
       setPendingChamberDialogueAction(null);
       setDialogueText('');
       return;
@@ -317,12 +340,53 @@ export function ChamberMainView() {
   );
   const isChamberUiInteractionLocked = isChamberDialogueBlocking || expenseStrategyPanelOpen;
 
+  useEffect(() => {
+    if (currentSceneBackground === displayedSceneBackground && !pendingSceneBackground) {
+      return undefined;
+    }
+
+    if (isOvernightTransitionActive && currentSceneBackground !== displayedSceneBackground) {
+      setFadingSceneBackground(undefined);
+      setDisplayedSceneBackground(currentSceneBackground);
+      setPendingSceneBackground(undefined);
+      return undefined;
+    }
+
+    if (currentSceneBackground !== displayedSceneBackground && isChamberDialogueBlocking) {
+      setPendingSceneBackground(currentSceneBackground);
+      return undefined;
+    }
+
+    const nextSceneBackground = pendingSceneBackground ?? currentSceneBackground;
+    if (nextSceneBackground === displayedSceneBackground) {
+      setPendingSceneBackground(undefined);
+      return undefined;
+    }
+
+    setFadingSceneBackground(displayedSceneBackground);
+    setDisplayedSceneBackground(nextSceneBackground);
+    setPendingSceneBackground(undefined);
+
+    const timer = window.setTimeout(() => {
+      setFadingSceneBackground(undefined);
+    }, CHAMBER_BACKGROUND_CROSSFADE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    currentSceneBackground,
+    displayedSceneBackground,
+    isChamberDialogueBlocking,
+    isOvernightTransitionActive,
+    pendingSceneBackground,
+  ]);
+
   const handleSidebar = (buttonId: string) => {
     if (isChamberUiInteractionLocked) {
       return;
     }
 
     if (buttonId === 'map-main') {
+      setUtilityReturnPanel(null);
       if (isOutsideScene) {
         setPendingChamberDialogueAction(null);
         setDialogueText('');
@@ -339,9 +403,11 @@ export function ChamberMainView() {
 
     if (buttonId === 'consorts' || buttonId === 'stats' || buttonId === 'chronicle' || buttonId === 'bond') {
       if (activeChamberPanel === buttonId) {
+        setUtilityReturnPanel(null);
         closeChamberPanel();
         return;
       }
+      setUtilityReturnPanel(null);
       openChamberPanel(buttonId);
       setPendingChamberDialogueAction(null);
       setDialogueText('');
@@ -480,31 +546,30 @@ export function ChamberMainView() {
       return;
     }
 
-    if (toolLabel === '道具管理') {
-      openChamberPanel('inventory');
+    const openUtilityPanel = (panel: ChamberPanelId) => {
+      setUtilityReturnPanel(activeChamberPanel === 'jiaojiao' ? 'jiaojiao' : null);
+      openChamberPanel(panel);
       setPendingChamberDialogueAction(null);
       setDialogueText('');
+    };
+
+    if (toolLabel === '道具管理') {
+      openUtilityPanel('inventory');
       return;
     }
 
     if (toolLabel === '查看属性') {
-      openChamberPanel('stats');
-      setPendingChamberDialogueAction(null);
-      setDialogueText('');
+      openUtilityPanel('stats');
       return;
     }
 
     if (toolLabel === '其他信息') {
-      openChamberPanel('misc');
-      setPendingChamberDialogueAction(null);
-      setDialogueText('');
+      openUtilityPanel('misc');
       return;
     }
 
     if (toolLabel === '情缘管理') {
-      openChamberPanel('bond');
-      setPendingChamberDialogueAction(null);
-      setDialogueText('');
+      openUtilityPanel('bond');
       return;
     }
 
@@ -517,14 +582,46 @@ export function ChamberMainView() {
 
     if (toolLabel === '宫斗事务' || toolLabel === '家族事务' || toolLabel === '朝堂事务') {
       setActiveAffairsSource(toolLabel);
-      openChamberPanel('affairs');
-      setPendingChamberDialogueAction(null);
-      setDialogueText('');
+      openUtilityPanel('affairs');
       return;
     }
 
     setPendingChamberDialogueAction(null);
     setDialogueText(bottomToolMessage[toolLabel] ?? `${toolLabel}入口已预留，后续会补全对应功能。`);
+  };
+
+  const handleOpenJiaojiaoPanel = () => {
+    if (isChamberUiInteractionLocked) {
+      return;
+    }
+
+    openChamberPanel('jiaojiao');
+    setPendingChamberDialogueAction(null);
+    setDialogueText('');
+  };
+
+  const handleJiaojiaoCommand = (commandId: string) => {
+    if (commandId === 'dismiss') {
+      setUtilityReturnPanel(null);
+      closeChamberPanel();
+      setPendingChamberDialogueAction(null);
+      setDialogueText('');
+      return;
+    }
+
+    handleBottomTool(commandId);
+  };
+
+  const handleUtilityPanelClose = () => {
+    if (utilityReturnPanel) {
+      openChamberPanel(utilityReturnPanel);
+      setUtilityReturnPanel(null);
+      setPendingChamberDialogueAction(null);
+      setDialogueText('');
+      return;
+    }
+
+    closeChamberPanel();
   };
 
   const handleChamberDialogueDone = () => {
@@ -574,10 +671,12 @@ export function ChamberMainView() {
   };
 
   return (
-    <main className={`chamber-main palace-stage-shell ${isHaremPanelActive ? 'is-harem-open' : ''}`}>
+    <main className={`chamber-main palace-stage-shell ${isHaremPanelActive ? 'is-harem-open' : ''} ${isJiaojiaoPanel ? 'is-jiaojiao-open' : ''}`}>
       <div className="chamber-main__frame">
-        <div className="chamber-main__background" style={chamberBackgroundStyle} />
-        {showResidenceUi ? <div className="chamber-main__inner-panel" aria-hidden="true" /> : null}
+        <div className="chamber-main__background chamber-main__background--current" style={chamberBackgroundStyle} />
+        {fadingSceneBackground ? (
+          <div className="chamber-main__background chamber-main__background--previous" style={fadingChamberBackgroundStyle} />
+        ) : null}
         <PalaceStatusBar />
 
         {expenseStrategyPanelOpen ? (
@@ -670,13 +769,45 @@ export function ChamberMainView() {
           </section>
         ) : null}
 
-        {!shouldHideChamberUiForNightlyOverlay && showResidenceUi ? (
+        {!shouldHideChamberUiForNightlyOverlay && showResidenceUi && activeChamberPanel === 'main' ? (
           <>
             <section className="chamber-main__portrait-stage" aria-label="玩家立绘">
               {selectedRoute ? <img src={selectedRoute.portrait} alt={selectedRoute.label} className="chamber-main__portrait" /> : null}
             </section>
 
-            <section className="chamber-main__skill-panel" aria-label="技能与行动">
+            <section className="chamber-main__scene-actions" aria-label="寝殿行动">
+              {CHAMBER_HOME_ACTION_LAYOUTS.map((layout) => (
+                <button
+                  key={layout.id}
+                  type="button"
+                  aria-label={layout.label}
+                  className={`chamber-main__scene-button chamber-main__scene-button--${layout.orientation}`}
+                  style={{
+                    top: layout.top,
+                    left: layout.left,
+                    width: layout.width,
+                    height: layout.height,
+                  }}
+                  onClick={() => handleTrainingAction(layout.id)}
+                >
+                  <span>
+                    {layout.orientation === 'vertical'
+                      ? [...layout.label].map((character, index) => (
+                          <span key={`${layout.id}-${index}`} className="chamber-main__scene-button-char">
+                            {character}
+                          </span>
+                        ))
+                      : layout.label}
+                  </span>
+                </button>
+              ))}
+              <button type="button" className="chamber-main__jiaojiao-entry" aria-label="吩咐娇娇" onClick={handleOpenJiaojiaoPanel}>
+                <img src={ASSISTANT_PORTRAIT_SRC} alt="" aria-hidden="true" />
+                <span>吩咐娇娇</span>
+              </button>
+            </section>
+
+            <section className="chamber-main__skills-strip" aria-label="技能属性">
               <div className="chamber-main__skills">
                 {skillStats.map((skill) => (
                   <div key={skill.key} className="chamber-main__skill-item">
@@ -685,25 +816,37 @@ export function ChamberMainView() {
                   </div>
                 ))}
               </div>
-
-              <div className="chamber-main__action-grid">
-                {CHAMBER_ACTION_BUTTONS.map((action) => (
-                  <button key={action.id} type="button" onClick={() => handleTrainingAction(action.id)}>
-                    {action.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="chamber-main__bottom-tools">
-                {CHAMBER_BOTTOM_TOOLS.map((tool) => (
-                  <button key={tool} type="button" onClick={() => handleBottomTool(tool)}>
-                    {tool}
-                  </button>
-                ))}
-              </div>
-
             </section>
           </>
+        ) : null}
+
+        {!shouldHideChamberUiForNightlyOverlay && showResidenceUi && isJiaojiaoPanel ? (
+          <section className="chamber-main__jiaojiao-panel" aria-label="吩咐娇娇选项">
+            <img src={ASSISTANT_PORTRAIT_SRC} alt="" aria-hidden="true" className="chamber-main__jiaojiao-portrait" />
+            <section className="chamber-main__jiaojiao-prompt" aria-label="娇娇吩咐提示">
+              <header>贴身宫女 · 娇娇</header>
+              <p>{JIAOJIAO_COMMAND_PROMPT}</p>
+            </section>
+            {JIAOJIAO_COMMAND_LAYOUTS.map((layout) => (
+              <button
+                key={layout.id}
+                type="button"
+                aria-label={layout.label}
+                className={`chamber-main__scene-button chamber-main__scene-button--${layout.orientation} ${
+                  layout.id === 'dismiss' ? 'chamber-main__scene-button--dismiss' : ''
+                }`}
+                style={{
+                  top: layout.top,
+                  left: layout.left,
+                  width: layout.width,
+                  height: layout.height,
+                }}
+                onClick={() => handleJiaojiaoCommand(layout.id)}
+              >
+                <span>{layout.label}</span>
+              </button>
+            ))}
+          </section>
         ) : null}
 
         {!shouldHideChamberUiForNightlyOverlay && isKitchenScene ? (
@@ -741,23 +884,23 @@ export function ChamberMainView() {
             flags={state.flags}
             bondFavorDeltaThisXun={bondFavorDeltaThisXun}
             bondAffectionDeltaThisXun={bondAffectionDeltaThisXun}
-            onClose={closeChamberPanel}
+            onClose={handleUtilityPanelClose}
           />
         ) : activeChamberPanel === 'inventory' ? (
-          <InventoryPanelView onClose={closeChamberPanel} />
+          <InventoryPanelView onClose={handleUtilityPanelClose} />
         ) : activeChamberPanel === 'affairs' ? (
-          <AffairsPanelView entrySource={activeAffairsSource} concubines={concubines} onClose={closeChamberPanel} />
+          <AffairsPanelView entrySource={activeAffairsSource} concubines={concubines} onClose={handleUtilityPanelClose} />
         ) : activeChamberPanel === 'yangxin' ? (
-          <YangxinHearingPanelView onClose={closeChamberPanel} />
+          <YangxinHearingPanelView onClose={handleUtilityPanelClose} />
         ) : activeChamberPanel === 'misc' ? (
-          <MiscInfoPanelView state={state} hiddenStats={hiddenStats} bondProfile={activeBondProfile} onClose={closeChamberPanel} />
+          <MiscInfoPanelView state={state} hiddenStats={hiddenStats} bondProfile={activeBondProfile} onClose={handleUtilityPanelClose} />
         ) : activeChamberPanel === 'stats' ? (
           <PlayerStatsView
             state={state}
             hiddenStats={hiddenStats}
             selectedRoute={selectedRoute}
             concubines={concubines}
-            onClose={closeChamberPanel}
+            onClose={handleUtilityPanelClose}
           />
         ) : activeChamberPanel === 'consorts' ? (
           <ConcubineListView concubines={concubines} onClose={closeChamberPanel} />
@@ -783,7 +926,7 @@ export function ChamberMainView() {
         {dialogueText &&
         !isNightlyOverlayActive &&
         !showSettlementReport &&
-        activeChamberPanel === 'main' &&
+        (activeChamberPanel === 'main' || isJiaojiaoPanel) &&
         !isJianzhangAudience &&
         !isBaohuaHallScene &&
         !isHuaQingPoolScene &&

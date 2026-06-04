@@ -30,7 +30,7 @@ const routePortraitById: Record<string, string> = {
 
 const resolveOpeningBackground = (routeId: string): string => {
   if (routeId === 'yingluoyeting') {
-    return '/assets/ui/affairs-ui.jpg';
+    return '/assets/routes/backgrounds/yeting_daytime.png';
   }
   return openingBackground;
 };

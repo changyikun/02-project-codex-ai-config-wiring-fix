@@ -89,6 +89,9 @@ describe('NightlyServiceEventView', () => {
     );
 
     expect(screen.getAllByLabelText('侍寝太监通报').length).toBeGreaterThan(0);
+    expect((document.querySelector('.nightly-service-event__background') as HTMLElement).style.backgroundImage).toContain(
+      '/assets/routes/backgrounds/shiqin.png',
+    );
     expect(document.querySelector('.palace-dialogue-box--nightly-service')).toBeNull();
     expect(document.querySelector('.palace-dialogue-box--chamber')).toBeInTheDocument();
 

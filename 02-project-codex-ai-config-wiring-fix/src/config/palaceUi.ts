@@ -39,6 +39,16 @@ export interface ChamberActionButtonConfig {
   stressDelta?: number;
 }
 
+export interface ChamberSceneButtonLayout {
+  id: string;
+  label: string;
+  top: string;
+  left: string;
+  width: string;
+  height: string;
+  orientation: 'horizontal' | 'vertical';
+}
+
 export const MAP_BACKGROUND_BY_TIME_SLOT: Record<TimeSlot, string> = {
   清晨: '/assets/map/map_spring_dawn.png',
   上午: '/assets/map/map_spring_latemorning.png',
@@ -147,4 +157,30 @@ export const CHAMBER_BOTTOM_TOOLS = [
   '查看属性',
   '其他信息',
   '情缘管理',
+] as const;
+
+export const CHAMBER_HOME_ACTION_LAYOUTS: readonly ChamberSceneButtonLayout[] = [
+  { id: 'explore', label: '外出探索', top: '14.4%', left: '33.5%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
+  { id: 'incense', label: '调制香薰', top: '50.0%', left: '37.8%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
+  { id: 'study', label: '诵读经典', top: '36.8%', left: '47.1%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
+  { id: 'embroidery', label: '镂月裁云', top: '50.0%', left: '58.4%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
+  { id: 'nap', label: '殿内小酣', top: '24.6%', left: '65.1%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
+  { id: 'music', label: '习舞奏乐', top: '41.8%', left: '73.8%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
+  { id: 'painting', label: '泼墨作画', top: '51.2%', left: '83.3%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
+  { id: 'pulse', label: '请平安脉', top: '67.6%', left: '92.7%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
+  { id: 'end-xun', label: '结束本旬', top: '28.0%', left: '87.0%', width: '11.0%', height: '5.2%', orientation: 'horizontal' },
+] as const;
+
+export const JIAOJIAO_COMMAND_LAYOUTS: readonly ChamberSceneButtonLayout[] = [
+  { id: '举办宴席', label: '举办宴席', top: '28.0%', left: '44.3%', width: '13.0%', height: '7.4%', orientation: 'horizontal' },
+  { id: '宫斗事务', label: '宫斗事务', top: '28.0%', left: '58.9%', width: '13.0%', height: '7.4%', orientation: 'horizontal' },
+  { id: '查看属性', label: '查看属性', top: '36.7%', left: '44.3%', width: '13.0%', height: '7.4%', orientation: 'horizontal' },
+  { id: '家族事务', label: '家族事务', top: '36.7%', left: '58.9%', width: '13.0%', height: '7.4%', orientation: 'horizontal' },
+  { id: '道具管理', label: '道具管理', top: '45.3%', left: '44.3%', width: '13.0%', height: '7.4%', orientation: 'horizontal' },
+  { id: '朝堂事务', label: '朝堂事务', top: '45.3%', left: '58.9%', width: '13.0%', height: '7.4%', orientation: 'horizontal' },
+  { id: '情缘管理', label: '情缘管理', top: '54.0%', left: '44.3%', width: '13.0%', height: '7.4%', orientation: 'horizontal' },
+  { id: '调整用度', label: '调整用度', top: '54.0%', left: '58.9%', width: '13.0%', height: '7.4%', orientation: 'horizontal' },
+  { id: '皇嗣管理', label: '皇嗣管理', top: '62.7%', left: '44.3%', width: '13.0%', height: '7.4%', orientation: 'horizontal' },
+  { id: '其他信息', label: '其他信息', top: '62.7%', left: '58.9%', width: '13.0%', height: '7.4%', orientation: 'horizontal' },
+  { id: 'dismiss', label: '无事，且先退下吧', top: '64.2%', left: '74.5%', width: '17.0%', height: '7.0%', orientation: 'horizontal' },
 ] as const;
