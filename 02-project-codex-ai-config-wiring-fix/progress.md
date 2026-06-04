@@ -125,7 +125,7 @@ Original prompt: 添加存档系统，回溯可以读取上一次存档，开始
 - 已处理：新增 `npcRelationRuntime` 和 `npcRelationMatrix`，送礼、试探、拉拢、传话、施压会在旬末改变 NPC-NPC 好感、紧张和压力。
 - 已处理：A 拜访 B 时，B 原本公共外出会被取消并留殿接待；玩家进 B 的殿内可看到两人同场摘要。
 - 已处理：NPC 拜访玩家改为寝殿空闲时自动打断并给玩家选择；公共地点和空地图点的 NPC 显示为可点击交互，点击后以地点入场叙述和行动摘要进入妃嫔日常对话。
-- 已修正：外出 NPC 的目的地成为可见真值；地图地点弹窗只提示本旬在此的妃嫔动向，不再新增“前去见某妃”直达选项；进入地点后才显示可交互妃嫔，交谈后仍保留在目的地，只把入口置为已交谈不可重复触发。
+- 已修正：外出 NPC 的目的地成为可见真值；地图地点弹窗不展示妃嫔动向，也不新增“前去见某妃”直达选项；进入地点后才显示可交互妃嫔，交谈后仍保留在目的地，只把入口置为已交谈不可重复触发。
 - 已修正：NPC 拜访其他妃嫔时，被拜访者殿位和拜访按钮标记为“会客中”，避免玩家只从同场摘要里才知道此人正在接待来客。
 - 已处理：NPC 动向调试仅在浏览器控制台输出；进入寝殿或地图时打印 `[npc-activity]` 与 `console.table`，不做游戏内调试面板。
 - 已修正：NPC 行动表成为寝宫可见性的真值；公共外出、拜访玩家、拜访其他妃嫔的行动方不会再留在自己寝宫，拜访目标会留殿接待。
@@ -206,3 +206,20 @@ Original prompt: 添加存档系统，回溯可以读取上一次存档，开始
 - 验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "影落掖庭开场定下用度|后宫自己的殿位"` 通过，2 passed；仍有既有 React `act(...)` 测试警告。
 - 验证：`npx tsc -p tsconfig.json --noEmit` 通过；`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告。
 - 验证：`web_game_playwright_client` 打开 `http://127.0.0.1:5174/` 生成启动页截图正常；`5173` 当前抓到的不是本项目页面，因此单独启动了 `5174` 用于本轮验证。
+
+## 2026-06-04 地图椒房殿误显修正
+
+- 已处理：大地图移除独立 `椒房殿` 热点，不再用它作为玩家寝殿占位。
+- 已处理：原 `椒房殿` 热点位置改回 `掖庭院`；地图上的掖庭院继续作为旧案、宫人差役与杂务地点。
+- 已调整：`buildMapHotspots()` 不再按 `state.residenceName` 动态替换地图热点；回寝殿统一依赖侧栏 `回宫` 或后宫宫殿布局中的玩家殿位入口。
+- 已同步：`CHANGELOG.md`、`docs/codex-dialogue-handoff.md`。
+- 验证：`npx vitest run src/config/palaceUi.map.test.ts src/__tests__/yingluoyeting-map-flow.test.tsx src/__tests__/app-flow.test.tsx -t "Yeting|掖庭|椒房殿|寝殿热点|回宫统一|后宫宫殿住处"` 通过，18 passed；仍有既有 React `act(...)` 测试警告。
+- 验证：`npx tsc -p tsconfig.json --noEmit` 通过；`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告。
+
+## 2026-06-04 地点弹窗 NPC 信息隐藏
+
+- 已处理：`MapMainView` 的大地图地点弹窗不再渲染 `selectedHotspotNpcActivities`，地点描述只保留地点自身文案。
+- 已保留：进入地点后的场景页仍显示“可交互妃嫔”入口，NPC 公共外出目的地真值不变。
+- 已同步：`CHANGELOG.md`、`docs/codex-dialogue-handoff.md`、`docs/game-hard-rules.md`、`docs/system-hard-rules-integrated.md`、`docs/game-system-breakdown.md`。
+- 验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "大地图地点弹窗不展示妃嫔信息|已交谈的外出妃嫔仍保留|公共地点 NPC 主动点击"` 通过，2 passed。
+- 验证：`npx tsc -p tsconfig.json --noEmit` 通过；`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告。

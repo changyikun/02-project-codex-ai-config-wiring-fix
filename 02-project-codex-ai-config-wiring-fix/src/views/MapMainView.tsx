@@ -197,18 +197,6 @@ export function MapMainView() {
         return [];
     }
   }, [selectedHotspot]);
-  const selectedHotspotNpcActivities = useMemo(() => {
-    if (!selectedHotspot || selectedHotspot.id === '后宫') {
-      return [];
-    }
-
-    return getNpcActivitiesAtLocation(npcActivity, selectedHotspot.id, { includeResolved: true })
-      .map((entry) => {
-        const consort = allConsorts.find((candidate) => candidate.id === entry.actorConsortId);
-        return consort ? { entry, consort } : null;
-      })
-      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
-  }, [allConsorts, npcActivity, selectedHotspot]);
   const currentXunKey = `${time.year}-${time.month}-${time.xun}`;
   const activeBondProfile =
     bondProfile.routeId === state.routeId ? bondProfile : buildInitialBondProfile(state.routeId, currentXunKey);
@@ -909,15 +897,6 @@ export function MapMainView() {
           >
             <h2>{selectedHotspot.label}</h2>
             <p>{selectedHotspot.description}</p>
-            {selectedHotspotNpcActivities.length > 0 ? (
-              <div className="map-main__event-note" aria-label={`${selectedHotspot.label}本旬妃嫔动向`}>
-                {selectedHotspotNpcActivities.map(({ entry, consort }) => (
-                  <p key={entry.id}>{`${getConcubineDisplayRankText(consort)} ${consort.name}在此处走动。${entry.summary}${
-                    entry.resolved ? '你已经同她说过话。' : ''
-                  }`}</p>
-                ))}
-              </div>
-            ) : null}
             <div className={`map-main__event-actions ${selectedHotspot.id === '宫门' ? 'map-main__event-actions--gongmen' : ''}`}>
               <button type="button" onClick={handleEnterHotspot}>
                 {selectedHotspot.id === state.residenceName ? '回宫' : '进入此处'}

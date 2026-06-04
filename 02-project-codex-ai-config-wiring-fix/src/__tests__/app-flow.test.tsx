@@ -2925,7 +2925,7 @@ describe('App 主流程切换', () => {
     expect(await screen.findByRole('button', { name: '诵读经典' })).toBeInTheDocument();
   });
 
-  it('点击地图上的当前宫殿会直接等同回宫，不再弹进入确认', async () => {
+  it('地图不再把椒房殿作为寝殿热点，回宫统一走侧栏入口', async () => {
     const defaultFavorTier = getFavorTierByValue(50);
     useGameFlowStore.setState((state) => ({
       ...state,
@@ -2973,7 +2973,10 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: '椒房殿' }));
+    expect(screen.queryByRole('button', { name: '椒房殿' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '掖庭院' })).toBeInTheDocument();
+    const sidebar = await screen.findByLabelText('大地图常驻入口');
+    fireEvent.click(within(sidebar).getByRole('button', { name: '回宫' }));
 
     expect(await screen.findByRole('button', { name: '诵读经典' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '泼墨作画' })).toBeInTheDocument();
@@ -2981,7 +2984,7 @@ describe('App 主流程切换', () => {
     expect(screen.queryByRole('button', { name: '进入此处' })).not.toBeInTheDocument();
   });
 
-  it('地图中的寝殿热点会随玩家当前住处动态变化', async () => {
+  it('后宫宫殿住处不再注入大地图寝殿热点', async () => {
     const defaultFavorTier = getFavorTierByValue(18);
     useGameFlowStore.setState((state) => ({
       ...state,
@@ -3029,9 +3032,8 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: '储秀宫' }));
-
-    expect(await screen.findByRole('button', { name: '诵读经典' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '掖庭院' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '储秀宫' })).not.toBeInTheDocument();
     expect(useGameFlowStore.getState().state.residenceName).toBe('储秀宫');
     expect(screen.queryByRole('button', { name: '椒房殿' })).not.toBeInTheDocument();
   });
@@ -4775,7 +4777,7 @@ describe('App 主流程切换', () => {
     expect(await screen.findByText(new RegExp(`${visitor.name}本旬在御花园赏花`))).toBeInTheDocument();
   });
 
-  it('大地图只展示妃嫔动向，进入宫门后才显示可交互妃嫔', async () => {
+  it('大地图地点弹窗不展示妃嫔信息，进入宫门后才显示可交互妃嫔', async () => {
     const defaultFavorTier = getFavorTierByValue(50);
     const concubines = buildInitialConcubineRoster('lanyinxuguo');
     const visitor = concubines.find((consort) => consort.name === '姚铃儿') ?? concubines[0];
@@ -4844,7 +4846,8 @@ describe('App 主流程切换', () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole('button', { name: '宫门' }));
-    expect(await screen.findByLabelText('宫门本旬妃嫔动向')).toHaveTextContent(visitor.name);
+    expect(await screen.findByLabelText('宫门 地点弹窗')).not.toHaveTextContent(visitor.name);
+    expect(screen.queryByLabelText('宫门本旬妃嫔动向')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: new RegExp(`前去见.*${visitor.name}`) })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '进入此处' }));
 

@@ -111,7 +111,7 @@ describe('影落掖庭地图主线体验', () => {
     expect(mapBackground).not.toHaveClass('is-location-scene');
     expect(mapBackground.style.backgroundImage).toContain('map_spring_dusk.png');
     expect(screen.getByRole('button', { name: '掖庭院' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '椒房殿' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '椒房殿' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '掖庭' })).not.toBeInTheDocument();
   });
 

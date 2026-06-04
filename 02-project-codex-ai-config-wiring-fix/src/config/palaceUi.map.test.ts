@@ -20,10 +20,10 @@ describe('palace map UI configuration', () => {
 
     expect(yeting).toMatchObject({
       label: '掖庭院',
-      top: '78.5%',
-      left: '13.2%',
+      top: '64.5%',
+      left: '81.7%',
     });
-    expect(hotspots.find((hotspot) => hotspot.id === '椒房殿')?.label).toBe('椒房殿');
+    expect(hotspots.some((hotspot) => hotspot.id === '椒房殿' || hotspot.label === '椒房殿')).toBe(false);
   });
 
   it('does not expose Changchun Palace on the main map', () => {
