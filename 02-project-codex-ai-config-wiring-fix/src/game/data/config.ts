@@ -49,7 +49,7 @@ export const attributeFields: AttributeField[] = [
   { key: 'appearance', label: '容貌', min: 2, max: 8, value: 4 },
   { key: 'temperament', label: '气质', min: 2, max: 8, value: 4 },
   { key: 'poetry', label: '诗词', min: 0, max: 10, value: 0 },
-  { key: 'talent', label: '才艺', min: 0, max: 10, value: 2 },
+  { key: 'talent', label: '乐理', min: 0, max: 10, value: 2 },
   { key: 'painting', label: '丹青', min: 0, max: 10, value: 2 },
   { key: 'embroidery', label: '女红', min: 0, max: 10, value: 1 },
   { key: 'medicine', label: '药理', min: 0, max: 5, value: 0 },

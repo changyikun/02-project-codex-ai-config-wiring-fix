@@ -33,6 +33,8 @@ interface NpcPalaceStrifeGenerationInput {
     month: number;
     xun: number;
   };
+  preferredActorConsortId?: string;
+  preferredTargetConsortId?: string;
 }
 
 const severityModifiers: Record<PalaceStrifeSeverity, { action: number; concealment: number; conviction: number }> = {
@@ -226,7 +228,10 @@ export const generateNpcPalaceStrifeCase = (
     }))
     .filter((entry) => entry.motive >= 150)
     .sort((left, right) => right.motive - left.motive);
-  const actor = candidates[0]?.concubine;
+  const actor =
+    (input.preferredActorConsortId
+      ? candidates.find((entry) => entry.concubine.id === input.preferredActorConsortId)?.concubine
+      : undefined) ?? candidates[0]?.concubine;
   if (!actor) {
     return null;
   }
@@ -239,6 +244,9 @@ export const generateNpcPalaceStrifeCase = (
   }
 
   const target =
+    (input.preferredTargetConsortId
+      ? liveTargets.find((concubine) => concubine.id === input.preferredTargetConsortId)
+      : undefined) ??
     liveTargets.find((concubine) => actor.rivals.includes(concubine.id)) ??
     liveTargets.slice().sort((left, right) => Number(right.stats.favor ?? 0) - Number(left.stats.favor ?? 0))[0];
   const actionKind: PalaceStrifeActionKind = Number(actor.stats.medicine ?? 0) >= 70 ? 'poison' : 'rumor';

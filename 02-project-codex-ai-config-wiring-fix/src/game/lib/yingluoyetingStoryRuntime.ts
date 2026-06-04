@@ -9,6 +9,7 @@ export const YINGLUOYETING_EVIDENCE_ITEM_IDS = {
 } as const;
 
 export const YINGLUOYETING_STORY_FLAGS = {
+  openingHaremFirstMeetPending: 'yingluo_opening_harem_first_meet_pending',
   chenFirstMeetDone: 'yingluo_02_chen_first_meet_done',
   chenFirstMeetPlayed: 'yingluo_02_chen_first_meet_played',
   chenWanningMet: 'yingluo_chen_wanning_met',

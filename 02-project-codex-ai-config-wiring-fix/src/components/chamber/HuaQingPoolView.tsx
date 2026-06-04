@@ -16,6 +16,7 @@ import {
   type HuaqingDialogueActor,
 } from '../../game/lib/huaqingDialogueRuntime';
 import { clampToRange, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
+import { getNpcActivitiesAtLocation } from '../../game/lib/npcActivityRuntime';
 import { requestRelationshipJudgementWithFallback } from '../../game/lib/relationshipJudgeRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type {
@@ -48,6 +49,7 @@ interface HotSpringInviteOption {
   summary: string;
   currentGoodwill: number;
   currentAffection: number;
+  scheduledEntryId?: string;
 }
 
 interface HuaqingSceneActor extends HuaqingDialogueActor {
@@ -96,6 +98,8 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
     patchConcubineById,
     patchMusicHallProgress,
     applyConsortRelationshipJudgement,
+    npcActivity,
+    resolveNpcActivityEntry,
   } = useGameFlowStore();
   const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [activeActor, setActiveActor] = useState<HuaqingSceneActor | null>(null);
@@ -149,7 +153,13 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
     }
 
     return eligibleConsorts;
-  }, [concubines, deepNightActive, musicHallProgress.lianQiaoAffection, musicHallProgress.lianQiaoFavor, state.flags.isLianQiaoMet]);
+  }, [
+    concubines,
+    deepNightActive,
+    musicHallProgress.lianQiaoAffection,
+    musicHallProgress.lianQiaoFavor,
+    state.flags.isLianQiaoMet,
+  ]);
 
   const buildPayload = (
     actor: HuaqingSceneActor,
@@ -323,7 +333,6 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
 
     const actionOutcome = beginTimedLocationAction();
     applyStoryEffects({ stress: -HOT_SPRING_SHARED_STRESS_REDUCE });
-
     if (invite.actorKind === 'lianqiao') {
       const nextFavor = clampToRange(musicHallProgress.lianQiaoFavor + HOT_SPRING_SHARED_FAVORABILITY_GAIN, -100, 100);
       const nextAffection = clampToRange(musicHallProgress.lianQiaoAffection + HOT_SPRING_SHARED_AFFECTION_GAIN, 0, 100);

@@ -44,9 +44,8 @@ const statDisplayScale: Record<string, number> = {
   politics: 10,
 };
 
-const consortMetrics: Array<{ key: keyof Pick<ConcubineStats, 'prestige' | 'stress'>; label: string }> = [
+const consortMetrics: Array<{ key: keyof Pick<ConcubineStats, 'prestige'>; label: string }> = [
   { key: 'prestige', label: '声望' },
-  { key: 'stress', label: '压力' },
 ];
 
 const normalizeDisplayNumber = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100;

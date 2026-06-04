@@ -11,6 +11,7 @@ import {
 } from '../../game/lib/kitchenDialogueRuntime';
 import { buildLocationActionNarrative } from '../../game/lib/actionNarrativeRuntime';
 import { clampToRange, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
+import { getNpcActivitiesAtLocation } from '../../game/lib/npcActivityRuntime';
 import { requestRelationshipJudgementWithFallback } from '../../game/lib/relationshipJudgeRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type {
@@ -37,8 +38,6 @@ interface KitchenSceneActor extends KitchenDialogueActor {
 }
 
 const BU_ZIYOU_PORTRAIT_SRC = '/assets/characters/men/bu-ziyou.png';
-const hashSeed = (seed: string): number =>
-  seed.split('').reduce((accumulator, char, index) => accumulator + char.charCodeAt(0) * (index + 19), 0);
 
 const buildBuZiyouActor = (favor: number, affection: number): KitchenSceneActor => ({
   id: 'buziyou',
@@ -78,6 +77,8 @@ export function KitchenView({ concubines }: KitchenViewProps) {
     buyInventoryItem,
     patchKitchenProgress,
     applyConsortRelationshipJudgement,
+    npcActivity,
+    resolveNpcActivityEntry,
   } = useGameFlowStore();
   const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [activeActor, setActiveActor] = useState<KitchenSceneActor | null>(null);
@@ -94,15 +95,12 @@ export function KitchenView({ concubines }: KitchenViewProps) {
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const kitchenCatalog = useMemo(() => buildKitchenFoodCatalog(), []);
   const dialogueOptions = dialogueTurn?.options ?? [];
-  const eligibleConsorts = useMemo(
-    () =>
-      concubines.filter(
-        (consort) => consort.status === 'live' && consort.residence !== '冷宫' && !consort.name.includes('太后'),
-      ),
-    [concubines],
-  );
-
-  const currentSeed = `${state.routeId}:${time.year}-${time.month}-${time.xun}:${time.slotIndex}`;
+  const scheduledConsortActivity = useMemo(() => {
+    const scheduledEntries = getNpcActivitiesAtLocation(npcActivity, '御膳房');
+    const entry = scheduledEntries.find((candidate) => concubines.some((consort) => consort.id === candidate.actorConsortId));
+    const consort = entry ? concubines.find((candidate) => candidate.id === entry.actorConsortId) : undefined;
+    return entry && consort ? { entry, consort } : null;
+  }, [concubines, npcActivity]);
 
   const buildPayload = (
     actor: KitchenSceneActor,
@@ -283,39 +281,14 @@ export function KitchenView({ concubines }: KitchenViewProps) {
       return;
     }
 
-    const rollSeed = `${currentSeed}:stroll:${nextCount}`;
-    const success = hashSeed(rollSeed) % 100 < 50;
-    if (!success || eligibleConsorts.length === 0) {
-      showActionResult(
-        buildLocationActionNarrative({
-          locationId: 'kitchen',
-          actionId: 'stroll',
-          actionLabel: '闲逛',
-          resultText: '御膳房炊烟袅袅，并无他人。',
-        }),
-        actionOutcome,
-      );
-      return;
-    }
-
-    const actor = buildConsortActor(
-      eligibleConsorts[hashSeed(`${rollSeed}:npc`) % eligibleConsorts.length],
-    );
-    patchKitchenProgress({ lastEncounterNpcId: actor.id });
-    setSystemMessage(
+    showActionResult(
       buildLocationActionNarrative({
         locationId: 'kitchen',
-        actionId: 'meet',
-        actionLabel: '御膳房闲逛',
-        resultText: `你在膳房廊下撞见了${actor.identity} ${actor.name}。`,
+        actionId: 'stroll',
+        actionLabel: '闲逛',
+        resultText: '御膳房炊烟袅袅，各处动静仍由你自行留意。',
       }),
-    );
-    holdTimedActionOutcome(actionOutcome);
-    await beginEncounter(
-      actor,
-      'stroll-encounter',
-      '御膳房闲逛',
-      `你在御膳房闲逛时，撞见了${actor.identity} ${actor.name}。`,
+      actionOutcome,
     );
   };
 

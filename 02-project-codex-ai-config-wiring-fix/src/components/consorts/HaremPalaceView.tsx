@@ -6,10 +6,11 @@ import {
   canStartConsortVisit,
   CONSORT_VISIT_STAMINA_BLOCK_TEXT,
   CONSORT_VISIT_STAMINA_COST,
-  CONSORT_VISIT_TIME_COST,
 } from '../../game/lib/consortVisitRuntime';
+import { getNpcVisitAtResidence, isNpcAtOwnResidence } from '../../game/lib/npcActivityRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type { ConcubineProfile } from '../../game/types';
+import { useLocationActionFlow, type TimedLocationActionOutcome } from '../chamber/useLocationActionFlow';
 
 interface HaremPalaceViewProps {
   concubines: ConcubineProfile[];
@@ -22,11 +23,13 @@ interface HallOccupancy {
   hallId: string;
   residence: string;
   residents: ConcubineProfile[];
+  presentResidents: ConcubineProfile[];
+  awayResidents: ConcubineProfile[];
   hasPlayerResident: boolean;
 }
 
 const matchesHallResidence = (residence: string, palaceLabel: string, hallSuffix: string): boolean => {
-  const normalizedResidence = String(residence ?? '').trim();
+  const normalizedResidence = String(residence ?? '').trim().replace(/^旧居/, '').trim();
   if (normalizedResidence.length === 0) {
     return false;
   }
@@ -38,12 +41,27 @@ const matchesHallResidence = (residence: string, palaceLabel: string, hallSuffix
   return normalizedResidence === `${palaceLabel}${hallSuffix}`;
 };
 
+const getResidencePresenceLabel = (
+  npcActivity: ReturnType<typeof useGameFlowStore.getState>['npcActivity'],
+  residentId: string,
+): string => {
+  if (getNpcVisitAtResidence(npcActivity, residentId)) {
+    return '（会客中）';
+  }
+  if (!isNpcAtOwnResidence(npcActivity, residentId)) {
+    return '（外出）';
+  }
+  return '';
+};
+
 export function HaremPalaceView({ concubines, playerResidenceName, playerName, playerRankLabel }: HaremPalaceViewProps) {
-  const { state, applyStoryEffects, advanceTime } = useGameFlowStore();
+  const { state, npcActivity, resolveNpcActivityEntry, enterMainChamber } = useGameFlowStore();
+  const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [selectedPalaceId, setSelectedPalaceId] = useState<HaremPalaceId | null>(null);
   const [selectedHallId, setSelectedHallId] = useState<string | null>(null);
   const [activeResidentId, setActiveResidentId] = useState<string | null>(null);
   const [actionNote, setActionNote] = useState('');
+  const [pendingVisitOutcome, setPendingVisitOutcome] = useState<TimedLocationActionOutcome | null>(null);
 
   const selectedPalace = useMemo(
     () => HAREM_PALACES.find((palace) => palace.id === selectedPalaceId) ?? null,
@@ -79,10 +97,17 @@ export function HaremPalaceView({ concubines, playerResidenceName, playerName, p
       return;
     }
 
-    applyStoryEffects({ stamina: -CONSORT_VISIT_STAMINA_COST });
-    advanceTime(CONSORT_VISIT_TIME_COST);
+    const outcome = beginTimedLocationAction({ staminaCost: CONSORT_VISIT_STAMINA_COST });
     setActionNote('');
+    setPendingVisitOutcome(outcome);
     setActiveResidentId(consortId);
+  };
+
+  const returnToPlayerResidence = () => {
+    setActionNote('');
+    setActiveResidentId(null);
+    setPendingVisitOutcome(null);
+    enterMainChamber();
   };
 
   const hallOccupancy = useMemo<HallOccupancy[]>(() => {
@@ -95,15 +120,19 @@ export function HaremPalaceView({ concubines, playerResidenceName, playerName, p
       const residents = concubines.filter(
         (concubine) => concubine.status === 'live' && matchesHallResidence(concubine.residence, selectedPalace.label, hall.suffix),
       );
+      const presentResidents = residents.filter((resident) => isNpcAtOwnResidence(npcActivity, resident.id));
+      const awayResidents = residents.filter((resident) => !isNpcAtOwnResidence(npcActivity, resident.id));
 
       return {
         hallId: hall.id,
         residence,
         residents,
+        presentResidents,
+        awayResidents,
         hasPlayerResident: matchesHallResidence(playerResidenceName, selectedPalace.label, hall.suffix),
       };
     });
-  }, [concubines, playerResidenceName, selectedPalace]);
+  }, [concubines, npcActivity, playerResidenceName, selectedPalace]);
 
   const selectedHallOccupancy = useMemo(
     () => hallOccupancy.find((entry) => entry.hallId === selectedHallId) ?? null,
@@ -115,11 +144,25 @@ export function HaremPalaceView({ concubines, playerResidenceName, playerName, p
     [activeResidentId, concubines],
   );
 
+  const selectedHallVisits = useMemo(
+    () =>
+      (selectedHallOccupancy?.residents ?? [])
+        .map((resident) => {
+          const visit = getNpcVisitAtResidence(npcActivity, resident.id);
+          const visitor = visit ? concubines.find((consort) => consort.id === visit.actorConsortId) : undefined;
+          return visit && visitor ? { resident, visitor, visit } : null;
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
+    [concubines, npcActivity, selectedHallOccupancy],
+  );
+
   const footerCopy = selectedHall
     ? selectedHallOccupancy && (selectedHallOccupancy.residents.length > 0 || selectedHallOccupancy.hasPlayerResident)
       ? `当前查看：${selectedHall.suffix}。现居：${[
           selectedHallOccupancy.hasPlayerResident ? `${playerRankLabel} ${playerName}（居此）` : null,
-          ...selectedHallOccupancy.residents.map((resident) => `${resident.rankLabel} ${resident.name}`),
+          ...selectedHallOccupancy.residents.map(
+            (resident) => `${resident.rankLabel} ${resident.name}${getResidencePresenceLabel(npcActivity, resident.id)}`,
+          ),
         ]
           .filter((entry): entry is string => Boolean(entry))
           .join('、')}。`
@@ -131,7 +174,7 @@ export function HaremPalaceView({ concubines, playerResidenceName, playerName, p
   const renderHallButton = (hall: (typeof HAREM_PALACES)[number]['halls'][number]) => {
     const occupancy = hallOccupancy.find((entry) => entry.hallId === hall.id);
     const hasResidents = Boolean(occupancy && (occupancy.residents.length > 0 || occupancy.hasPlayerResident));
-    const singleResident = occupancy?.residents.length === 1 ? occupancy.residents[0] : null;
+    const singleResident = occupancy?.presentResidents.length === 1 ? occupancy.presentResidents[0] : null;
 
     return (
       <button
@@ -142,7 +185,10 @@ export function HaremPalaceView({ concubines, playerResidenceName, playerName, p
           setSelectedHallId(hall.id);
           setActionNote('');
           setActiveResidentId(null);
-          if (singleResident) {
+          if (!singleResident) {
+            return;
+          }
+          if (!getNpcVisitAtResidence(npcActivity, singleResident.id)) {
             startConsortAudience(singleResident.id);
           }
         }}
@@ -156,8 +202,14 @@ export function HaremPalaceView({ concubines, playerResidenceName, playerName, p
           ) : null}
           {hasResidents ? (
             occupancy?.residents.map((resident) => (
-              <span key={resident.id} className="harem-palace-view__hall-resident">
+              <span
+                key={resident.id}
+                className={`harem-palace-view__hall-resident ${isNpcAtOwnResidence(npcActivity, resident.id) ? '' : 'is-away'} ${
+                  getNpcVisitAtResidence(npcActivity, resident.id) ? 'is-hosting' : ''
+                }`}
+              >
                 {resident.rankLabel} {resident.name}
+                {getResidencePresenceLabel(npcActivity, resident.id)}
               </span>
             ))
           ) : null}
@@ -197,7 +249,18 @@ export function HaremPalaceView({ concubines, playerResidenceName, playerName, p
           palaceLabel={selectedPalace.label}
           hallLabel={selectedHall.suffix}
           concubines={concubines}
-          onBack={() => setActiveResidentId(null)}
+          onBack={() => {
+            const activeResidenceVisit = activeResident ? getNpcVisitAtResidence(npcActivity, activeResident.id) : undefined;
+            if (activeResidenceVisit) {
+              resolveNpcActivityEntry(activeResidenceVisit.id);
+            }
+            setActiveResidentId(null);
+            if (finishTimedLocationAction(pendingVisitOutcome)) {
+              setPendingVisitOutcome(null);
+              return;
+            }
+            setPendingVisitOutcome(null);
+          }}
         />
       ) : selectedPalace ? (
         <div className="harem-palace-view__hall-layout" aria-label={`${selectedPalace.label} 殿位布局`}>
@@ -213,17 +276,45 @@ export function HaremPalaceView({ concubines, playerResidenceName, playerName, p
             {selectedPalace.halls.slice(3).map(renderHallButton)}
           </div>
 
-          {selectedHallOccupancy && selectedHallOccupancy.residents.length > 0 ? (
+          {selectedHallOccupancy && selectedHallOccupancy.presentResidents.length > 0 ? (
             <section className="harem-palace-view__resident-actions" aria-label={`${selectedHall?.suffix ?? '殿位'}可拜访妃嫔`}>
-              {selectedHallOccupancy.residents.map((resident) => (
+              {selectedHallOccupancy.presentResidents.map((resident) => (
                 <button
                   key={resident.id}
                   type="button"
                   className="harem-palace-view__utility-button"
                   onClick={() => startConsortAudience(resident.id)}
                 >
-                  {`拜访 ${resident.rankLabel} ${resident.name}`}
+                  {`拜访 ${resident.rankLabel} ${resident.name}${
+                    getNpcVisitAtResidence(npcActivity, resident.id) ? '（会客中）' : ''
+                  }`}
                 </button>
+              ))}
+            </section>
+          ) : null}
+
+          {selectedHallOccupancy?.hasPlayerResident ? (
+            <section className="harem-palace-view__resident-actions" aria-label={`${selectedHall?.suffix ?? '殿位'}玩家寝殿`}>
+              <button type="button" className="harem-palace-view__utility-button" onClick={returnToPlayerResidence}>
+                {`回到${playerResidenceName}`}
+              </button>
+            </section>
+          ) : null}
+
+          {selectedHallOccupancy && selectedHallOccupancy.awayResidents.length > 0 ? (
+            <section className="harem-palace-view__resident-actions" aria-label={`${selectedHall?.suffix ?? '殿位'}外出妃嫔`}>
+              {selectedHallOccupancy.awayResidents.map((resident) => (
+                <p key={resident.id}>{`${resident.rankLabel} ${resident.name}本旬不在殿内。`}</p>
+              ))}
+            </section>
+          ) : null}
+
+          {selectedHallVisits.length > 0 ? (
+            <section className="harem-palace-view__resident-actions" aria-label={`${selectedHall?.suffix ?? '殿位'}同场拜访`}>
+              {selectedHallVisits.map(({ resident, visitor, visit }) => (
+                <p key={visit.id}>
+                  {`${visitor.rankLabel} ${visitor.name}正在殿中拜访${resident.rankLabel} ${resident.name}。${visit.summary}`}
+                </p>
               ))}
             </section>
           ) : null}

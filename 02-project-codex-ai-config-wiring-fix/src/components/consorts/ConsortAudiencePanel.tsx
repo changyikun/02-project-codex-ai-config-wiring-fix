@@ -30,6 +30,8 @@ interface ConsortAudiencePanelProps {
   concubines: ConcubineProfile[];
   onBack: () => void;
   backLabel?: string;
+  initialActionResult?: string;
+  initialActionLabel?: string;
 }
 
 interface HistoryEntry {
@@ -99,6 +101,8 @@ export function ConsortAudiencePanel({
   concubines,
   onBack,
   backLabel = '返回殿位',
+  initialActionResult,
+  initialActionLabel = '入殿相见',
 }: ConsortAudiencePanelProps) {
   const {
     state,
@@ -289,12 +293,12 @@ export function ConsortAudiencePanel({
 
       setBusy(true);
       setActionId('visit');
-      setActionLabel('入殿相见');
+      setActionLabel(initialActionLabel);
       setPickerMode(null);
       setHistory([]);
       try {
-        await runNarrativeTurn(consort, 'visit', 'visit', '入殿相见', {
-          actionResult: `你已步入${palaceLabel}${hallLabel}，与${displayRank} ${consort.name}正面相见。`,
+        await runNarrativeTurn(consort, 'visit', 'visit', initialActionLabel, {
+          actionResult: initialActionResult ?? `你已步入${palaceLabel}${hallLabel}，与${displayRank} ${consort.name}正面相见。`,
           historyOverride: [],
         });
       } finally {
@@ -309,7 +313,7 @@ export function ConsortAudiencePanel({
     return () => {
       disposed = true;
     };
-  }, [chenFirstMeetActive, consort.id, displayRank, hallLabel, palaceLabel]);
+  }, [chenFirstMeetActive, consort.id, displayRank, hallLabel, initialActionLabel, initialActionResult, palaceLabel]);
 
   const handleChenFirstMeetChoice = (choiceId: string) => {
     if (!chenFirstMeetEvent) {

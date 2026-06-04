@@ -10,6 +10,33 @@
   --token-route-confirm-scale: 1.2;
 }
 
+html,
+body,
+#root {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body {
+  -webkit-touch-callout: none;
+}
+
+img,
+svg,
+canvas,
+video {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+}
+
+input,
+textarea,
+[contenteditable='true'] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 .nightly-service-event {
   position: absolute;
   inset: 0;
@@ -2018,6 +2045,26 @@ button {
   line-height: 1.65;
 }
 
+.map-main__utility-close {
+  position: absolute;
+  top: 24px;
+  right: 34px;
+  z-index: 160;
+  padding: 8px 18px;
+  border: 1px solid rgba(199, 166, 171, 0.56);
+  border-radius: 12px;
+  background: rgba(255, 248, 249, 0.96);
+  color: #601c22;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: 18px;
+  box-shadow: 0 10px 18px rgba(92, 41, 47, 0.14);
+  cursor: pointer;
+}
+
+.map-main__utility-close:hover {
+  transform: translateY(-1px);
+}
+
 .map-main__event-actions {
   display: flex;
   gap: 12px;
@@ -2386,6 +2433,35 @@ button {
   color: #48181e;
   font-family: 'STKaiti', 'KaiTi', serif;
   font-size: 22px;
+}
+
+.chamber-main__location-visitors {
+  position: absolute;
+  z-index: 42;
+  right: 19%;
+  top: 19%;
+  width: min(300px, 34vw);
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(118, 77, 46, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 247, 226, 0.9);
+  box-shadow: 0 14px 28px rgba(68, 38, 25, 0.16);
+}
+
+.chamber-main__location-visitors strong {
+  font-size: 0.82rem;
+  color: #6d4028;
+}
+
+.chamber-main__location-visitors button {
+  min-height: 34px;
+  border: 1px solid rgba(121, 79, 48, 0.34);
+  border-radius: 6px;
+  background: rgba(112, 62, 39, 0.9);
+  color: #fff7e8;
+  font-size: 0.82rem;
 }
 
 .chamber-main__expense-choice-overlay .palace-dialogue-box__option.is-active {
@@ -4305,6 +4381,14 @@ button {
   color: rgba(122, 77, 73, 0.7);
 }
 
+.harem-palace-view__hall-resident.is-away {
+  color: rgba(122, 77, 73, 0.62);
+}
+
+.harem-palace-view__hall-resident.is-hosting {
+  color: #8f4a72;
+}
+
 .harem-palace-view__hall-button.is-occupied {
   box-shadow:
     0 14px 20px rgba(111, 65, 61, 0.18),
@@ -4669,6 +4753,42 @@ button {
   font-size: 22px;
 }
 
+.dowager-audience-view__briefing {
+  position: absolute;
+  left: 54px;
+  right: 208px;
+  bottom: 30px;
+  min-height: 142px;
+  padding: 28px 34px;
+  border: 1px solid rgba(154, 111, 86, 0.26);
+  border-radius: 8px;
+  background: rgba(255, 249, 241, 0.88);
+  box-shadow:
+    0 18px 28px rgba(70, 39, 34, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.62);
+  z-index: 3;
+}
+
+.dowager-audience-view__briefing strong,
+.dowager-audience-view__briefing p {
+  margin: 0;
+  color: #4f2021;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  letter-spacing: 0;
+}
+
+.dowager-audience-view__briefing strong {
+  display: block;
+  font-size: 28px;
+  line-height: 1.35;
+}
+
+.dowager-audience-view__briefing p {
+  margin-top: 12px;
+  font-size: 21px;
+  line-height: 1.65;
+}
+
 .dowager-audience-view__dialogue {
   left: 54px;
   right: 208px;
@@ -4982,6 +5102,22 @@ button {
   .dowager-audience-view .harem-palace-view__audience-actions button {
     min-height: 40px;
     font-size: 16px;
+  }
+
+  .dowager-audience-view__briefing {
+    left: 18px;
+    right: 112px;
+    bottom: 18px;
+    min-height: 112px;
+    padding: 20px 22px;
+  }
+
+  .dowager-audience-view__briefing strong {
+    font-size: 22px;
+  }
+
+  .dowager-audience-view__briefing p {
+    font-size: 17px;
   }
 
   .dowager-audience-view__dialogue {

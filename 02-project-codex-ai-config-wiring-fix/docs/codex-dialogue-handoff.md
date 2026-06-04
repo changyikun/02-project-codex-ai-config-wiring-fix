@@ -67,8 +67,9 @@
 
 - 从地图点进玩家自己的宫殿，不再进入空白外景，而是回到正常寝殿主界面。
 - 寝殿主界面的 `外出` 表示前往地图；若当前打开了属性、物品、宫务等面板，点击 `外出` 必须先关闭面板并展示出行提示，再由玩家确认进入地图。
-- 外景 / 地点场景的左侧中位按钮改为唯一 `回宫`，语义是“直接回寝殿”；不要再额外渲染第二个回宫按钮。
-- 地点内不再保留 `外出` 作为“回地图视角”的入口，避免地点场景和地图主视角互相卡住。
+- 外景 / 地点 / 后宫宫殿场景的左侧中位按钮 `外出` 表示“返回地图主视角”；独立 `回宫` 入口才表示“直接回寝殿”。
+- 从地图进入“后宫”时必须保留 `activeMapLocation='后宫'`，否则侧栏 `外出` 会和其他外景地点的回地图语义不一致。外景回地图时，旧 `activeMapLocation` 也必须保留到退出动画完成后再清理，避免旧场景淡出期间短暂重绘为玩家寝殿。
+- 大地图左侧“嫔妃 / 查看 / 纪事 / 情缘”和地点快捷面板属于地图覆盖层，不能通过 `enterMainChamber()` 借寝殿面板打开；关闭后仍停留在地图。
 
 核心文件：
 
@@ -78,7 +79,10 @@
 ### 4.4 玩家住处已真正落地
 
 - `state.residenceName` 现在是玩家当前住处的唯一前端真值来源。
-- 地图上的“寝殿热点”不再固定写死为 `椒房殿`，而是根据 `state.residenceName` 动态生成。
+- 地图上的“寝殿热点”不再固定写死为 `椒房殿`。若 `state.residenceName` 是地图级宫殿，会按住处动态生成；若住处是后宫殿位（如 `储秀宫西偏殿`），地图保留原地点热点，玩家通过 `回宫` 或后宫宫殿布局回到寝殿。
+- `影落掖庭` 初始住处为 `储秀宫西偏殿`；`掖庭院` 只作为旧案、差役和杂务地点，不再作为玩家正式寝殿。
+- `影落掖庭` 开场定下用度后仍必须先走 `MAP_GUIDE_LINES` 地图介绍；只有 `mapGuideFinished=true` 后，`yingluo_opening_harem_first_meet_pending` 才能触发后宫陈婉宁初见。
+- `HaremPalaceView` 中玩家自己的殿位必须提供回寝殿入口；不能只把玩家标记为“居此”却没有回家动作。
 
 ### 4.5 开局年龄与用度说明
 
@@ -87,7 +91,7 @@
 - 开场对话新增第四个说明入口 `先问清用度`，由当前说话人按显式分页解释三档月度开销含义；该选项不写状态、不进入地图，说明结束后本地返回用度选择。
 - `ChamberUtilityViews` 中家族事务已在函数入口早退，后续宫斗 / 朝堂事务逻辑不再重复判断 `家族事务`，避免 TypeScript 收窄告警。
 - 点击地图上的当前住处，会直接等同 `回宫`，不会先弹“进入此处”确认。
-- 后宫布局里，玩家会按当前住处落到对应宫殿 / 主殿。
+- 后宫布局里，玩家会按当前住处落到对应宫殿 / 主殿 / 侧殿 / 偏殿。
 
 相关文件：
 
@@ -648,10 +652,12 @@ npm run build
 - 寝殿主界面的 `外出` 表示“前往地图视角”
 - `回宫` 永远表示“直接回寝殿”
 - 外景场景里，左侧中位按钮 `外出` 表示“返回地图主视角”；独立 `回宫` 入口表示“直接回寝殿”
+- 从地图进入“后宫”时也按外景处理，保留 `activeMapLocation='后宫'`；后宫内 `外出` 返回地图，`回宫` 才直接回寝殿。
 - 寝殿面板打开时点击 `外出`，必须先关闭面板并展示出行提示，再由玩家确认进入地图
-- 从地图点进玩家当前住处，会直接等同 `回宫`
+- 大地图常驻入口打开工具面板时，`currentView` 必须保持 `map-main`；这些面板是地图覆盖层，不得把玩家隐式传回寝殿。
+- 从地图点进玩家当前地图级住处，会直接等同 `回宫`；后宫殿位级住处不生成独立地图热点。
 - 地图上的玩家寝殿热点不再写死为 `椒房殿`
-- 地图寝殿热点、后宫落位、回宫入口都由 `state.residenceName` 驱动
+- 地图寝殿热点、后宫落位、回宫入口都由 `state.residenceName` 驱动，但后宫殿位住处只在后宫布局中落位。
 - 普通地图行动若把时间推进到 `深夜`，玩家仍可保留一次深夜行动；深夜行动后或体力归零后，才由娇娇提醒回宫 / 睡觉，再进入黑屏过夜链路。
 - 华清池深夜双人沐浴等明确依赖深夜入口的特殊场景可以在夜晚行动后落到深夜，但深夜行动完成后同样要归寝。
 
@@ -868,7 +874,7 @@ npm run build
 - 寝殿行动结果对白只写叙事和行动收束，不直接展示属性上升 / 下降
 - 侍寝通报不再写玩家宠爱、真心、声望的具体变化
 - 他人侍寝或玩家在侍寝中替他人说话 / 点错时，不再在文本中写妃嫔宠爱变化
-- `NumericChangeToastLayer` 已扩展到妃嫔与自定义妃嫔的宠爱 / 声望 / 压力变化，用于承接他人数值变化反馈
+- `NumericChangeToastLayer` 只追踪妃嫔与自定义妃嫔的声望变化；宠爱和压力变化不作为普通 toast 追踪项
 - `NumericChangeToastLayer` 只在 `map-main` 和 `bedchamber` 显示变化；角色选择、属性分配、开场剧情阶段只刷新基线，不弹初始化差值
 
 关键文件：
@@ -1047,12 +1053,13 @@ npm run build
 - 确认新开后调用 `gameFlowStore.startNewGame()`：清空旧存档，从初始状态重建新局，进入 `route-selection`，并由 persist 写入新存档。
 - 启动页“回溯”调用 `gameFlowStore.resumeLastSave()`：读取上一次 `SaveGameV1`，恢复 durable state，并按存档进度进入路线选择、属性页、地图或寝殿。
 - 无存档时，回溯留在启动页并显示“暂无可回溯的存档。”。
+- 当前开发期存档不做旧结构迁移；`SaveGameV1` schema 或必需字段不匹配时，直接删除旧 envelope，不写旧字段 fallback。
 - `前尘` 仍未接入玩法；`设置` 仍未接入设置页。
 
 维护规范：
 
 - 新增 `docs/save-system-maintenance.md` 作为存档功能全局维护文档。
-- 后续新增长期字段必须同步 `SaveGameV1Source`、`SaveGameV1`、`buildSaveGameV1()`、`restoreSaveGameV1Fields()`、新局重置路径与测试。
+- 后续新增长期字段必须同步 `SaveGameV1Source`、`SaveGameV1`、`buildSaveGameV1()`、`restoreSaveGameV1Fields()`、新局重置路径与测试；字段结构变化时提升 schema 或收紧校验清档，不做迁移。
 - 不得再用 `setCurrentView('route-selection')` 表示“开始新游戏”。
 
 关键文件：
@@ -1117,9 +1124,10 @@ npm run build
 - 妙音堂听曲先结算压力变化，再推进时间，并在妙音堂行动结果出现时触发 `chamber-action` toast；不再等到后续旬月通报才集中显示。
 - `PalaceBanquetProgressState` 是系统宫宴真值，保存当前宫宴季、曲谱报名快照、报名提醒标记、已结算宫宴季和最近结果。
 - 宫宴报名提醒只在跨入报名开启节点时生成，不在玩家已经处于报名期的任意行动后补弹，避免打断普通流程。
-- 妙音堂报名期由 `palaceBanquetSchedule` 判断；每届只记录一张有效曲谱，曲谱提交后写入快照并消耗库存。
+- 妙音堂报名期由 `palaceBanquetSchedule` 判断；每届只记录一张有效曲谱，曲谱登记后写入快照但不消耗库存。
+- 曲谱学习进度保存在 `musicHallProgress.musicScoreMastery`，玩家持有曲谱后可找连翘学谱；完成度增量受玩家乐理、曲谱难度与连翘关系影响。
 - 系统宫宴在 3 月上旬傍晚触发，结算后占用傍晚 / 夜晚并停到深夜；同届通过 `lastResolvedSeasonKey` 防重复。
-- 宫宴表现由 `palaceBanquetRuntime` 结算：曲谱品质、才艺、听曲次数和连翘关系影响完成度，完成度影响声望变化和通报文本。
+- 宫宴表现由 `palaceBanquetRuntime` 结算：主要读取已登记曲谱的当前完成度和难度计算表现上限，宫宴当天再按上限随机生成本场表现分，表现分影响声望变化和通报文本。
 - 宫宴报名提醒与结算通报使用 `SettlementReportKind = 'event'`，继续走全局通报遮罩和背景 UI 锁。
 
 关键文件：
@@ -1195,6 +1203,7 @@ npm run build
 - 如果场景是“对白 + 场景内固定按钮”，对白必须能先结束或收起，再开放底层按钮；侍寝和妃嫔会面已经按这个口径处理。
 - `NightlyServiceEventView` 的养心殿初始说明需要玩家确认后才显示互动按钮，避免对白遮罩盖住侍寝操作。
 - `ConsortAudiencePanel` 的妃嫔对白可以点击正文收起；收起后固定操作按钮仍留在会面页，不退出场景。
+- `DowagerAudiencePanel` 也必须遵守两态结构：建章宫空闲态只显示太后常驻立绘、场景说明和固定按钮；只有玩家选择“送礼问安 / 起身告辞”后才渲染 `GlobalDialogueStage`。对话态未收束时固定按钮需要禁用，不能通过放宽全局遮罩来解决点击问题。
 - 物品获得 / 失去纳入 `NumericChangeToastLayer`，新增物品按缺省 0 计算正向变化，消耗到 0 也会显示负向变化。
 - `grantInventoryItem`、`consumeInventoryItem`、`buyInventoryItem`、`sellInventoryItem` 会在成功改变背包后同步发出 toast 信号；角色初始化仍不能通过这些方法刷出初始化 toast。
 - 妙音堂深夜听曲必须先展示听曲结果与本次压力 toast，再由玩家确认回宫，之后复用娇娇睡觉提醒、黑屏过夜和清晨通报链路。
@@ -1203,6 +1212,7 @@ npm run build
 
 - `src/components/chamber/NightlyServiceEventView.tsx`
 - `src/components/consorts/ConsortAudiencePanel.tsx`
+- `src/components/chamber/DowagerAudiencePanel.tsx`
 - `src/components/chamber/MiaoYinHallView.tsx`
 - `src/components/status/NumericChangeToastLayer.tsx`
 - `src/game/store/gameFlowStore.ts`
@@ -1214,3 +1224,96 @@ npm run build
 - `npx vitest run src/__tests__/app-flow.test.tsx` 通过，97 passed；仍有既有 React `act(...)` 测试警告
 - `npm run build:web`、`npm run build:api` 通过；`build:web` 仍有既有 Vite 大 chunk 警告
 - in-app browser 打开 `http://127.0.0.1:5173/` 可正常加载，console error 为 0
+
+### 15.25 妃嫔旬级行动、NPC 拜访与低频宫斗
+
+本轮接入妃嫔旬级行动表，让妃嫔不再只固定站在自己殿内。
+
+已经成立的规则：
+
+- `npcActivityRuntime` 每旬为 live 且非冷宫妃嫔生成主行动：留宫、公共外出、拜访玩家、拜访其他妃嫔、社交筹谋或敌意筹谋。
+- 公共外出地点从 `MAP_HOTSPOTS` 派生，排除“后宫”聚合入口和玩家寝殿占位；地图上的空地点也能出现本旬 NPC 动向。
+- 功能小场景优先读取本旬行动表；无安排时不得从全体妃嫔中无条件随机抓人。
+- A 拜访 B 时，B 的公共外出会被取消并留殿接待；玩家进入 B 的殿内会看到两名妃嫔同场状态和互动摘要。
+- NPC 拜访玩家带有送礼、试探、拉拢、传话、施压等目的，并在寝殿空闲时自动打断流程；NPC 先发起小对话，玩家选择接待、试探或拒绝。行动结果、清晨通报和侍寝等高优先级反馈仍先于拜访展示。
+- 公共地点与空地图点遇见 NPC 时，进入地点后先显示可点击妃嫔入口；玩家主动点击后，以地点入场叙述和行动摘要进入妃嫔日常对话。
+- 地图地点弹窗只显示本旬在该地点的妃嫔动向，不新增“前去见某妃”直达选项；公共外出的 `resolved` 只代表本旬已交谈，不代表 NPC 离开目的地，地点页应继续显示该 NPC 并禁用重复交互。
+- NPC 位置以本旬行动表为真值：公共外出、拜访玩家、未收束的拜访其他妃嫔的行动方不在自己寝宫；未收束的拜访目标留殿接待；同一目标每旬最多接待一名 NPC。
+- 未收束的拜访目标在后宫殿位按钮、底部说明和拜访入口中标记为“会客中”。
+- 如果 debug 表显示未收束的 `A 拜访 B`，实际场景必须以 B 在寝宫会客为准；公共地点列表要排除 B，后宫殿位要显示 B“会客中”。这个规则优先于 B 自己残留的公共外出条目。玩家结束这次殿内会客后，该 `visit-consort` 标记为 `resolved=true`，来访者回自己的寝宫，被拜访者不再显示“会客中”。
+- `旧居X` 住址应按 `X` 主殿映射到后宫宫殿界面。
+- NPC 拜访玩家每旬最多一名来访者，且生成概率降低，避免玩家频繁被打断。
+- 测试动向时只看浏览器控制台输出：`App` 在寝殿 / 地图阶段每旬只打印一次 `[npc-activity]` 和 `console.table`；不要新增游戏内 debug 面板。
+- `npcRelationRuntime` 在旬末结算 NPC-NPC 送礼、试探、拉拢、传话、施压结果，写入 `npcRelationMatrix`。
+- NPC-NPC 关系结算造成的妃嫔压力变化是内部状态变化，默认静默写入状态与关系矩阵，不在玩家清晨 / 结算 toast 中展示。
+- NPC 宫斗从 `hostile-plot` 行动进入；每旬全局只掷一次默认 `10%` 概率，每旬最多生成 1 条 NPC 宫斗案。
+- 宫斗事务文案明确是真实案件入口；朝堂事务当前只是政治谋划预留入口，只暂存草案，不改数值、不进结算。
+- 深夜行动后的过夜应视为全局流程：后宫拜访妃嫔也必须走娇娇提醒、黑屏、清晨通报；`completeOvernightTransition` 只标记本次是否属于熬夜，真实熬夜惩罚在清晨通报生成时由娇娇说明并扣除（压力 +2，健康 / 气质各 -0.1，即界面约 -10）。
+
+关键文件：
+
+- `src/game/lib/npcActivityRuntime.ts`
+- `src/game/lib/npcRelationRuntime.ts`
+- `src/game/store/gameFlowStore.ts`
+- `src/views/MapMainView.tsx`
+- `src/views/ChamberMainView.tsx`
+- `src/components/consorts/HaremPalaceView.tsx`
+- `src/components/chamber/ChamberUtilityViews.tsx`
+
+验证结果：
+
+- `npx tsc -p tsconfig.json --noEmit` 通过
+- `npx vitest run src/game/lib/npcActivityRuntime.test.ts src/game/lib/npcRelationRuntime.test.ts src/game/save/saveGameV1.test.ts src/game/store/gameFlowStore.save.test.ts` 通过，34 passed；`npx vitest run src/__tests__/app-flow.test.tsx` 通过，109 passed；仍有既有 React `act(...)` 测试警告
+
+### 15.26 后宫外景侧栏与入口语义
+
+本轮继续收口后宫作为地图外景时的状态语义。根因是后宫复用 `ChamberMainView` 渲染，但真实位置由 `activeMapLocation='后宫'` 表示；左侧工具面板关闭时如果直接回 `activeChamberPanel='main'`，就会卸载后宫外景并看起来像 UI 消失。
+
+已经成立的规则：
+
+- 地图“后宫”热点只保留默认 `进入此处`，不得再额外提供“后宫总览”快捷按钮。
+- 后宫外景中的 `外出` 表示返回地图主视角；只有独立 `回宫` 才表示回玩家寝殿。
+- 从后宫外景打开“嫔妃 / 查看 / 纪事 / 情缘”等左侧工具面板时，需要记住返回面板为 `harem`；关闭工具面板后必须回到后宫外景。
+- 后宫外景工具面板中点击 `外出` 必须直接调用地图返回流程，不得先进入玩家寝殿再转地图。
+- 外景回地图时不能在同一次 store 更新里清空 `activeMapLocation` 和重置 `activeChamberPanel`；`ChamberMainView` 会在退出动画期间继续订阅 store。当前规则是先切 `currentView='map-main'`，保留旧外景状态给旧场景淡出，再由 `AnimatePresence.onExitComplete` 调用清理动作。
+- 大地图自身的覆盖面板和后宫外景的工具面板都不能借玩家寝殿承载；后续新增侧栏入口时要先判断当前是否处于外景。
+
+关键文件：
+
+- `src/views/MapMainView.tsx`
+- `src/views/ChamberMainView.tsx`
+- `src/__tests__/app-flow.test.tsx`
+
+验证结果：
+
+- `npx tsc -p tsconfig.json --noEmit` 通过
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "后宫侧栏外出|后宫内左侧工具面板|地图后宫与冷宫|外景左侧面板"` 通过，4 passed
+- `npx vitest run src/__tests__/app-flow.test.tsx` 通过，122 passed；仍有既有 React `act(...)` 测试警告
+- `npm run build:web` 通过；仍有既有 Vite 大 chunk 警告
+- `git diff --check` 仅提示 Windows 换行归一化，没有空白错误
+- `web_game_playwright_client` 打开 `http://127.0.0.1:5173/` 生成启动页截图，未生成 console error 文件
+
+### 15.27 外景回地图退出动画清理
+
+本轮修正“点外出时场景仍会先闪一下玩家寝宫”的视觉问题。根因不是路径还经过寝宫，而是外景和寝宫共用 `ChamberMainView`：旧组件在退出动画期间仍订阅 store，若 `enterMapMain()` 立刻清空 `activeMapLocation`，旧组件会在卸载前按寝宫背景重绘。
+
+已经成立的规则：
+
+- `enterMapMain()` 从外景调用时只先切 `currentView='map-main'` 和 `scene='map'`，用来触发 App 层视图切换。
+- 旧 `activeMapLocation` 与旧 `activeChamberPanel` 必须保留到旧 `ChamberMainView` 退出动画完成。
+- `App` 的 `AnimatePresence.onExitComplete` 负责调用 `completeViewTransitionCleanup()`，此时才清理旧外景位置和旧面板状态。
+- 测试口径也必须区分两个阶段：点击外出后 `currentView` 已经是地图，但 `activeMapLocation` 会短暂保留；退出动画完成后才断言其为 `undefined`。
+
+关键文件：
+
+- `src/App.tsx`
+- `src/game/store/gameFlowStore.ts`
+- `src/__tests__/app-flow.test.tsx`
+
+验证结果：
+
+- `npx tsc -p tsconfig.json --noEmit` 通过
+- `npx vitest run src/__tests__/app-flow.test.tsx` 通过，122 passed；仍有既有 React `act(...)` 测试警告
+- `npm run build:web` 通过；仍有既有 Vite 大 chunk 警告
+- `git diff --check` 仅提示 Windows 换行归一化，没有空白错误
+- `web_game_playwright_client` 打开 `http://127.0.0.1:5173/` 生成启动页截图，未生成 console error 文件

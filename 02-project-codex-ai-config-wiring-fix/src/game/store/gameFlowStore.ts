@@ -46,6 +46,12 @@ import {
   resolvePalaceStrifeSeverity,
   resolveYangxinHearing,
 } from '../lib/palaceStrifeRuntime';
+import {
+  buildInitialNpcActivityState,
+  generateNpcActivities,
+  getHostilePlotActivity,
+} from '../lib/npcActivityRuntime';
+import { resolveNpcRelationMatrixForActivities } from '../lib/npcRelationRuntime';
 import { resolveNightlyService, resolvePlayerNightlyServiceEvent } from '../lib/nightlyServiceRuntime';
 import { resolvePalaceBanquet } from '../lib/palaceBanquetRuntime';
 import {
@@ -57,6 +63,7 @@ import {
 import {
   buildSaveGameV1,
   clearSaveGameV1Storage,
+  isSaveGameV1,
   readSaveGameV1FromStorage,
   SAVE_GAME_STORAGE_KEY,
   type SaveGameV1,
@@ -79,6 +86,8 @@ import type {
   MusicHallProgressState,
   NightlyServiceInteractionActionId,
   NightlyServiceInteractionChoice,
+  NpcActivityState,
+  NpcRelationMatrix,
   NightlyServiceState,
   PalaceBanquetProgressState,
   PalaceStrifeCaseState,
@@ -103,6 +112,16 @@ interface PendingOvernightReturn {
   id: string;
   origin: 'map' | 'chamber';
   reason: 'deep-night' | 'stamina';
+}
+
+interface PendingViewTransitionCleanup {
+  targetView: CurrentView;
+  clearMapLocation?: boolean;
+  resetChamberPanel?: boolean;
+}
+
+interface AdvanceTimeOptions {
+  lateNightPenalty?: boolean;
 }
 
 export interface GameFlowStore {
@@ -133,12 +152,15 @@ export interface GameFlowStore {
   palaceBanquetProgress: PalaceBanquetProgressState;
   templeProgress: TempleProgressState;
   nightlyService: NightlyServiceState;
+  npcActivity: NpcActivityState;
+  npcRelationMatrix: NpcRelationMatrix;
   settlementReports: SettlementReport[];
   palaceStrifeCases: PalaceStrifeCaseState[];
   latestSettlementReportId?: string;
   lastSeenSettlementReportId?: string;
   numericFeedbackSignal: NumericFeedbackSignal;
   pendingOvernightReturn?: PendingOvernightReturn;
+  pendingViewTransitionCleanup?: PendingViewTransitionCleanup;
   setCurrentView: (view: CurrentView) => void;
   setScene: (scene: SceneId) => void;
   openChamberPanel: (panel: ChamberPanelId) => void;
@@ -146,6 +168,7 @@ export interface GameFlowStore {
   setActiveAffairsSource: (source: AffairSourceLabel) => void;
   enterMainChamber: (location?: MapAreaId | null) => void;
   enterMapMain: () => void;
+  completeViewTransitionCleanup: () => void;
   setRoute: (routeId: GameNumericsState['routeId']) => void;
   applyRouteSelection: (profile: RouteSelectionProfile) => void;
   setPlayerName: (name: string) => void;
@@ -156,6 +179,7 @@ export interface GameFlowStore {
   setMapEventText: (text: string) => void;
   requestOvernightReturn: (payload: Omit<PendingOvernightReturn, 'id'>) => void;
   clearOvernightReturn: () => void;
+  completeOvernightTransition: (reason?: PendingOvernightReturn['reason']) => void;
   setSave: (save: NumericSaveEnvelope) => void;
   setAttributeValue: (key: string, value: number) => void;
   validatePoints: () => void;
@@ -168,6 +192,8 @@ export interface GameFlowStore {
   patchMusicHallProgress: (patch: Partial<MusicHallProgressState>) => void;
   patchPalaceBanquetProgress: (patch: Partial<PalaceBanquetProgressState>) => void;
   patchTempleProgress: (patch: Partial<TempleProgressState>) => void;
+  resolveNpcActivityEntry: (entryId: string) => void;
+  acknowledgeNpcPlayerVisit: (entryId: string) => void;
   consumeInventoryItem: (itemId: string) => boolean;
   grantInventoryItem: (item: InventoryItem, quantity?: number) => void;
   buyInventoryItem: (item: InventoryItem, stockLimit?: number | null) => { success: boolean; message: string };
@@ -183,7 +209,7 @@ export interface GameFlowStore {
     affectionCapHit: boolean;
   };
   applyBondJudgement: (result: RelationshipJudgeOutcome) => void;
-  advanceTime: (steps?: number) => void;
+  advanceTime: (steps?: number, options?: AdvanceTimeOptions) => void;
   acknowledgeSettlementReport: (reportId?: string) => void;
   acknowledgeNightlyServiceNotice: () => void;
   finalizePendingNightlyService: (choices: Array<NightlyServiceInteractionActionId | NightlyServiceInteractionChoice>) => void;
@@ -214,6 +240,11 @@ const clampInt = (value: number, min: number, max: number): number => Math.max(m
 const clampToRange = (value: number, range: readonly [number, number]): number => Math.max(range[0], Math.min(range[1], value));
 const timeSlots: PalaceTimeState['slot'][] = ['清晨', '上午', '中午', '下午', '傍晚', '夜晚', '深夜'];
 const DEFAULT_AFFAIRS_SOURCE = '????' as AffairSourceLabel;
+const LATE_NIGHT_PENALTY = {
+  stress: 2,
+  health: -0.1,
+  temperament: -0.1,
+} as const;
 const getCurrentXunKey = (time: PalaceTimeState): string => `${time.year}-${time.month}-${time.xun}`;
 const getNextXunMorning = (time: PalaceTimeState): PalaceTimeState => {
   let year = time.year;
@@ -343,6 +374,7 @@ const settlePalaceStrifeForXunTransitions = (
   concubines: ConcubineProfile[],
   customConsorts: ConcubineProfile[],
   nextTime: PalaceTimeState,
+  npcActivity: NpcActivityState,
 ): { cases: PalaceStrifeCaseState[]; lines: string[] } => {
   let nextCases = caseStates;
   const lines: string[] = [];
@@ -357,6 +389,11 @@ const settlePalaceStrifeForXunTransitions = (
     nextCases = afterInvestigation;
   }
 
+  const hostilePlotActivity = getHostilePlotActivity(npcActivity);
+  if (!hostilePlotActivity) {
+    return { cases: nextCases, lines };
+  }
+
   const npcCase = generateNpcPalaceStrifeCase({
     concubines: [...concubines, ...customConsorts],
     existingCases: nextCases,
@@ -365,6 +402,8 @@ const settlePalaceStrifeForXunTransitions = (
       month: nextTime.month,
       xun: nextTime.xun,
     },
+    preferredActorConsortId: hostilePlotActivity?.actorConsortId,
+    preferredTargetConsortId: hostilePlotActivity?.targetConsortId,
   });
   if (npcCase) {
     nextCases = [...nextCases, npcCase];
@@ -414,6 +453,29 @@ const applyNpcPalaceStrifeConvictionPenalties = (
         favor: Number(consort.stats.favor ?? 0) + penalty.favorDelta,
         stress: Number(consort.stats.stress ?? 0) + penalty.stressDelta,
         relationToPlayer: Math.min(Number(consort.stats.relationToPlayer ?? 0), -20),
+      },
+    });
+  });
+};
+
+const applyNpcActivityStressDeltas = (
+  concubines: ConcubineProfile[],
+  deltasByConsortId: Record<string, number>,
+): ConcubineProfile[] => {
+  if (Object.keys(deltasByConsortId).length === 0) {
+    return concubines;
+  }
+
+  return concubines.map((consort) => {
+    const delta = deltasByConsortId[consort.id];
+    if (!delta) {
+      return consort;
+    }
+    return normalizeConcubineProfile({
+      ...consort,
+      stats: {
+        ...consort.stats,
+        stress: Math.max(0, Number(consort.stats.stress ?? 0) + delta),
       },
     });
   });
@@ -534,6 +596,7 @@ const buildSettlementReport = ({
   economy,
   monthGovernance,
   nightlyServiceLines,
+  lateNightPenaltyLines,
   palaceStrifeLines,
   reportIndex,
 }: {
@@ -545,6 +608,7 @@ const buildSettlementReport = ({
   economy: ReturnType<typeof resolveMonthlyEconomy> | null;
   monthGovernance: MonthGovernanceUpdate | null;
   nightlyServiceLines: string[];
+  lateNightPenaltyLines: string[];
   palaceStrifeLines: string[];
   reportIndex: number;
 }): SettlementReport | null => {
@@ -561,6 +625,10 @@ const buildSettlementReport = ({
       ? `已连续推进${xunTransitions}旬，当前回到${nextTime.month}月第${nextTime.xun}旬清晨。`
       : `已入${nextTime.month}月第${nextTime.xun}旬清晨，体力按新旬口径恢复为${nextState.stamina}。`,
   ];
+
+  if (lateNightPenaltyLines.length > 0) {
+    lines.push(...lateNightPenaltyLines);
+  }
 
   if (economy && monthTransitions > 0) {
     const currentRank = monthGovernance?.nextRankName ?? economy.rankName;
@@ -853,6 +921,14 @@ const initialTime: PalaceTimeState = {
 
 const initialBondProfile = buildInitialBondProfile('lanyinxuguo', getCurrentXunKey(initialTime));
 const initialConcubines = buildRouteConcubines('lanyinxuguo', [], initialState.favor);
+const initialNpcRelationMatrix: NpcRelationMatrix = {};
+const initialNpcActivity = generateNpcActivities({
+  routeId: 'lanyinxuguo',
+  xunKey: getCurrentXunKey(initialTime),
+  concubines: initialConcubines,
+  customConsorts: [],
+  relationMatrix: initialNpcRelationMatrix,
+});
 const initialInventory = cloneInitialInventory();
 const initialMerchantLedger: Record<string, number> = {};
 const createInitialKitchenProgress = (): KitchenProgressState => ({
@@ -887,6 +963,7 @@ const createInitialMusicHallProgress = (): MusicHallProgressState => ({
   lianQiaoMet: false,
   lianQiaoFavor: 0,
   lianQiaoAffection: 0,
+  musicScoreMastery: {},
 });
 
 const createInitialPalaceBanquetProgress = (): PalaceBanquetProgressState => ({
@@ -950,12 +1027,15 @@ const createInitialGameFlowFields = (currentView: CurrentView): Partial<GameFlow
   palaceBanquetProgress: createInitialPalaceBanquetProgress(),
   templeProgress: createInitialTempleProgress(),
   nightlyService: createInitialNightlyService(),
+  npcActivity: initialNpcActivity,
+  npcRelationMatrix: initialNpcRelationMatrix,
   settlementReports: [],
   palaceStrifeCases: [],
   latestSettlementReportId: undefined,
   lastSeenSettlementReportId: undefined,
   numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
   pendingOvernightReturn: undefined,
+  pendingViewTransitionCleanup: undefined,
 });
 
 const restoreSaveGameV1Fields = (saveGame: SaveGameV1): Partial<GameFlowStore> => ({
@@ -963,6 +1043,7 @@ const restoreSaveGameV1Fields = (saveGame: SaveGameV1): Partial<GameFlowStore> =
   scene: 'menu',
   activeChamberPanel: 'main',
   activeMapLocation: undefined,
+  pendingViewTransitionCleanup: undefined,
   activeAffairsSource: DEFAULT_AFFAIRS_SOURCE,
   routeId: saveGame.route.routeId,
   state: {
@@ -991,9 +1072,11 @@ const restoreSaveGameV1Fields = (saveGame: SaveGameV1): Partial<GameFlowStore> =
   kitchenProgress: saveGame.progress.kitchen,
   medicalProgress: saveGame.progress.medical,
   musicHallProgress: saveGame.progress.musicHall,
-  palaceBanquetProgress: saveGame.progress.palaceBanquet ?? createInitialPalaceBanquetProgress(),
+  palaceBanquetProgress: saveGame.progress.palaceBanquet,
   templeProgress: saveGame.progress.temple,
-  nightlyService: saveGame.progress.nightlyService ?? createInitialNightlyService(),
+  nightlyService: saveGame.progress.nightlyService,
+  npcActivity: saveGame.progress.npcActivity,
+  npcRelationMatrix: saveGame.relations.npcRelationMatrix,
   settlementReports: saveGame.world.settlementReports,
   palaceStrifeCases: saveGame.cases?.palaceStrifeCases ?? [],
   latestSettlementReportId: saveGame.world.latestSettlementReportId,
@@ -1032,12 +1115,15 @@ export const useGameFlowStore = create<GameFlowStore>()(
       palaceBanquetProgress: createInitialPalaceBanquetProgress(),
       templeProgress: createInitialTempleProgress(),
       nightlyService: createInitialNightlyService(),
+      npcActivity: initialNpcActivity,
+      npcRelationMatrix: initialNpcRelationMatrix,
       settlementReports: [],
       palaceStrifeCases: [],
       latestSettlementReportId: undefined,
       lastSeenSettlementReportId: undefined,
       numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
       pendingOvernightReturn: undefined,
+      pendingViewTransitionCleanup: undefined,
       setCurrentView: (currentView) => set({ currentView }),
       setScene: (scene) => set({ scene }),
       openChamberPanel: (activeChamberPanel) => set({ activeChamberPanel }),
@@ -1049,35 +1135,73 @@ export const useGameFlowStore = create<GameFlowStore>()(
           scene: 'activity',
           activeChamberPanel: 'main',
           activeMapLocation: location ?? undefined,
+          pendingViewTransitionCleanup: undefined,
         }),
       enterMapMain: () =>
-        set({
-          currentView: 'map-main',
-          scene: 'map',
-          activeChamberPanel: 'main',
-          activeMapLocation: undefined,
+        set((current) => {
+          const shouldDelayCleanup = current.currentView === 'bedchamber' && Boolean(current.activeMapLocation);
+          return {
+            currentView: 'map-main',
+            scene: 'map',
+            activeChamberPanel: shouldDelayCleanup ? current.activeChamberPanel : 'main',
+            activeMapLocation: shouldDelayCleanup ? current.activeMapLocation : undefined,
+            pendingViewTransitionCleanup: shouldDelayCleanup
+              ? {
+                  targetView: 'map-main',
+                  clearMapLocation: true,
+                  resetChamberPanel: true,
+                }
+              : undefined,
+          };
+        }),
+      completeViewTransitionCleanup: () =>
+        set((current) => {
+          const cleanup = current.pendingViewTransitionCleanup;
+          if (!cleanup || current.currentView !== cleanup.targetView) {
+            return current;
+          }
+
+          return {
+            activeChamberPanel: cleanup.resetChamberPanel ? 'main' : current.activeChamberPanel,
+            activeMapLocation: cleanup.clearMapLocation ? undefined : current.activeMapLocation,
+            pendingViewTransitionCleanup: undefined,
+          };
         }),
       setRoute: (routeId) =>
-        set((current) => ({
-          routeId,
-          state: { ...current.state, routeId },
-          bondProfile: buildInitialBondProfile(routeId, getCurrentXunKey(current.time)),
-          concubineRouteId: routeId,
-          concubines: buildRouteConcubines(routeId, current.customConsorts, current.state.favor),
-          merchantLedger: {},
-          kitchenProgress: createInitialKitchenProgress(),
-          medicalProgress: createInitialMedicalProgress(),
-          musicHallProgress: createInitialMusicHallProgress(),
-          palaceBanquetProgress: createInitialPalaceBanquetProgress(),
-          templeProgress: createInitialTempleProgress(),
-          nightlyService: createInitialNightlyService(),
-          settlementReports: [],
-          latestSettlementReportId: undefined,
-          lastSeenSettlementReportId: undefined,
-        })),
+        set((current) => {
+          const nextConcubines = buildRouteConcubines(routeId, current.customConsorts, current.state.favor);
+          const npcRelationMatrix: NpcRelationMatrix = {};
+          return {
+            routeId,
+            state: { ...current.state, routeId },
+            bondProfile: buildInitialBondProfile(routeId, getCurrentXunKey(current.time)),
+            concubineRouteId: routeId,
+            concubines: nextConcubines,
+            merchantLedger: {},
+            kitchenProgress: createInitialKitchenProgress(),
+            medicalProgress: createInitialMedicalProgress(),
+            musicHallProgress: createInitialMusicHallProgress(),
+            palaceBanquetProgress: createInitialPalaceBanquetProgress(),
+            templeProgress: createInitialTempleProgress(),
+            nightlyService: createInitialNightlyService(),
+            npcRelationMatrix,
+            npcActivity: generateNpcActivities({
+              routeId,
+              xunKey: getCurrentXunKey(current.time),
+              concubines: nextConcubines,
+              customConsorts: current.customConsorts,
+              relationMatrix: npcRelationMatrix,
+            }),
+            settlementReports: [],
+            latestSettlementReportId: undefined,
+            lastSeenSettlementReportId: undefined,
+          };
+        }),
       applyRouteSelection: (profile) =>
         set(() => {
           const nextFavor = normalizePlayerFavor(profile.hiddenStats.favor);
+          const nextConcubines = buildRouteConcubines(profile.id, [], nextFavor);
+          const npcRelationMatrix: NpcRelationMatrix = {};
           return {
             currentView: 'attribute-assignment',
             scene: 'activity',
@@ -1122,7 +1246,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             save: undefined,
             bondProfile: buildInitialBondProfile(profile.id, getCurrentXunKey(initialTime)),
             concubineRouteId: profile.id,
-            concubines: buildRouteConcubines(profile.id, [], nextFavor),
+            concubines: nextConcubines,
             customConsorts: [],
             inventory: cloneInitialInventory(),
             merchantLedger: {},
@@ -1133,6 +1257,14 @@ export const useGameFlowStore = create<GameFlowStore>()(
             palaceBanquetProgress: createInitialPalaceBanquetProgress(),
             templeProgress: createInitialTempleProgress(),
             nightlyService: createInitialNightlyService(),
+            npcRelationMatrix,
+            npcActivity: generateNpcActivities({
+              routeId: profile.id,
+              xunKey: getCurrentXunKey(initialTime),
+              concubines: nextConcubines,
+              customConsorts: [],
+              relationMatrix: npcRelationMatrix,
+            }),
             settlementReports: [],
             palaceStrifeCases: [],
             latestSettlementReportId: undefined,
@@ -1214,6 +1346,13 @@ export const useGameFlowStore = create<GameFlowStore>()(
           },
         }),
       clearOvernightReturn: () => set({ pendingOvernightReturn: undefined }),
+      completeOvernightTransition: (reason) => {
+        const current = get();
+        const stepsToMorning = Math.max(1, timeSlots.length - current.time.slotIndex);
+        const shouldApplyLateNightPenalty = reason === 'deep-night' || current.time.slot === '深夜';
+
+        get().advanceTime(stepsToMorning, { lateNightPenalty: shouldApplyLateNightPenalty });
+      },
       setSave: (save) => set({ save }),
       setAttributeValue: (key, value) =>
         set((current) => {
@@ -1284,10 +1423,18 @@ export const useGameFlowStore = create<GameFlowStore>()(
       addCustomConsort: (consort) =>
         set((current) => {
           const customConsorts = [...current.customConsorts, consort];
+          const nextConcubines = buildRouteConcubines(current.state.routeId, customConsorts, current.state.favor);
           return {
             customConsorts,
-            concubines: buildRouteConcubines(current.state.routeId, customConsorts, current.state.favor),
+            concubines: nextConcubines,
             concubineRouteId: current.state.routeId,
+            npcActivity: generateNpcActivities({
+              routeId: current.state.routeId,
+              xunKey: getCurrentXunKey(current.time),
+              concubines: nextConcubines,
+              customConsorts,
+              relationMatrix: current.npcRelationMatrix,
+            }),
           };
         }),
       patchKitchenProgress: (patch) =>
@@ -1323,6 +1470,43 @@ export const useGameFlowStore = create<GameFlowStore>()(
           templeProgress: {
             ...current.templeProgress,
             ...patch,
+          },
+        })),
+      resolveNpcActivityEntry: (entryId) =>
+        set((current) => ({
+          npcActivity: {
+            ...current.npcActivity,
+            entries: {
+              ...current.npcActivity.entries,
+              ...(current.npcActivity.entries[entryId]
+                ? {
+                    [entryId]: {
+                      ...current.npcActivity.entries[entryId],
+                      resolved: true,
+                    },
+                  }
+                : {}),
+            },
+          },
+        })),
+      acknowledgeNpcPlayerVisit: (entryId) =>
+        set((current) => ({
+          npcActivity: {
+            ...current.npcActivity,
+            triggeredVisitIds: current.npcActivity.triggeredVisitIds.includes(entryId)
+              ? current.npcActivity.triggeredVisitIds
+              : [...current.npcActivity.triggeredVisitIds, entryId],
+            entries: {
+              ...current.npcActivity.entries,
+              ...(current.npcActivity.entries[entryId]
+                ? {
+                    [entryId]: {
+                      ...current.npcActivity.entries[entryId],
+                      resolved: true,
+                    },
+                  }
+                : {}),
+            },
           },
         })),
       patchConcubineById: (consortId, updater) =>
@@ -1683,7 +1867,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             },
           };
         }),
-      advanceTime: (steps = 1) =>
+      advanceTime: (steps = 1, options) =>
         set((current) => {
           const previousTime = current.time;
           let year = current.time.year;
@@ -1803,6 +1987,10 @@ export const useGameFlowStore = create<GameFlowStore>()(
                 })
               : null;
           const hasPendingPlayerNightlyService = Boolean(nightlyServiceSettlement?.pendingEvent);
+          const npcRelationSettlement =
+            xunTransitions > 0
+              ? resolveNpcRelationMatrixForActivities(current.npcRelationMatrix, Object.values(current.npcActivity.entries))
+              : { matrix: current.npcRelationMatrix, deltasByConsortId: {} };
           const palaceStrifeSettlement =
             xunTransitions > 0
               ? settlePalaceStrifeForXunTransitions(
@@ -1812,6 +2000,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
                   current.concubines,
                   current.customConsorts,
                   nextTime,
+                  current.npcActivity,
                 )
               : { cases: current.palaceStrifeCases, lines: [] };
           const nextPalaceStrifeCases = palaceStrifeSettlement.cases;
@@ -1834,6 +2023,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             }),
             { prestigeDelta: 0, favorDelta: 0, stressDelta: 0 },
           );
+          const shouldApplyLateNightPenalty = Boolean(options?.lateNightPenalty && xunTransitions > 0);
           const postSettlementPrestige = normalizePrestige(
             current.state.prestige +
               monthlyExpensePrestigeDelta +
@@ -1848,7 +2038,10 @@ export const useGameFlowStore = create<GameFlowStore>()(
               convictionPenaltyTotals.favorDelta +
               (nightlyServiceSettlement?.effects.playerFavorDelta ?? 0),
           );
-          const postSettlementStress = Math.max(0, current.state.stress + convictionPenaltyTotals.stressDelta);
+          const postSettlementStress = Math.max(
+            0,
+            current.state.stress + convictionPenaltyTotals.stressDelta + (shouldApplyLateNightPenalty ? LATE_NIGHT_PENALTY.stress : 0),
+          );
           const postSettlementTrueHeart = current.state.trueHeart + (nightlyServiceSettlement?.effects.playerTrueHeartDelta ?? 0);
           const currentRankName =
             normalizeTrackedPlayerRankLabel(current.hiddenStats.initialRank) ?? resolvePlayerRankByPrestige(current.state.prestige);
@@ -1871,6 +2064,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
                   nextResidenceName,
                 }
               : null;
+          const shouldUpdatePlayerStats = monthTransitions > 0 || shouldApplyLateNightPenalty;
           const nextState = xunTransitions > 0 || nightlyServiceSettlement || palaceBanquetSettlement
             ? {
                 ...current.state,
@@ -1880,10 +2074,20 @@ export const useGameFlowStore = create<GameFlowStore>()(
                 favor: postSettlementFavor,
                 stress: postSettlementStress,
                 trueHeart: postSettlementTrueHeart,
-                stats: monthTransitions > 0
+                stats: shouldUpdatePlayerStats
                   ? {
                       ...current.state.stats,
-                      health: Math.max(0, Number(current.state.stats.health ?? 0) + monthlyExpenseHealthDelta),
+                      health: Math.max(
+                        0,
+                        Number(current.state.stats.health ?? 0) +
+                          monthlyExpenseHealthDelta +
+                          (shouldApplyLateNightPenalty ? LATE_NIGHT_PENALTY.health : 0),
+                      ),
+                      temperament: Math.max(
+                        0,
+                        Number(current.state.stats.temperament ?? 0) +
+                          (shouldApplyLateNightPenalty ? LATE_NIGHT_PENALTY.temperament : 0),
+                      ),
                     }
                   : current.state.stats,
                 residenceName: xunTransitions > 0 ? nextResidenceName : current.state.residenceName,
@@ -1899,11 +2103,17 @@ export const useGameFlowStore = create<GameFlowStore>()(
             : current.state;
           const baseNextConcubines =
             xunTransitions > 0
-              ? current.concubines.map((consort) => applyConcubinePressureHealthPenalty(consort, xunTransitions))
+              ? applyNpcActivityStressDeltas(
+                  current.concubines.map((consort) => applyConcubinePressureHealthPenalty(consort, xunTransitions)),
+                  npcRelationSettlement.deltasByConsortId,
+                )
               : current.concubines;
           const baseNextCustomConsorts =
             xunTransitions > 0
-              ? current.customConsorts.map((consort) => applyConcubinePressureHealthPenalty(consort, xunTransitions))
+              ? applyNpcActivityStressDeltas(
+                  current.customConsorts.map((consort) => applyConcubinePressureHealthPenalty(consort, xunTransitions)),
+                  npcRelationSettlement.deltasByConsortId,
+                )
               : current.customConsorts;
           const nextConcubines = applyNightlyServiceConsortEffect(
             applyNpcPalaceStrifeConvictionPenalties(baseNextConcubines, npcConvictedCases),
@@ -1915,12 +2125,25 @@ export const useGameFlowStore = create<GameFlowStore>()(
             nightlyServiceSettlement?.targetConsortId,
             nightlyServiceSettlement?.targetConsortFavorDelta ?? 0,
           );
+          const nextNpcActivity =
+            xunTransitions > 0
+              ? generateNpcActivities({
+                  routeId: nextState.routeId,
+                  xunKey: getCurrentXunKey(nextTime),
+                  concubines: nextConcubines,
+                  customConsorts: nextCustomConsorts,
+                  relationMatrix: npcRelationSettlement.matrix,
+                })
+              : current.npcActivity;
           const nightlyServiceLines =
             xunTransitions > 0
               ? current.nightlyService.pendingMorningLines ?? []
               : hasPendingPlayerNightlyService
                 ? []
                 : nightlyServiceSettlement?.morningLines ?? [];
+          const lateNightPenaltyLines = shouldApplyLateNightPenalty
+            ? ['娇娇低声禀道：昨夜歇得太晚，晨起气色难免受损。压力+2，健康-10，气质-10。']
+            : [];
           const palaceStrifeLines =
             xunTransitions > 0
               ? [
@@ -1940,6 +2163,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
                 economy,
                 monthGovernance,
                 nightlyServiceLines,
+                lateNightPenaltyLines,
                 palaceStrifeLines,
                 reportIndex: current.settlementReports.length + 1,
               });
@@ -1985,6 +2209,8 @@ export const useGameFlowStore = create<GameFlowStore>()(
                 : current.hiddenStats,
             concubines: enforceRosterFavorCaps(nextConcubines, nextState.favor),
             customConsorts: nextCustomConsorts,
+            npcRelationMatrix: npcRelationSettlement.matrix,
+            npcActivity: nextNpcActivity,
             palaceBanquetProgress: {
               ...current.palaceBanquetProgress,
               currentSeasonKey: resolvePalaceBanquetSeasonKeyForTime(nextTime),
@@ -2092,6 +2318,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             economy: null,
             monthGovernance: null,
             nightlyServiceLines: result.lines,
+            lateNightPenaltyLines: [],
             palaceStrifeLines: [],
             reportIndex: current.settlementReports.length + 1,
           });
@@ -2325,49 +2552,15 @@ export const useGameFlowStore = create<GameFlowStore>()(
         }) as unknown as Partial<GameFlowStore>,
       merge: (persisted, current) => {
         const saveGame = (persisted as { saveGame?: SaveGameV1 } | undefined)?.saveGame;
-        if (saveGame?.schemaVersion === 1) {
+        if (isSaveGameV1(saveGame)) {
           return {
             ...current,
             ...restoreSaveGameV1Fields(saveGame),
           };
         }
 
-        return {
-          ...current,
-          ...(persisted as Partial<GameFlowStore>),
-          currentView: 'start',
-        activeChamberPanel: (persisted as Partial<GameFlowStore>)?.activeChamberPanel ?? 'main',
-        activeMapLocation: (persisted as Partial<GameFlowStore>)?.activeMapLocation,
-        activeAffairsSource: (persisted as Partial<GameFlowStore>)?.activeAffairsSource ?? '宫斗事务',
-        bondProfile:
-          (persisted as Partial<GameFlowStore>)?.bondProfile ??
-          buildInitialBondProfile(current.state.routeId, getCurrentXunKey(current.time)),
-        concubineRouteId: (persisted as Partial<GameFlowStore>)?.concubineRouteId ?? current.state.routeId,
-        concubines:
-          (persisted as Partial<GameFlowStore>)?.concubines
-            ? enforceConcubineFavorTierCaps(
-                (persisted as Partial<GameFlowStore>)?.concubines?.map(normalizeConcubineProfile) ?? [],
-                [((persisted as Partial<GameFlowStore>)?.state?.favor ?? current.state.favor)],
-              )
-            : buildRouteConcubines(
-                (persisted as Partial<GameFlowStore>)?.routeId ?? current.state.routeId,
-                ((persisted as Partial<GameFlowStore>)?.customConsorts ?? []).map(normalizeConcubineProfile),
-                (persisted as Partial<GameFlowStore>)?.state?.favor ?? current.state.favor,
-              ),
-        customConsorts: ((persisted as Partial<GameFlowStore>)?.customConsorts ?? []).map(normalizeConcubineProfile),
-        inventory: (persisted as Partial<GameFlowStore>)?.inventory ?? cloneInitialInventory(),
-        merchantLedger: (persisted as Partial<GameFlowStore>)?.merchantLedger ?? {},
-        consortInteractionMap: (persisted as Partial<GameFlowStore>)?.consortInteractionMap ?? {},
-        kitchenProgress: (persisted as Partial<GameFlowStore>)?.kitchenProgress ?? createInitialKitchenProgress(),
-        medicalProgress: (persisted as Partial<GameFlowStore>)?.medicalProgress ?? createInitialMedicalProgress(),
-        musicHallProgress: (persisted as Partial<GameFlowStore>)?.musicHallProgress ?? createInitialMusicHallProgress(),
-        palaceBanquetProgress: (persisted as Partial<GameFlowStore>)?.palaceBanquetProgress ?? createInitialPalaceBanquetProgress(),
-        templeProgress: (persisted as Partial<GameFlowStore>)?.templeProgress ?? createInitialTempleProgress(),
-        settlementReports: (persisted as Partial<GameFlowStore>)?.settlementReports ?? [],
-        palaceStrifeCases: (persisted as Partial<GameFlowStore>)?.palaceStrifeCases ?? [],
-        latestSettlementReportId: (persisted as Partial<GameFlowStore>)?.latestSettlementReportId,
-        lastSeenSettlementReportId: (persisted as Partial<GameFlowStore>)?.lastSeenSettlementReportId,
-        };
+        clearSaveGameV1Storage();
+        return current;
       },
     },
   ),

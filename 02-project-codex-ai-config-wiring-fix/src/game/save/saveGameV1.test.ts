@@ -106,6 +106,12 @@ const source: SaveGameV1Source = {
     emperorMood: 40,
     reports: [],
   },
+  npcActivity: {
+    xunKey: '1-2-1',
+    entries: {},
+    triggeredVisitIds: [],
+  },
+  npcRelationMatrix: {},
   settlementReports: [
     {
       id: 'settlement-1',
@@ -165,8 +171,10 @@ describe('SaveGameV1', () => {
     expect(saveGame.roster.concubines.length).toBeGreaterThan(0);
     expect(saveGame.inventory.items.length).toBeGreaterThan(0);
     expect(saveGame.progress.medical.jianNingMet).toBe(true);
-    expect(saveGame.progress.palaceBanquet?.submissionCount).toBe(0);
+    expect(saveGame.progress.palaceBanquet.submissionCount).toBe(0);
+    expect(saveGame.progress.npcActivity.xunKey).toBe('1-2-1');
     expect(saveGame.relations.bondProfile.npcId).toBe(source.bondProfile.npcId);
+    expect(saveGame.relations.npcRelationMatrix).toEqual({});
   });
 
   it('keeps transient UI state out of the durable save schema', () => {
@@ -189,5 +197,16 @@ describe('SaveGameV1', () => {
     clearSaveGameV1Storage();
 
     expect(readSaveGameV1FromStorage()).toBeUndefined();
+  });
+
+  it('clears an incompatible persisted envelope instead of migrating it', () => {
+    const incompatibleSaveGame = buildSaveGameV1(source, '2026-05-22T05:00:00.000Z') as unknown as {
+      progress: Partial<ReturnType<typeof buildSaveGameV1>['progress']>;
+    };
+    delete incompatibleSaveGame.progress.npcActivity;
+    localStorage.setItem(SAVE_GAME_STORAGE_KEY, JSON.stringify({ state: { saveGame: incompatibleSaveGame }, version: 0 }));
+
+    expect(readSaveGameV1FromStorage()).toBeUndefined();
+    expect(localStorage.getItem(SAVE_GAME_STORAGE_KEY)).toBeNull();
   });
 });

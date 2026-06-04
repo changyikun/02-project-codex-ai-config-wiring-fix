@@ -5,6 +5,7 @@ import {
 } from '../../ai/openingDialogueAgent';
 import { shouldUseRealtimeAiGameplay } from '../../config/gameplayMode';
 import { MONTHLY_EXPENSE_STRATEGIES } from '../../config/monthlyExpenseStrategy';
+import { YINGLUOYETING_INITIAL_RESIDENCE } from '../../config/haremPalaces';
 import { resolvePlayerClanLabel, resolvePlayerSurname } from './playerNameRuntime';
 
 const emptyEffects = () => ({
@@ -51,7 +52,7 @@ const buildYingluoyetingOpeningDialogue = (payload: OpeningDialogueRequestPayloa
       mode: 'line',
       phase: 'continue',
       speakerIdentity: '场景旁白',
-      speakerName: payload.residenceName,
+      speakerName: '掖庭院',
       text:
         `掖庭掌事把名册合上时，屋中只剩纸页摩擦的轻响。\n“${playerClanLabel}，字写得不错，规矩也还算稳。”\n她没有抬眼，只把一卷旧册推到你面前。\n“内廷缺人整理旧档，原本轮不到你。可你既识字，又是罪臣之后，若真出了差错，也没人替你说话。”\n这话说得难听，却也是机会。\n你接过旧册，指尖触到封皮上陈旧的灰。\n三日后，你免了最粗重的杂役，被拨去内廷听用。\n那时你仍不是小主，只是一个能抄字、能听差、也更容易被看住的罪臣女眷。\n真正改命的，是一份宫宴前夜的祝词。\n原稿堆在案角，辞藻浮艳，错漏处却无人肯担。你借着誊抄，把它改得清稳合礼，又故意留下一个不显眼的笔锋：不冒进，不邀功，却足够让看惯奉承的人多停一眼。`,
       nextActionLabel: '下一句',
@@ -66,7 +67,7 @@ const buildYingluoyetingOpeningDialogue = (payload: OpeningDialogueRequestPayloa
       mode: 'line',
       phase: 'continue',
       speakerIdentity: '场景旁白',
-      speakerName: payload.residenceName,
+      speakerName: '御前殿外',
       text:
         `那份祝词随待呈文书送到御前。\n容安看过后，叫人把改稿的宫人带到殿外问话。\n你隔着屏风行礼，只说自己是内廷听用宫人。皇帝问礼制，你答礼制；问曲名，你答曲名；问为何改那两处错漏，你只说：“旧词不合宫宴礼数，奴婢不敢照错誊上。”\n你没有提${playerSurname}家，也没有喊冤。你要的不是怜悯，而是让他知道：掖庭里有一个懂规矩、识字、能办事的人。\n问话之后，内侍按例去查你的名籍，才发现你是${playerClanLabel}旧案余眷。\n于是他只给了你一个最低的位号，把你放进后妃册最末。`,
       nextActionLabel: '听明白了',
@@ -82,7 +83,7 @@ const buildYingluoyetingOpeningDialogue = (payload: OpeningDialogueRequestPayloa
       phase: 'continue',
       speakerIdentity: '掖庭引路宫女',
       speakerName: payload.npcName,
-      text: '娇娇也是那日被拨到你身边的。可出掖庭门时，娇娇替你抱着旧匣，小声提醒：“小主，往后人前说话，要比从前更慢些。您如今有了位号，旁人也就有了挑错的由头。”',
+      text: `娇娇也是那日被拨到你身边的。出掖庭门时，她替你抱着旧匣，小声提醒：“小主，往后人前说话，要比从前更慢些。您如今有了位号，旁人也就有了挑错的由头。”她没有带你回掖庭旧屋，而是领着你往后宫去。新拨下来的住处在${YINGLUOYETING_INITIAL_RESIDENCE}，地方偏些，却到底是后妃名册里的寝居。`,
       nextActionLabel: '听明白了',
       timeCost: 0,
       dataEffects: emptyEffects(),
@@ -95,9 +96,9 @@ const buildYingluoyetingOpeningDialogue = (payload: OpeningDialogueRequestPayloa
       mode: 'line',
       phase: 'continue',
       speakerIdentity: '场景旁白',
-      speakerName: payload.residenceName,
+      speakerName: '后宫宫道',
       text:
-        '回忆像灯花一样轻轻爆开，又很快落回眼前。\n你仍住在掖庭边院，离真正的后宫体面还很远。可从今日起，你有了可以安排的时辰、可以积攒的声望，也有了能一步步往上走的名分。',
+        `回忆像灯花一样轻轻爆开，又很快落回眼前。\n你已不再住掖庭边院。娇娇带你穿过后宫宫道，往${YINGLUOYETING_INITIAL_RESIDENCE}去。偏殿门楣不高，院中陈设也算不得体面，可从今日起，你有了可以安排的时辰、可以积攒的声望，也有了能一步步往上走的名分。`,
       nextActionLabel: '听明白了',
       timeCost: 0,
       dataEffects: emptyEffects(),
@@ -110,7 +111,7 @@ const buildYingluoyetingOpeningDialogue = (payload: OpeningDialogueRequestPayloa
     phase: 'finish',
     speakerIdentity: '掖庭引路宫女',
     speakerName: payload.npcName,
-    text: '娇娇把木匣收进柜中，替你推开窗。\n“小主，今日要先读书、休养，还是出去认认宫路，您拿主意吧。”',
+    text: `娇娇扶着木匣，脚步在后宫宫道边停了停。\n“小主，进${YINGLUOYETING_INITIAL_RESIDENCE}前，奴婢先把用度说清。往后是省着过、稳着过，还是先撑住体面，都得您自己拿主意。”`,
     nextActionLabel: '定下心思',
     timeCost: 0,
     dataEffects: emptyEffects(),

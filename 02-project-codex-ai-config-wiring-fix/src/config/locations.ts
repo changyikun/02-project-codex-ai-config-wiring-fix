@@ -51,6 +51,7 @@ export const LOCATION_NAME_LIST = [
   '宝华殿',
   '御花园',
   '椒房殿',
+  '掖庭院',
   '储秀宫',
   '长春宫',
   '启祥宫',
@@ -88,6 +89,7 @@ export const LOCATION_OPEN_TIME: Record<LocationName, LocationOpenTimeConfig> = 
   宝华殿: { mode: LocationOpenMode.AllDay, openSlots: LOCATION_FULL_DAY_OPEN_SLOTS },
   御花园: { mode: LocationOpenMode.AllDay, openSlots: LOCATION_FULL_DAY_OPEN_SLOTS },
   椒房殿: { mode: LocationOpenMode.AllDay, openSlots: LOCATION_FULL_DAY_OPEN_SLOTS },
+  掖庭院: { mode: LocationOpenMode.AllDay, openSlots: LOCATION_FULL_DAY_OPEN_SLOTS },
 
   储秀宫: { mode: LocationOpenMode.AllDay, openSlots: LOCATION_FULL_DAY_OPEN_SLOTS },
   长春宫: { mode: LocationOpenMode.AllDay, openSlots: LOCATION_FULL_DAY_OPEN_SLOTS },

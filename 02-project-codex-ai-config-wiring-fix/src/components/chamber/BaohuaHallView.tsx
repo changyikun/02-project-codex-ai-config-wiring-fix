@@ -11,6 +11,7 @@ import {
 } from '../../game/lib/baohuaDialogueRuntime';
 import { buildLocationActionNarrative } from '../../game/lib/actionNarrativeRuntime';
 import { clampToRange, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
+import { getNpcActivitiesAtLocation } from '../../game/lib/npcActivityRuntime';
 import { requestRelationshipJudgementWithFallback } from '../../game/lib/relationshipJudgeRuntime';
 import { requestTempleAmbientWithFallback } from '../../game/lib/templeAmbientRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
@@ -37,9 +38,6 @@ interface BaohuaSceneActor extends BaohuaDialogueActor {
 }
 
 const DANGYI_PORTRAIT_SRC = '/assets/characters/men/dangyi.png';
-const DOWAGER_PORTRAIT_SRC = '/assets/characters/women/taihou-cutout.png';
-const hashSeed = (seed: string): number =>
-  seed.split('').reduce((sum, char, index) => sum + char.charCodeAt(0) * (index + 19), 0);
 
 const buildDangYiActor = (favor: number, affection: number): BaohuaSceneActor => ({
   id: 'dangyi',
@@ -52,19 +50,6 @@ const buildDangYiActor = (favor: number, affection: number): BaohuaSceneActor =>
   currentAffection: affection,
   actorKind: 'dangyi',
   portraitSrc: DANGYI_PORTRAIT_SRC,
-});
-
-const buildDowagerActor = (): BaohuaSceneActor => ({
-  id: 'dowager',
-  name: '太后',
-  identity: '太后',
-  residence: '建章宫',
-  personality: '清醒强势，极重规矩，擅长观察与驯化，记仇护短，会审时度势，欣赏聪明人，但更欣赏懂分寸的聪明人。',
-  summary: '她是后宫最高权力长辈角色，看人先看可用性，再看风骨，最后才轮到私心。',
-  currentGoodwill: 0,
-  currentAffection: 0,
-  actorKind: 'dowager',
-  portraitSrc: DOWAGER_PORTRAIT_SRC,
 });
 
 const buildConsortActor = (consort: ConcubineProfile): BaohuaSceneActor => ({
@@ -90,6 +75,8 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     patchTempleProgress,
     applyStoryEffects,
     applyConsortRelationshipJudgement,
+    npcActivity,
+    resolveNpcActivityEntry,
   } = useGameFlowStore();
   const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [activeActor, setActiveActor] = useState<BaohuaSceneActor | null>(null);
@@ -106,12 +93,12 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const dialogueOptions = dialogueTurn?.options ?? [];
   const isDangYiMet = Boolean(state.flags.isDangYiMet);
-  const eligibleConsorts = useMemo(
-    () => concubines.filter((consort) => consort.status === 'live' && consort.residence !== '冷宫' && !consort.name.includes('太后')),
-    [concubines],
-  );
-  const currentSeed = `${state.routeId}:${time.year}-${time.month}-${time.xun}:${time.slotIndex}`;
-
+  const scheduledConsortActivity = useMemo(() => {
+    const scheduledEntries = getNpcActivitiesAtLocation(npcActivity, '宝华殿');
+    const entry = scheduledEntries.find((candidate) => concubines.some((consort) => consort.id === candidate.actorConsortId));
+    const consort = entry ? concubines.find((candidate) => candidate.id === entry.actorConsortId) : undefined;
+    return entry && consort ? { entry, consort } : null;
+  }, [concubines, npcActivity]);
   const buildPayload = (
     actor: BaohuaSceneActor,
     topic: 'visit' | 'follow-up',
@@ -345,50 +332,26 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     const actionOutcome = beginTimedLocationAction();
     const nextCount = templeProgress.strollCount + 1;
     patchTempleProgress({ strollCount: nextCount });
-    const rollSeed = `${currentSeed}:baohua-stroll:${nextCount}`;
-    const success = hashSeed(rollSeed) % 100 < 20;
 
     try {
-      if (!success) {
-        const ambient = await requestTempleAmbientWithFallback({
-          routeId: state.routeId,
-          playerName: state.name,
-          playerRank: playerRankLabel,
-          location: '宝华殿',
-          action: 'stroll-idle',
-          stateHint: `闲逛第${nextCount}次`,
-          timeContext: time,
-        });
-        patchTempleProgress({ lastAmbientText: ambient });
-        showActionResult(
-          buildLocationActionNarrative({
-            locationId: 'baohua-hall',
-            actionId: 'stroll',
-            actionLabel: '闲逛',
-            resultText: ambient,
-          }),
-          actionOutcome,
-        );
-        return;
-      }
-
-      const actorPool: BaohuaSceneActor[] = [buildDowagerActor(), ...eligibleConsorts.map((consort) => buildConsortActor(consort))];
-      const actor = actorPool[hashSeed(`${rollSeed}:actor`) % actorPool.length];
-      patchTempleProgress({ lastEncounterNpcId: actor.id });
-      setSystemMessage(
+      const ambient = await requestTempleAmbientWithFallback({
+        routeId: state.routeId,
+        playerName: state.name,
+        playerRank: playerRankLabel,
+        location: '宝华殿',
+        action: 'stroll-idle',
+        stateHint: `闲逛第${nextCount}次`,
+        timeContext: time,
+      });
+      patchTempleProgress({ lastAmbientText: ambient });
+      showActionResult(
         buildLocationActionNarrative({
           locationId: 'baohua-hall',
-          actionId: 'meet',
-          actionLabel: '宝华殿闲逛',
-          resultText: `你在殿中回廊撞见了${actor.identity} ${actor.name}。`,
+          actionId: 'stroll',
+          actionLabel: '闲逛',
+          resultText: ambient,
         }),
-      );
-      holdTimedActionOutcome(actionOutcome);
-      await beginEncounter(
-        actor,
-        'stroll-encounter',
-        '宝华殿闲逛',
-        `你在宝华殿闲逛时，撞见了${actor.identity} ${actor.name}。`,
+        actionOutcome,
       );
     } finally {
       setBusy(false);

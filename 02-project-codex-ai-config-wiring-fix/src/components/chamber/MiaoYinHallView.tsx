@@ -17,6 +17,12 @@ import { clampToRange, createDialogueId, trimDialogueHistory } from '../../game/
 import { traceDialogue } from '../../game/lib/dialogueTrace';
 import { requestMiaoYinAmbientWithFallback } from '../../game/lib/miaoyinAmbientRuntime';
 import {
+  resolveMusicScoreMastery,
+  resolveMusicScorePractice,
+  resolveMusicScoreQualityLabel,
+} from '../../game/lib/musicScoreRuntime';
+import { getNpcActivitiesAtLocation } from '../../game/lib/npcActivityRuntime';
+import {
   getPalaceBanquetEventTime,
   isPalaceBanquetRegistrationOpen,
   resolvePalaceBanquetSeasonKeyForTime,
@@ -106,8 +112,10 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     patchPalaceBanquetProgress,
     applyStoryEffects,
     applyConsortRelationshipJudgement,
-    consumeInventoryItem,
     grantInventoryItem,
+    markNumericFeedbackEvent,
+    npcActivity,
+    resolveNpcActivityEntry,
   } = useGameFlowStore();
   const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [activeActor, setActiveActor] = useState<MiaoYinSceneActor | null>(null);
@@ -121,6 +129,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
   const [pendingLianQiaoUnlock, setPendingLianQiaoUnlock] = useState(false);
   const [pendingUnlockReward, setPendingUnlockReward] = useState<InventoryItem[]>([]);
   const [showSignUpPicker, setShowSignUpPicker] = useState(false);
+  const [showPracticePicker, setShowPracticePicker] = useState(false);
   const [actionResultText, setActionResultText] = useState('');
   const [pendingTimedActionOutcome, setPendingTimedActionOutcome] = useState<TimedLocationActionOutcome | null>(null);
 
@@ -128,10 +137,12 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
   const saveId = useMemo(() => `local:${state.routeId}:${encodeURIComponent(state.name)}`, [state.name, state.routeId]);
   const dialogueOptions = dialogueTurn?.options ?? [];
   const isLianQiaoMet = Boolean(state.flags.isLianQiaoMet || musicHallProgress.lianQiaoMet);
-  const eligibleConsorts = useMemo(
-    () => concubines.filter((consort) => consort.status === 'live' && consort.residence !== '冷宫' && !consort.name.includes('太后')),
-    [concubines],
-  );
+  const scheduledConsortActivity = useMemo(() => {
+    const scheduledEntries = getNpcActivitiesAtLocation(npcActivity, '妙音堂');
+    const entry = scheduledEntries.find((candidate) => concubines.some((consort) => consort.id === candidate.actorConsortId));
+    const consort = entry ? concubines.find((candidate) => candidate.id === entry.actorConsortId) : undefined;
+    return entry && consort ? { entry, consort } : null;
+  }, [concubines, npcActivity]);
   const currentSeed = `${state.routeId}:${time.year}-${time.month}-${time.xun}:${time.slotIndex}`;
   const currentXunIndex = toXunIndex(time.year, time.month, time.xun);
   const banquetYear = resolvePalaceBanquetYearForTime(time);
@@ -144,6 +155,17 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     () => inventory.filter((item) => isMusicScoreItem(item) && item.quantity > 0),
     [inventory],
   );
+  const ownedMusicScoreMastery = useMemo(
+    () =>
+      ownedMusicScores.map((item) => ({
+        item,
+        mastery: resolveMusicScoreMastery(item, musicHallProgress),
+      })),
+    [musicHallProgress, ownedMusicScores],
+  );
+  const submittedScoreMastery = submittedScore
+    ? musicHallProgress.musicScoreMastery?.[submittedScore.itemId]
+    : undefined;
 
   const buildPayload = (
     actor: MiaoYinSceneActor,
@@ -318,7 +340,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
   };
 
   useEffect(() => {
-    if (activeActor || busy || showSignUpPicker || !isLianQiaoMet || musicHallProgress.lianQiaoAffection <= 60) {
+    if (activeActor || busy || showSignUpPicker || showPracticePicker || !isLianQiaoMet || musicHallProgress.lianQiaoAffection <= 60) {
       return;
     }
 
@@ -349,6 +371,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     musicHallProgress.lianQiaoFavor,
     musicHallProgress.lastGiftXunIndex,
     patchMusicHallProgress,
+    showPracticePicker,
     showSignUpPicker,
   ]);
 
@@ -439,10 +462,9 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     const actionOutcome = beginTimedLocationAction();
     const nextCount = musicHallProgress.strollCount + 1;
     patchMusicHallProgress({ strollCount: nextCount });
-    const success = hashSeed(`${currentSeed}:miaoyin-stroll:${nextCount}`) % 100 < 20;
 
     try {
-      if (!success) {
+      {
         const ambient = await requestMiaoYinAmbientWithFallback({
           routeId: state.routeId,
           playerName: state.name,
@@ -464,38 +486,6 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
         );
         return;
       }
-
-      if (eligibleConsorts.length === 0) {
-        showActionResult(
-          buildLocationActionNarrative({
-            locationId: 'miaoyin-hall',
-            actionId: 'stroll',
-            actionLabel: '闲逛',
-            resultText: '今日妙音堂里来去的人不少，却并无值得你停步的人。',
-          }),
-          actionOutcome,
-        );
-        return;
-      }
-
-      const actor = buildConsortActor(eligibleConsorts[hashSeed(`${currentSeed}:miaoyin-consort:${nextCount}`) % eligibleConsorts.length]);
-      patchMusicHallProgress({ lastEncounterNpcId: actor.id });
-      setSystemMessage(
-        buildLocationActionNarrative({
-          locationId: 'miaoyin-hall',
-          actionId: 'meet',
-          actionLabel: '妙音堂闲逛',
-          resultText: `你在妙音堂里撞见了${actor.identity} ${actor.name}。`,
-        }),
-      );
-      holdTimedActionOutcome(actionOutcome);
-      await beginEncounter(
-        actor,
-        'stroll-encounter',
-        '妙音堂闲逛',
-        `你在妙音堂闲逛时，撞见了${actor.identity} ${actor.name}。`,
-        'consort',
-      );
     } finally {
       setBusy(false);
     }
@@ -516,6 +506,65 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     );
   };
 
+  const handleOpenPractice = () => {
+    if (busy) {
+      return;
+    }
+
+    if (!isLianQiaoMet) {
+      setSystemMessage('你还没有正式结识连翘，暂时无人能替你细拆谱中关窍。');
+      return;
+    }
+
+    if (ownedMusicScores.length === 0) {
+      setSystemMessage('你手里还没有可学的曲谱。');
+      return;
+    }
+
+    setShowPracticePicker(true);
+  };
+
+  const handlePracticeMusicScore = (itemId: string) => {
+    if (busy) {
+      return;
+    }
+
+    const selectedItem = ownedMusicScores.find((item) => item.itemId === itemId);
+    if (!selectedItem) {
+      setSystemMessage('这张曲谱已经不在手里了。');
+      setShowPracticePicker(false);
+      return;
+    }
+
+    const actionOutcome = beginTimedLocationAction();
+    const resolution = resolveMusicScorePractice({
+      item: selectedItem,
+      state,
+      musicHallProgress,
+      time,
+      seed: `${currentSeed}:practice`,
+    });
+    applyStoryEffects({ stats: { talent: 0.2 } });
+    patchMusicHallProgress({
+      lastPracticedMusicScoreId: itemId,
+      musicScoreMastery: {
+        ...(musicHallProgress.musicScoreMastery ?? {}),
+        [itemId]: resolution.next,
+      },
+    });
+    setShowPracticePicker(false);
+    showActionResult(
+      buildLocationActionNarrative({
+        locationId: 'miaoyin-hall',
+        actionId: 'practice',
+        actionLabel: '学谱',
+        resultText: `《${selectedItem.name}》完成度由${resolution.previous.masteryPercent}%升至${resolution.next.masteryPercent}%，难度${resolution.next.difficulty}，表现上限${resolution.next.performanceCap ?? 0}。`,
+      }),
+      actionOutcome,
+    );
+    markNumericFeedbackEvent('chamber-action');
+  };
+
   const handleOpenSignUp = () => {
     if (busy) {
       return;
@@ -523,7 +572,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
 
     if (!canSignUp) {
       setSystemMessage(
-        `宫宴报名册尚未开启。本届宫宴定于${banquetEventTime.month}月第${banquetEventTime.xun}旬${banquetEventTime.slot}，妙音堂会在宫宴前三个月收谱。`,
+        `宫宴报名册尚未开启。本届宫宴定于${banquetEventTime.month}月第${banquetEventTime.xun}旬${banquetEventTime.slot}，妙音堂会在宫宴前一个月收谱。`,
       );
       return;
     }
@@ -553,12 +602,8 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
       return;
     }
 
-    const consumed = consumeInventoryItem(itemId);
     setShowSignUpPicker(false);
-    if (!consumed) {
-      setSystemMessage('曲谱提交失败，请再试一次。');
-      return;
-    }
+    const mastery = resolveMusicScoreMastery(selectedItem, musicHallProgress);
 
     setBusy(true);
     patchMusicHallProgress({
@@ -573,6 +618,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
         name: selectedItem.name,
         color: selectedItem.color,
         rarity: selectedItem.rarity,
+        difficulty: mastery.difficulty,
         submittedAt: time,
         seasonKey: palaceBanquetSeasonKey,
       },
@@ -593,7 +639,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
           locationId: 'miaoyin-hall',
           actionId: 'sign-up',
           actionLabel: '报名',
-          resultText: `${ambient} 你本回递上的曲谱是${selectedItem.name}。`,
+          resultText: `${ambient} 你本回登记的曲谱是${selectedItem.name}，当前完成度${mastery.masteryPercent}%。曲谱仍留在手中，后续还可继续向连翘学谱。`,
         }),
       );
     } finally {
@@ -747,6 +793,11 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
             <button type="button" onClick={() => void handleListen()} disabled={busy}>
               听曲
             </button>
+            {isLianQiaoMet ? (
+              <button type="button" onClick={handleOpenPractice} disabled={busy}>
+                学谱
+              </button>
+            ) : null}
             <button type="button" onClick={() => void handleStroll()} disabled={busy}>
               闲逛
             </button>
@@ -761,7 +812,9 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
             <strong>{`累计听曲：${musicHallProgress.listenCount} 次｜已报名：${musicHallProgress.signUpCount} 次`}</strong>
             <p>
               {submittedScore
-                ? `本届宫宴已递交：《${submittedScore.name}》。`
+                ? `本届宫宴已登记：《${submittedScore.name}》，当前完成度${submittedScoreMastery?.masteryPercent ?? 0}%，表现上限${
+                    submittedScoreMastery?.performanceCap ?? 0
+                  }。`
                 : `本届宫宴：${banquetEventTime.month}月第${banquetEventTime.xun}旬${banquetEventTime.slot}，${
                     canSignUp ? '报名册已开。' : '报名册未开。'
                   }`}
@@ -848,17 +901,38 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
       {showSignUpPicker ? (
         <div className="miaoyin-view__picker-backdrop" role="dialog" aria-label="妙音堂曲谱报名">
           <div className="miaoyin-view__picker">
-            <h3>提交曲谱报名</h3>
-            <p>{`本届宫宴定于${banquetEventTime.month}月第${banquetEventTime.xun}旬${banquetEventTime.slot}。请选择一张曲谱递交，提交后本届不再重复改写。`}</p>
+            <h3>登记曲谱报名</h3>
+            <p>{`本届宫宴定于${banquetEventTime.month}月第${banquetEventTime.xun}旬${banquetEventTime.slot}。请选择一张曲谱登记，登记后本届不再重复改写，曲谱不会从手中消失。`}</p>
             <div className="miaoyin-view__picker-list">
-              {ownedMusicScores.map((item) => (
+              {ownedMusicScoreMastery.map(({ item, mastery }) => (
                 <button key={item.itemId} type="button" onClick={() => void handleSubmitMusicScore(item.itemId)} disabled={busy}>
-                  {`${item.name}｜${item.color ?? item.rarity}｜库存 ${item.quantity}`}
+                  {`${item.name}｜${resolveMusicScoreQualityLabel(item.color, item.rarity)}｜完成度 ${mastery.masteryPercent}%｜表现上限 ${
+                    mastery.performanceCap ?? 0
+                  }`}
                 </button>
               ))}
             </div>
             <button type="button" className="miaoyin-view__picker-cancel" onClick={() => setShowSignUpPicker(false)} disabled={busy}>
               暂不提交
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {showPracticePicker ? (
+        <div className="miaoyin-view__picker-backdrop" role="dialog" aria-label="连翘学谱">
+          <div className="miaoyin-view__picker">
+            <h3>向连翘学谱</h3>
+            <p>选择一张手中曲谱。学习进度受你的乐理、曲谱难度，以及连翘对你的关系影响。</p>
+            <div className="miaoyin-view__picker-list">
+              {ownedMusicScoreMastery.map(({ item, mastery }) => (
+                <button key={item.itemId} type="button" onClick={() => handlePracticeMusicScore(item.itemId)} disabled={busy}>
+                  {`${item.name}｜难度 ${mastery.difficulty}｜完成度 ${mastery.masteryPercent}%｜已学 ${mastery.practiceCount} 次`}
+                </button>
+              ))}
+            </div>
+            <button type="button" className="miaoyin-view__picker-cancel" onClick={() => setShowPracticePicker(false)} disabled={busy}>
+              暂不学谱
             </button>
           </div>
         </div>

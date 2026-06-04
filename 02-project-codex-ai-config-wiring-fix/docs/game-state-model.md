@@ -45,14 +45,15 @@
   - `silver` 银两，范围 `0..999999`
 - 副属性：
   - `poetry` 诗词，范围 `0..100`
-  - `music` 乐理，范围 `0..100`
+  - `talent` 乐理，范围 `0..100`（沿用既有字段名，显示名不再按“才艺”解释）
   - `painting` 丹青，范围 `0..100`
   - `embroidery` 女红，范围 `0..100`
   - `medicine` 药理，范围 `0..100`
   - `politics` 政治，范围 `0..100`
 
 ### 2.4 命名收口
-- 当前前端 `talent` 建议迁移为 `music`。
+- 玩家属性 schema 不新增乐理字段；当前前端长期真值继续使用既有 `talent` 字段承载乐理数值，界面与规则文案显示为“乐理”。
+- 恢复旧的持久化状态时如遇到历史过渡字段 `music`，只允许一次性归并到 `talent`，不得继续把 `music` 作为玩家属性字段写回。
 - 当前后端 Calc 契约中的 `charm / intellect / resilience` 不再作为长期主键。
 - Calc 和 Narrative 之后都应只接收标准键，不再维护第二套翻译字段。
 
@@ -101,7 +102,13 @@ interface SaveGameV1 {
 - `SaveGameV1` 只保存长期真值，不保存 `currentView`、弹窗、临时对白、地图临时文本等 UI 状态。
 - 启动页“开始”会二级确认，确认后清空旧 envelope，从初始状态创建新局并写入新存档。
 - 启动页“回溯”会读取上一次 `SaveGameV1`，并根据 durable state 推断恢复到路线选择、属性页、地图或寝殿。
+- 当前游戏仍处开发阶段，存档结构不做跨版本迁移；缺少当前必需字段、schema 不匹配或 envelope 解析失败时，直接删除旧存档并让回溯显示无可用存档。
 - 系统宫宴进度保存于 `progress.palaceBanquet`，包括当前宫宴季、已提交曲谱快照、报名提醒标记、已结算宫宴季和最近一次宫宴结果。
+- 妙音堂曲谱学习进度保存于 `progress.musicHall.musicScoreMastery`，按曲谱 ID 记录难度、完成度、练习次数、表现上限、最近一次练习预演表现分和最近练习时间；后续若字段结构变化，必须清旧档或提升 schema，不做旧字段 fallback。
+- 妃嫔旬级行动保存于 `progress.npcActivity`，记录当前旬每名 live 且非冷宫妃嫔的主行动、地点、目的、目标与是否已被玩家看见 / 触发。
+- 公共外出 NPC 在 `resolved=true` 后仍应保留在原目的地展示，只禁用重复交互；这里的 `resolved` 表示玩家已交谈，不表示 NPC 离开地点。
+- 未收束的 `visit-consort.targetConsortId` 是被拜访者本旬寝宫会客的真值；即使该目标自己的条目仍是公共外出，UI 也必须按目标在寝宫会客处理，并从公共地点可交互名单中排除。玩家结束殿内会客后，`visit-consort.resolved=true` 表示会客收束：来访者回自己的寝宫，被拜访者不再显示“会客中”。
+- NPC-NPC 真实关系保存于 `relations.npcRelationMatrix`，展示用 `allies / rivals` 只作为初始倾向；旬末送礼、试探、拉拢、传话、施压等变化以关系矩阵为准。
 
 ## 4. 顶层模块定义
 
@@ -159,7 +166,7 @@ interface PlayerState {
   temperament: number;
   skills: {
     poetry: number;
-    music: number;
+    talent: number;
     painting: number;
     embroidery: number;
     medicine: number;
@@ -250,7 +257,7 @@ interface ConsortState {
   temperament: number;
   skills: {
     poetry: number;
-    music: number;
+    talent: number;
     painting: number;
     embroidery: number;
     medicine: number;
@@ -472,6 +479,8 @@ interface PregnancyState {
   - 玩家 `prestige / favor / stress / ambition / fortune`
   - 皇帝 `mood / sincerityMap / interestMap`
   - NPC `goodwill / affection / blackening / trueHeartToEmperor`
+  - `progress.npcActivity`
+  - `relations.npcRelationMatrix`
   - `pregnancy`
   - `cases`
   - `nightly`
@@ -482,7 +491,7 @@ interface PregnancyState {
   - `stamina` 从 `100` 改为 `15` 制
   - `slotProgress` 改为仅 UI 使用
 - `src/game/data/config.ts`
-  - `talent` 迁移为 `music`
+  - 保持玩家属性字段集合稳定，不再新增 `music`；乐理显示名继续落在既有 `talent` 字段上
 - `server/src/types/contracts.ts`
   - Calc 请求体中的 `baseStats` 改为标准键
 - 所有 AI prompt 改为使用统一状态快照，不再手写映射

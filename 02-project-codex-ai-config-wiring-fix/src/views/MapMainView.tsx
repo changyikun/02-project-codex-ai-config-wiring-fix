@@ -1,11 +1,18 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AutoCutoutPortrait } from '../components/visual/AutoCutoutPortrait';
+import { AffairsPanelView, BondPanelView, ChroniclePanelView, YangxinHearingPanelView } from '../components/chamber/ChamberUtilityViews';
 import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
+import { ConsortAudiencePanel } from '../components/consorts/ConsortAudiencePanel';
+import { ConcubineListView } from '../components/consorts/ConcubineListView';
+import { HaremPalaceView } from '../components/consorts/HaremPalaceView';
+import { PlayerStatsView } from '../components/status/PlayerStatsView';
 import type { ChamberPanelId } from '../config/bedchamber';
 import { HAREM_OVERVIEW_BACKGROUND, LOCATION_SCENE_BACKGROUNDS } from '../config/locationSceneBackgrounds';
 import { buildMapHotspots, MAP_GUIDE_LINES, MAP_SIDEBAR_BUTTONS, resolveMapBackgroundImage, type MapHotspotConfig } from '../config/palaceUi';
+import { buildInitialBondProfile } from '../game/data/bondPresets';
 import { buildDuNiangShopCatalog, getInventoryRecyclePrice, type DuNiangShopEntry } from '../game/data/inventoryPresets';
+import { getConcubineDisplayRankText } from '../game/data/concubineRoster';
 import {
   requestGongmenToolDialogueWithFallback,
   type GongmenToolDialogueHistoryEntry,
@@ -14,11 +21,13 @@ import {
 import { traceDialogue } from '../game/lib/dialogueTrace';
 import { buildMapTransitionNarrative } from '../game/lib/actionNarrativeRuntime';
 import { isJiaojiaoSpokenText } from '../game/lib/dialoguePresentation';
+import { getNpcActivitiesAtLocation } from '../game/lib/npcActivityRuntime';
 import { canAccessHotSpringByPrestige } from '../game/lib/rankRuntime';
 import {
   applyYingluoyetingStoryChoice,
   resolveYingluoyetingMapEvent,
   YINGLUOYETING_EVENT_IDS,
+  YINGLUOYETING_STORY_FLAGS,
   type YingluoyetingMapEvent,
 } from '../game/lib/yingluoyetingStoryRuntime';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
@@ -28,13 +37,14 @@ const MAP_ACTION_STAMINA_COST = 1;
 
 type GongmenNpcId = 'du-niang' | 'aling';
 type GongmenTradeMode = 'buy' | 'sell';
+type MapUtilityPanelId = Extract<ChamberPanelId, 'consorts' | 'stats' | 'chronicle' | 'bond' | 'harem' | 'affairs' | 'yangxin'>;
 type HotspotQuickAction =
   | {
       id: string;
       label: string;
       summary: string;
       kind: 'panel';
-      panelId: ChamberPanelId;
+      panelId: MapUtilityPanelId;
     }
   | {
       id: string;
@@ -102,11 +112,16 @@ const buildDuNiangLocalSmallTalkText = (historyLength: number): string => {
 export function MapMainView() {
   const {
     state,
+    hiddenStats,
     time,
+    selectedRoute,
     inventory,
     concubines,
+    customConsorts,
+    bondProfile,
     merchantLedger,
     mapEventText,
+    activeAffairsSource,
     settlementReports,
     latestSettlementReportId,
     lastSeenSettlementReportId,
@@ -122,6 +137,8 @@ export function MapMainView() {
     sellInventoryItem,
     patchConcubineById,
     acknowledgeSettlementReport,
+    resolveNpcActivityEntry,
+    npcActivity,
   } = useGameFlowStore();
   const [guideStep, setGuideStep] = useState(0);
   const [selectedHotspotId, setSelectedHotspotId] = useState<MapHotspotConfig['id'] | null>(null);
@@ -133,13 +150,25 @@ export function MapMainView() {
   const [gongmenAiBusy, setGongmenAiBusy] = useState(false);
   const [gongmenAiHistory, setGongmenAiHistory] = useState<GongmenToolDialogueHistoryEntry[]>([]);
   const [activeYingluoyetingEvent, setActiveYingluoyetingEvent] = useState<YingluoyetingMapEvent | null>(null);
+  const [activeYingluoyetingEventReturnMode, setActiveYingluoyetingEventReturnMode] =
+    useState<'return-residence' | null>(null);
   const [pendingYingluoyetingEventAfterFirstMeet, setPendingYingluoyetingEventAfterFirstMeet] =
     useState<YingluoyetingMapEvent | null>(null);
   const [yingluoyetingResultText, setYingluoyetingResultText] = useState('');
   const [yingluoyetingResultHint, setYingluoyetingResultHint] = useState('');
+  const [activeGongmenConsortAudience, setActiveGongmenConsortAudience] = useState<{
+    entryId: string;
+    consortId: string;
+    summary: string;
+  } | null>(null);
+  const [activeMapUtilityPanel, setActiveMapUtilityPanel] = useState<MapUtilityPanelId | null>(null);
   const gongmenAiRequestRef = useRef(0);
   const guideActive = !state.flags.mapGuideFinished;
+  const openingHaremFirstMeetPending = Boolean(
+    state.routeId === 'yingluoyeting' && state.flags[YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending],
+  );
   const mapHotspots = useMemo(() => buildMapHotspots(state.residenceName), [state.residenceName]);
+  const allConsorts = useMemo(() => [...concubines, ...customConsorts], [concubines, customConsorts]);
 
   const selectedHotspot = useMemo(
     () => mapHotspots.find((hotspot) => hotspot.id === selectedHotspotId) ?? null,
@@ -151,10 +180,6 @@ export function MapMainView() {
     }
 
     switch (selectedHotspot.id) {
-      case '后宫':
-        return [
-          { id: 'open-harem', label: '后宫总览', summary: '直接进入现有后宫总览。', kind: 'panel', panelId: 'harem' },
-        ];
       case '御书房':
         return [
           { id: 'open-court-affairs', label: '朝堂事务', summary: '直接进入现有朝堂事务面板。', kind: 'affairs', affairsSource: '朝堂事务' },
@@ -172,6 +197,32 @@ export function MapMainView() {
         return [];
     }
   }, [selectedHotspot]);
+  const selectedHotspotNpcActivities = useMemo(() => {
+    if (!selectedHotspot || selectedHotspot.id === '后宫') {
+      return [];
+    }
+
+    return getNpcActivitiesAtLocation(npcActivity, selectedHotspot.id, { includeResolved: true })
+      .map((entry) => {
+        const consort = allConsorts.find((candidate) => candidate.id === entry.actorConsortId);
+        return consort ? { entry, consort } : null;
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+  }, [allConsorts, npcActivity, selectedHotspot]);
+  const currentXunKey = `${time.year}-${time.month}-${time.xun}`;
+  const activeBondProfile =
+    bondProfile.routeId === state.routeId ? bondProfile : buildInitialBondProfile(state.routeId, currentXunKey);
+  const closeMapUtilityPanel = () => setActiveMapUtilityPanel(null);
+  const gongmenNpcActivities = useMemo(
+    () =>
+      getNpcActivitiesAtLocation(npcActivity, '宫门', { includeResolved: true })
+        .map((entry) => {
+          const consort = allConsorts.find((candidate) => candidate.id === entry.actorConsortId);
+          return consort ? { entry, consort } : null;
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
+    [allConsorts, npcActivity],
+  );
   const gongmenSeed = useMemo(
     () => `${state.routeId}:${time.year}-${time.month}-${time.xun}`,
     [state.routeId, time.month, time.xun, time.year],
@@ -218,7 +269,11 @@ export function MapMainView() {
     [duNiangCatalog, merchantLedger, time.month, time.xun, time.year],
   );
   const activeNpcProfile = activeGongmenNpc ? gongmenNpcProfiles[activeGongmenNpc] : null;
-  const showGongmenSelector = gongmenSceneActive && !activeNpcProfile;
+  const activeGongmenAudienceConsort = useMemo(
+    () => allConsorts.find((consort) => consort.id === activeGongmenConsortAudience?.consortId) ?? null,
+    [activeGongmenConsortAudience, allConsorts],
+  );
+  const showGongmenSelector = gongmenSceneActive && !activeNpcProfile && !activeGongmenConsortAudience;
   const gongmenDialogue = useMemo(() => {
     if (gongmenFeedback) {
       return gongmenFeedback;
@@ -280,6 +335,8 @@ export function MapMainView() {
       !selectedHotspot &&
       !activeYingluoyetingEvent &&
       !activeNpcProfile &&
+      !activeGongmenConsortAudience &&
+      !activeMapUtilityPanel &&
       !gongmenSceneActive,
   );
   const isJiaojiaoMapDialogue = guideActive || isJiaojiaoSpokenText(dialogueText);
@@ -287,8 +344,9 @@ export function MapMainView() {
     isJiaojiaoMapDialogue ? 'global-dialogue-stage--assistant' : 'global-dialogue-stage--narration'
   }`;
   const isMapDialogueBlocking = Boolean(
-    (dialogueText && !selectedHotspot) || showSettlementReport || activeYingluoyetingEvent || activeNpcProfile,
+    (dialogueText && !selectedHotspot) || showSettlementReport || activeYingluoyetingEvent || activeNpcProfile || activeGongmenConsortAudience,
   );
+  const isMapInteractionBlocked = Boolean(isMapDialogueBlocking || activeMapUtilityPanel);
 
   const resetGongmenScene = () => {
     gongmenAiRequestRef.current += 1;
@@ -299,14 +357,66 @@ export function MapMainView() {
     setGongmenDialogueStep(0);
     setGongmenAiBusy(false);
     setGongmenAiHistory([]);
+    setActiveGongmenConsortAudience(null);
   };
 
   const resetYingluoyetingEvent = () => {
     setActiveYingluoyetingEvent(null);
+    setActiveYingluoyetingEventReturnMode(null);
     setPendingYingluoyetingEventAfterFirstMeet(null);
     setYingluoyetingResultText('');
     setYingluoyetingResultHint('');
   };
+
+  useEffect(() => {
+    if (
+      state.routeId !== 'yingluoyeting' ||
+      !state.flags.mapGuideFinished ||
+      !state.flags[YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending] ||
+      activeYingluoyetingEvent ||
+      yingluoyetingResultText
+    ) {
+      return;
+    }
+
+    const openingHaremEvent = resolveYingluoyetingMapEvent({
+      state,
+      time,
+      locationId: '后宫',
+      inventory,
+    });
+
+    setSelectedHotspotId(null);
+    setMapEventText('');
+    setActiveMapUtilityPanel(null);
+    resetGongmenScene();
+
+    if (!openingHaremEvent) {
+      patchState({
+        flags: {
+          ...state.flags,
+          [YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]: false,
+        },
+      });
+      enterMainChamber();
+      return;
+    }
+
+    setActiveYingluoyetingEvent(openingHaremEvent);
+    setActiveYingluoyetingEventReturnMode('return-residence');
+    setPendingYingluoyetingEventAfterFirstMeet(null);
+    setYingluoyetingResultText('');
+    setYingluoyetingResultHint('');
+  }, [
+    activeYingluoyetingEvent,
+    enterMainChamber,
+    inventory,
+    patchState,
+    setMapEventText,
+    state,
+    time,
+    yingluoyetingResultText,
+  ]);
 
   const shouldReturnHomeAfterMapAction = (
     previousTime: PalaceTimeState,
@@ -323,6 +433,7 @@ export function MapMainView() {
     setMapEventText('');
     resetYingluoyetingEvent();
     resetGongmenScene();
+    setActiveMapUtilityPanel(null);
 
     requestOvernightReturn({
       origin: 'map',
@@ -332,15 +443,10 @@ export function MapMainView() {
     return true;
   };
 
-  const jumpToChamberPanel = (panelId: 'consorts' | 'stats' | 'chronicle' | 'bond' | 'main') => {
-    resetGongmenScene();
-    enterMainChamber();
-    if (panelId !== 'main') {
-      openChamberPanel(panelId);
-    }
-  };
-
   const finishGuide = () => {
+    const shouldEnterOpeningHaremFirstMeet = Boolean(
+      state.routeId === 'yingluoyeting' && state.flags[YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending],
+    );
     patchState({
       flags: {
         ...state.flags,
@@ -348,6 +454,10 @@ export function MapMainView() {
       },
     });
     setMapEventText('');
+    setActiveMapUtilityPanel(null);
+    if (shouldEnterOpeningHaremFirstMeet) {
+      return;
+    }
     enterMainChamber();
   };
 
@@ -362,18 +472,22 @@ export function MapMainView() {
     }
 
     if (buttonId === 'return') {
+      setActiveMapUtilityPanel(null);
       setMapEventText(buildMapTransitionNarrative({ kind: 'return-chamber', residenceName: state.residenceName }));
-      jumpToChamberPanel('main');
+      resetGongmenScene();
+      enterMainChamber();
       return;
     }
 
     if (buttonId === 'consorts' || buttonId === 'stats' || buttonId === 'chronicle' || buttonId === 'bond') {
-      jumpToChamberPanel(buttonId);
+      setActiveMapUtilityPanel((current) => (current === buttonId ? null : buttonId));
+      setSelectedHotspotId(null);
+      setMapEventText('');
     }
   };
 
   const handleHotspot = (hotspotId: MapHotspotConfig['id']) => {
-    if (isMapDialogueBlocking) {
+    if (isMapInteractionBlocked) {
       return;
     }
 
@@ -393,7 +507,7 @@ export function MapMainView() {
   };
 
   const handleEnterHotspot = () => {
-    if (isMapDialogueBlocking) {
+    if (isMapInteractionBlocked) {
       return;
     }
 
@@ -434,6 +548,7 @@ export function MapMainView() {
       setSelectedHotspotId(null);
       setMapEventText('');
       setActiveYingluoyetingEvent(chenFirstMeetEvent ?? yingluoyetingEvent);
+      setActiveYingluoyetingEventReturnMode(null);
       setPendingYingluoyetingEventAfterFirstMeet(chenFirstMeetEvent ? yingluoyetingEvent : null);
       setYingluoyetingResultText('');
       setYingluoyetingResultHint('');
@@ -460,7 +575,7 @@ export function MapMainView() {
     setSelectedHotspotId(null);
 
     if (selectedHotspot.id === '后宫') {
-      enterMainChamber();
+      enterMainChamber('后宫');
       openChamberPanel('harem');
       return;
     }
@@ -481,10 +596,28 @@ export function MapMainView() {
     setGongmenDialogueStep(0);
     setGongmenAiBusy(false);
     setGongmenAiHistory([]);
+    setActiveGongmenConsortAudience(null);
+  };
+
+  const handleStartGongmenConsortAudience = (entryId: string) => {
+    const activity = gongmenNpcActivities.find((item) => item.entry.id === entryId);
+    if (!activity || activity.entry.resolved) {
+      return;
+    }
+    setActiveGongmenNpc(null);
+    setActiveTradeMode(null);
+    setGongmenFeedback('');
+    setGongmenDialogueStep(0);
+    setActiveGongmenConsortAudience({
+      entryId,
+      consortId: activity.consort.id,
+      summary: activity.entry.summary,
+    });
+    resolveNpcActivityEntry(entryId);
   };
 
   const handleHotspotQuickAction = (action: HotspotQuickAction) => {
-    if (isMapDialogueBlocking) {
+    if (isMapInteractionBlocked) {
       return;
     }
 
@@ -504,13 +637,11 @@ export function MapMainView() {
 
     if (action.kind === 'affairs') {
       setActiveAffairsSource(action.affairsSource);
-      enterMainChamber();
-      openChamberPanel('affairs');
+      setActiveMapUtilityPanel('affairs');
       return;
     }
 
-    enterMainChamber();
-    openChamberPanel(action.panelId);
+    setActiveMapUtilityPanel(action.panelId);
   };
 
   const handleTradeModeChange = (mode: GongmenTradeMode) => {
@@ -621,15 +752,16 @@ export function MapMainView() {
     if (!activeYingluoyetingEvent) {
       return;
     }
+    const latestPlayerState = useGameFlowStore.getState().state;
     const result = applyYingluoyetingStoryChoice({
       eventId: activeYingluoyetingEvent.eventId,
       choiceId,
-      state,
+      state: latestPlayerState,
     });
     patchState({
       ...result.statePatch,
-      stats: result.statePatch.stats ? { ...state.stats, ...result.statePatch.stats } : state.stats,
-      flags: result.statePatch.flags ? { ...state.flags, ...result.statePatch.flags } : state.flags,
+      stats: result.statePatch.stats ? { ...latestPlayerState.stats, ...result.statePatch.stats } : latestPlayerState.stats,
+      flags: result.statePatch.flags ? { ...latestPlayerState.flags, ...result.statePatch.flags } : latestPlayerState.flags,
     });
     if (result.grantedItem) {
       grantInventoryItem(result.grantedItem);
@@ -652,9 +784,21 @@ export function MapMainView() {
     }
 
     if (activeYingluoyetingEvent?.locationId === '后宫') {
+      const shouldReturnToNewResidence =
+        activeYingluoyetingEventReturnMode === 'return-residence' ||
+        Boolean(useGameFlowStore.getState().state.flags[YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]);
       resetYingluoyetingEvent();
-      enterMainChamber();
-      openChamberPanel('harem');
+      if (shouldReturnToNewResidence) {
+        patchState({
+          flags: {
+            ...state.flags,
+            [YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]: false,
+          },
+        });
+        enterMainChamber();
+        return;
+      }
+      setActiveMapUtilityPanel('harem');
       return;
     }
 
@@ -675,7 +819,7 @@ export function MapMainView() {
             <button
               key={button.id}
               type="button"
-              className="palace-sidebar__diamond"
+              className={`palace-sidebar__diamond ${activeMapUtilityPanel === button.id ? 'is-active' : ''}`}
               style={{ top: button.top }}
               onClick={() => handleSidebar(button.id)}
             >
@@ -684,7 +828,7 @@ export function MapMainView() {
           ))}
         </nav>
 
-        {!locationSceneActive ? (
+        {!locationSceneActive && !activeMapUtilityPanel ? (
           <section className="map-main__hotspot-layer" aria-label="宫廷地图">
             {mapHotspots.map((hotspot) => (
               <button
@@ -709,13 +853,71 @@ export function MapMainView() {
           </section>
         ) : null}
 
-        {selectedHotspot ? (
+        {activeMapUtilityPanel ? (
+          <button type="button" className="map-main__utility-close" onClick={closeMapUtilityPanel}>
+            返回地图
+          </button>
+        ) : null}
+
+        {activeMapUtilityPanel === 'harem' ? (
+          <HaremPalaceView
+            concubines={concubines}
+            playerResidenceName={state.residenceName}
+            playerName={state.name}
+            playerRankLabel={hiddenStats.initialRank ?? '娘娘'}
+          />
+        ) : activeMapUtilityPanel === 'chronicle' ? (
+          <ChroniclePanelView
+            time={time}
+            state={state}
+            hiddenStats={hiddenStats}
+            settlementReports={settlementReports}
+            onClose={closeMapUtilityPanel}
+          />
+        ) : activeMapUtilityPanel === 'bond' ? (
+          <BondPanelView
+            bondProfile={activeBondProfile}
+            concubines={concubines}
+            routeId={state.routeId}
+            flags={state.flags}
+            bondFavorDeltaThisXun={activeBondProfile.xunKey === currentXunKey ? activeBondProfile.favorDeltaThisXun : 0}
+            bondAffectionDeltaThisXun={
+              activeBondProfile.xunKey === currentXunKey ? activeBondProfile.affectionDeltaThisXun : 0
+            }
+            onClose={closeMapUtilityPanel}
+          />
+        ) : activeMapUtilityPanel === 'affairs' ? (
+          <AffairsPanelView entrySource={activeAffairsSource} concubines={concubines} onClose={closeMapUtilityPanel} />
+        ) : activeMapUtilityPanel === 'yangxin' ? (
+          <YangxinHearingPanelView onClose={closeMapUtilityPanel} />
+        ) : activeMapUtilityPanel === 'stats' ? (
+          <PlayerStatsView
+            state={state}
+            hiddenStats={hiddenStats}
+            selectedRoute={selectedRoute}
+            concubines={concubines}
+            onClose={closeMapUtilityPanel}
+          />
+        ) : activeMapUtilityPanel === 'consorts' ? (
+          <ConcubineListView concubines={concubines} onClose={closeMapUtilityPanel} />
+        ) : null}
+
+        {selectedHotspot && !activeMapUtilityPanel ? (
           <section
             className={`map-main__event-card ${selectedHotspot.id === '宫门' ? 'map-main__event-card--gongmen' : ''}`}
             aria-label={`${selectedHotspot.label} 地点弹窗`}
           >
             <h2>{selectedHotspot.label}</h2>
             <p>{selectedHotspot.description}</p>
+            {selectedHotspotNpcActivities.length > 0 ? (
+              <div className="map-main__event-note" aria-label={`${selectedHotspot.label}本旬妃嫔动向`}>
+                {selectedHotspotNpcActivities.map(({ entry, consort }) => (
+                  <p key={entry.id}>{`${getConcubineDisplayRankText(consort)} ${consort.name}在此处走动。${entry.summary}${
+                    entry.resolved ? '你已经同她说过话。' : ''
+                  }`}</p>
+                ))}
+              </div>
+            ) : null}
             <div className={`map-main__event-actions ${selectedHotspot.id === '宫门' ? 'map-main__event-actions--gongmen' : ''}`}>
               <button type="button" onClick={handleEnterHotspot}>
                 {selectedHotspot.id === state.residenceName ? '回宫' : '进入此处'}
@@ -772,6 +974,22 @@ export function MapMainView() {
                 </button>
               ))}
             </div>
+            {gongmenNpcActivities.length > 0 ? (
+              <div className="map-main__gongmen-entry-buttons" aria-label="宫门可交互妃嫔">
+                {gongmenNpcActivities.map(({ entry, consort }) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    disabled={entry.resolved}
+                    onClick={() => handleStartGongmenConsortAudience(entry.id)}
+                  >
+                    {entry.resolved
+                      ? `${getConcubineDisplayRankText(consort)} ${consort.name}仍在此处（已交谈）`
+                      : `与${getConcubineDisplayRankText(consort)} ${consort.name}交谈`}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <button
               type="button"
               className="map-main__gongmen-return"
@@ -782,6 +1000,23 @@ export function MapMainView() {
             >
               回到地图
             </button>
+          </section>
+        ) : null}
+
+        {gongmenSceneActive && activeGongmenConsortAudience && activeGongmenAudienceConsort ? (
+          <section className="map-main__gongmen-scene" aria-label={`${activeGongmenAudienceConsort.name} 宫门偶遇场景`}>
+            <ConsortAudiencePanel
+              consort={activeGongmenAudienceConsort}
+              palaceLabel="宫门"
+              hallLabel="偶遇"
+              concubines={concubines}
+              backLabel="返回宫门"
+              initialActionLabel="宫门偶遇"
+              initialActionResult={`宫门处风声嘈杂，内外消息都在此地转手。${activeGongmenConsortAudience.summary}你看见${getConcubineDisplayRankText(
+                activeGongmenAudienceConsort,
+              )} ${activeGongmenAudienceConsort.name}正在此处，便主动上前搭话。`}
+              onBack={() => setActiveGongmenConsortAudience(null)}
+            />
           </section>
         ) : null}
 
@@ -966,7 +1201,15 @@ export function MapMainView() {
             characterIdentity={isJiaojiaoMapDialogue ? '贴身宫女' : '场景旁白'}
             characterName={isJiaojiaoMapDialogue ? '娇娇' : '宫道'}
             content={dialogueText}
-            nextActionLabel={guideActive ? (guideStep >= MAP_GUIDE_LINES.length - 1 ? '回宫' : '继续') : '收起'}
+            nextActionLabel={
+              guideActive
+                ? guideStep >= MAP_GUIDE_LINES.length - 1
+                  ? openingHaremFirstMeetPending
+                    ? '前往后宫'
+                    : '回宫'
+                  : '继续'
+                : '收起'
+            }
             onNextAction={() => {
               if (guideActive) {
                 if (guideStep >= MAP_GUIDE_LINES.length - 1) {

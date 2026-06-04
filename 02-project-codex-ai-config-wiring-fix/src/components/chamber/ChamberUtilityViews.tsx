@@ -690,10 +690,19 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
   const [selectedAlly, setSelectedAlly] = useState('无');
   const [selectedFrameTarget, setSelectedFrameTarget] = useState('无');
   const [selectedItem, setSelectedItem] = useState('不使用');
-  const [resultText, setResultText] = useState('先依次选择对象、方式、合谋与道具，最后再点击“完成”。');
+  const [resultText, setResultText] = useState(
+    entrySource === '朝堂事务'
+      ? '朝堂事务当前是政治谋划预留入口，只暂存方案，不改数值，也不会进入旬月结算。'
+      : '宫斗事务会真实发起玩家主动宫斗，完成后登记案件，并进入追查或夜晚结算。',
+  );
 
   useEffect(() => {
     setActiveStep(entrySource === '朝堂事务' ? 'method' : 'target');
+    setResultText(
+      entrySource === '朝堂事务'
+        ? '朝堂事务当前是政治谋划预留入口，只暂存方案，不改数值，也不会进入旬月结算。'
+        : '宫斗事务会真实发起玩家主动宫斗，完成后登记案件，并进入追查或夜晚结算。',
+    );
   }, [entrySource]);
 
   const palaceAffairConcubines = useMemo(
@@ -818,7 +827,7 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
     }
 
     setResultText(
-      `已拟定${entrySource}方案：对象为${selectedTargetProfile ? `${selectedTargetProfile.rankLabel} ${selectedTargetProfile.name}` : '待定'}，方式为${selectedMethod || '待定'}，合谋方为${selectedAlly || '无'}，道具为${selectedItem || '无'}。当前仅保留计划，不直接改动数值。`,
+      `朝堂事务草案已暂存：对象为${selectedTargetProfile ? `${selectedTargetProfile.rankLabel} ${selectedTargetProfile.name}` : '待定'}，方式为${selectedMethod || '待定'}，合谋方为${selectedAlly || '无'}，道具为${selectedItem || '无'}。当前版本不改数值、不新增案件、不进入旬月结算。`,
     );
     setActiveStep('finish');
   };
@@ -936,7 +945,7 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
 
           {activeStep === 'finish' ? (
             <div className="chamber-utility-view__empty-state">
-              {entrySource === '宫斗事务' ? '本次宫斗事务已登记，待当旬夜晚结算。' : '方案已暂存。'}
+              {entrySource === '宫斗事务' ? '本次宫斗事务已登记，待当旬夜晚结算。' : '朝堂事务草案已暂存，当前不会生效。'}
             </div>
           ) : null}
         </section>

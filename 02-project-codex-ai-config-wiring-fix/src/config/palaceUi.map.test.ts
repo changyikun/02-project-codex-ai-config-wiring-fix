@@ -14,19 +14,20 @@ describe('palace map UI configuration', () => {
     expect(resolveMapBackgroundImage(slot)).toBe(expected);
   });
 
-  it('keeps the Yeting residence id while displaying the shorter map label', () => {
-    const hotspots = buildMapHotspots('掖庭院');
+  it('keeps Yeting as a normal map location instead of the player residence hotspot', () => {
+    const hotspots = buildMapHotspots('储秀宫西偏殿');
     const yeting = hotspots.find((hotspot) => hotspot.id === '掖庭院');
 
     expect(yeting).toMatchObject({
-      label: '掖庭',
-      top: '64.5%',
-      left: '81.7%',
+      label: '掖庭院',
+      top: '78.5%',
+      left: '13.2%',
     });
+    expect(hotspots.find((hotspot) => hotspot.id === '椒房殿')?.label).toBe('椒房殿');
   });
 
   it('does not expose Changchun Palace on the main map', () => {
-    expect(buildMapHotspots('掖庭院').some((hotspot) => hotspot.id === '长春宫' || hotspot.label === '长春宫')).toBe(
+    expect(buildMapHotspots('储秀宫西偏殿').some((hotspot) => hotspot.id === '长春宫' || hotspot.label === '长春宫')).toBe(
       false,
     );
   });

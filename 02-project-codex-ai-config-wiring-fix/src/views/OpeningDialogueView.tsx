@@ -4,6 +4,7 @@ import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
 import { GUIDE_TENDENCY_OPTIONS } from '../config/palaceUi';
 import { buildOpeningNarrativeContext } from '../game/data/openingNarrativeProfiles';
 import { requestOpeningDialogueWithFallback, buildLocalOpeningDialogue } from '../game/lib/openingDialogueRuntime';
+import { YINGLUOYETING_STORY_FLAGS } from '../game/lib/yingluoyetingStoryRuntime';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
 
 const openingBackground = '/assets/home-bg.png';
@@ -156,6 +157,8 @@ export function OpeningDialogueView() {
   const speakerLabel = `${dialogueTurn.speakerIdentity} · ${dialogueTurn.speakerName}`;
   const showChoices = dialogueTurn.mode === 'branch';
   const isNarrationTurn = dialogueTurn.speakerIdentity === '场景旁白';
+  const narrationName =
+    state.routeId === 'yingluoyeting' && turn <= 4 ? (turn >= 4 ? '后宫宫道' : dialogueTurn.speakerName) : state.residenceName;
   const quotedOpeningSpeaker = resolveQuotedOpeningSpeaker(state.routeId, turn, state.name);
   const playerPortrait = selectedRoute?.portrait ?? routePortraitById[state.routeId];
 
@@ -232,6 +235,11 @@ export function OpeningDialogueView() {
       flags: {
         ...state.flags,
         openingGuideFinished: true,
+        ...(state.routeId === 'yingluoyeting'
+          ? {
+              [YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]: true,
+            }
+          : {}),
       },
     });
 
@@ -275,7 +283,7 @@ export function OpeningDialogueView() {
 
             return undefined;
           }}
-          narrationName={state.residenceName}
+          narrationName={narrationName}
           quotedSpeakerIdentity={quotedOpeningSpeaker?.identity}
           quotedSpeakerName={quotedOpeningSpeaker?.name}
           ariaLabel="开场对话框"

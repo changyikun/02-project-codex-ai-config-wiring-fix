@@ -69,6 +69,7 @@
 - 存档入口必须遵守 `docs/save-system-maintenance.md`：
   - 启动页“开始”必须二级确认，并通过 `startNewGame()` 清空旧存档后新建。
   - 启动页“回溯”必须通过 `resumeLastSave()` 读取上一次 `SaveGameV1`。
+  - 当前开发期不做旧存档迁移；结构不兼容时直接删除旧 envelope，不写 fallback。
   - 不得用 `setCurrentView('route-selection')` 代替新局创建。
 - 剧情 / 对话 UI 必须遵守交互锁：
   - 共享剧情文本优先使用 `GlobalDialogueStage`，由 `global-dialogue-stage__interaction-lock` 屏蔽背景点击。
@@ -96,6 +97,13 @@ npm run build:web
 npx vitest run src/__tests__/app-flow.test.tsx
 ```
 
+## 5.1 Changelog 维护规则
+
+- `CHANGELOG.md` 后续按版本更新，不再按日期新增章节。
+- 新增内容只写入最新版本章节；除格式迁移外，不回改旧版本章节。
+- 如果最新版本中后续修正了该版本里已经写过的条目，不覆盖原条目原文；在最新版本末尾追加修订记录，格式为：`版本号 - 修改内容简述 - 见第 N 条`。
+- 每个版本内主要变更使用编号条目，便于后续修订记录引用。
+
 ## 6. 建议新对话的第一句
 
 ```text
@@ -119,6 +127,7 @@ npx vitest run src/__tests__/app-flow.test.tsx
 
 4. 当前最新补充会话主要做了：
    - 玩家住处、地图寝殿热点、回宫语义进一步收口
+   - `影落掖庭` 初始寝殿改为 `储秀宫西偏殿`，`掖庭院` 作为普通地图地点保留
    - 旬报 / 月报 / 月俸骨架接入并留档
    - 位分推进与迁宫真正接入月结算
    - 妃嫔 AI 对话 timeout / fallback 稳定性修复

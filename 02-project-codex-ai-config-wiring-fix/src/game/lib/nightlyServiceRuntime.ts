@@ -99,9 +99,9 @@ export const resolveNightlyServiceActionDelta = (
 ): number => {
   switch (actionId) {
     case 'music': {
-      const talent = Number(stats.talent ?? 0);
-      if (talent > 8) return 15;
-      if (talent > 5) return 5;
+      const music = Number(stats.talent ?? 0);
+      if (music > 8) return 15;
+      if (music > 5) return 5;
       return 0;
     }
     case 'poetry':

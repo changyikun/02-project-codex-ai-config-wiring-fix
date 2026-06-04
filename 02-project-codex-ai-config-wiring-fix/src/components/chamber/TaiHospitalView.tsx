@@ -12,6 +12,7 @@ import {
 import { buildLocationActionNarrative } from '../../game/lib/actionNarrativeRuntime';
 import { clampToRange, createDialogueId, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
 import { traceDialogue } from '../../game/lib/dialogueTrace';
+import { getNpcActivitiesAtLocation } from '../../game/lib/npcActivityRuntime';
 import { requestRelationshipJudgementWithFallback } from '../../game/lib/relationshipJudgeRuntime';
 import { requestTaiyiAmbientWithFallback } from '../../game/lib/taiyiAmbientRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
@@ -38,9 +39,6 @@ interface TaiyiSceneActor extends TaiyiDialogueActor {
 }
 
 const JIANNING_PORTRAIT_SRC = '/assets/characters/men/jian-ning.png';
-const DOWAGER_PORTRAIT_SRC = '/assets/characters/women/taihou-cutout.png';
-const hashSeed = (seed: string): number =>
-  seed.split('').reduce((sum, char, index) => sum + char.charCodeAt(0) * (index + 31), 0);
 
 const buildJianNingActor = (favor: number, affection: number): TaiyiSceneActor => ({
   id: 'jianning',
@@ -53,19 +51,6 @@ const buildJianNingActor = (favor: number, affection: number): TaiyiSceneActor =
   currentAffection: affection,
   actorKind: 'jianning',
   portraitSrc: JIANNING_PORTRAIT_SRC,
-});
-
-const buildDowagerActor = (): TaiyiSceneActor => ({
-  id: 'dowager',
-  name: '太后',
-  identity: '太后',
-  residence: '建章宫',
-  personality: '清醒强势，极重规矩，擅长观察与驯化，记仇护短，会审时度势，欣赏聪明人，但更欣赏懂分寸的聪明人。',
-  summary: '她是后宫最高权力长辈角色，看人先看可用性，再看风骨，最后才轮到私心。',
-  currentGoodwill: 0,
-  currentAffection: 0,
-  actorKind: 'dowager',
-  portraitSrc: DOWAGER_PORTRAIT_SRC,
 });
 
 const buildConsortActor = (consort: ConcubineProfile): TaiyiSceneActor => ({
@@ -112,6 +97,8 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     patchMedicalProgress,
     applyStoryEffects,
     applyConsortRelationshipJudgement,
+    npcActivity,
+    resolveNpcActivityEntry,
   } = useGameFlowStore();
   const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [activeActor, setActiveActor] = useState<TaiyiSceneActor | null>(null);
@@ -130,12 +117,12 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
   const dialogueOptions = dialogueTurn?.options ?? [];
   const isJianNingMet = Boolean(state.flags.isJianNingMet || medicalProgress.jianNingMet);
   const showConsultation = Number(state.stats.medicine ?? 0) >= 5;
-  const eligibleConsorts = useMemo(
-    () => concubines.filter((consort) => consort.status === 'live' && consort.residence !== '冷宫' && !consort.name.includes('太后')),
-    [concubines],
-  );
-  const currentSeed = `${state.routeId}:${time.year}-${time.month}-${time.xun}:${time.slotIndex}`;
-
+  const scheduledConsortActivity = useMemo(() => {
+    const scheduledEntries = getNpcActivitiesAtLocation(npcActivity, '太医院');
+    const entry = scheduledEntries.find((candidate) => concubines.some((consort) => consort.id === candidate.actorConsortId));
+    const consort = entry ? concubines.find((candidate) => candidate.id === entry.actorConsortId) : undefined;
+    return entry && consort ? { entry, consort } : null;
+  }, [concubines, npcActivity]);
   const buildPayload = (
     actor: TaiyiSceneActor,
     topic: 'visit' | 'follow-up',
@@ -323,49 +310,24 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
         return;
       }
 
-      const rollSeed = `${currentSeed}:taiyi-stroll:${nextCount}`;
-      const success = hashSeed(rollSeed) % 100 < 30;
-
-      if (!success) {
-        const ambient = await requestTaiyiAmbientWithFallback({
-          routeId: state.routeId,
-          playerName: state.name,
-          playerRank: playerRankLabel,
-          location: '太医院',
-          action: 'stroll-idle',
-          stateHint: `闲逛第${nextCount}次`,
-          timeContext: useGameFlowStore.getState().time,
-        });
-        patchMedicalProgress({ lastAmbientText: ambient });
-        showActionResult(
-          buildLocationActionNarrative({
-            locationId: 'tai-hospital',
-            actionId: 'stroll',
-            actionLabel: '闲逛',
-            resultText: ambient,
-          }),
-          actionOutcome,
-        );
-        return;
-      }
-
-      const actorPool: TaiyiSceneActor[] = [buildDowagerActor(), ...eligibleConsorts.map((consort) => buildConsortActor(consort))];
-      const actor = actorPool[hashSeed(`${rollSeed}:actor`) % actorPool.length];
-      patchMedicalProgress({ lastEncounterNpcId: actor.id });
-      setSystemMessage(
+      const ambient = await requestTaiyiAmbientWithFallback({
+        routeId: state.routeId,
+        playerName: state.name,
+        playerRank: playerRankLabel,
+        location: '太医院',
+        action: 'stroll-idle',
+        stateHint: `闲逛第${nextCount}次`,
+        timeContext: useGameFlowStore.getState().time,
+      });
+      patchMedicalProgress({ lastAmbientText: ambient });
+      showActionResult(
         buildLocationActionNarrative({
           locationId: 'tai-hospital',
-          actionId: 'meet',
-          actionLabel: '太医院闲逛',
-          resultText: `你在药廊里撞见了${actor.identity} ${actor.name}。`,
+          actionId: 'stroll',
+          actionLabel: '闲逛',
+          resultText: ambient,
         }),
-      );
-      holdTimedActionOutcome(actionOutcome);
-      await beginEncounter(
-        actor,
-        'stroll-encounter',
-        '太医院闲逛',
-        `你在太医院闲逛时，撞见了${actor.identity} ${actor.name}。`,
+        actionOutcome,
       );
     } finally {
       setBusy(false);

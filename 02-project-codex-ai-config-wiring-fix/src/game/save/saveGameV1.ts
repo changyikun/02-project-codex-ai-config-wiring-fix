@@ -9,6 +9,8 @@ import type {
   MedicalProgressState,
   MusicHallProgressState,
   NightlyServiceState,
+  NpcActivityState,
+  NpcRelationMatrix,
   PalaceBanquetProgressState,
   PalaceTimeState,
   PalaceStrifeCaseState,
@@ -40,6 +42,8 @@ export interface SaveGameV1Source {
   palaceBanquetProgress: PalaceBanquetProgressState;
   templeProgress: TempleProgressState;
   nightlyService: NightlyServiceState;
+  npcActivity: NpcActivityState;
+  npcRelationMatrix: NpcRelationMatrix;
   settlementReports: SettlementReport[];
   palaceStrifeCases: PalaceStrifeCaseState[];
   latestSettlementReportId?: string;
@@ -75,6 +79,7 @@ export interface SaveGameV1 {
   relations: {
     bondProfile: BondProfileState;
     consortInteractionMap: Record<string, ConsortInteractionProgress>;
+    npcRelationMatrix: NpcRelationMatrix;
   };
   cases: {
     palaceStrifeCases: PalaceStrifeCaseState[];
@@ -83,9 +88,10 @@ export interface SaveGameV1 {
     kitchen: KitchenProgressState;
     medical: MedicalProgressState;
     musicHall: MusicHallProgressState;
-    palaceBanquet?: PalaceBanquetProgressState;
+    palaceBanquet: PalaceBanquetProgressState;
     temple: TempleProgressState;
     nightlyService: NightlyServiceState;
+    npcActivity: NpcActivityState;
   };
 }
 
@@ -95,7 +101,7 @@ interface PersistedSaveGameV1Envelope {
   };
 }
 
-const isSaveGameV1 = (value: unknown): value is SaveGameV1 =>
+export const isSaveGameV1 = (value: unknown): value is SaveGameV1 =>
   Boolean(
     value &&
       typeof value === 'object' &&
@@ -103,7 +109,10 @@ const isSaveGameV1 = (value: unknown): value is SaveGameV1 =>
       typeof (value as SaveGameV1).savedAt === 'string' &&
       (value as SaveGameV1).player &&
       (value as SaveGameV1).world &&
-      (value as SaveGameV1).route,
+      (value as SaveGameV1).route &&
+      (value as SaveGameV1).relations?.npcRelationMatrix &&
+      (value as SaveGameV1).progress?.palaceBanquet &&
+      (value as SaveGameV1).progress?.npcActivity,
   );
 
 const resolveSaveStorage = (storage?: Storage): Storage | undefined => {
@@ -129,8 +138,13 @@ export const readSaveGameV1FromStorage = (storage?: Storage): SaveGameV1 | undef
     }
     const envelope = JSON.parse(encoded) as PersistedSaveGameV1Envelope;
     const saveGame = envelope.state?.saveGame;
-    return isSaveGameV1(saveGame) ? saveGame : undefined;
+    if (isSaveGameV1(saveGame)) {
+      return saveGame;
+    }
+    targetStorage.removeItem(SAVE_GAME_STORAGE_KEY);
+    return undefined;
   } catch {
+    targetStorage.removeItem(SAVE_GAME_STORAGE_KEY);
     return undefined;
   }
 };
@@ -169,6 +183,7 @@ export const buildSaveGameV1 = (source: SaveGameV1Source, savedAt = new Date().t
   relations: {
     bondProfile: source.bondProfile,
     consortInteractionMap: source.consortInteractionMap,
+    npcRelationMatrix: source.npcRelationMatrix,
   },
   cases: {
     palaceStrifeCases: source.palaceStrifeCases,
@@ -180,5 +195,6 @@ export const buildSaveGameV1 = (source: SaveGameV1Source, savedAt = new Date().t
     palaceBanquet: source.palaceBanquetProgress,
     temple: source.templeProgress,
     nightlyService: source.nightlyService,
+    npcActivity: source.npcActivity,
   },
 });

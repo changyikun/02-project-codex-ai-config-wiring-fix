@@ -95,8 +95,9 @@ const buildFallbackText = (
     };
   }
 
+  const visitOpening = actionResult ? `${actionResult}\n` : '';
   return {
-    text: `${speakerLead} ${consort.name}在殿中迎了你一礼，目光却没有立刻垂下：“娘娘今日亲来，想必不是只为看一眼宫灯与茶案。妾听着，娘娘尽可以开口。”`,
+    text: `${visitOpening}${speakerLead} ${consort.name}在殿中迎了你一礼，目光却没有立刻垂下：“娘娘今日亲来，想必不是只为看一眼宫灯与茶案。妾听着，娘娘尽可以开口。”`,
     sceneHint: '先看她肯不肯把话摊开，再决定是示好、试探还是压她一头。',
   };
 };

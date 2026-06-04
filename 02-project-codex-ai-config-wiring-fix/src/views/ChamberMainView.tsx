@@ -8,6 +8,7 @@ import { MiaoYinHallView } from '../components/chamber/MiaoYinHallView';
 import { NightlyServiceEventView, OVERNIGHT_TRANSITION_MS } from '../components/chamber/NightlyServiceEventView';
 import { TaiHospitalView } from '../components/chamber/TaiHospitalView';
 import { ConcubineListView } from '../components/consorts/ConcubineListView';
+import { ConsortAudiencePanel } from '../components/consorts/ConsortAudiencePanel';
 import { HaremPalaceView } from '../components/consorts/HaremPalaceView';
 import { DIALOGUE_EXPLICIT_PAGE_BREAK, GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
@@ -28,11 +29,16 @@ import { HAREM_OVERVIEW_BACKGROUND, LOCATION_SCENE_BACKGROUNDS, resolvePlayerHom
 import { buildRandomMusicScoreItem } from '../game/data/inventoryPresets';
 import { buildInitialBondProfile } from '../game/data/bondPresets';
 import {
+  getConcubineDisplayRankText,
+  getConcubinePortraitPath,
+} from '../game/data/concubineRoster';
+import {
   buildChamberActionNarrative,
   buildMapTransitionNarrative,
 } from '../game/lib/actionNarrativeRuntime';
 import { getRarityColor } from '../game/lib/bedchamberRuntime';
 import { isJiaojiaoSpokenText } from '../game/lib/dialoguePresentation';
+import { getNpcActivitiesAtLocation, getPendingNpcPlayerVisit } from '../game/lib/npcActivityRuntime';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
 
 const skillLabelMap: Record<string, string> = {
@@ -63,7 +69,14 @@ const CHAMBER_BACKGROUND_CROSSFADE_MS = 680;
 const getCurrentXunKey = (year: number, month: number, xun: number): string => `${year}-${month}-${xun}`;
 const toXunIndex = (year: number, month: number, xun: number): number => year * 36 + (month - 1) * 3 + xun;
 type OvernightTransitionPhase = 'hidden' | 'fade-in' | 'settlement' | 'fade-out';
-type PendingChamberDialogueAction = 'enter-map' | 'reopen-expense-choice' | 'overnight-reminder' | 'overnight-transition' | null;
+type PendingChamberDialogueAction =
+  | 'enter-map'
+  | 'reopen-expense-choice'
+  | 'overnight-reminder'
+  | 'overnight-transition'
+  | null;
+
+type NpcPlayerVisitChoiceId = 'receive' | 'probe' | 'decline';
 
 const buildChamberBackgroundStyle = (backgroundImage?: string): CSSProperties | undefined =>
   backgroundImage
@@ -85,6 +98,38 @@ const buildOvernightReminderText = (origin: 'map' | 'chamber', reason: 'deep-nig
   return reason === 'stamina'
     ? '娘娘，今日体力已经尽了。奴婢替您收拾灯烛，先歇下吧。'
     : '娘娘，已经深夜了。奴婢替您放下帐子，先歇下吧。';
+};
+
+const npcVisitPurposeLabel: Record<string, string> = {
+  gift: '送礼',
+  probe: '试探',
+  'win-over': '拉拢',
+  gossip: '传话',
+  pressure: '施压',
+};
+
+const buildNpcPlayerVisitOpening = (visitorName: string, purpose: string): string => {
+  const purposeLabel = npcVisitPurposeLabel[purpose] ?? '递话';
+  if (purpose === 'gift') {
+    return `${visitorName}遣宫人先递了话，随后亲自入殿，将随身带来的匣子轻轻搁在案边。她笑意不深，只说今日路过，想来问候娘娘几句。`;
+  }
+  if (purpose === 'pressure') {
+    return `${visitorName}来得不算突然，却也没有给你推辞的余地。她在帘外停了一息，入内后先看了看殿中陈设，才把话锋压低。`;
+  }
+  if (purpose === 'gossip') {
+    return `${visitorName}带着几句宫里新起的风声来访。她没有急着坐下，只把话说得半真半隐，像是等你先表态。`;
+  }
+  return `${visitorName}今日主动来访，话说得周全，却处处留着余地。她此行像是${purposeLabel}，也像是在看你会如何接她这一局。`;
+};
+
+const buildNpcPlayerVisitResult = (visitorName: string, choiceId: NpcPlayerVisitChoiceId): string => {
+  if (choiceId === 'receive') {
+    return `你命人奉茶，请${visitorName}入座。她神色稍缓，话里少了几分试探，临走前也肯多留一句余地。`;
+  }
+  if (choiceId === 'probe') {
+    return `你顺着${visitorName}的话锋问回去，没有急着应下。她听出你的防备，面上仍笑，眼底却多了几分重新估量。`;
+  }
+  return `你借身体乏累婉言送客。${visitorName}没有当场失态，只把未尽的话收了回去，离殿时脚步比来时轻了些。`;
 };
 
 export function ChamberMainView() {
@@ -113,6 +158,8 @@ export function ChamberMainView() {
     ensureBondProfile,
     concubines,
     ensureConcubines,
+    patchConcubineById,
+    customConsorts,
     nightlyService,
     finalizePendingNightlyService,
     acknowledgeNightlyServiceNotice,
@@ -122,13 +169,24 @@ export function ChamberMainView() {
     acknowledgeSettlementReport,
     pendingOvernightReturn,
     clearOvernightReturn,
+    completeOvernightTransition,
+    npcActivity,
+    acknowledgeNpcPlayerVisit,
+    resolveNpcActivityEntry,
   } = useGameFlowStore();
   const [dialogueText, setDialogueText] = useState('');
   const [bedchamberGiftItemName, setBedchamberGiftItemName] = useState('');
   const [overnightTransitionPhase, setOvernightTransitionPhase] = useState<OvernightTransitionPhase>('hidden');
+  const [overnightTransitionReason, setOvernightTransitionReason] = useState<'deep-night' | 'stamina' | undefined>(undefined);
   const [endXunAfterNightNotice, setEndXunAfterNightNotice] = useState(false);
   const [expenseStrategyPanelOpen, setExpenseStrategyPanelOpen] = useState(false);
   const [utilityReturnPanel, setUtilityReturnPanel] = useState<ChamberPanelId | null>(null);
+  const [npcPlayerVisitResultText, setNpcPlayerVisitResultText] = useState('');
+  const [activeLocationAudience, setActiveLocationAudience] = useState<{
+    entryId: string;
+    consortId: string;
+    summary: string;
+  } | null>(null);
   const [pendingChamberDialogueAction, setPendingChamberDialogueAction] =
     useState<PendingChamberDialogueAction>(null);
   const overnightTransitionRunKeyRef = useRef<string | null>(null);
@@ -176,11 +234,31 @@ export function ChamberMainView() {
     () => buildChamberBackgroundStyle(fadingSceneBackground),
     [fadingSceneBackground],
   );
+  const allConsorts = useMemo(() => [...concubines, ...customConsorts], [concubines, customConsorts]);
+  const activeLocationNpcActivities = useMemo(() => {
+    if (!activeMapLocation || isResidenceLocation) {
+      return [];
+    }
+    return getNpcActivitiesAtLocation(npcActivity, activeMapLocation, { includeResolved: true })
+      .map((entry) => {
+        const consort = allConsorts.find((candidate) => candidate.id === entry.actorConsortId);
+        return consort ? { entry, consort } : null;
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+  }, [activeMapLocation, allConsorts, isResidenceLocation, npcActivity]);
+  const activeLocationAudienceConsort = useMemo(
+    () => allConsorts.find((consort) => consort.id === activeLocationAudience?.consortId) ?? null,
+    [activeLocationAudience, allConsorts],
+  );
 
   useEffect(() => {
     ensureBondProfile(state.routeId);
     ensureConcubines(state.routeId);
   }, [ensureBondProfile, ensureConcubines, state.routeId]);
+
+  useEffect(() => {
+    setActiveLocationAudience(null);
+  }, [activeMapLocation]);
 
   useEffect(() => {
     if (overnightTransitionPhase === 'hidden' || overnightTransitionPhase === 'settlement') {
@@ -196,16 +274,16 @@ export function ChamberMainView() {
 
       if (overnightTransitionPhase === 'fade-out') {
         setOvernightTransitionPhase('hidden');
+        setOvernightTransitionReason(undefined);
         return;
       }
 
-      const currentSlotIndex = useGameFlowStore.getState().time.slotIndex;
-      advanceTime(Math.max(1, 7 - currentSlotIndex));
+      completeOvernightTransition(overnightTransitionReason);
       setOvernightTransitionPhase('settlement');
     }, OVERNIGHT_TRANSITION_MS);
 
     return () => window.clearTimeout(timer);
-  }, [advanceTime, overnightTransitionPhase, time.month, time.slotIndex, time.slotProgress, time.xun, time.year]);
+  }, [completeOvernightTransition, overnightTransitionPhase, overnightTransitionReason, time.month, time.slotIndex, time.slotProgress, time.xun, time.year]);
 
   useEffect(() => {
     if (!state.flags.bedchamberIntroShown) {
@@ -245,6 +323,7 @@ export function ChamberMainView() {
     }
 
     if (activeMapLocation && !isResidenceLocation) {
+      setPendingChamberDialogueAction(null);
       setDialogueText(buildMapTransitionNarrative({ kind: 'enter-location', locationName: activeMapLocation }));
       return;
     }
@@ -331,12 +410,41 @@ export function ChamberMainView() {
       activeChamberPanel === 'main' &&
       !shouldSuppressSettlementReportForScene,
   );
+  const pendingNpcPlayerVisit = useMemo(() => getPendingNpcPlayerVisit(npcActivity), [npcActivity]);
+  const pendingNpcPlayerVisitor = useMemo(
+    () => concubines.find((consort) => consort.id === pendingNpcPlayerVisit?.actorConsortId),
+    [concubines, pendingNpcPlayerVisit],
+  );
+  const canReceiveNpcPlayerVisit = Boolean(
+    pendingNpcPlayerVisit &&
+      pendingNpcPlayerVisitor &&
+      !dialogueText &&
+      !showSettlementReport &&
+      !isNightlyOverlayActive &&
+      !bedchamberGiftItemName &&
+      !expenseStrategyPanelOpen &&
+      activeChamberPanel === 'main' &&
+      !isOutsideScene &&
+      time.slotIndex >= 2,
+  );
+  const showNpcPlayerVisit = canReceiveNpcPlayerVisit;
+  const npcPlayerVisitOptions = useMemo(
+    () =>
+      npcPlayerVisitResultText
+        ? []
+        : [
+            { id: 'receive', label: '请她入座', effectHint: '态度转暖，对你关系小幅上升。' },
+            { id: 'probe', label: '试探来意', effectHint: '保留防备，关系略有波动。' },
+            { id: 'decline', label: '婉言送客', effectHint: '拒绝来访，对你关系下降。' },
+          ],
+    [npcPlayerVisitResultText],
+  );
   const isJiaojiaoChamberDialogue = isJiaojiaoSpokenText(dialogueText);
   const chamberDialogueClassName = `global-dialogue-stage--chamber ${
     isJiaojiaoChamberDialogue ? 'global-dialogue-stage--assistant' : 'global-dialogue-stage--narration'
   }`;
   const isChamberDialogueBlocking = Boolean(
-    dialogueText || showSettlementReport || isNightlyOverlayActive || bedchamberGiftItemName,
+    dialogueText || showSettlementReport || showNpcPlayerVisit || isNightlyOverlayActive || bedchamberGiftItemName || Boolean(activeLocationAudience),
   );
   const isChamberUiInteractionLocked = isChamberDialogueBlocking || expenseStrategyPanelOpen;
 
@@ -385,6 +493,8 @@ export function ChamberMainView() {
       return;
     }
 
+    const currentUtilityReturnPanel = activeChamberPanel === 'harem' || activeChamberPanel === 'jiaojiao' ? activeChamberPanel : null;
+
     if (buttonId === 'map-main') {
       setUtilityReturnPanel(null);
       if (isOutsideScene) {
@@ -403,11 +513,10 @@ export function ChamberMainView() {
 
     if (buttonId === 'consorts' || buttonId === 'stats' || buttonId === 'chronicle' || buttonId === 'bond') {
       if (activeChamberPanel === buttonId) {
-        setUtilityReturnPanel(null);
-        closeChamberPanel();
+        handleUtilityPanelClose();
         return;
       }
-      setUtilityReturnPanel(null);
+      setUtilityReturnPanel((current) => current ?? currentUtilityReturnPanel);
       openChamberPanel(buttonId);
       setPendingChamberDialogueAction(null);
       setDialogueText('');
@@ -419,16 +528,18 @@ export function ChamberMainView() {
       return;
     }
 
+    setActiveLocationAudience(null);
     setPendingChamberDialogueAction(null);
     setDialogueText('');
     setMapEventText('');
     enterMainChamber();
   };
 
-  const beginOvernightTransition = () => {
+  const beginOvernightTransition = (reason?: 'deep-night' | 'stamina') => {
     enterMainChamber();
     setPendingChamberDialogueAction(null);
     setDialogueText('');
+    setOvernightTransitionReason(reason);
     setOvernightTransitionPhase('fade-in');
   };
 
@@ -445,6 +556,7 @@ export function ChamberMainView() {
 
     enterMainChamber();
     setPendingChamberDialogueAction('overnight-transition');
+    setOvernightTransitionReason(pendingOvernightReturn.reason);
     setDialogueText(buildOvernightReminderText(pendingOvernightReturn.origin, pendingOvernightReturn.reason));
     clearOvernightReturn();
   }, [
@@ -648,12 +760,54 @@ export function ChamberMainView() {
     }
 
     if (pendingChamberDialogueAction === 'overnight-transition') {
-      beginOvernightTransition();
+      beginOvernightTransition(overnightTransitionReason);
       return;
     }
 
     setPendingChamberDialogueAction(null);
     setDialogueText('');
+  };
+
+  const handleStartLocationAudience = (entryId: string) => {
+    const activity = activeLocationNpcActivities.find((item) => item.entry.id === entryId);
+    if (!activity || activity.entry.resolved) {
+      return;
+    }
+    setDialogueText('');
+    setPendingChamberDialogueAction(null);
+    setActiveLocationAudience({
+      entryId,
+      consortId: activity.consort.id,
+      summary: activity.entry.summary,
+    });
+    resolveNpcActivityEntry(entryId);
+  };
+
+  const handleNpcPlayerVisitChoice = (choiceId: string) => {
+    if (!pendingNpcPlayerVisit || !pendingNpcPlayerVisitor) {
+      return;
+    }
+    const resolvedChoiceId = choiceId as NpcPlayerVisitChoiceId;
+    const relationDelta = resolvedChoiceId === 'receive' ? 3 : resolvedChoiceId === 'probe' ? -1 : -4;
+    const stressDelta = resolvedChoiceId === 'receive' ? -1 : resolvedChoiceId === 'probe' ? 1 : 2;
+    patchConcubineById(pendingNpcPlayerVisitor.id, (current) => ({
+      ...current,
+      stats: {
+        ...current.stats,
+        relationToPlayer: Math.max(-100, Math.min(100, current.stats.relationToPlayer + relationDelta)),
+        stress: Math.max(0, Math.min(100, current.stats.stress + stressDelta)),
+      },
+    }));
+    setNpcPlayerVisitResultText(buildNpcPlayerVisitResult(pendingNpcPlayerVisitor.name, resolvedChoiceId));
+  };
+
+  const handleNpcPlayerVisitDone = () => {
+    if (!pendingNpcPlayerVisit) {
+      setNpcPlayerVisitResultText('');
+      return;
+    }
+    acknowledgeNpcPlayerVisit(pendingNpcPlayerVisit.id);
+    setNpcPlayerVisitResultText('');
   };
 
   const handleExpenseExplanation = () => {
@@ -669,6 +823,10 @@ export function ChamberMainView() {
     });
     setExpenseStrategyPanelOpen(false);
   };
+
+  useEffect(() => {
+    setNpcPlayerVisitResultText('');
+  }, [pendingNpcPlayerVisit?.id]);
 
   return (
     <main className={`chamber-main palace-stage-shell ${isHaremPanelActive ? 'is-harem-open' : ''} ${isJiaojiaoPanel ? 'is-jiaojiao-open' : ''}`}>
@@ -849,7 +1007,45 @@ export function ChamberMainView() {
           </section>
         ) : null}
 
-        {!shouldHideChamberUiForNightlyOverlay && isKitchenScene ? (
+        {!shouldHideChamberUiForNightlyOverlay &&
+        activeChamberPanel === 'main' &&
+        activeMapLocation &&
+        !isResidenceLocation &&
+        !activeLocationAudience &&
+        activeLocationNpcActivities.length > 0 &&
+        !dialogueText &&
+        !showSettlementReport &&
+        !showNpcPlayerVisit &&
+        !isNightlyOverlayActive ? (
+          <section className="chamber-main__location-visitors" aria-label={`${activeMapLocation}可交互妃嫔`}>
+            <strong>本旬在此</strong>
+            {activeLocationNpcActivities.map(({ entry, consort }) => (
+              <button key={entry.id} type="button" disabled={entry.resolved} onClick={() => handleStartLocationAudience(entry.id)}>
+                {entry.resolved
+                  ? `${getConcubineDisplayRankText(consort)} ${consort.name}仍在此处（已交谈）`
+                  : `与${getConcubineDisplayRankText(consort)} ${consort.name}交谈`}
+              </button>
+            ))}
+          </section>
+        ) : null}
+
+        {!shouldHideChamberUiForNightlyOverlay && activeLocationAudience && activeLocationAudienceConsort && activeMapLocation ? (
+          <ConsortAudiencePanel
+            consort={activeLocationAudienceConsort}
+            palaceLabel={activeMapLocation}
+            hallLabel="偶遇"
+            concubines={concubines}
+            backLabel={`返回${activeMapLocation}`}
+            initialActionLabel={`${activeMapLocation}偶遇`}
+            initialActionResult={`${buildMapTransitionNarrative({
+              kind: 'enter-location',
+              locationName: activeMapLocation,
+            })}${activeLocationAudience.summary}你看见${getConcubineDisplayRankText(activeLocationAudienceConsort)} ${
+              activeLocationAudienceConsort.name
+            }正在此处，便主动上前搭话。`}
+            onBack={() => setActiveLocationAudience(null)}
+          />
+        ) : !shouldHideChamberUiForNightlyOverlay && isKitchenScene ? (
           <KitchenView concubines={concubines} />
         ) : isBaohuaHallScene ? (
           <BaohuaHallView concubines={concubines} />
@@ -874,7 +1070,7 @@ export function ChamberMainView() {
             state={state}
             hiddenStats={hiddenStats}
             settlementReports={settlementReports}
-            onClose={closeChamberPanel}
+            onClose={handleUtilityPanelClose}
           />
         ) : activeChamberPanel === 'bond' ? (
           <BondPanelView
@@ -903,7 +1099,7 @@ export function ChamberMainView() {
             onClose={handleUtilityPanelClose}
           />
         ) : activeChamberPanel === 'consorts' ? (
-          <ConcubineListView concubines={concubines} onClose={closeChamberPanel} />
+          <ConcubineListView concubines={concubines} onClose={handleUtilityPanelClose} />
         ) : null}
 
         {showSettlementReport && latestSettlementReport ? (
@@ -923,9 +1119,42 @@ export function ChamberMainView() {
           />
         ) : null}
 
+        {showNpcPlayerVisit && pendingNpcPlayerVisit && pendingNpcPlayerVisitor ? (
+          <GlobalDialogueStage
+            sceneLabel="妃嫔拜访寝殿场景"
+            portraitLabel={`${pendingNpcPlayerVisitor.name}立绘`}
+            portrait={
+              <AutoCutoutPortrait
+                src={getConcubinePortraitPath(pendingNpcPlayerVisitor.portraitId)}
+                alt={pendingNpcPlayerVisitor.name}
+                threshold={18}
+                sampleInset={16}
+                className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--consort"
+              />
+            }
+            ariaLabel="妃嫔拜访寝殿"
+            className="global-dialogue-stage--chamber global-dialogue-stage--narration"
+            dialogueClassName="palace-dialogue-box--chamber"
+            characterIdentity={getConcubineDisplayRankText(pendingNpcPlayerVisitor)}
+            characterName={pendingNpcPlayerVisitor.name}
+            content={
+              npcPlayerVisitResultText ||
+              buildNpcPlayerVisitOpening(
+                `${getConcubineDisplayRankText(pendingNpcPlayerVisitor)} ${pendingNpcPlayerVisitor.name}`,
+                pendingNpcPlayerVisit.purpose,
+              )
+            }
+            options={npcPlayerVisitOptions}
+            onSelectOption={npcPlayerVisitResultText ? undefined : handleNpcPlayerVisitChoice}
+            nextActionLabel={npcPlayerVisitResultText ? '记下' : undefined}
+            onNextAction={npcPlayerVisitResultText ? handleNpcPlayerVisitDone : undefined}
+          />
+        ) : null}
+
         {dialogueText &&
         !isNightlyOverlayActive &&
         !showSettlementReport &&
+        !showNpcPlayerVisit &&
         (activeChamberPanel === 'main' || isJiaojiaoPanel) &&
         !isJianzhangAudience &&
         !isBaohuaHallScene &&

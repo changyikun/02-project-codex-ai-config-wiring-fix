@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PRESTIGE_RANGE } from '../../config/constants';
 import { YINGLUOYETING_STORY_FLAGS } from '../lib/yingluoyetingStoryRuntime';
-import { SAVE_GAME_SCHEMA_VERSION } from '../save/saveGameV1';
+import { SAVE_GAME_SCHEMA_VERSION, SAVE_GAME_STORAGE_KEY } from '../save/saveGameV1';
 import { useGameFlowStore } from './gameFlowStore';
 
 describe('gameFlowStore SaveGameV1 integration', () => {
@@ -100,7 +100,7 @@ describe('gameFlowStore SaveGameV1 integration', () => {
       ...state,
       time: {
         year: 1,
-        month: 11,
+        month: 1,
         xun: 3,
         slotIndex: 6,
         slot: '深夜',
@@ -117,11 +117,39 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     useGameFlowStore.getState().advanceTime(1);
 
     const flow = useGameFlowStore.getState();
-    expect(flow.palaceBanquetProgress.lastRegistrationNoticeSeasonKey).toBe('2-3-1-palace-banquet');
+    expect(flow.time).toMatchObject({ year: 1, month: 2, xun: 1, slot: '清晨' });
+    expect(flow.palaceBanquetProgress.lastRegistrationNoticeSeasonKey).toBe('1-3-1-palace-banquet');
     expect(flow.settlementReports.at(-1)).toMatchObject({
       kind: 'event',
       title: '宫宴报名开启',
     });
+  });
+
+  it('does not create a palace banquet registration notice before the one-month signup window', () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 0,
+        slot: '清晨',
+        slotProgress: 0,
+      },
+      palaceBanquetProgress: {
+        submissionCount: 0,
+      },
+      settlementReports: [],
+      latestSettlementReportId: undefined,
+      lastSeenSettlementReportId: undefined,
+    }));
+
+    useGameFlowStore.getState().advanceTime(20);
+
+    const flow = useGameFlowStore.getState();
+    expect(flow.time).toMatchObject({ year: 1, month: 1, xun: 3, slot: '深夜' });
+    expect(flow.palaceBanquetProgress.lastRegistrationNoticeSeasonKey).toBeUndefined();
+    expect(flow.settlementReports.some((report) => report.title === '宫宴报名开启')).toBe(false);
   });
 
   it('resolves the system palace banquet once when time reaches the banquet slot', () => {
@@ -153,6 +181,18 @@ describe('gameFlowStore SaveGameV1 integration', () => {
         lianQiaoMet: true,
         lianQiaoFavor: 60,
         lianQiaoAffection: 60,
+        musicScoreMastery: {
+          'score-phoenix-return': {
+            itemId: 'score-phoenix-return',
+            name: '凤归云阙谱',
+            color: 'red',
+            rarity: 'red',
+            difficulty: 85,
+            masteryPercent: 160,
+            practiceCount: 12,
+            performanceScore: 150,
+          },
+        },
       },
       palaceBanquetProgress: {
         submissionCount: 1,
@@ -282,6 +322,34 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     expect(persisted.dialogue).toBeUndefined();
   });
 
+  it('drops an incompatible persisted envelope during hydration instead of migrating it', () => {
+    const merge = useGameFlowStore.persist.getOptions().merge;
+    expect(merge).toBeTypeOf('function');
+    localStorage.setItem(SAVE_GAME_STORAGE_KEY, JSON.stringify({ state: { saveGame: { schemaVersion: 1 } }, version: 0 }));
+
+    const merged = merge?.(
+      {
+        saveGame: {
+          schemaVersion: 1,
+          savedAt: '2026-06-04T00:00:00.000Z',
+          route: { routeId: 'yingluoyeting' },
+          player: { state: { name: '旧档', routeId: 'yingluoyeting', stats: {} }, hiddenStats: {} },
+          world: {
+            time: { year: 1, month: 1, xun: 1, slotIndex: 0, slot: '清晨', slotProgress: 0 },
+            settlementReports: [],
+          },
+          relations: { bondProfile: {}, consortInteractionMap: {} },
+          progress: {},
+        },
+      } as unknown as Partial<ReturnType<typeof useGameFlowStore.getState>>,
+      useGameFlowStore.getState(),
+    ) as ReturnType<typeof useGameFlowStore.getState>;
+
+    expect(localStorage.getItem(SAVE_GAME_STORAGE_KEY)).toBeNull();
+    expect(merged.state.name).toBe(useGameFlowStore.getState().state.name);
+    expect(merged.state.name).not.toBe('旧档');
+  });
+
   it('starts a selected route with fresh durable state instead of carrying the previous persisted run', () => {
     const previous = useGameFlowStore.getState();
     const yingluoyeting = {
@@ -291,7 +359,7 @@ describe('gameFlowStore SaveGameV1 integration', () => {
       intro: '',
       defaultName: '沉璧',
       familyDisplay: '罪臣之后',
-      residenceDisplay: '掖庭院',
+      residenceDisplay: '储秀宫西偏殿',
       biography: '',
       clearanceRequirement: '',
       difficulty: '困难',
@@ -302,7 +370,7 @@ describe('gameFlowStore SaveGameV1 integration', () => {
       baseState: {
         name: '沉璧',
         family: '罪臣之后',
-        residenceName: '掖庭院',
+        residenceName: '储秀宫西偏殿',
         pointsTotal: 54,
         pointsLeft: 0,
       },
@@ -427,6 +495,7 @@ describe('gameFlowStore SaveGameV1 integration', () => {
       });
       expect(flow.mapEventText).toBe('');
       expect(flow.briefing).toBe('');
+      expect(flow.state.residenceName).toBe('储秀宫西偏殿');
       expect(flow.nightlyService).toMatchObject({
         playerNightFavorGauge: 0,
         emperorMood: 40,
@@ -532,6 +601,23 @@ describe('gameFlowStore SaveGameV1 integration', () => {
         rival,
         ...rest,
       ],
+      npcActivity: {
+        xunKey: '2-3-2',
+        triggeredVisitIds: [],
+        entries: {
+          [`npc-activity-2-3-2-${aggressor.id}`]: {
+            id: `npc-activity-2-3-2-${aggressor.id}`,
+            xunKey: '2-3-2',
+            actorConsortId: aggressor.id,
+            targetConsortId: rival.id,
+            location: 'home',
+            intent: 'hostile-plot',
+            purpose: 'plot',
+            summary: `${aggressor.name}暗中筹谋。`,
+            resolved: false,
+          },
+        },
+      },
     }));
 
     useGameFlowStore.getState().advanceTime(7);
@@ -896,6 +982,37 @@ describe('gameFlowStore SaveGameV1 integration', () => {
         slotProgress: 0,
       },
       palaceStrifeCases: [],
+      concubines: state.concubines.map((consort, index) =>
+        index === 0
+          ? {
+              ...consort,
+              stats: {
+                ...consort.stats,
+                ambition: 100,
+                stress: 95,
+                intrigue: 820,
+              },
+              rivals: [state.concubines[1].id],
+            }
+          : consort,
+      ),
+      npcActivity: {
+        xunKey: '2-3-3',
+        triggeredVisitIds: [],
+        entries: {
+          [`npc-activity-2-3-3-${state.concubines[0].id}`]: {
+            id: `npc-activity-2-3-3-${state.concubines[0].id}`,
+            xunKey: '2-3-3',
+            actorConsortId: state.concubines[0].id,
+            targetConsortId: state.concubines[1].id,
+            location: 'home',
+            intent: 'hostile-plot',
+            purpose: 'plot',
+            summary: `${state.concubines[0].name}暗中筹谋。`,
+            resolved: false,
+          },
+        },
+      },
       settlementReports: [],
       latestSettlementReportId: undefined,
     }));

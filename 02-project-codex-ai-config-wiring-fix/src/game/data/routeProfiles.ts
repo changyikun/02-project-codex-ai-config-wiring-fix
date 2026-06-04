@@ -1,4 +1,5 @@
 import type { HiddenStatsState, RouteId, RouteSelectionProfile } from '../types';
+import { YINGLUOYETING_INITIAL_RESIDENCE } from '../../config/haremPalaces';
 
 const randomInt = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min;
 const randomPick = <T>(items: T[]): T => items[randomInt(0, items.length - 1)];
@@ -122,7 +123,7 @@ export const buildRouteProfiles = (): RouteSelectionProfile[] => {
       intro: '掖庭的夜很冷，远处通明的灯火，是如今唯一的生路。',
       defaultName: '沉璧',
       familyDisplay: '罪臣之后',
-      residenceDisplay: '掖庭院',
+      residenceDisplay: YINGLUOYETING_INITIAL_RESIDENCE,
       aptitudeDisplay: '未知',
       biography:
         '粗衣粝食，磨不掉骨中傲气。身陷囫囵，又怎会放过任何可以翻盘的机会。只是这一次的路无人知晓结局。',
@@ -136,7 +137,7 @@ export const buildRouteProfiles = (): RouteSelectionProfile[] => {
       baseState: {
         name: '沉璧',
         family: '罪臣之后',
-        residenceName: '掖庭院',
+        residenceName: YINGLUOYETING_INITIAL_RESIDENCE,
         pointsTotal: 54,
         pointsLeft: 0,
         age: randomInt(15, 23),

@@ -15,6 +15,9 @@ tmp/
 tmp_*
 tmp-*
 *-preview.png
+output/
+__test__/
+**/__test__/
 __pycache__/
 *.pyc
 

@@ -14,6 +14,7 @@ export type ActivityId =
   | '离开寝居';
 
 export type MapAreaId =
+  | '后宫'
   | '御书房'
   | '御膳房'
   | '建章宫'
@@ -42,6 +43,24 @@ export type MapAreaId =
   | '昭华殿'
   | '披香殿';
 
+export type HaremPalaceAreaId =
+  | '储秀宫'
+  | '长春宫'
+  | '启祥宫'
+  | '钟粹宫'
+  | '昭阳宫'
+  | '玉清宫'
+  | '永宁宫'
+  | '永和宫'
+  | '延禧宫'
+  | '临华殿'
+  | '昭华殿'
+  | '披香殿';
+
+export type HaremHallSuffix = '主殿' | '东侧殿' | '西侧殿' | '东偏殿' | '中偏殿' | '西偏殿';
+export type HaremResidenceName = `${HaremPalaceAreaId}${HaremHallSuffix}`;
+export type PlayerResidenceName = MapAreaId | HaremResidenceName;
+
 export interface AttributeField {
   key: string;
   label: string;
@@ -55,7 +74,7 @@ export interface GameNumericsState {
   name: string;
   age: number;
   family: string;
-  residenceName: MapAreaId;
+  residenceName: PlayerResidenceName;
   openingTendency?: string;
   monthlyExpenseStrategy?: MonthlyExpenseStrategyId;
   nextMonthlyExpenseStrategy?: MonthlyExpenseStrategyId;
@@ -148,6 +167,55 @@ export interface PalaceStrifeResolution {
   shouldPersistCase: boolean;
   resultText: string;
 }
+
+export type NpcActivityIntent =
+  | 'stay-home'
+  | 'public-visit'
+  | 'visit-player'
+  | 'visit-consort'
+  | 'social-plot'
+  | 'hostile-plot';
+
+export type NpcActivityPurpose =
+  | 'gift'
+  | 'probe'
+  | 'win-over'
+  | 'gossip'
+  | 'pressure'
+  | 'rest'
+  | 'stroll'
+  | 'plot';
+
+export interface NpcActivityEntry {
+  id: string;
+  xunKey: string;
+  actorConsortId: string;
+  targetConsortId?: string;
+  location: MapAreaId | 'home' | 'player-residence';
+  intent: NpcActivityIntent;
+  purpose: NpcActivityPurpose;
+  summary: string;
+  resolved: boolean;
+}
+
+export interface NpcActivityState {
+  xunKey?: string;
+  entries: Record<string, NpcActivityEntry>;
+  triggeredVisitIds: string[];
+  lastNpcStrifeXunKey?: string;
+}
+
+export interface NpcPairRelationState {
+  pairKey: string;
+  consortAId: string;
+  consortBId: string;
+  favor: number;
+  tension: number;
+  lastInteractionXunKey?: string;
+  lastInteractionPurpose?: NpcActivityPurpose;
+}
+
+export type NpcRelationMatrix = Record<string, NpcPairRelationState>;
 
 export type SettlementReportKind = 'xun' | 'month' | 'event';
 
@@ -262,7 +330,7 @@ export interface RouteSelectionProfile {
   intro: string;
   defaultName: string;
   familyDisplay: string;
-  residenceDisplay: MapAreaId;
+  residenceDisplay: PlayerResidenceName;
   aptitudeDisplay?: string;
   biography: string;
   clearanceRequirement: string;
@@ -540,6 +608,21 @@ export interface MusicHallProgressState {
   lastAmbientText?: string;
   lastGiftXunIndex?: number;
   lastSubmittedMusicScoreId?: string;
+  lastPracticedMusicScoreId?: string;
+  musicScoreMastery?: Record<string, MusicScoreMasteryState>;
+}
+
+export interface MusicScoreMasteryState {
+  itemId: string;
+  name: string;
+  color?: string;
+  rarity?: string;
+  difficulty: number;
+  masteryPercent: number;
+  practiceCount: number;
+  performanceCap?: number;
+  performanceScore: number;
+  lastPracticedAt?: PalaceTimeState;
 }
 
 export interface PalaceBanquetSubmittedScore {
@@ -547,6 +630,7 @@ export interface PalaceBanquetSubmittedScore {
   name: string;
   color?: string;
   rarity?: string;
+  difficulty?: number;
   submittedAt: PalaceTimeState;
   seasonKey: string;
 }
@@ -556,6 +640,9 @@ export interface PalaceBanquetResultState {
   completedAt: PalaceTimeState;
   scoreName?: string;
   completionPercent: number;
+  difficulty?: number;
+  performanceCap?: number;
+  performanceScore?: number;
   prestigeDelta: number;
   summary: string;
 }

@@ -40,6 +40,7 @@ export function DowagerAudiencePanel({ onLeave }: DowagerAudiencePanelProps) {
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const options = dialogueTurn?.options ?? [];
+  const dialogueActive = busy || Boolean(dialogueTurn);
 
   const buildPayload = (
     topic: 'visit' | 'action' | 'follow-up',
@@ -220,41 +221,64 @@ export function DowagerAudiencePanel({ onLeave }: DowagerAudiencePanelProps) {
         </div>
       </header>
 
+      {!dialogueActive ? (
+        <div className="harem-palace-view__audience-portrait-stage" aria-label="太后常驻立绘">
+          <div className="harem-palace-view__audience-portrait-frame">
+            <AutoCutoutPortrait
+              src={DOWAGER_PORTRAIT_SRC}
+              alt="太后"
+              threshold={34}
+              sampleInset={8}
+              className="harem-palace-view__audience-portrait dowager-audience-view__portrait"
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {!dialogueActive ? (
+        <section className="dowager-audience-view__briefing" aria-label="建章宫场景说明">
+          <strong>太后端坐上首，尚未赐话。</strong>
+          <p>你需先依礼问安，再看她今日愿意把话放到几分。</p>
+        </section>
+      ) : null}
+
       <aside className="harem-palace-view__audience-actions" aria-label="建章宫交互选项">
-        <button type="button" onClick={() => void handleAction('gift-greet', '送礼问安')} disabled={busy}>
+        <button type="button" onClick={() => void handleAction('gift-greet', '送礼问安')} disabled={dialogueActive}>
           送礼问安
         </button>
-        <button type="button" onClick={() => void handleAction('farewell', '起身告辞')} disabled={busy}>
+        <button type="button" onClick={() => void handleAction('farewell', '起身告辞')} disabled={dialogueActive}>
           起身告辞
         </button>
       </aside>
 
-      <GlobalDialogueStage
-        sceneLabel="建章宫太后对话场景"
-        portraitLabel="太后立绘"
-        portrait={
-          <AutoCutoutPortrait
-            src={DOWAGER_PORTRAIT_SRC}
-            alt="太后"
-            threshold={34}
-            sampleInset={8}
-            className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--dowager"
-          />
-        }
-        ariaLabel="建章宫太后对话框"
-        className="global-dialogue-stage--dowager global-dialogue-stage--with-side-panel"
-        dialogueClassName="palace-dialogue-box--consort-audience palace-dialogue-box--dowager-audience"
-        characterIdentity={dialogueTurn?.speakerIdentity ?? ''}
-        characterName={dialogueTurn?.speakerName ?? '建章宫'}
-        content={dialogueTurn?.text ?? '太后端坐上首，尚未赐话。你需先依礼问安，再看她今日愿意把话放到几分。'}
-        options={options as ConsortDialogueOption[]}
-        onSelectOption={(optionId) => {
-          void handleOptionSelect(optionId);
-        }}
-        nextActionLabel={options.length === 0 ? dialogueTurn?.nextActionLabel : undefined}
-        onNextAction={options.length === 0 ? () => void handleNextAction() : undefined}
-        busy={busy}
-      />
+      {dialogueActive ? (
+        <GlobalDialogueStage
+          sceneLabel="建章宫太后对话场景"
+          portraitLabel="太后立绘"
+          portrait={
+            <AutoCutoutPortrait
+              src={DOWAGER_PORTRAIT_SRC}
+              alt="太后"
+              threshold={34}
+              sampleInset={8}
+              className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--dowager"
+            />
+          }
+          ariaLabel="建章宫太后对话框"
+          className="global-dialogue-stage--dowager global-dialogue-stage--with-side-panel"
+          dialogueClassName="palace-dialogue-box--consort-audience palace-dialogue-box--dowager-audience"
+          characterIdentity={dialogueTurn?.speakerIdentity ?? '建章宫宫人'}
+          characterName={dialogueTurn?.speakerName ?? '通传'}
+          content={dialogueTurn?.text ?? '宫人正往殿内通传，你暂且候在阶前。'}
+          options={options as ConsortDialogueOption[]}
+          onSelectOption={(optionId) => {
+            void handleOptionSelect(optionId);
+          }}
+          nextActionLabel={options.length === 0 ? dialogueTurn?.nextActionLabel : undefined}
+          onNextAction={options.length === 0 ? () => void handleNextAction() : undefined}
+          busy={busy}
+        />
+      ) : null}
     </section>
   );
 }

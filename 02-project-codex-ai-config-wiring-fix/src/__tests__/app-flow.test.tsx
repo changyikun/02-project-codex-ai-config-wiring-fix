@@ -14,6 +14,7 @@ import { buildInitialBondProfile } from '../game/data/bondPresets';
 import { buildInitialConcubineRoster } from '../game/data/concubineRoster';
 import { buildMusicScoreItem, cloneInitialInventory } from '../game/data/inventoryPresets';
 import { buildRouteProfiles } from '../game/data/routeProfiles';
+import { buildInitialNpcActivityState } from '../game/lib/npcActivityRuntime';
 import { YINGLUOYETING_STORY_FLAGS } from '../game/lib/yingluoyetingStoryRuntime';
 import { SAVE_GAME_STORAGE_KEY } from '../game/save/saveGameV1';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
@@ -58,12 +59,15 @@ const resetFlowStore = () => {
     latestSettlementReportId: undefined,
     lastSeenSettlementReportId: undefined,
     numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
+    pendingViewTransitionCleanup: undefined,
     bondProfile: buildInitialBondProfile('lanyinxuguo', '1-1-1'),
     concubineRouteId: 'lanyinxuguo',
     concubines: buildInitialConcubineRoster('lanyinxuguo'),
     customConsorts: [],
     inventory: cloneInitialInventory(),
     merchantLedger: {},
+    npcActivity: buildInitialNpcActivityState(),
+    npcRelationMatrix: {},
     consortInteractionMap: {},
     kitchenProgress: {
       strollCount: 0,
@@ -90,6 +94,7 @@ const resetFlowStore = () => {
     },
     palaceBanquetProgress: {
       submissionCount: 0,
+      lastRegistrationNoticeSeasonKey: '1-3-1-palace-banquet',
     },
     templeProgress: {
       worshipCount: 0,
@@ -147,6 +152,23 @@ const clickDialogueOnce = async () => {
   await Promise.resolve();
 };
 
+const dismissPalaceBanquetRegistrationNoticeIfPresent = async () => {
+  act(() => {
+    useGameFlowStore.setState((flow) => ({
+      ...flow,
+      palaceBanquetProgress: {
+        ...flow.palaceBanquetProgress,
+        lastRegistrationNoticeSeasonKey: '1-3-1-palace-banquet',
+      },
+    }));
+  });
+
+  await waitFor(() => expect(screen.queryByLabelText('宫宴通报场景')).toBeInTheDocument(), { timeout: 250 }).catch(() => undefined);
+  if (screen.queryByLabelText('宫宴通报场景')) {
+    await clickDialogueAdvance();
+  }
+};
+
 const clickMapGuideReturnToChamber = async () => {
   const guideDialog = screen.queryByLabelText('地图引导对话框');
   if (guideDialog) {
@@ -171,6 +193,7 @@ const finishOpeningGuide = async () => {
   if (screen.queryByLabelText('寝殿对白')) {
     await clickDialogueAdvance();
   }
+  await dismissPalaceBanquetRegistrationNoticeIfPresent();
 };
 
 const clickStartNewGame = async () => {
@@ -732,7 +755,7 @@ describe('App 主流程切换', () => {
         routeId: 'yingluoyeting',
         name: '沈璧',
         family: '罪臣女眷',
-        residenceName: '掖庭院',
+        residenceName: '储秀宫西偏殿',
         favor: 10,
         stress: 60,
         prestige: 50,
@@ -811,18 +834,98 @@ describe('App 主流程切换', () => {
     await clickDialogueAdvance();
 
     expect(screen.queryByAltText('娇娇')).not.toBeInTheDocument();
-    expect(await screen.findByText(/娇娇把木匣收进柜中/)).toBeInTheDocument();
-    expect(screen.queryByText(/今日要先读书、休养/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/娇娇扶着木匣/)).toBeInTheDocument();
+    expect(screen.queryByText(/进储秀宫西偏殿前/)).not.toBeInTheDocument();
 
     await clickDialogueOnce();
 
     expect(await screen.findByAltText('娇娇')).toBeInTheDocument();
-    expect(await screen.findByText(/今日要先读书、休养/)).toBeInTheDocument();
-    expect(screen.queryByText(/娇娇把木匣收进柜中/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/进储秀宫西偏殿前/)).toBeInTheDocument();
+    expect(screen.queryByText(/娇娇扶着木匣/)).not.toBeInTheDocument();
     expect(screen.getByText('节衣缩食')).toBeInTheDocument();
     expect(screen.getByText('量入为出')).toBeInTheDocument();
     expect(screen.getByText('锦衣玉食')).toBeInTheDocument();
     expect(screen.getByText('先问清用度')).toBeInTheDocument();
+  });
+
+  it('影落掖庭开场定下用度后会先听地图引导，再经过后宫触发陈婉宁初见', async () => {
+    const defaultFavorTier = getFavorTierByValue(10);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'opening-dialogue',
+      scene: 'briefing',
+      routeId: 'yingluoyeting',
+      state: {
+        ...state.state,
+        routeId: 'yingluoyeting',
+        name: '沈璧',
+        family: '罪臣女眷',
+        residenceName: '储秀宫西偏殿',
+        favor: 10,
+        stress: 60,
+        prestige: 50,
+        silver: 50,
+        trueHeart: 0,
+        openingTendency: undefined,
+        flags: {},
+      },
+      hiddenStats: {
+        silver: 50,
+        prestige: 50,
+        stress: 60,
+        favor: 10,
+        trueHeart: 0,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '低位小主',
+      },
+      selectedRoute: undefined,
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 0,
+        slot: '清晨',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    for (let index = 0; index < 4; index += 1) {
+      await advanceDialoguePages();
+      await clickDialogueAdvance();
+    }
+    await advanceDialoguePages();
+    fireEvent.click(await screen.findByRole('button', { name: '量入为出' }));
+
+    const mapGuide = await screen.findByLabelText('地图引导对话框');
+    expect(mapGuide).toHaveTextContent(/宫中大事多半都要从地图上走/);
+    expect(useGameFlowStore.getState().state.flags.mapGuideFinished).not.toBe(true);
+    expect(screen.queryByText(/你第一次踏进后宫宫道时/)).not.toBeInTheDocument();
+    expect(useGameFlowStore.getState().state.flags[YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]).toBe(true);
+
+    await clickDialogueAdvance();
+    expect(screen.getByLabelText('地图引导对话框')).toHaveTextContent(/左侧五个菱形是常驻入口/);
+    await clickDialogueAdvance();
+
+    expect(await screen.findByText(/你第一次踏进后宫宫道时/)).toBeInTheDocument();
+    expect(useGameFlowStore.getState().state.flags.mapGuideFinished).toBe(true);
+
+    await advanceDialoguePages();
+    fireEvent.click(screen.getByRole('button', { name: '谢她照拂，只字不提旧案' }));
+    expect(await screen.findByText(/陈婉宁笑意未改/)).toBeInTheDocument();
+    await advanceDialoguePages();
+    fireEvent.click(document.querySelector<HTMLElement>('[data-dialogue-page-state="last"]')!);
+
+    await waitFor(() => {
+      const flow = useGameFlowStore.getState();
+      expect(flow.currentView).toBe('bedchamber');
+      expect(flow.state.residenceName).toBe('储秀宫西偏殿');
+      expect(flow.state.flags[YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]).toBe(false);
+      expect(flow.state.flags[YINGLUOYETING_STORY_FLAGS.chenFirstMeetPlayed]).toBe(true);
+    });
+    expect(await screen.findByLabelText('玩家信息')).toHaveTextContent('储秀宫西偏殿');
   });
 
   it('开场用度解释选项由说话人说明三档含义后返回选择', async () => {
@@ -1154,16 +1257,205 @@ describe('App 主流程切换', () => {
     fireEvent.click(within(sidebar).getByRole('button', { name: '外出' }));
 
     expect(useGameFlowStore.getState().currentView).toBe('map-main');
-    expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined();
+    expect(useGameFlowStore.getState().activeMapLocation).toBe('妙音堂');
+    await waitFor(() => expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined());
 
     act(() => {
       useGameFlowStore.getState().enterMainChamber('妙音堂');
     });
 
-    fireEvent.click(within(screen.getByRole('navigation', { name: '寝殿左侧功能栏' })).getByRole('button', { name: '回宫' }));
+    fireEvent.click(within(await screen.findByRole('navigation', { name: '寝殿左侧功能栏' })).getByRole('button', { name: '回宫' }));
 
     expect(useGameFlowStore.getState().currentView).toBe('bedchamber');
     expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined();
+  });
+
+  it('后宫侧栏外出返回地图，回宫才返回寝殿', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'map-main',
+      scene: 'map',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      concubineRouteId: 'lanyinxuguo',
+      concubines: buildInitialConcubineRoster('lanyinxuguo'),
+      inventory: cloneInitialInventory(),
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 0,
+        slot: '清晨',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '后宫' }));
+    expect(screen.queryByRole('button', { name: '后宫总览' })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: '进入此处' }));
+
+    expect(await screen.findByLabelText('后宫宫殿总览')).toBeInTheDocument();
+    expect(useGameFlowStore.getState().activeMapLocation).toBe('后宫');
+    const sidebar = screen.getByRole('navigation', { name: '寝殿左侧功能栏' });
+    expect(within(sidebar).getByRole('button', { name: '回宫' })).toBeInTheDocument();
+
+    fireEvent.click(within(sidebar).getByRole('button', { name: '外出' }));
+
+    expect(useGameFlowStore.getState().currentView).toBe('map-main');
+    expect(useGameFlowStore.getState().activeMapLocation).toBe('后宫');
+    await waitFor(() => expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined());
+    expect(screen.queryByLabelText('寝殿对白')).not.toBeInTheDocument();
+  });
+
+  it('后宫内左侧工具面板关闭后会回到后宫，而不是空白外景', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'harem',
+      activeMapLocation: '后宫',
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      concubineRouteId: 'lanyinxuguo',
+      concubines: buildInitialConcubineRoster('lanyinxuguo'),
+      inventory: cloneInitialInventory(),
+    }));
+
+    render(<App />);
+
+    expect(await screen.findByLabelText('后宫宫殿总览')).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByRole('navigation', { name: '寝殿左侧功能栏' })).getByRole('button', { name: '查看' }));
+    expect(await screen.findByLabelText('个人属性面板')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '返回' }));
+    expect(await screen.findByLabelText('后宫宫殿总览')).toBeInTheDocument();
+    expect(useGameFlowStore.getState().activeChamberPanel).toBe('harem');
+
+    fireEvent.click(within(screen.getByRole('navigation', { name: '寝殿左侧功能栏' })).getByRole('button', { name: '查看' }));
+    expect(await screen.findByLabelText('个人属性面板')).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole('navigation', { name: '寝殿左侧功能栏' })).getByRole('button', { name: '外出' }));
+
+    expect(useGameFlowStore.getState().currentView).toBe('map-main');
+    expect(useGameFlowStore.getState().activeMapLocation).toBe('后宫');
+    await waitFor(() => expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined());
+    expect(screen.queryByLabelText('寝殿对白')).not.toBeInTheDocument();
+  });
+
+  it('大地图左侧工具面板不会把玩家传回寝殿', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'map-main',
+      scene: 'map',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      state: {
+        ...state.state,
+        residenceName: '椒房殿',
+        flags: {
+          ...state.state.flags,
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(within(screen.getByRole('navigation', { name: '大地图常驻入口' })).getByRole('button', { name: '查看' }));
+
+    expect(useGameFlowStore.getState().currentView).toBe('map-main');
+    expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined();
+    expect(await screen.findByLabelText('个人属性面板')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '返回地图' }));
+
+    expect(useGameFlowStore.getState().currentView).toBe('map-main');
+    expect(await screen.findByLabelText('宫廷地图')).toBeInTheDocument();
+  });
+
+  it('外景左侧面板内点击外出仍返回地图而不是寝殿', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '御膳房',
+      state: {
+        ...state.state,
+        residenceName: '椒房殿',
+        flags: {
+          ...state.state.flags,
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+    }));
+
+    render(<App />);
+
+    const sidebar = screen.getByRole('navigation', { name: '寝殿左侧功能栏' });
+    fireEvent.click(within(sidebar).getByRole('button', { name: '查看' }));
+
+    expect(useGameFlowStore.getState().currentView).toBe('bedchamber');
+    expect(useGameFlowStore.getState().activeMapLocation).toBe('御膳房');
+    expect(await screen.findByLabelText('个人属性面板')).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByRole('navigation', { name: '寝殿左侧功能栏' })).getByRole('button', { name: '外出' }));
+
+    expect(useGameFlowStore.getState().currentView).toBe('map-main');
+    expect(useGameFlowStore.getState().activeMapLocation).toBe('御膳房');
+    await waitFor(() => expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined());
   });
 
   it('打开寝殿面板时点击外出会先关闭面板并展示出行提示', async () => {
@@ -1447,7 +1739,7 @@ describe('App 主流程切换', () => {
       activeMapLocation: undefined,
       time: {
         year: 1,
-        month: 1,
+        month: 2,
         xun: 1,
         slotIndex: 1,
         slot: '上午',
@@ -1619,6 +1911,26 @@ describe('App 主流程切换', () => {
     expect(within(toastLayer).queryByText(`${targetConsort.rankLabel}${targetConsort.name}宠爱 +4`)).not.toBeInTheDocument();
 
     act(() => {
+      useGameFlowStore.setState((flow) => ({
+        ...flow,
+        concubines: flow.concubines.map((consort) =>
+          consort.id === targetConsort.id
+            ? {
+                ...consort,
+                stats: {
+                  ...consort.stats,
+                  stress: Number(consort.stats.stress ?? 0) + 3,
+                },
+              }
+            : consort,
+        ),
+      }));
+      useGameFlowStore.getState().markNumericFeedbackEvent('settlement');
+    });
+
+    expect(within(toastLayer).queryByText(`${targetConsort.rankLabel}${targetConsort.name}压力 +3`)).not.toBeInTheDocument();
+
+    act(() => {
       useGameFlowStore.getState().grantInventoryItem({
         itemId: 'test-jade-hairpin',
         name: '青玉簪',
@@ -1681,7 +1993,7 @@ describe('App 主流程切换', () => {
       },
       time: {
         year: 1,
-        month: 1,
+        month: 2,
         xun: 1,
         slotIndex: 1,
         slot: '上午',
@@ -2004,7 +2316,7 @@ describe('App 主流程切换', () => {
       },
       time: {
         year: 1,
-        month: 1,
+        month: 2,
         xun: 1,
         slotIndex: 1,
         slot: '上午',
@@ -2016,8 +2328,21 @@ describe('App 主流程切换', () => {
 
     expect(await screen.findByRole('button', { name: '报名' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '听曲' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '学谱' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '闲逛' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '连翘' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '学谱' }));
+    expect(await screen.findByRole('dialog', { name: '连翘学谱' })).toBeInTheDocument();
+    const talentBeforePractice = Number(useGameFlowStore.getState().state.stats.talent ?? 0);
+    fireEvent.click(screen.getByRole('button', { name: /凤归云阙谱/ }));
+
+    await waitFor(() => {
+      expect(useGameFlowStore.getState().musicHallProgress.musicScoreMastery?.['score-phoenix-return']?.masteryPercent).toBeGreaterThan(0);
+      expect(useGameFlowStore.getState().state.stats.talent).toBeCloseTo(talentBeforePractice + 0.2);
+    });
+    expect(await within(screen.getByLabelText('数值变化提示')).findByText('乐理 +2')).toBeInTheDocument();
+    await clickDialogueAdvance();
 
     fireEvent.click(screen.getByRole('button', { name: '报名' }));
     expect(await screen.findByRole('dialog', { name: '妙音堂曲谱报名' })).toBeInTheDocument();
@@ -2027,7 +2352,8 @@ describe('App 主流程切换', () => {
     await waitFor(() => {
       expect(useGameFlowStore.getState().musicHallProgress.signUpCount).toBe(1);
       expect(useGameFlowStore.getState().palaceBanquetProgress.submittedScore?.itemId).toBe('score-phoenix-return');
-      expect(useGameFlowStore.getState().inventory.some((item) => item.itemId === 'score-phoenix-return')).toBe(false);
+      expect(useGameFlowStore.getState().palaceBanquetProgress.submittedScore?.difficulty).toBe(85);
+      expect(useGameFlowStore.getState().inventory.some((item) => item.itemId === 'score-phoenix-return')).toBe(true);
     });
   });
 
@@ -2119,7 +2445,7 @@ describe('App 主流程切换', () => {
       },
       time: {
         year: 1,
-        month: 1,
+        month: 2,
         xun: 1,
         slotIndex: 1,
         slot: '上午',
@@ -2422,7 +2748,8 @@ describe('App 主流程切换', () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole('button', { name: '后宫' }));
-    expect(await screen.findByRole('button', { name: '后宫总览' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '后宫总览' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '进入此处' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '宫斗事务' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '留在地图' }));
 
@@ -2533,6 +2860,69 @@ describe('App 主流程切换', () => {
     fireEvent.click(await screen.findByRole('button', { name: '玉清宫' }));
 
     expect(await screen.findByRole('button', { name: /主殿[\s\S]*和亲入宫 乌兰托娅/ })).toBeInTheDocument();
+  });
+
+  it('后宫自己的殿位提供回到寝殿入口', async () => {
+    const defaultFavorTier = getFavorTierByValue(12);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'harem',
+      activeMapLocation: '后宫',
+      routeId: 'yingluoyeting',
+      state: {
+        ...state.state,
+        routeId: 'yingluoyeting',
+        name: '沈璧',
+        residenceName: '储秀宫西偏殿',
+        openingTendency: '量入为出',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        favor: 12,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 50,
+        prestige: 120,
+        stress: 30,
+        favor: 12,
+        trueHeart: 0,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '答应',
+      },
+      selectedRoute: undefined,
+      bondProfile: buildInitialBondProfile('yingluoyeting', '1-1-1'),
+      concubineRouteId: 'yingluoyeting',
+      concubines: buildInitialConcubineRoster('yingluoyeting'),
+      inventory: cloneInitialInventory(),
+      consortInteractionMap: {},
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 1,
+        slot: '上午',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '储秀宫' }));
+    fireEvent.click(await screen.findByRole('button', { name: /西偏殿[\s\S]*答应 沈璧/ }));
+    fireEvent.click(await screen.findByRole('button', { name: '回到储秀宫西偏殿' }));
+
+    await waitFor(() => {
+      const flow = useGameFlowStore.getState();
+      expect(flow.currentView).toBe('bedchamber');
+      expect(flow.activeChamberPanel).toBe('main');
+      expect(flow.activeMapLocation).toBeUndefined();
+    });
+    expect(await screen.findByRole('button', { name: '诵读经典' })).toBeInTheDocument();
   });
 
   it('点击地图上的当前宫殿会直接等同回宫，不再弹进入确认', async () => {
@@ -2701,12 +3091,13 @@ describe('App 主流程切换', () => {
     fireEvent.click(within(sidebar).getByRole('button', { name: '外出' }));
 
     expect(useGameFlowStore.getState().currentView).toBe('map-main');
-    expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined();
+    expect(useGameFlowStore.getState().activeMapLocation).toBe('御膳房');
+    await waitFor(() => expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined());
 
     act(() => {
       useGameFlowStore.getState().enterMainChamber('御膳房');
     });
-    fireEvent.click(within(screen.getByRole('navigation', { name: '寝殿左侧功能栏' })).getByRole('button', { name: '回宫' }));
+    fireEvent.click(within(await screen.findByRole('navigation', { name: '寝殿左侧功能栏' })).getByRole('button', { name: '回宫' }));
 
     expect(await screen.findByRole('button', { name: '诵读经典' })).toBeInTheDocument();
     expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined();
@@ -3727,7 +4118,7 @@ describe('App 主流程切换', () => {
         ...state.state,
         routeId: 'yingluoyeting',
         name: '沈沉璧',
-        residenceName: '掖庭院',
+        residenceName: '储秀宫西偏殿',
         openingTendency: '节衣缩食',
         stamina: STAMINA_INITIAL_PER_XUN,
         prestige: 120,
@@ -3790,7 +4181,7 @@ describe('App 主流程切换', () => {
         ...state.state,
         routeId: 'yingluoyeting',
         name: '沈沉璧',
-        residenceName: '掖庭院',
+        residenceName: '储秀宫西偏殿',
         openingTendency: '节衣缩食',
         stamina: STAMINA_INITIAL_PER_XUN,
         prestige: 120,
@@ -3913,6 +4304,712 @@ describe('App 主流程切换', () => {
     expect(screen.queryByText('温声再问一句')).not.toBeInTheDocument();
     expect(screen.queryByText('借话轻轻试探')).not.toBeInTheDocument();
     expect(screen.queryByText('只把礼数做满')).not.toBeInTheDocument();
+  });
+
+  it('妃嫔公共外出时不会在自己寝宫被拜访', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    const concubines = buildInitialConcubineRoster('lanyinxuguo');
+    const visitor = concubines.find((consort) => consort.name === '姚铃儿') ?? concubines[0];
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'harem',
+      activeMapLocation: undefined,
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      concubineRouteId: 'lanyinxuguo',
+      concubines,
+      inventory: cloneInitialInventory(),
+      npcActivity: {
+        xunKey: '1-1-1',
+        triggeredVisitIds: [],
+        entries: {
+          'public-visit-away-test': {
+            id: 'public-visit-away-test',
+            xunKey: '1-1-1',
+            actorConsortId: visitor.id,
+            location: '御花园',
+            intent: 'public-visit',
+            purpose: 'stroll',
+            summary: `${visitor.name}本旬去了御花园。`,
+            resolved: false,
+          },
+        },
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '长春宫' }));
+    fireEvent.click(await screen.findByRole('button', { name: /主殿[\s\S]*姚铃儿[\s\S]*外出/ }));
+
+    expect(await screen.findByText(new RegExp(`${visitor.name}本旬不在殿内`))).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: new RegExp(`拜访 .*${visitor.name}`) })).not.toBeInTheDocument();
+  });
+
+  it('妃嫔在家中接待他人时会标记为会客中', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    const concubines = buildInitialConcubineRoster('lanyinxuguo');
+    const resident = concubines.find((consort) => consort.name === '姚铃儿') ?? concubines[0];
+    const visitor = concubines.find((consort) => consort.id !== resident.id) ?? concubines[1];
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'harem',
+      activeMapLocation: undefined,
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      concubineRouteId: 'lanyinxuguo',
+      concubines,
+      inventory: cloneInitialInventory(),
+      npcActivity: {
+        xunKey: '1-1-1',
+        triggeredVisitIds: [],
+        entries: {
+          'visit-consort-hosting-test': {
+            id: 'visit-consort-hosting-test',
+            xunKey: '1-1-1',
+            actorConsortId: visitor.id,
+            targetConsortId: resident.id,
+            location: 'home',
+            intent: 'visit-consort',
+            purpose: 'probe',
+            summary: `${visitor.name}本旬到${resident.name}殿中试探。`,
+            resolved: false,
+          },
+        },
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '长春宫' }));
+    fireEvent.click(await screen.findByRole('button', { name: /主殿[\s\S]*姚铃儿[\s\S]*会客中/ }));
+
+    expect(await screen.findByRole('button', { name: new RegExp(`拜访 .*${resident.name}.*会客中`) })).toBeInTheDocument();
+    expect(screen.getByLabelText('主殿同场拜访')).toHaveTextContent(`${visitor.name}正在殿中拜访${resident.rankLabel} ${resident.name}`);
+  });
+
+  it('玩家结束会客后来访妃嫔会回到自己的寝宫', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    const concubines = buildInitialConcubineRoster('lanyinxuguo');
+    const resident = concubines.find((consort) => consort.name === '姚铃儿') ?? concubines[0];
+    const visitor = concubines.find((consort) => consort.name === '江晚晚') ?? concubines.find((consort) => consort.id !== resident.id)!;
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'harem',
+      activeMapLocation: '后宫',
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      concubineRouteId: 'lanyinxuguo',
+      concubines,
+      inventory: cloneInitialInventory(),
+      npcActivity: {
+        xunKey: '1-1-1',
+        triggeredVisitIds: [],
+        entries: {
+          'visit-consort-return-home-test': {
+            id: 'visit-consort-return-home-test',
+            xunKey: '1-1-1',
+            actorConsortId: visitor.id,
+            targetConsortId: resident.id,
+            location: 'home',
+            intent: 'visit-consort',
+            purpose: 'probe',
+            summary: `${visitor.name}本旬到${resident.name}殿中试探。`,
+            resolved: false,
+          },
+        },
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '长春宫' }));
+    fireEvent.click(await screen.findByRole('button', { name: /主殿[\s\S]*姚铃儿[\s\S]*会客中/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /拜访 .*姚铃儿.*会客中/ }));
+
+    const audienceActions = await screen.findByLabelText('宫内互动操作');
+    fireEvent.click(within(audienceActions).getByRole('button', { name: '返回' }));
+
+    await waitFor(() => {
+      expect(useGameFlowStore.getState().npcActivity.entries['visit-consort-return-home-test'].resolved).toBe(true);
+    });
+    expect(screen.queryByLabelText('主殿同场拜访')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '返回宫苑' }));
+    fireEvent.click(await screen.findByRole('button', { name: '钟粹宫' }));
+    fireEvent.click(await screen.findByRole('button', { name: /主殿[\s\S]*江晚晚/ }));
+
+    expect(await screen.findByLabelText(new RegExp(`${visitor.name} 日常对话`))).toBeInTheDocument();
+  });
+
+  it('debug 表中的特殊旧居拜访会落到对应后宫宫殿显示', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    const baseConcubines = buildInitialConcubineRoster('lanyinxuguo');
+    const resident = {
+      ...baseConcubines[0],
+      id: 'live-old-residence-consort',
+      name: '冯妙莲',
+      rankLabel: '嫔',
+      status: 'live' as const,
+      residence: '旧居披香殿',
+      source: 'custom' as const,
+      allies: [],
+      rivals: [],
+    };
+    const visitor = baseConcubines.find((consort) => consort.id !== resident.id && consort.status === 'live') ?? baseConcubines[1];
+    const concubines = [...baseConcubines, resident];
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'harem',
+      activeMapLocation: undefined,
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      concubineRouteId: 'lanyinxuguo',
+      concubines,
+      inventory: cloneInitialInventory(),
+      npcActivity: {
+        xunKey: '1-1-1',
+        triggeredVisitIds: [],
+        entries: {
+          'visit-consort-old-residence-test': {
+            id: 'visit-consort-old-residence-test',
+            xunKey: '1-1-1',
+            actorConsortId: visitor.id,
+            targetConsortId: resident.id,
+            location: 'home',
+            intent: 'visit-consort',
+            purpose: 'probe',
+            summary: `${visitor.name}本旬到${resident.name}旧居试探。`,
+            resolved: false,
+          },
+          'stale-public-visit-for-host-test': {
+            id: 'stale-public-visit-for-host-test',
+            xunKey: '1-1-1',
+            actorConsortId: resident.id,
+            location: '妙音堂',
+            intent: 'public-visit',
+            purpose: 'stroll',
+            summary: `${resident.name}原本要去妙音堂。`,
+            resolved: false,
+          },
+        },
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '披香殿' }));
+    fireEvent.click(await screen.findByRole('button', { name: /主殿[\s\S]*冯妙莲[\s\S]*会客中/ }));
+
+    expect(await screen.findByRole('button', { name: /拜访 .*冯妙莲.*会客中/ })).toBeInTheDocument();
+    expect(screen.getByLabelText('主殿同场拜访')).toHaveTextContent(`${visitor.name}正在殿中拜访${resident.rankLabel} ${resident.name}`);
+  });
+
+  it('后宫深夜拜访妃嫔结束后会在清晨通报熬夜惩罚并扣属性', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    const concubines = buildInitialConcubineRoster('lanyinxuguo');
+    const initialHealth = 4;
+    const initialTemperament = 4;
+    const initialStress = 10;
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'harem',
+      activeMapLocation: undefined,
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        stress: initialStress,
+        stats: {
+          ...state.state.stats,
+          health: initialHealth,
+          temperament: initialTemperament,
+        },
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: initialStress,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      concubineRouteId: 'lanyinxuguo',
+      concubines,
+      inventory: cloneInitialInventory(),
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 6,
+        slot: '深夜',
+        slotProgress: 0,
+      },
+      nightlyService: {
+        ...state.nightlyService,
+        queuedRolls: {
+          alone: 100,
+          player: 100,
+          pool: 1,
+          interest: 60,
+          pregnancy: 100,
+        },
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '长春宫' }));
+    fireEvent.click(await screen.findByRole('button', { name: /主殿[\s\S]*姚铃儿/ }));
+
+    expect(await screen.findByLabelText('贵妃 姚铃儿 日常对话')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '返回' }));
+
+    expect(await screen.findByLabelText('寝殿对白')).toHaveTextContent(/夜已经深了/);
+    await clickDialogueAdvance();
+
+    expect(await screen.findByLabelText('一夜过去')).toBeInTheDocument();
+    expect(useGameFlowStore.getState().state.stress).toBe(initialStress);
+    expect(useGameFlowStore.getState().state.stats.health).toBe(initialHealth);
+    expect(useGameFlowStore.getState().state.stats.temperament).toBe(initialTemperament);
+
+    await waitFor(() => {
+      expect(useGameFlowStore.getState().time.slot).toBe('清晨');
+    });
+    if (screen.queryAllByLabelText('夜晚侍寝通报').length > 0) {
+      await clickDialogueAdvance();
+    }
+    expect(await screen.findByText(/昨夜歇得太晚/)).toBeInTheDocument();
+    expect(screen.getByText(/压力\+2，健康-10，气质-10/)).toBeInTheDocument();
+    expect(useGameFlowStore.getState().state.stress).toBe(initialStress + 2);
+    expect(useGameFlowStore.getState().state.stats.health).toBeCloseTo(initialHealth - 0.1);
+    expect(useGameFlowStore.getState().state.stats.temperament).toBeCloseTo(initialTemperament - 0.1);
+  }, 10000);
+
+  it('公共地点排班妃嫔会显示为可点击交互而不是自动抢占对白', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    const concubines = buildInitialConcubineRoster('lanyinxuguo');
+    const visitor = concubines.find((consort) => consort.name === '姚铃儿') ?? concubines[0];
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '御花园',
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        openingTendency: '节衣缩食',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      selectedRoute: undefined,
+      bondProfile: buildInitialBondProfile('lanyinxuguo', '1-1-1'),
+      concubineRouteId: 'lanyinxuguo',
+      concubines,
+      inventory: cloneInitialInventory(),
+      npcActivity: {
+        xunKey: '1-1-1',
+        triggeredVisitIds: [],
+        entries: {
+          'public-visit-test': {
+            id: 'public-visit-test',
+            xunKey: '1-1-1',
+            actorConsortId: visitor.id,
+            location: '御花园',
+            intent: 'public-visit',
+            purpose: 'stroll',
+            summary: `${visitor.name}本旬在御花园赏花，像是在避开宫中闲话。`,
+            resolved: false,
+          },
+        },
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 0,
+        slot: '清晨',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    expect(await screen.findByLabelText('寝殿对白')).toHaveTextContent(/御花园/);
+    expect(screen.queryByLabelText(new RegExp(`${visitor.name} 日常对话`))).not.toBeInTheDocument();
+    await clickDialogueAdvance();
+
+    const visitorsPanel = await screen.findByLabelText('御花园可交互妃嫔');
+    fireEvent.click(within(visitorsPanel).getByRole('button', { name: new RegExp(`与.*${visitor.name}交谈`) }));
+
+    expect(await screen.findByLabelText(new RegExp(`${visitor.name} 日常对话`))).toBeInTheDocument();
+    expect(useGameFlowStore.getState().npcActivity.entries['public-visit-test'].resolved).toBe(true);
+    expect(await screen.findByText(new RegExp(`${visitor.name}本旬在御花园赏花`))).toBeInTheDocument();
+  });
+
+  it('大地图只展示妃嫔动向，进入宫门后才显示可交互妃嫔', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    const concubines = buildInitialConcubineRoster('lanyinxuguo');
+    const visitor = concubines.find((consort) => consort.name === '姚铃儿') ?? concubines[0];
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'map-main',
+      scene: 'map',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      routeId: 'lanyinxuguo',
+      mapEventText: '',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      selectedRoute: undefined,
+      bondProfile: buildInitialBondProfile('lanyinxuguo', '1-1-1'),
+      concubineRouteId: 'lanyinxuguo',
+      concubines,
+      inventory: cloneInitialInventory(),
+      npcActivity: {
+        xunKey: '1-1-1',
+        triggeredVisitIds: [],
+        entries: {
+          'public-visit-gongmen-test': {
+            id: 'public-visit-gongmen-test',
+            xunKey: '1-1-1',
+            actorConsortId: visitor.id,
+            location: '宫门',
+            intent: 'public-visit',
+            purpose: 'stroll',
+            summary: `${visitor.name}本旬去了宫门，像是在等外头递来的消息。`,
+            resolved: false,
+          },
+        },
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 0,
+        slot: '清晨',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '宫门' }));
+    expect(await screen.findByLabelText('宫门本旬妃嫔动向')).toHaveTextContent(visitor.name);
+    expect(screen.queryByRole('button', { name: new RegExp(`前去见.*${visitor.name}`) })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '进入此处' }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('宫门人物入口')).toBeInTheDocument();
+    });
+    const visitorsPanel = await screen.findByLabelText('宫门可交互妃嫔');
+    fireEvent.click(within(visitorsPanel).getByRole('button', { name: new RegExp(`与.*${visitor.name}交谈`) }));
+
+    expect(await screen.findByLabelText(new RegExp(`${visitor.name} 日常对话`))).toBeInTheDocument();
+    expect(useGameFlowStore.getState().npcActivity.entries['public-visit-gongmen-test'].resolved).toBe(true);
+  });
+
+  it('已交谈的外出妃嫔仍保留在本旬目的地中', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    const concubines = buildInitialConcubineRoster('lanyinxuguo');
+    const visitor = concubines.find((consort) => consort.name === '姚铃儿') ?? concubines[0];
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '御花园',
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      selectedRoute: undefined,
+      bondProfile: buildInitialBondProfile('lanyinxuguo', '1-1-1'),
+      concubineRouteId: 'lanyinxuguo',
+      concubines,
+      inventory: cloneInitialInventory(),
+      npcActivity: {
+        xunKey: '1-1-1',
+        triggeredVisitIds: [],
+        entries: {
+          'public-visit-resolved-test': {
+            id: 'public-visit-resolved-test',
+            xunKey: '1-1-1',
+            actorConsortId: visitor.id,
+            location: '御花园',
+            intent: 'public-visit',
+            purpose: 'stroll',
+            summary: `${visitor.name}本旬在御花园赏花。`,
+            resolved: true,
+          },
+        },
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 0,
+        slot: '清晨',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    expect(await screen.findByLabelText('寝殿对白')).toHaveTextContent(/御花园/);
+    await clickDialogueAdvance();
+
+    const visitorsPanel = await screen.findByLabelText('御花园可交互妃嫔');
+    const resolvedButton = within(visitorsPanel).getByRole('button', { name: new RegExp(`${visitor.name}仍在此处`) });
+    expect(resolvedButton).toBeDisabled();
+  });
+
+  it('妃嫔拜访玩家会自动打断寝殿流程并由玩家选择回应', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    const concubines = buildInitialConcubineRoster('lanyinxuguo');
+    const visitor = concubines.find((consort) => consort.name === '姚铃儿') ?? concubines[0];
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        openingTendency: '节衣缩食',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      selectedRoute: undefined,
+      bondProfile: buildInitialBondProfile('lanyinxuguo', '1-1-1'),
+      concubineRouteId: 'lanyinxuguo',
+      concubines,
+      inventory: cloneInitialInventory(),
+      npcActivity: {
+        xunKey: '1-1-1',
+        triggeredVisitIds: [],
+        entries: {
+          'visit-player-test': {
+            id: 'visit-player-test',
+            xunKey: '1-1-1',
+            actorConsortId: visitor.id,
+            location: 'player-residence',
+            intent: 'visit-player',
+            purpose: 'probe',
+            summary: `${visitor.name}来到椒房殿试探你的态度。`,
+            resolved: false,
+          },
+        },
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 2,
+        slot: '中午',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    expect(await screen.findByLabelText('妃嫔拜访寝殿')).toHaveTextContent(visitor.name);
+    fireEvent.click(screen.getByRole('button', { name: /请她入座/ }));
+
+    expect(await screen.findByText(new RegExp(`${visitor.name}入座。她神色稍缓`))).toBeInTheDocument();
+    await clickDialogueAdvance();
+
+    await waitFor(() => expect(screen.queryByLabelText('妃嫔拜访寝殿')).not.toBeInTheDocument());
+    expect(useGameFlowStore.getState().npcActivity.entries['visit-player-test'].resolved).toBe(true);
+    expect(useGameFlowStore.getState().npcActivity.triggeredVisitIds).toContain('visit-player-test');
   });
 
   it('妃嫔会面对白翻完后点击对话框不会自动退出互动页', async () => {
@@ -5558,17 +6655,56 @@ describe('App 主流程切换', () => {
   });
 
   it('请平安脉不消耗体力，殿内小酣可恢复体力', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        openingTendency: '节衣缩食',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      selectedRoute: undefined,
+      bondProfile: buildInitialBondProfile('lanyinxuguo', '1-1-1'),
+      concubineRouteId: 'lanyinxuguo',
+      concubines: buildInitialConcubineRoster('lanyinxuguo'),
+      inventory: cloneInitialInventory(),
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 0,
+        slot: '清晨',
+        slotProgress: 0,
+      },
+    }));
+
     render(<App />);
 
-    await clickStartNewGame();
-    fireEvent.click(await screen.findByRole('button', { name: '确定' }));
-    fireEvent.click(await screen.findByRole('button', { name: '确认进入剧情' }));
-
-    await finishOpeningGuide();
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: '诵读经典' })).toBeInTheDocument();
-    });
+    expect(await screen.findByRole('button', { name: '诵读经典' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '请平安脉' }));
 
@@ -5677,9 +6813,14 @@ describe('App 主流程切换', () => {
     expect(screen.getByRole('button', { name: '送礼问安' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '起身告辞' })).toBeInTheDocument();
     expect(screen.getByText(/你需先依礼问安/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('建章宫太后对话框')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '送礼问安' }));
 
+    const dowagerDialogue = await screen.findByLabelText('建章宫太后对话框');
+    expect(dowagerDialogue).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '送礼问安' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '起身告辞' })).toBeDisabled();
     await screen.findByText(/你上前奉礼问安后/);
     await clickDialogueOnce();
     await waitFor(() => {

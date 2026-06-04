@@ -11,7 +11,7 @@ const buildState = (overrides: Partial<GameNumericsState> = {}): GameNumericsSta
   name: '沉璧',
   age: 18,
   family: '沈氏',
-  residenceName: '掖庭院',
+  residenceName: '储秀宫西偏殿',
   pointsTotal: 20,
   pointsLeft: 0,
   routeId: 'yingluoyeting',

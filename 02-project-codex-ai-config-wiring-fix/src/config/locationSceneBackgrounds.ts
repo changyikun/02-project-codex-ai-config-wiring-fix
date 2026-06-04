@@ -19,6 +19,7 @@ const locationBackground = '/assets/ui/map-bg.jpg';
 const haremBackground = HAREM_OVERVIEW_BACKGROUND;
 const affairsBackground = '/assets/ui/affairs-ui.jpg';
 const coldPalaceBackground = '/assets/routes/backgrounds/lenggong_daytime.png';
+const yetingBackground = '/assets/routes/backgrounds/yeting_daytime.png';
 
 export const LOCATION_SCENE_BACKGROUNDS: Partial<Record<MapAreaId, string>> = {
   宝华殿: locationBackground,
@@ -26,6 +27,7 @@ export const LOCATION_SCENE_BACKGROUNDS: Partial<Record<MapAreaId, string>> = {
   建章宫: locationBackground,
   宫门: locationBackground,
   椒房殿: residenceBackground,
+  掖庭院: yetingBackground,
   临华殿: residenceBackground,
   太医院: locationBackground,
   妙音堂: locationBackground,

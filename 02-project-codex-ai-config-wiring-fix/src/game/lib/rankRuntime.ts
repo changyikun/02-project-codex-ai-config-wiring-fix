@@ -1,5 +1,6 @@
 import { HOT_SPRING_MIN_RANK_NAME, PRESTIGE_RANK_TABLE, SPECIAL_PRESTIGE_RANK_TABLE } from '../../config/constants';
-import type { MapAreaId, RouteId } from '../types';
+import { YINGLUOYETING_INITIAL_RESIDENCE } from '../../config/haremPalaces';
+import type { PlayerResidenceName, RouteId } from '../types';
 
 const ALL_PLAYER_RANKS = [...SPECIAL_PRESTIGE_RANK_TABLE, ...PRESTIGE_RANK_TABLE];
 const PLAYER_RANK_PROGRESS_ORDER = [...ALL_PLAYER_RANKS]
@@ -12,35 +13,35 @@ const SPECIAL_TRACKED_RANK_ALIAS: Record<string, string> = {
 const PLAYER_RESIDENCE_PLAN_BY_ROUTE: Record<
   RouteId,
   {
-    high: MapAreaId;
-    mid: MapAreaId;
-    low: MapAreaId;
-    exile: MapAreaId;
+    high: PlayerResidenceName;
+    mid: PlayerResidenceName;
+    low: PlayerResidenceName;
+    exile: PlayerResidenceName;
   }
 > = {
   lanyinxuguo: {
     high: '长春宫',
     mid: '长春宫',
     low: '披香殿',
-    exile: '掖庭院',
+    exile: '储秀宫西偏殿',
   },
   fushengrumeng: {
     high: '储秀宫',
     mid: '储秀宫',
-    low: '延禧宫',
-    exile: '掖庭院',
+    low: '延禧宫西偏殿',
+    exile: '储秀宫西偏殿',
   },
   yingluoyeting: {
     high: '永宁宫',
     mid: '临华殿',
-    low: '昭华殿',
-    exile: '掖庭院',
+    low: YINGLUOYETING_INITIAL_RESIDENCE,
+    exile: YINGLUOYETING_INITIAL_RESIDENCE,
   },
   chenyuansucuo: {
     high: '玉清宫',
     mid: '玉清宫',
-    low: '昭华殿',
-    exile: '掖庭院',
+    low: '玉清宫西偏殿',
+    exile: '玉清宫西偏殿',
   },
 };
 
@@ -114,7 +115,7 @@ export const resolvePlayerActualRankLabel = (
   return PLAYER_RANK_PROGRESS_ORDER[Math.max(currentIndex - maxStep, targetIndex)];
 };
 
-export const resolvePlayerResidenceByRank = (routeId: RouteId, rankName: string): MapAreaId => {
+export const resolvePlayerResidenceByRank = (routeId: RouteId, rankName: string): PlayerResidenceName => {
   if (rankName === '皇后') {
     return '椒房殿';
   }

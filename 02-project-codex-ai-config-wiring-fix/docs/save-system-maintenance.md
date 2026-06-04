@@ -9,6 +9,7 @@
 - schema 文件：`src/game/save/saveGameV1.ts`
 - store 接入：`src/game/store/gameFlowStore.ts`
 - 启动页入口：`src/views/StartScene.tsx` 与 `src/App.tsx`
+- 当前仍处开发阶段，存档不做跨结构迁移。只要 `SaveGameV1` 字段结构与当前代码不匹配，就直接删除旧 envelope，回溯显示无可用存档；不要写旧字段到新字段的 fallback。
 
 ## 2. 启动页语义
 
@@ -27,6 +28,8 @@
 
 - 不保存：`currentView`、弹窗、正在显示的对白、地图临时事件文本、briefing。
 - 必须保存：玩家数值、隐藏数值、时间、路线、妃嫔、库存、交易记录、关系进度、地点进度、侍寝进度、旬月通报、宫斗案件。
+- NPC 旬级行动和 NPC-NPC 关系矩阵属于长期真值：它们决定本旬玩家能在何处遇到谁、谁在谁殿内同场、以及旬末 NPC 关系如何变化。
+- `progress.npcActivity.entries` 中未收束的 `visit-consort.targetConsortId` 表示目标妃嫔本旬在自己寝宫会客；读档恢复或 UI 重建时不得因为目标自己的旧公共外出条目或特殊住址导致她从寝宫消失。玩家结束这次会客后，该 `visit-consort` 标记为 `resolved=true`，来访妃嫔回自己的寝宫，目标不再显示“会客中”。公共外出的 `resolved=true` 只表示已交谈，NPC 仍留在原目的地。
 - 读取存档后，UI 阶段由 `resolveResumeViewFromSave` 从 durable state 推断。
 
 当前恢复规则：
@@ -55,21 +58,26 @@
 `resumeLastSave()` 必须：
 
 - 只从 `readSaveGameV1FromStorage()` 读取 `SaveGameV1`。
-- 读取失败时留在启动页，并给出“暂无可回溯的存档。”。
+- 读取失败或发现结构不兼容时删除旧 envelope，留在启动页，并给出“暂无可回溯的存档。”。
 - 读取成功后先走 `restoreSaveGameV1Fields()`，再根据 durable state 推断目标视图。
 - 不恢复瞬时对白、弹窗和临时地图事件。
+- 不做旧结构迁移，例如 `music -> talent`、旧住处名归一、缺失长期进度字段补默认值都不应存在；这些情况通过清档解决。
 
 ## 6. 维护要求
 
 以后凡是新增会影响长期玩法的字段，都必须同步处理：
 
 - 加入 `SaveGameV1Source` 与 `SaveGameV1`。
+- 如果字段结构变化会影响旧存档正确性，提升 `SAVE_GAME_SCHEMA_VERSION` 或收紧 `isSaveGameV1()` 校验，使旧 envelope 自动失效并被删除。
 - 在 `buildSaveGameV1()` 写入。
 - 在 `restoreSaveGameV1Fields()` 读取。
 - 在 `createInitialGameFlowFields()` 与 `applyRouteSelection()` 的新局路径中重置。
-- 在 `gameFlowStore.save.test.ts` 覆盖导出、读取、新局清空或回溯恢复。
+- 在 `gameFlowStore.save.test.ts` / `saveGameV1.test.ts` 覆盖导出、读取、新局清空、回溯恢复或不兼容存档清除。
 - 更新本文档、`docs/game-state-model.md`、`docs/game-system-breakdown.md` 与 `docs/codex-dialogue-handoff.md`。
 
 当前长期进度字段补充：
 
-- `progress.palaceBanquet`：系统宫宴真值。保存当前宫宴季、曲谱报名快照、报名开启提醒去重标记、已结算宫宴季和最近一次宫宴结果。旧存档缺失该字段时必须在恢复阶段补初始状态。
+- `progress.palaceBanquet`：系统宫宴真值。保存当前宫宴季、曲谱报名快照、报名开启提醒去重标记、已结算宫宴季和最近一次宫宴结果；缺失则视为不兼容存档。
+- `progress.musicHall.musicScoreMastery`：曲谱长期学习真值。按曲谱 `itemId` 保存难度、完成度、练习次数、表现上限、最近一次练习预演表现分和最近练习时间；若后续结构变化，清旧档而不是反向推断。
+- `progress.npcActivity`：当前旬 NPC 行动表。缺失则视为不兼容存档，不能在恢复阶段临时生成来迁移旧档。
+- `relations.npcRelationMatrix`：NPC-NPC 双向关系矩阵。缺失则视为不兼容存档，不能在恢复阶段补 `{}` 来迁移旧档。

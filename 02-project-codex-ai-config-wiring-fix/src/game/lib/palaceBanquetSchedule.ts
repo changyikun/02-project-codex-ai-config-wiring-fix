@@ -26,8 +26,8 @@ export const getPalaceBanquetEventTime = (banquetYear: number): PalaceTimeState 
 };
 
 export const getPalaceBanquetRegistrationStartTime = (banquetYear: number): PalaceTimeState => ({
-  year: banquetYear - 1,
-  month: 12,
+  year: banquetYear,
+  month: 2,
   xun: 1,
   slotIndex: 0,
   slot: PALACE_BANQUET_TIME_SLOTS[0],

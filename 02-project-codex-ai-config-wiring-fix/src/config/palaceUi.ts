@@ -1,4 +1,5 @@
-import type { MapAreaId, TimeSlot } from '../game/types';
+import { isHaremHallResidenceName } from './haremPalaces';
+import type { MapAreaId, PlayerResidenceName, TimeSlot } from '../game/types';
 import { MONTHLY_EXPENSE_STRATEGIES } from './monthlyExpenseStrategy';
 
 export interface GuideTendencyOption {
@@ -106,23 +107,21 @@ export const MAP_HOTSPOTS: readonly MapHotspotConfig[] = [
   { id: '御膳房', label: '御膳房', top: '55.6%', left: '70.2%', width: '4.4%', height: '17.7%', description: '御膳房能采买膳食，也常牵连赏赐、补品与偶发小事。', vertical: true },
   { id: '宫门', label: '宫门', top: '73.8%', left: '57.4%', width: '4.4%', height: '18.2%', description: '宫门关系外来人物与特殊事件，也是部分路线支线的入口。', vertical: true },
   { id: '椒房殿', label: '椒房殿', top: '64.5%', left: '81.7%', width: '4.4%', height: '18.2%', description: '椒房殿是中宫所在，也象征权力中心。', vertical: true },
+  { id: '掖庭院', label: '掖庭院', top: '78.5%', left: '13.2%', width: '4.4%', height: '16.2%', description: '掖庭院多为宫中差役、旧档与杂务所在，影落掖庭旧事也常从这里翻起。', vertical: true },
 ] as const;
 
 const RESIDENCE_HOTSPOT_OVERRIDES: Partial<Record<MapAreaId, Partial<MapHotspotConfig>>> = {
-  掖庭院: {
-    label: '掖庭',
-    top: '64.5%',
-    left: '81.7%',
-    width: '4.4%',
-    height: '18.2%',
-  },
 };
 
-const buildResidenceHotspotDescription = (residenceName: MapAreaId): string =>
+const buildResidenceHotspotDescription = (residenceName: PlayerResidenceName): string =>
   `${residenceName}是娘娘当前居所。点这里会直接回宫，不再额外消耗时辰。`;
 
-export const buildMapHotspots = (residenceName: MapAreaId): readonly MapHotspotConfig[] =>
-  MAP_HOTSPOTS.map((hotspot) =>
+export const buildMapHotspots = (residenceName: PlayerResidenceName): readonly MapHotspotConfig[] => {
+  if (isHaremHallResidenceName(residenceName) || residenceName === '掖庭院') {
+    return MAP_HOTSPOTS;
+  }
+
+  return MAP_HOTSPOTS.map((hotspot) =>
     hotspot.id === '椒房殿'
       ? {
           ...hotspot,
@@ -133,6 +132,7 @@ export const buildMapHotspots = (residenceName: MapAreaId): readonly MapHotspotC
         }
       : hotspot,
   );
+};
 
 export const CHAMBER_ACTION_BUTTONS: readonly ChamberActionButtonConfig[] = [
   { id: 'study', label: '诵读经典', summary: '静心温书', timeCost: 1, staminaCost: 1, statDeltas: { poetry: 0.2 } },
