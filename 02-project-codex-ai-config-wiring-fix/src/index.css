@@ -8,6 +8,12 @@
   --token-route-font-weight: 700;
   --token-route-color: #d4af37;
   --token-route-confirm-scale: 1.2;
+  --palace-button-vertical: url('/assets/routes/buttons/materials-202606041509/material-202606041509-001.png');
+  --palace-button-vertical-active: url('/assets/routes/buttons/materials-202606041509/material-202606041509-004.png');
+  --palace-button-horizontal: url('/assets/routes/buttons/materials-202606041509/material-202606041509-014.png');
+  --palace-button-horizontal-soft: url('/assets/routes/buttons/materials-202606041509/material-202606041509-017.png');
+  --palace-button-horizontal-active: url('/assets/routes/buttons/materials-202606041509/material-202606041509-015.png');
+  --palace-button-jiaojiao-card: url('/assets/routes/buttons/materials-202606041509/material-202606041509-011.png');
 }
 
 html,
@@ -2197,23 +2203,23 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(67, 25, 18, 0.58);
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(123, 78, 43, 0.94), rgba(82, 47, 29, 0.94));
-  color: #1d0e0c;
-  box-shadow:
-    0 12px 20px rgba(54, 27, 28, 0.18),
-    inset 0 0 0 1px rgba(235, 198, 152, 0.28);
+  border: none;
+  border-radius: 0;
+  background: var(--palace-button-vertical) center / 100% 100% no-repeat;
+  color: #5b1b13;
+  box-shadow: none;
   font-family: 'STKaiti', 'KaiTi', serif;
   font-size: clamp(17px, 1.65vw, 24px);
   font-weight: 800;
   line-height: 1;
-  text-shadow: 0 1px 0 rgba(184, 132, 86, 0.52);
+  text-shadow:
+    0 1px 0 rgba(255, 246, 225, 0.78),
+    0 0 4px rgba(120, 49, 24, 0.12);
   cursor: pointer;
   pointer-events: auto;
+  filter: drop-shadow(0 12px 14px rgba(54, 27, 28, 0.18));
   transition:
     transform 180ms ease,
-    box-shadow 180ms ease,
     filter 180ms ease;
 }
 
@@ -2240,85 +2246,88 @@ button {
 }
 
 .chamber-main__scene-button--horizontal {
-  border-radius: 999px;
+  background-image: var(--palace-button-horizontal);
+  color: #3f130f;
   font-size: clamp(18px, 1.65vw, 26px);
   white-space: nowrap;
 }
 
 .chamber-main__scene-button:hover {
   transform: translateY(-3px);
-  filter: saturate(1.08) brightness(1.04);
-  box-shadow:
-    0 16px 28px rgba(54, 27, 28, 0.24),
-    inset 0 0 0 1px rgba(255, 230, 190, 0.4);
+  filter: saturate(1.08) brightness(1.04) drop-shadow(0 16px 18px rgba(54, 27, 28, 0.24));
 }
 
 .chamber-main__scene-button--dismiss {
-  background: linear-gradient(180deg, rgba(247, 172, 205, 0.96), rgba(234, 139, 184, 0.96));
-  color: #4b1520;
-  border-color: rgba(170, 71, 112, 0.42);
-  text-shadow: 0 1px 0 rgba(255, 230, 240, 0.52);
+  background-image: var(--palace-button-horizontal-soft);
+  color: #5a1a13;
+  text-shadow: 0 1px 0 rgba(255, 247, 232, 0.72);
 }
 
 .chamber-main__jiaojiao-entry {
   position: absolute;
-  left: 7.8%;
-  top: 25.4%;
-  width: 8.4%;
-  height: 23.8%;
+  left: 6.8%;
+  top: 30.6%;
+  width: 14.4%;
+  height: 17.8%;
   border: none;
-  background: transparent;
+  background: var(--palace-button-jiaojiao-card) center / 100% 100% no-repeat;
   padding: 0;
   cursor: pointer;
   pointer-events: auto;
   z-index: 26;
+  filter: drop-shadow(0 12px 16px rgba(54, 27, 28, 0.2));
+  transition:
+    transform 180ms ease,
+    filter 180ms ease;
 }
 
 .chamber-main__jiaojiao-entry img {
   position: absolute;
-  left: 6%;
-  bottom: 0;
-  width: 76%;
-  height: 94%;
+  left: 9%;
+  bottom: 8%;
+  width: 48%;
+  height: 76%;
   object-fit: contain;
   object-position: bottom center;
-  filter: drop-shadow(0 10px 12px rgba(68, 39, 42, 0.22));
-  transform: translateX(16%) scale(1.12);
+  filter: drop-shadow(0 8px 10px rgba(68, 39, 42, 0.18));
+  transform: scale(1.18);
   transform-origin: bottom center;
 }
 
 .chamber-main__jiaojiao-entry span {
   position: absolute;
-  right: -24%;
-  top: 19%;
-  width: 38%;
-  min-height: 70%;
+  right: 13%;
+  top: 14%;
+  width: 29%;
+  height: 72%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 12px 6px;
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(127, 86, 47, 0.94), rgba(89, 54, 32, 0.94));
-  color: #1d0e0c;
-  box-shadow:
-    0 10px 18px rgba(54, 27, 28, 0.16),
-    inset 0 0 0 1px rgba(235, 198, 152, 0.26);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #8a4c4a;
+  box-shadow: none;
   font-family: 'STKaiti', 'KaiTi', serif;
-  font-size: clamp(18px, 1.7vw, 25px);
+  font-size: clamp(20px, 2.1vw, 34px);
   font-weight: 800;
-  line-height: 1.08;
+  line-height: 1.02;
+  text-shadow:
+    0 1px 0 rgba(255, 238, 216, 0.72),
+    0 0 4px rgba(92, 39, 37, 0.1);
   writing-mode: vertical-rl;
   text-orientation: upright;
   letter-spacing: 0;
+  filter: none;
+}
+
+.chamber-main__jiaojiao-entry:hover {
+  transform: translateY(-3px);
+  filter: saturate(1.06) brightness(1.03) drop-shadow(0 16px 20px rgba(54, 27, 28, 0.24));
 }
 
 .chamber-main__jiaojiao-entry:hover img {
-  filter: drop-shadow(0 14px 16px rgba(68, 39, 42, 0.28)) saturate(1.03);
-}
-
-.chamber-main__jiaojiao-entry:hover span {
-  transform: translateY(-3px);
-  filter: saturate(1.08) brightness(1.04);
+  filter: drop-shadow(0 11px 13px rgba(68, 39, 42, 0.24)) saturate(1.03);
 }
 
 .chamber-main__jiaojiao-portrait {
@@ -3714,21 +3723,16 @@ button {
   align-items: center;
   justify-content: center;
   padding: 0;
-  border-radius: 3px;
-  border: 1px solid rgba(156, 125, 121, 0.24);
-  background: linear-gradient(180deg, rgba(255, 254, 250, 0.98), rgba(245, 240, 234, 0.96));
-  box-shadow:
-    0 8px 16px rgba(69, 35, 41, 0.16),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+  border: none;
+  border-radius: 0;
+  background: var(--palace-button-horizontal) center / 100% 100% no-repeat;
+  box-shadow: none;
+  filter: drop-shadow(0 8px 12px rgba(69, 35, 41, 0.16));
   overflow: hidden;
 }
 
 .map-main__hotspot::before {
-  content: '';
-  position: absolute;
-  inset: 3px;
-  border: 1px solid rgba(120, 86, 83, 0.08);
-  pointer-events: none;
+  content: none;
 }
 
 .map-main__hotspot span {
@@ -3746,12 +3750,17 @@ button {
   font-size: 18px;
   font-weight: 700;
   letter-spacing: 0.08em;
+  text-shadow: 0 1px 0 rgba(255, 244, 224, 0.72);
 }
 
 .map-main__hotspot.is-vertical span {
   writing-mode: vertical-rl;
   text-orientation: upright;
   padding: 12px 0;
+}
+
+.map-main__hotspot.is-vertical {
+  background-image: var(--palace-button-vertical);
 }
 
 .map-main__hotspot.is-large span {
@@ -3761,17 +3770,23 @@ button {
 .map-main__hotspot:hover,
 .map-main__hotspot.is-active {
   transform: translateY(-2px);
-  box-shadow:
-    0 12px 22px rgba(69, 35, 41, 0.2),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.86);
+  filter: saturate(1.08) brightness(1.03) drop-shadow(0 12px 16px rgba(69, 35, 41, 0.2));
+}
+
+.map-main__hotspot.is-active {
+  background-image: var(--palace-button-horizontal-active);
+}
+
+.map-main__hotspot.is-vertical.is-active {
+  background-image: var(--palace-button-vertical-active);
 }
 
 .map-main__hotspot.is-player-residence {
-  border-color: rgba(176, 111, 63, 0.34);
-  background: linear-gradient(180deg, rgba(255, 251, 240, 0.99), rgba(247, 232, 210, 0.96));
-  box-shadow:
-    0 10px 18px rgba(101, 65, 41, 0.16),
-    inset 0 0 0 1px rgba(255, 249, 238, 0.84);
+  background-image: var(--palace-button-horizontal-soft);
+}
+
+.map-main__hotspot.is-vertical.is-player-residence {
+  background-image: var(--palace-button-vertical-active);
 }
 
 .map-main__event-card--gongmen {
