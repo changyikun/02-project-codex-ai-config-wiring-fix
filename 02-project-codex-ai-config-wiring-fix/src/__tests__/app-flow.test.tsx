@@ -793,8 +793,19 @@ describe('App 主流程切换', () => {
     expect(screen.queryByText(/真正改命/)).not.toBeInTheDocument();
     expect(screen.queryByAltText('娇娇')).not.toBeInTheDocument();
 
+    for (let index = 0; index < 6 && !screen.queryByText(/字写得不错/); index += 1) {
+      await clickDialogueOnce();
+    }
+
+    expect(await screen.findByText(/字写得不错/)).toBeInTheDocument();
+    expect(screen.getByAltText('掌事宫人')).toHaveAttribute('src', '/assets/characters/women/gongren_middleage.png');
+    expect(screen.getByLabelText('掌事宫人立绘')).toBeInTheDocument();
+
     await clickDialogueAdvance();
 
+    expect((container.querySelector('.opening-dialogue__background') as HTMLElement).style.backgroundImage).toContain(
+      '/assets/routes/backgrounds/yushufang_inside_daytime.png',
+    );
     expect(screen.queryByAltText('娇娇')).not.toBeInTheDocument();
     expect(await screen.findByText(/那份祝词随待呈文书送到御前/)).toBeInTheDocument();
 
@@ -813,6 +824,9 @@ describe('App 主流程切换', () => {
 
     await clickDialogueAdvance();
 
+    expect((container.querySelector('.opening-dialogue__background') as HTMLElement).style.backgroundImage).toContain(
+      '/assets/routes/backgrounds/yeting_daytime.png',
+    );
     expect(screen.queryByAltText('娇娇')).not.toBeInTheDocument();
     expect(await screen.findByText(/娇娇也是那日被拨到你身边/)).toBeInTheDocument();
     expect(screen.queryByText(/往后人前说话/)).not.toBeInTheDocument();
@@ -2854,11 +2868,14 @@ describe('App 主流程切换', () => {
     const { container } = render(<App />);
 
     expect((container.querySelector('.chamber-main__background') as HTMLElement).style.backgroundImage).toContain(
-      '/assets/routes/backgrounds/hougong_daytime.png',
+      '/assets/routes/backgrounds/hougong_outside_daytime.png',
     );
 
     fireEvent.click(await screen.findByRole('button', { name: '玉清宫' }));
 
+    expect((container.querySelector('.harem-palace-view') as HTMLElement).style.backgroundImage).toContain(
+      '/assets/routes/backgrounds/hougong_daytime.png',
+    );
     expect(await screen.findByRole('button', { name: /主殿[\s\S]*和亲入宫 乌兰托娅/ })).toBeInTheDocument();
   });
 
@@ -4281,12 +4298,15 @@ describe('App 主流程切换', () => {
       },
     }));
 
-    render(<App />);
+    const { container } = render(<App />);
 
     fireEvent.click(await screen.findByRole('button', { name: '长春宫' }));
     fireEvent.click(await screen.findByRole('button', { name: /主殿[\s\S]*姚铃儿/ }));
 
     expect(await screen.findByLabelText('贵妃 姚铃儿 日常对话')).toBeInTheDocument();
+    expect((container.querySelector('.harem-palace-view') as HTMLElement).style.backgroundImage).toContain(
+      '/assets/routes/backgrounds/zhudian_daytime.png',
+    );
     expect(screen.getByLabelText('姚铃儿常驻立绘')).toBeInTheDocument();
     expect(useGameFlowStore.getState().state.stamina).toBe(STAMINA_INITIAL_PER_XUN - 1);
     expect(useGameFlowStore.getState().time.slotIndex).toBe(2);
@@ -6810,9 +6830,12 @@ describe('App 主流程切换', () => {
       },
     }));
 
-    render(<App />);
+    const { container } = render(<App />);
 
     expect(await screen.findByText('建章宫 · 拜见太后')).toBeInTheDocument();
+    expect((container.querySelector('.chamber-main__background') as HTMLElement).style.backgroundImage).toContain(
+      '/assets/routes/backgrounds/jianzhanggong_daytime.png',
+    );
     expect(screen.getByRole('button', { name: '送礼问安' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '起身告辞' })).toBeInTheDocument();
     expect(screen.getByText(/你需先依礼问安/)).toBeInTheDocument();

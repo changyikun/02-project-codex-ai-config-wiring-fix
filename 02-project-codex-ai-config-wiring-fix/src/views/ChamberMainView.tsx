@@ -25,7 +25,7 @@ import {
   DEFAULT_MONTHLY_EXPENSE_STRATEGY,
   MONTHLY_EXPENSE_STRATEGIES,
 } from '../config/monthlyExpenseStrategy';
-import { HAREM_OVERVIEW_BACKGROUND, LOCATION_SCENE_BACKGROUNDS, resolvePlayerHomeBackground } from '../config/locationSceneBackgrounds';
+import { HAREM_OUTSIDE_BACKGROUND, LOCATION_SCENE_BACKGROUNDS, resolvePlayerHomeBackground } from '../config/locationSceneBackgrounds';
 import { buildRandomMusicScoreItem } from '../game/data/inventoryPresets';
 import { buildInitialBondProfile } from '../game/data/bondPresets';
 import {
@@ -55,6 +55,7 @@ const bottomToolMessage: Record<string, string> = {
   皇嗣管理: '皇嗣管理入口已预留，后续会接入孩子成长、教育与立储判定。',
 };
 const ASSISTANT_PORTRAIT_SRC = '/assets/dialogue/jiaojiao-final.png';
+const EUNUCH_PORTRAIT_SRC = '/assets/characters/men/taijian.png';
 const JIAOJIAO_COMMAND_PROMPT = '娘娘，有何吩咐？';
 const LIANQIAO_PORTRAIT_SRC = '/assets/characters/women/lianqiao.jpg';
 const EXPENSE_EXPLANATION_OPTION_ID = 'expense-explanation';
@@ -219,7 +220,7 @@ export function ChamberMainView() {
   const currentSceneLabel = isHaremPanelActive ? '后宫' : activeMapLocation ?? state.residenceName;
   const currentSceneBackground =
     isHaremPanelActive
-      ? HAREM_OVERVIEW_BACKGROUND
+      ? HAREM_OUTSIDE_BACKGROUND
       : isOutsideScene && activeMapLocation
         ? LOCATION_SCENE_BACKGROUNDS[activeMapLocation]
         : resolvePlayerHomeBackground(time.slot);
@@ -874,7 +875,8 @@ export function ChamberMainView() {
         {shouldShowPendingNightlyServiceNotice && pendingNightlyServiceNotice ? (
           <GlobalDialogueStage
             sceneLabel="夜晚侍寝通报"
-            portraitLabel="场景旁白无立绘"
+            portraitLabel="内侍立绘"
+            portrait={<img src={EUNUCH_PORTRAIT_SRC} alt="内侍" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--eunuch" />}
             ariaLabel="夜晚侍寝通报"
             className="global-dialogue-stage--chamber"
             dialogueClassName="palace-dialogue-box--chamber"

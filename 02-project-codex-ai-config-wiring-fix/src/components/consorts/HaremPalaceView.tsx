@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { ConsortAudiencePanel } from './ConsortAudiencePanel';
 import { HAREM_PALACES, type HaremPalaceId } from '../../config/haremPalaces';
-import { HAREM_OVERVIEW_BACKGROUND } from '../../config/locationSceneBackgrounds';
+import {
+  CONSORT_AUDIENCE_BACKGROUND,
+  HAREM_OUTSIDE_BACKGROUND,
+  HAREM_OVERVIEW_BACKGROUND,
+} from '../../config/locationSceneBackgrounds';
 import {
   canStartConsortVisit,
   CONSORT_VISIT_STAMINA_BLOCK_TEXT,
@@ -76,13 +80,17 @@ export function HaremPalaceView({ concubines, playerResidenceName, playerName, p
   const panelStyle = useMemo<CSSProperties>(
     () => ({
       backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.08)), url("${
-        selectedPalace?.background ?? HAREM_OVERVIEW_BACKGROUND
+        activeResidentId
+          ? CONSORT_AUDIENCE_BACKGROUND
+          : selectedPalace
+            ? HAREM_OVERVIEW_BACKGROUND
+            : HAREM_OUTSIDE_BACKGROUND
       }")`,
       backgroundPosition: 'center',
       backgroundRepeat: 'no-repeat',
       backgroundSize: 'cover',
     }),
-    [selectedPalace],
+    [activeResidentId, selectedPalace],
   );
 
   useEffect(() => {

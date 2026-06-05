@@ -277,7 +277,7 @@ describe('影落掖庭地图主线体验', () => {
     fireEvent.click(screen.getByRole('button', { name: '进入此处' }));
 
     expect((container.querySelector('.map-main__background') as HTMLElement).style.backgroundImage).toContain(
-      '/assets/routes/backgrounds/hougong_daytime.png',
+      '/assets/routes/backgrounds/hougong_outside_daytime.png',
     );
     expect(await screen.findByText(/你第一次踏进后宫宫道时/)).toBeInTheDocument();
     advanceDialoguePages();

@@ -1,5 +1,5 @@
 import type { HaremHallSuffix, HaremPalaceAreaId, HaremResidenceName, PlayerResidenceName } from '../game/types';
-import { HAREM_OVERVIEW_BACKGROUND, LOCATION_SCENE_BACKGROUNDS } from './locationSceneBackgrounds';
+import { HAREM_OVERVIEW_BACKGROUND } from './locationSceneBackgrounds';
 
 const HAREM_PALACE_IDS = [
   '储秀宫',
@@ -50,7 +50,7 @@ const createHallSet = (label: HaremPalaceId): readonly HaremHallConfig[] => {
 export const HAREM_PALACES: readonly HaremPalaceConfig[] = HAREM_PALACE_IDS.map((id) => ({
   id,
   label: id,
-  background: LOCATION_SCENE_BACKGROUNDS[id] ?? HAREM_OVERVIEW_BACKGROUND,
+  background: HAREM_OVERVIEW_BACKGROUND,
   halls: createHallSet(id),
 }));
 

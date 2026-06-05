@@ -8,7 +8,10 @@ import { YINGLUOYETING_STORY_FLAGS } from '../game/lib/yingluoyetingStoryRuntime
 import { useGameFlowStore } from '../game/store/gameFlowStore';
 
 const openingBackground = '/assets/home-bg.png';
+const yetingOpeningBackground = '/assets/routes/backgrounds/yeting_daytime.png';
+const yushufangInsideBackground = '/assets/routes/backgrounds/yushufang_inside_daytime.png';
 const npcPortrait = '/assets/dialogue/jiaojiao-final.png';
+const middleAgedPalaceMaidPortrait = '/assets/characters/women/gongren_middleage.png';
 const npcName = '娇娇';
 const expenseExplanationOption = {
   id: 'expense-explanation',
@@ -29,9 +32,9 @@ const routePortraitById: Record<string, string> = {
   chenyuansucuo: '/assets/routes/portraits/chenyuansucuo.png',
 };
 
-const resolveOpeningBackground = (routeId: string): string => {
+const resolveOpeningBackground = (routeId: string, turn: number): string => {
   if (routeId === 'yingluoyeting') {
-    return '/assets/routes/backgrounds/yeting_daytime.png';
+    return turn === 2 ? yushufangInsideBackground : yetingOpeningBackground;
   }
   return openingBackground;
 };
@@ -85,13 +88,21 @@ const resolveQuotedOpeningSpeaker = (routeId: string, turn: number, playerName: 
   return undefined;
 };
 
+const isDefaultMiddleAgedPalaceMaidSpeaker = (identity: string, name: string): boolean => {
+  if (identity === '内廷听用宫人') {
+    return false;
+  }
+
+  return identity.includes('宫人') || name.includes('宫人') || identity.includes('掖庭掌事');
+};
+
 export function OpeningDialogueView() {
   const { state, hiddenStats, time, selectedRoute, patchState, enterMapMain } = useGameFlowStore();
   const [history, setHistory] = useState<Array<{ speaker: string; text: string }>>([]);
   const [turn, setTurn] = useState(1);
   const playerTitle = resolvePlayerTitle(state.family, state.routeId);
   const narrativeContext = useMemo(() => buildOpeningNarrativeContext(state.routeId), [state.routeId]);
-  const sceneBackground = resolveOpeningBackground(state.routeId);
+  const sceneBackground = resolveOpeningBackground(state.routeId, turn);
 
   const buildRequest = (nextTurn: number, nextHistory: Array<{ speaker: string; text: string }>) => ({
     routeId: state.routeId,
@@ -271,6 +282,19 @@ export function OpeningDialogueView() {
                 label: `${state.name}立绘`,
                 placement: 'dialogue-left',
                 portrait: <img src={playerPortrait} alt={state.name} className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--player" />,
+              };
+            }
+
+            if (isDefaultMiddleAgedPalaceMaidSpeaker(segment.characterIdentity, segment.characterName)) {
+              return {
+                label: `${segment.characterName}立绘`,
+                portrait: (
+                  <img
+                    src={middleAgedPalaceMaidPortrait}
+                    alt={segment.characterName}
+                    className="global-dialogue-stage__portrait-media"
+                  />
+                ),
               };
             }
 

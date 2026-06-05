@@ -8,7 +8,7 @@ import { ConcubineListView } from '../components/consorts/ConcubineListView';
 import { HaremPalaceView } from '../components/consorts/HaremPalaceView';
 import { PlayerStatsView } from '../components/status/PlayerStatsView';
 import type { ChamberPanelId } from '../config/bedchamber';
-import { HAREM_OVERVIEW_BACKGROUND, LOCATION_SCENE_BACKGROUNDS } from '../config/locationSceneBackgrounds';
+import { HAREM_OUTSIDE_BACKGROUND, LOCATION_SCENE_BACKGROUNDS } from '../config/locationSceneBackgrounds';
 import { buildMapHotspots, MAP_GUIDE_LINES, MAP_SIDEBAR_BUTTONS, resolveMapBackgroundImage, type MapHotspotConfig } from '../config/palaceUi';
 import { buildInitialBondProfile } from '../game/data/bondPresets';
 import { buildDuNiangShopCatalog, getInventoryRecyclePrice, type DuNiangShopEntry } from '../game/data/inventoryPresets';
@@ -273,7 +273,7 @@ export function MapMainView() {
   }, [activeNpcProfile, gongmenDialogueStep, gongmenFeedback]);
   const activeYingluoyetingBackground = activeYingluoyetingEvent
     ? activeYingluoyetingEvent.locationId === '后宫'
-      ? HAREM_OVERVIEW_BACKGROUND
+      ? HAREM_OUTSIDE_BACKGROUND
       : LOCATION_SCENE_BACKGROUNDS[activeYingluoyetingEvent.locationId]
     : undefined;
   const activeMapBackground = gongmenSceneActive ? LOCATION_SCENE_BACKGROUNDS['宫门'] : activeYingluoyetingBackground;
