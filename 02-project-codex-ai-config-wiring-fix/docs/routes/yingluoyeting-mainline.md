@@ -386,7 +386,7 @@
 
 | 选项 | 结果 |
 |---|---|
-| `抄录原方` | 获得证物 `太医院原方底簿`，`state.stats.medicine +0.1`，`state.stress +1` |
+| `抄录原方` | 获得证物 `太医院原方底簿`，运行时真值 `state.stats.medicine +1`，`state.stress +1` |
 | `请医官作证` | `state.prestige` 或 `state.silver` 检定；成功获得证物 `太医院原方底簿` 并记录“医官可作证”，失败 `state.stress +2` |
 | `只记药名，不带走纸页` | 记录“药方不一致”，不获得硬证物 |
 

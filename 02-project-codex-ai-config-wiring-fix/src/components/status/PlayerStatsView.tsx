@@ -13,6 +13,7 @@ import {
 } from '../../config/constants';
 import {
   convertAppearancePoints,
+  convertFortuneAttributePoints,
   convertFortunePoints,
   convertHealthPoints,
   convertIntriguePoints,
@@ -46,6 +47,41 @@ interface MetricDescriptor {
 
 const STRESS_SAFE_COLOR = '#5B9158';
 const STRESS_WARNING_COLOR = '#C9A447';
+const ATTRIBUTE_STATS_FINALIZED_FLAG = 'attributeStatsFinalized';
+
+const isRuntimeStatValue = (state: GameNumericsState, value: number): boolean =>
+  Boolean(state.flags[ATTRIBUTE_STATS_FINALIZED_FLAG]) || Math.abs(value) > 10;
+
+const resolveMainStatDisplayValue = (
+  state: GameNumericsState,
+  key: 'health' | 'intrigue' | 'appearance' | 'temperament',
+): number => {
+  const value = Number(state.stats[key] ?? 0);
+  if (isRuntimeStatValue(state, value)) {
+    return value;
+  }
+  if (key === 'health') return convertHealthPoints(value);
+  if (key === 'intrigue') return convertIntriguePoints(value);
+  if (key === 'appearance') return convertAppearancePoints(value);
+  return convertTemperamentPoints(value);
+};
+
+const resolveFortuneDisplayValue = (state: GameNumericsState): number => {
+  const value = Number(state.stats.fortune ?? 0);
+  return isRuntimeStatValue(state, value) ? convertFortunePoints(value) : convertFortuneAttributePoints(value);
+};
+
+const resolveSkillDisplayValue = (state: GameNumericsState, key: string): number => {
+  const value = Number(state.stats[key] ?? 0);
+  return isRuntimeStatValue(state, value) ? value : convertSkillLevel(value);
+};
+
+const resolvePointScaleValue = (value: number, divisor: number): number => {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.abs(value) > 10 ? value / divisor : value;
+};
 
 const getMetricAccentColor = (metricKey: string, numericValue?: number, range?: readonly [number, number]): string => {
   if (typeof numericValue !== 'number') {
@@ -82,14 +118,16 @@ const getMetricAccentColor = (metricKey: string, numericValue?: number, range?: 
 };
 
 const resolvePlayerAmbitionValue = (state: GameNumericsState): number => {
-  const politicsScore = Number(state.stats.politics ?? 0) * 20;
-  const intrigueScore = (Number(state.stats.intrigue ?? 0) - 5) * 12;
+  const politicsPoints = resolvePointScaleValue(Number(state.stats.politics ?? 0), 10);
+  const intriguePoints = resolvePointScaleValue(Number(state.stats.intrigue ?? 0), 100);
+  const politicsScore = politicsPoints * 20;
+  const intrigueScore = (intriguePoints - 5) * 12;
   const resolved = Math.round(politicsScore + intrigueScore);
   return Math.max(PLAYER_AMBITION_RANGE[0], Math.min(PLAYER_AMBITION_RANGE[1], resolved));
 };
 
 const resolvePlayerConditionLabel = (state: GameNumericsState): string => {
-  const healthValue = convertHealthPoints(state.stats.health ?? 0);
+  const healthValue = resolveMainStatDisplayValue(state, 'health');
   if (healthValue <= 400) {
     return '有恙';
   }
@@ -134,15 +172,15 @@ const buildMetricRows = (state: GameNumericsState, hiddenStats: HiddenStatsState
     {
       key: 'health',
       label: '健康',
-      display: formatMetricValue(convertHealthPoints(state.stats.health ?? 0)),
-      numericValue: convertHealthPoints(state.stats.health ?? 0),
+      display: formatMetricValue(resolveMainStatDisplayValue(state, 'health')),
+      numericValue: resolveMainStatDisplayValue(state, 'health'),
       range: PLAYER_HEALTH_RANGE,
     },
     {
       key: 'intrigue',
       label: '心计',
-      display: formatMetricValue(convertIntriguePoints(state.stats.intrigue ?? 0)),
-      numericValue: convertIntriguePoints(state.stats.intrigue ?? 0),
+      display: formatMetricValue(resolveMainStatDisplayValue(state, 'intrigue')),
+      numericValue: resolveMainStatDisplayValue(state, 'intrigue'),
       range: PLAYER_INTRIGUE_RANGE,
     },
   ],
@@ -150,15 +188,15 @@ const buildMetricRows = (state: GameNumericsState, hiddenStats: HiddenStatsState
     {
       key: 'appearance',
       label: '容貌',
-      display: formatMetricValue(convertAppearancePoints(state.stats.appearance ?? 0)),
-      numericValue: convertAppearancePoints(state.stats.appearance ?? 0),
+      display: formatMetricValue(resolveMainStatDisplayValue(state, 'appearance')),
+      numericValue: resolveMainStatDisplayValue(state, 'appearance'),
       range: PLAYER_APPEARANCE_RANGE,
     },
     {
       key: 'temperament',
       label: '气质',
-      display: formatMetricValue(convertTemperamentPoints(state.stats.temperament ?? 0)),
-      numericValue: convertTemperamentPoints(state.stats.temperament ?? 0),
+      display: formatMetricValue(resolveMainStatDisplayValue(state, 'temperament')),
+      numericValue: resolveMainStatDisplayValue(state, 'temperament'),
       range: PLAYER_TEMPERAMENT_RANGE,
     },
   ],
@@ -173,8 +211,8 @@ const buildMetricRows = (state: GameNumericsState, hiddenStats: HiddenStatsState
     {
       key: 'fortune',
       label: '福德',
-      display: formatMetricValue(convertFortunePoints(state.stats.fortune ?? 0)),
-      numericValue: convertFortunePoints(state.stats.fortune ?? 0),
+      display: formatMetricValue(resolveFortuneDisplayValue(state)),
+      numericValue: resolveFortuneDisplayValue(state),
       range: PLAYER_FORTUNE_RANGE,
     },
   ],
@@ -189,12 +227,12 @@ const buildMetricRows = (state: GameNumericsState, hiddenStats: HiddenStatsState
 
 const buildSkillSummary = (state: GameNumericsState): string =>
   [
-    ['诗词', convertSkillLevel(state.stats.poetry ?? 0)],
-    ['丹青', convertSkillLevel(state.stats.painting ?? 0)],
-    ['乐理', convertSkillLevel(state.stats.talent ?? 0)],
-    ['刺绣', convertSkillLevel(state.stats.embroidery ?? 0)],
-    ['药理', convertSkillLevel(state.stats.medicine ?? 0)],
-    ['政治', convertSkillLevel(state.stats.politics ?? 0)],
+    ['诗词', resolveSkillDisplayValue(state, 'poetry')],
+    ['丹青', resolveSkillDisplayValue(state, 'painting')],
+    ['乐理', resolveSkillDisplayValue(state, 'talent')],
+    ['刺绣', resolveSkillDisplayValue(state, 'embroidery')],
+    ['药理', resolveSkillDisplayValue(state, 'medicine')],
+    ['政治', resolveSkillDisplayValue(state, 'politics')],
   ]
     .map(([label, value]) => `${label} ${value}`)
     .join(' / ');

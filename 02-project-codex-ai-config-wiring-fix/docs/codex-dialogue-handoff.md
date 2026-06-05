@@ -1247,7 +1247,7 @@ npm run build
 - NPC-NPC 关系结算造成的妃嫔压力变化是内部状态变化，默认静默写入状态与关系矩阵，不在玩家清晨 / 结算 toast 中展示。
 - NPC 宫斗从 `hostile-plot` 行动进入；每旬全局只掷一次默认 `10%` 概率，每旬最多生成 1 条 NPC 宫斗案。
 - 宫斗事务文案明确是真实案件入口；朝堂事务当前只是政治谋划预留入口，只暂存草案，不改数值、不进结算。
-- 深夜行动后的过夜应视为全局流程：后宫拜访妃嫔也必须走娇娇提醒、黑屏、清晨通报；`completeOvernightTransition` 只标记本次是否属于熬夜，真实熬夜惩罚在清晨通报生成时由娇娇说明并扣除（压力 +2，健康 / 气质各 -0.1，即界面约 -10）。
+- 深夜行动后的过夜应视为全局流程：后宫拜访妃嫔也必须走娇娇提醒、黑屏、清晨通报；`completeOvernightTransition` 只标记本次是否属于熬夜，真实熬夜惩罚在清晨通报生成时由娇娇说明并按运行时真值扣除（压力 +2，健康 / 气质各 -10）。
 
 关键文件：
 
@@ -1291,6 +1291,117 @@ npm run build
 - `npm run build:web` 通过；仍有既有 Vite 大 chunk 警告
 - `git diff --check` 仅提示 Windows 换行归一化，没有空白错误
 - `web_game_playwright_client` 打开 `http://127.0.0.1:5173/` 生成启动页截图，未生成 console error 文件
+
+### 15.31 开发期银两 debug 指令
+
+本轮新增浏览器控制台调试入口，用于开发阶段快速补足玩家银两。
+
+已经成立的规则：
+
+- 开发期浏览器控制台可执行 `palaceDebug.addSilver(数量)`。
+- 指令会调用 `debugAddSilver()` store 动作，统一同步 `state.silver` 与 `hiddenStats.silver`。
+- 银两增加会按当前主界面触发数值反馈：地图中走 `map-event`，其余主界面走 `chamber-action`。
+- 参数必须是大于 `0` 的数字或数字字符串，小数会向下取整；达到银两上限时只增加到上限。
+- 该入口仅用于开发调试，不是正式经济来源，后续不要把它接成 UI 按钮或剧情选项。
+
+关键文件：
+
+- `src/game/store/gameFlowStore.ts`
+- `src/game/lib/debugConsole.ts`
+- `src/App.tsx`
+- `src/game/lib/debugConsole.test.ts`
+- `src/game/store/gameFlowStore.save.test.ts`
+
+验证结果：
+
+- `npx vitest run src/game/lib/debugConsole.test.ts src/game/store/gameFlowStore.save.test.ts -t "debug"` 通过，3 passed
+- `npx tsc -p tsconfig.json --noEmit` 通过
+- `npm run build:web` 通过；仍有既有 Vite 大 chunk 警告
+- `web_game_playwright_client` 打开 `http://127.0.0.1:5173/` 生成启动页截图，未生成 console error 文件
+- 页面上下文执行 `palaceDebug.addSilver(7)` 返回成功，银两从 `1000` 增至 `1007`，console error 为空
+
+### 15.28 v0.5.0 妃嫔规模与掖庭毒药入口
+
+本轮为宫斗 0.5 阶段补齐两个基础前提：后宫生态需要足够多的存活妃嫔参与旬级行动，玩家主动下毒必须先有真实毒药资源。
+
+已经成立的规则：
+
+- `buildInitialConcubineRoster()` 按路线固定妃嫔数量补足生成模板，使每条路线初始存活妃嫔达到 `12` 人；冷宫和已逝人物不计入这个目标。
+- 连翘继续作为妙音堂学谱 NPC，不进入妃嫔名单。
+- 掖庭院新增独立场景组件 `YetingYardView`，NPC 为“掖庭掌事 · 月姑姑”，负责出售陨颜丹、麝香、鹤顶红。
+- 杜娘普通货单不再出售毒药，避免毒药来源分散。
+- 玩家主动选择宫斗事务“下毒”时，事务面板会展示三种毒药的真实持有数量；无对应毒药不能进入 QTE。
+- QTE 成功并登记案件时通过 `consumeInventoryItem()` 扣除对应毒药 `1` 份；QTE 失败不消耗；同一次成功不会重复登记案件。
+- 主动宫斗登记案件会同步扣福德，`startPalaceStrifeCase` 必须自行触发 `chamber-action` 数值反馈。不要依赖下毒成功前的道具消耗信号，否则毒药 toast 会先释放，福德变化会滞留到下一次事件。
+- 福德单位已经按阶段收口：属性分配阶段 `1` 点显示为 `10` 福德，确认进入剧情时折算到运行时真值；玩家面板、toast、怀孕概率和主动造谣 / 下毒扣除都直接使用运行时福德值，不再二次乘 `10`。
+
+关键文件：
+
+- `src/game/data/concubineRoster.ts`
+- `src/game/data/inventoryPresets.ts`
+- `src/components/chamber/YetingYardView.tsx`
+- `src/components/chamber/ChamberUtilityViews.tsx`
+- `src/views/ChamberMainView.tsx`
+- `src/game/store/gameFlowStore.ts`
+
+验证结果：
+
+- `npx tsc -p tsconfig.json --noEmit` 通过
+- `npx vitest run src/game/data/concubineRoster.test.ts src/__tests__/app-flow.test.tsx -t "宫门中的杜娘可购买|生成 12 名存活妃嫔|宫斗事务下毒|掖庭院月姑姑"` 通过，9 passed
+- `npm run build:web` 通过；仍有既有 Vite 大 chunk 警告
+
+### 15.29 玩家属性单位边界收口
+
+本轮把“属性分配点数”和“正式游戏运行时真值”拆成明确边界，避免福德问题扩散到健康、心计、容貌、气质和副属性。
+
+已经成立的规则：
+
+- 属性分配页仍可暂存加点单位：健康 / 心计 / 容貌 / 气质每点折算 `100`，福德每点折算 `10`，诗词 / 乐理 / 丹青 / 刺绣 / 药理 / 政治每点折算 `10`。
+- 玩家点击“确认进入剧情”时，`finalizeAttributeAssignment()` 统一折算所有属性，并写入 `flags.attributeStatsFinalized=true`。
+- 正式游戏中的 `state.stats`、存档、toast、寝殿技能条、玩家面板、侍寝、宫斗、下毒 QTE、太医院剧情、熬夜和月度用度结算都读取运行时真值。
+- 如果某个公式仍需要 `0..10` 能力档，只能在该公式局部从运行时值反推，不得把 `state.stats` 改回加点单位。
+- 正式属性增减不再使用 `0.1 / 0.2 / 0.03` 这类加点单位小数：例如熬夜健康 / 气质扣 `10`，寝殿技能行动副属性加 `2`，太医院剧情药理加 `1`。
+- 影落掖庭太医院抄药方测试状态改为运行时真值，避免测试继续用加点单位掩盖正式流程问题。
+
+关键文件：
+
+- `src/game/store/gameFlowStore.ts`
+- `src/views/AttributeAssignmentView.tsx`
+- `src/views/ChamberMainView.tsx`
+- `src/components/status/PlayerStatsView.tsx`
+- `src/components/status/NumericChangeToastLayer.tsx`
+- `src/game/lib/nightlyServiceRuntime.ts`
+- `src/game/lib/palaceStrifeRuntime.ts`
+- `src/game/lib/yingluoyetingStoryRuntime.ts`
+- `src/components/chamber/ChamberUtilityViews.tsx`
+- `src/config/palaceUi.ts`
+
+验证结果：
+
+- `npx tsc -p tsconfig.json --noEmit` 通过
+- `npx vitest run src/game/lib/yingluoyetingStoryRuntime.test.ts src/__tests__/app-flow.test.tsx src/game/store/gameFlowStore.save.test.ts src/game/lib/nightlyServiceRuntime.test.ts src/game/lib/palaceStrifeRuntime.test.ts -t "属性|福德加点|direct fortune|player service|宫斗事务下毒投放成功|祈福会增加福德|pays the fortune cost|resolves poison|resolves rumor|reveals pregnancy|熬夜惩罚|copy prescription"` 通过，18 passed
+
+### 15.30 已确认属性存档的恢复入口
+
+本轮修复属性创建面板在读到已确认属性后再次按创建阶段倍率展示的问题。
+
+已经成立的规则：
+
+- `flags.attributeStatsFinalized=true` 表示属性创建阶段已经结束，`state.stats` 已是运行时真值。
+- 回溯存档时，如果 `selectedRoute` 存在、`attributeStatsFinalized=true`，但 `openingGuideFinished` 还没有完成，应恢复到 `opening-dialogue`，不能恢复到 `attribute-assignment`。
+- 属性创建面板自身也做防御：如果异常拿到 `attributeStatsFinalized=true` 的状态，只展示运行时真值，剩余点数显示“已确认”，加减按钮禁用。
+- 后续修改恢复入口时，不要只用 `openingGuideFinished` 判断是否回创建面板；必须先判断 `attributeStatsFinalized`。
+
+关键文件：
+
+- `src/game/store/gameFlowStore.ts`
+- `src/views/AttributeAssignmentView.tsx`
+- `src/__tests__/app-flow.test.tsx`
+
+验证结果：
+
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "回溯已确认属性|属性创建面板若拿到已确认属性|确认进入剧情会将所有加点属性|福德加点"` 通过，4 passed
+- `npx tsc -p tsconfig.json --noEmit` 通过
 
 ### 15.27 外景回地图退出动画清理
 

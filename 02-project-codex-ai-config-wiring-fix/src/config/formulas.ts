@@ -1,4 +1,5 @@
 import {
+  FORTUNE_ATTRIBUTE_POINT_TO_VALUE_RATIO,
   FORTUNE_POINT_TO_VALUE_RATIO,
   MAIN_ATTRIBUTE_POINT_TO_VALUE_RATIO,
   SKILL_LEVEL_TO_VALUE_RATIO,
@@ -12,6 +13,14 @@ const toSafeNonNegativeInteger = (value: number): number => {
   }
 
   return Math.max(0, Math.round(value));
+};
+
+const toSafeInteger = (value: number): number => {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.round(value);
 };
 
 /**
@@ -55,14 +64,22 @@ export const convertTemperamentPoints = (
 ): number => toSafeNonNegativeInteger(attributeValue * coefficient);
 
 /**
- * 将福德资质点转换为游戏内数值。
- * 输入单位：资质点；输出单位：福德游戏值。
- * 公式：福德游戏值 = 福德资质点 * 转换系数。
+ * 福德使用实际值，不做主属性或技能的倍数换算。
+ * 输入单位：福德值；输出单位：福德游戏值。
  */
 export const convertFortunePoints = (
   attributeValue: number,
   coefficient = FORTUNE_POINT_TO_VALUE_RATIO,
-): number => toSafeNonNegativeInteger(attributeValue * coefficient);
+): number => toSafeInteger(attributeValue * coefficient);
+
+/**
+ * 属性分配阶段的福德仍使用资质点；进入游戏前再折算成运行时福德值。
+ * 输入单位：福德资质点；输出单位：福德游戏值。
+ */
+export const convertFortuneAttributePoints = (
+  attributeValue: number,
+  coefficient = FORTUNE_ATTRIBUTE_POINT_TO_VALUE_RATIO,
+): number => toSafeInteger(attributeValue * coefficient);
 
 /**
  * 将技能等级转换为游戏内数值。

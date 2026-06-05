@@ -30,7 +30,7 @@ const primaryMetricLabels: Partial<Record<keyof GameNumericsState, string>> = {
   trueHeart: '真心',
 };
 
-const statDisplayScale: Record<string, number> = {
+const unfinalizedStatDisplayScale: Record<string, number> = {
   health: 100,
   fortune: 10,
   intrigue: 100,
@@ -43,6 +43,8 @@ const statDisplayScale: Record<string, number> = {
   medicine: 10,
   politics: 10,
 };
+
+const ATTRIBUTE_STATS_FINALIZED_FLAG = 'attributeStatsFinalized';
 
 const consortMetrics: Array<{ key: keyof Pick<ConcubineStats, 'prestige'>; label: string }> = [
   { key: 'prestige', label: '声望' },
@@ -95,10 +97,12 @@ const buildNumericSnapshot = (
   });
 
   attributeFields.forEach((field) => {
-    const scale = statDisplayScale[field.key] ?? 1;
+    const rawValue = Number(state.stats[field.key] ?? 0);
+    const shouldUseRuntimeValue = state.flags[ATTRIBUTE_STATS_FINALIZED_FLAG] || Math.abs(rawValue) > 10;
+    const scale = shouldUseRuntimeValue ? 1 : unfinalizedStatDisplayScale[field.key] ?? 1;
     snapshot[`stats.${field.key}`] = {
       label: field.label,
-      value: normalizeDisplayNumber(Number(state.stats[field.key] ?? 0) * scale),
+      value: normalizeDisplayNumber(rawValue * scale),
     };
   });
 

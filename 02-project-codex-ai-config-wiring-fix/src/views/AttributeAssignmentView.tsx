@@ -1,7 +1,10 @@
 import { useMemo } from 'react';
 import { AGE_RANGE } from '../config/constants';
+import { convertFortuneAttributePoints } from '../config/formulas';
 import { attributeFields } from '../game/data/config';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
+
+const ATTRIBUTE_STATS_FINALIZED_FLAG = 'attributeStatsFinalized';
 
 const randomInt = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min;
 
@@ -21,8 +24,12 @@ const resolveBudgetByFamily = (routeId: string, family: string): number => {
   return Math.min(54, Math.max(48, base));
 };
 
-const formatDisplayedValue = (key: string, value: number, locked: boolean): number => {
-  if (locked) {
+const formatDisplayedValue = (key: string, value: number, routeLocked: boolean, finalized: boolean): number => {
+  if (finalized) {
+    return value;
+  }
+
+  if (routeLocked) {
     const fixedMap: Record<string, number> = {
       health: 600,
       fortune: 30,
@@ -40,7 +47,7 @@ const formatDisplayedValue = (key: string, value: number, locked: boolean): numb
   }
 
   if (key === 'fortune') {
-    return value * 10;
+    return convertFortuneAttributePoints(value);
   }
   if (['health', 'intrigue', 'appearance', 'temperament'].includes(key)) {
     return value * 100;
@@ -49,22 +56,27 @@ const formatDisplayedValue = (key: string, value: number, locked: boolean): numb
 };
 
 export function AttributeAssignmentView() {
-  const { state, selectedRoute, setPlayerName, patchState, setAttributeValue, setCurrentView, setScene } =
+  const { state, selectedRoute, setPlayerName, patchState, setAttributeValue, finalizeAttributeAssignment, setCurrentView, setScene } =
     useGameFlowStore();
 
-  const locked = Boolean(selectedRoute?.statsLocked);
+  const finalized = Boolean(state.flags[ATTRIBUTE_STATS_FINALIZED_FLAG]);
+  const routeLocked = Boolean(selectedRoute?.statsLocked);
+  const controlsLocked = routeLocked || finalized;
   const pointsLeftDisplay = useMemo(() => {
-    if (locked) {
+    if (finalized) {
+      return '已确认';
+    }
+    if (routeLocked) {
       return '已固定';
     }
     const numericValue = Math.round(((state.pointsLeft ?? 0) + Number.EPSILON) * 100) / 100;
     return Number.isInteger(numericValue) ? String(numericValue) : numericValue.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
-  }, [locked, state.pointsLeft]);
+  }, [finalized, routeLocked, state.pointsLeft]);
   const displayedFields = useMemo(() => {
     return attributeFields.map((field) => ({
       ...field,
       current: state.stats[field.key] ?? field.value,
-      displayValue: formatDisplayedValue(field.key, state.stats[field.key] ?? field.value, locked),
+      displayValue: formatDisplayedValue(field.key, state.stats[field.key] ?? field.value, routeLocked, finalized),
       max:
         field.key === 'politics'
           ? selectedRoute?.id === 'lanyinxuguo' || selectedRoute?.id === 'chenyuansucuo'
@@ -72,7 +84,7 @@ export function AttributeAssignmentView() {
             : 2
           : field.max,
     }));
-  }, [locked, selectedRoute?.id, state.stats]);
+  }, [finalized, routeLocked, selectedRoute?.id, state.stats]);
 
   const adjustAge = (direction: -1 | 1) => {
     const nextAge = Math.min(AGE_RANGE[1], Math.max(AGE_RANGE[0], state.age + direction));
@@ -95,7 +107,7 @@ export function AttributeAssignmentView() {
   };
 
   const autoAssign = () => {
-    if (locked) {
+    if (controlsLocked) {
       return;
     }
     const pointsTotal = state.pointsTotal ?? 0;
@@ -119,7 +131,7 @@ export function AttributeAssignmentView() {
   };
 
   const adjust = (key: string, direction: -1 | 1, min: number, max: number) => {
-    if (locked) {
+    if (controlsLocked) {
       return;
     }
     if (direction > 0 && state.pointsLeft <= 0) {
@@ -144,6 +156,7 @@ export function AttributeAssignmentView() {
               type="button"
               className="attribute-assignment__confirm"
               onClick={() => {
+                finalizeAttributeAssignment();
                 setScene('briefing');
                 setCurrentView('opening-dialogue');
               }}
@@ -211,8 +224,8 @@ export function AttributeAssignmentView() {
             <div className="attribute-assignment__grid">
               {displayedFields.map((field) => {
                 const currentValue = state.stats[field.key] ?? field.min;
-                const canDecrease = !locked && currentValue > field.min;
-                const canIncrease = !locked && currentValue < field.max && (state.pointsLeft ?? 0) > 0;
+                const canDecrease = !controlsLocked && currentValue > field.min;
+                const canIncrease = !controlsLocked && currentValue < field.max && (state.pointsLeft ?? 0) > 0;
 
                 return (
                   <div key={field.key} className="attribute-assignment__item">

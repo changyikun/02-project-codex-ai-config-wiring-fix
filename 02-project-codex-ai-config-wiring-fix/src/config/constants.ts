@@ -39,6 +39,7 @@ export const MONTHS_PER_YEAR = 12 as const;
 
 export const AGE_RANGE: RangeTuple = [15, 23] as const;
 export const PRESTIGE_RANGE: RangeTuple = [-2000, 5000] as const;
+export const PLAYER_SILVER_RANGE: RangeTuple = [0, 999999] as const;
 export const PLAYER_FAVOR_RANGE: RangeTuple = [-100, 100] as const;
 export const PLAYER_FORTUNE_RANGE: RangeTuple = [-100, 100] as const;
 export const PLAYER_AMBITION_RANGE: RangeTuple = [-100, 100] as const;
@@ -59,7 +60,8 @@ export const POLITICS_LEVEL_CAP = 2 as const;
 export const ADVANCED_ROUTE_POLITICS_LEVEL_CAP = 4 as const;
 
 export const MAIN_ATTRIBUTE_POINT_TO_VALUE_RATIO = 100 as const;
-export const FORTUNE_POINT_TO_VALUE_RATIO = 10 as const;
+export const FORTUNE_POINT_TO_VALUE_RATIO = 1 as const;
+export const FORTUNE_ATTRIBUTE_POINT_TO_VALUE_RATIO = 10 as const;
 export const SKILL_LEVEL_TO_VALUE_RATIO = 10 as const;
 
 export const FAMILY_BACKGROUND_TOTAL_POINTS_MIN = 48 as const;

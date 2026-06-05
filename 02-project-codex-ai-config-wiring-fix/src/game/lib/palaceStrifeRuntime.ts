@@ -11,7 +11,7 @@ import type {
 
 interface PalaceStrifeAttemptInput {
   playerState: GameNumericsState;
-  target: ConcubineProfile;
+  target: PalaceStrifeTargetProfile;
   actionKind: PalaceStrifeActionKind;
   methodLabel: string;
   itemLabel: string;
@@ -28,6 +28,8 @@ interface PalaceStrifeAttemptInput {
 interface NpcPalaceStrifeGenerationInput {
   concubines: ConcubineProfile[];
   existingCases: PalaceStrifeCaseState[];
+  playerState?: GameNumericsState;
+  playerRankLabel?: string;
   time: {
     year: number;
     month: number;
@@ -36,6 +38,10 @@ interface NpcPalaceStrifeGenerationInput {
   preferredActorConsortId?: string;
   preferredTargetConsortId?: string;
 }
+
+type PalaceStrifeTargetProfile = Pick<ConcubineProfile, 'id' | 'name' | 'rankLabel' | 'stats'>;
+
+export const PLAYER_PALACE_STRIFE_TARGET_ID = 'player';
 
 const severityModifiers: Record<PalaceStrifeSeverity, { action: number; concealment: number; conviction: number }> = {
   light: { action: 0, concealment: 5, conviction: 0 },
@@ -77,7 +83,16 @@ const normalizePlayerScore = (value: number, tenPointScaleMultiplier = 10): numb
   if (!Number.isFinite(value)) {
     return 0;
   }
-  return Math.abs(value) <= 10 ? value * tenPointScaleMultiplier : value;
+  if (Math.abs(value) <= 10) {
+    return value * tenPointScaleMultiplier;
+  }
+  if (tenPointScaleMultiplier === 20) {
+    return value * 2;
+  }
+  if (Math.abs(value) > 100) {
+    return value / 10;
+  }
+  return value;
 };
 
 const normalizeTargetScore = (value: number): number => {
@@ -94,6 +109,35 @@ const buildCaseIdTimeKey = (time: { year: number; month: number; xun: number }):
   `${time.year}-${time.month}-${time.xun}`;
 
 const formatConsortName = (consort: ConcubineProfile): string => `${consort.rankLabel} ${consort.name}`;
+const formatStrifeTargetName = (target: PalaceStrifeTargetProfile): string => `${target.rankLabel} ${target.name}`;
+
+export const isPlayerPalaceStrifeTargetId = (targetId: string | undefined): boolean =>
+  targetId === PLAYER_PALACE_STRIFE_TARGET_ID;
+
+export const buildPlayerPalaceStrifeTarget = (
+  playerState: GameNumericsState,
+  rankLabel = '娘娘',
+): PalaceStrifeTargetProfile => ({
+  id: PLAYER_PALACE_STRIFE_TARGET_ID,
+  name: playerState.name,
+  rankLabel,
+  stats: {
+    favor: playerState.favor,
+    familyInfluence: 0,
+    health: Number(playerState.stats.health ?? 0),
+    intrigue: Number(playerState.stats.intrigue ?? 0),
+    medicine: Number(playerState.stats.medicine ?? 0),
+    appearance: Number(playerState.stats.appearance ?? 0),
+    temperament: Number(playerState.stats.temperament ?? 0),
+    prestige: playerState.prestige,
+    stress: playerState.stress,
+    relationToPlayer: 0,
+    childrenCount: 0,
+    affection: 0,
+    ambition: 0,
+    fortune: Number(playerState.stats.fortune ?? 0),
+  },
+});
 
 const buildSeededRoll = (seed: string, salt: number): number => {
   let value = salt;
@@ -171,7 +215,7 @@ export const resolvePalaceStrifeAttempt = (input: PalaceStrifeAttemptInput): Pal
         ),
       );
   const xunKey = buildCaseIdTimeKey(input.time);
-  const targetName = formatConsortName(input.target);
+  const targetName = formatStrifeTargetName(input.target);
   const actionLabel = input.actionKind === 'poison' ? '下毒' : '造谣';
   const summary = concealmentSucceeded
     ? `${actionLabel}${actionSucceeded ? '奏效' : '未成'}，暂未牵出你。`
@@ -236,19 +280,39 @@ export const generateNpcPalaceStrifeCase = (
     return null;
   }
 
-  const liveTargets = input.concubines.filter(
+  const liveConsortTargets = input.concubines.filter(
     (concubine) => concubine.id !== actor.id && concubine.status === 'live' && !concubine.residence.includes('冷宫'),
   );
-  if (liveTargets.length === 0) {
+  const playerTarget = input.playerState
+    ? buildPlayerPalaceStrifeTarget(input.playerState, input.playerRankLabel)
+    : undefined;
+  const targetPool: PalaceStrifeTargetProfile[] = playerTarget
+    ? [...liveConsortTargets, playerTarget]
+    : liveConsortTargets;
+  const framePool = playerTarget
+    ? [...input.concubines.filter((concubine) => concubine.id !== actor.id), playerTarget]
+    : input.concubines.filter((concubine) => concubine.id !== actor.id);
+  if (targetPool.length === 0) {
     return null;
   }
 
   const target =
     (input.preferredTargetConsortId
-      ? liveTargets.find((concubine) => concubine.id === input.preferredTargetConsortId)
+      ? targetPool.find((candidate) => candidate.id === input.preferredTargetConsortId)
       : undefined) ??
-    liveTargets.find((concubine) => actor.rivals.includes(concubine.id)) ??
-    liveTargets.slice().sort((left, right) => Number(right.stats.favor ?? 0) - Number(left.stats.favor ?? 0))[0];
+    liveConsortTargets.find((concubine) => actor.rivals.includes(concubine.id)) ??
+    (playerTarget && Number(actor.stats.relationToPlayer ?? 0) <= -35 ? playerTarget : undefined) ??
+    targetPool.slice().sort((left, right) => Number(right.stats.favor ?? 0) - Number(left.stats.favor ?? 0))[0];
+  const frameTarget =
+    playerTarget &&
+    target.id !== PLAYER_PALACE_STRIFE_TARGET_ID &&
+    (Number(actor.stats.relationToPlayer ?? 0) <= -45 || buildSeededRoll(`${xunKey}:${actor.id}:frame-player`, 29) <= 35)
+      ? playerTarget
+      : undefined;
+  const fallbackFrameTarget = frameTarget
+    ? undefined
+    : framePool.find((candidate) => candidate.id !== target.id && candidate.id !== actor.id && buildSeededRoll(`${xunKey}:${actor.id}:${candidate.id}:frame`, 41) <= 12);
+  const resolvedFrameTarget = frameTarget ?? fallbackFrameTarget;
   const actionKind: PalaceStrifeActionKind = Number(actor.stats.medicine ?? 0) >= 70 ? 'poison' : 'rumor';
   const itemLabel =
     actionKind === 'poison'
@@ -271,11 +335,13 @@ export const generateNpcPalaceStrifeCase = (
     actorConsortId: actor.id,
     actorName: formatConsortName(actor),
     targetConsortId: target.id,
-    targetName: formatConsortName(target),
+    targetName: formatStrifeTargetName(target),
     actionKind,
     methodLabel: actionKind === 'poison' ? '下毒' : '散布流言',
     itemLabel,
     allyLabel: '无',
+    framedTargetConsortId: resolvedFrameTarget?.id,
+    framedTargetName: resolvedFrameTarget ? formatStrifeTargetName(resolvedFrameTarget) : undefined,
     queuedRolls: {
       action: buildSeededRoll(seed, 17),
       concealment: buildSeededRoll(seed, 53),
@@ -291,7 +357,9 @@ export const generateNpcPalaceStrifeCase = (
     outcome: 'pending',
     investigationXunsElapsed: 0,
     convictionRate: 0,
-    summary: `${formatConsortName(actor)}与${formatConsortName(target)}之间暗流渐起，待当旬夜晚结算。`,
+    summary: `${formatConsortName(actor)}与${formatStrifeTargetName(target)}之间暗流渐起${
+      resolvedFrameTarget ? `，线索隐隐指向${formatStrifeTargetName(resolvedFrameTarget)}` : ''
+    }，待当旬夜晚结算。`,
   };
 };
 

@@ -22,19 +22,21 @@ const buildState = (overrides: Partial<GameNumericsState> = {}): GameNumericsSta
   favor: 10,
   trueHeart: 0,
   stats: {
-    health: 4,
-    fortune: 3,
-    intrigue: 4,
-    appearance: 4,
-    temperament: 4,
+    health: 400,
+    fortune: 30,
+    intrigue: 400,
+    appearance: 400,
+    temperament: 400,
     poetry: 0,
-    talent: 6,
-    painting: 6,
-    embroidery: 1,
-    medicine: 5,
+    talent: 60,
+    painting: 60,
+    embroidery: 10,
+    medicine: 50,
     politics: 0,
   },
-  flags: {},
+  flags: {
+    attributeStatsFinalized: true,
+  },
   ...overrides,
 });
 
@@ -237,7 +239,7 @@ describe('yingluoyetingStoryRuntime', () => {
     });
 
     expect(result.statePatch.stress).toBe(31);
-    expect(result.statePatch.stats?.medicine).toBe(5.1);
+    expect(result.statePatch.stats?.medicine).toBe(51);
     expect(result.statePatch.flags?.[YINGLUOYETING_STORY_FLAGS.taiyiPrescriptionDone]).toBe(true);
     expect(result.statePatch.flags?.[YINGLUOYETING_STORY_FLAGS.hasOriginalPrescription]).toBe(true);
     expect(result.grantedItem?.itemId).toBe(YINGLUOYETING_EVIDENCE_ITEM_IDS.originalPrescription);

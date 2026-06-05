@@ -116,7 +116,8 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
   const saveId = useMemo(() => `local:${state.routeId}:${encodeURIComponent(state.name)}`, [state.name, state.routeId]);
   const dialogueOptions = dialogueTurn?.options ?? [];
   const isJianNingMet = Boolean(state.flags.isJianNingMet || medicalProgress.jianNingMet);
-  const showConsultation = Number(state.stats.medicine ?? 0) >= 5;
+  const medicineLevel = Number(state.stats.medicine ?? 0) > 10 ? Number(state.stats.medicine ?? 0) / 10 : Number(state.stats.medicine ?? 0);
+  const showConsultation = medicineLevel >= 5;
   const scheduledConsortActivity = useMemo(() => {
     const scheduledEntries = getNpcActivitiesAtLocation(npcActivity, '太医院');
     const entry = scheduledEntries.find((candidate) => concubines.some((consort) => consort.id === candidate.actorConsortId));
@@ -365,7 +366,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     setBusy(true);
     const actionOutcome = beginTimedLocationAction();
     patchMedicalProgress({ consultationCount: medicalProgress.consultationCount + 1 });
-    applyStoryEffects({ stats: { medicine: 0.1 } });
+    applyStoryEffects({ stats: { medicine: 1 } });
 
     try {
       const ambient = await requestTaiyiAmbientWithFallback({

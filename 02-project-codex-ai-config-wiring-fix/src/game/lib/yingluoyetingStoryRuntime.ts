@@ -501,7 +501,7 @@ export const applyYingluoyetingStoryChoice = (input: {
       ...(grantsHardEvidence ? { [YINGLUOYETING_STORY_FLAGS.hasOriginalPrescription]: true } : {}),
       ...(input.choiceId === 'witness' ? { [YINGLUOYETING_STORY_FLAGS.medicalWitnessNoted]: true } : {}),
     };
-    const medicineDelta = input.choiceId === 'copy' ? 0.1 : 0;
+    const medicineDelta = input.choiceId === 'copy' ? 1 : 0;
     const stressDelta = input.choiceId === 'memorize' ? 0 : input.choiceId === 'witness' ? 2 : 1;
 
     return {

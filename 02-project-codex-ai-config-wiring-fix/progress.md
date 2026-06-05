@@ -99,7 +99,7 @@ Original prompt: 添加存档系统，回溯可以读取上一次存档，开始
 - 已处理：妙音堂新增“学谱”入口；登记宫宴不再消耗库存曲谱，报名后仍可继续练习。
 - 已处理：练谱公式改为乐理主导，不再使用气质；练谱提高表现上限，宫宴当天按上限随机生成本场表现分。
 - 已修正：不新增玩家属性字段；乐理继续落在既有 `talent` 字段，界面与规则显示为“乐理”，历史过渡 `music` 只在读档时归并回 `talent`。
-- 已处理：学谱本身会增加乐理显示值 `+2`，内部为 `talent +0.2`，并随行动结果触发 toast。
+- 已处理：学谱本身会增加运行时乐理值 `+2`，并随行动结果触发 toast。
 - 已处理：宫宴报名开启改为提前一个月，首届报名可在 1 年 2 月上旬清晨触发，避免开局提醒早于玩家可操作时间。
 - 验证：`npm test` 通过，20 files / 223 tests；仍有既有 React `act(...)` 警告和 AI key fallback 日志。
 - 验证：`npm run build` 通过；仍有既有 Vite 大 chunk 警告。
@@ -167,6 +167,7 @@ Original prompt: 添加存档系统，回溯可以读取上一次存档，开始
 - 验证：`npx vitest run src/__tests__/app-flow.test.tsx` 通过，122 passed；仍有既有 React `act(...)` 测试警告。
 - 验证：`npm run build:web` 通过；仍有既有 Vite 大 chunk 警告。
 - 验证：`git diff --check` 仅提示 Windows 换行归一化，没有空白错误。
+- 验证：`web_game_playwright_client` 打开 `http://127.0.0.1:5173/` 生成启动页截图 `output/web-game/shot-0.png`，未生成 `errors-*.json`；已查看截图，启动页正常。
 - 验证：`web_game_playwright_client` 打开 `http://127.0.0.1:5173/` 并生成启动页截图，未生成 console error 文件。
 
 ## 2026-06-04 Changelog 版本化整理
@@ -223,3 +224,82 @@ Original prompt: 添加存档系统，回溯可以读取上一次存档，开始
 - 已同步：`CHANGELOG.md`、`docs/codex-dialogue-handoff.md`、`docs/game-hard-rules.md`、`docs/system-hard-rules-integrated.md`、`docs/game-system-breakdown.md`。
 - 验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "大地图地点弹窗不展示妃嫔信息|已交谈的外出妃嫔仍保留|公共地点 NPC 主动点击"` 通过，2 passed。
 - 验证：`npx tsc -p tsconfig.json --noEmit` 通过；`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告。
+
+## 2026-06-05 玩家下毒 QTE 表现
+
+- 目标：先做玩家主动下毒时的 QTE 表现，不新增存档字段，不改 NPC 宫斗和调查数据结构。
+- 已处理：`宫斗事务 -> 下毒 -> 完成` 不再直接登记案件，而是先显示杯盏时机条；点击“停止并下毒”后才判定投放是否成功。
+- 已处理：QTE 成功区域宽度受药理影响，指针速度受心计和压力影响；投放成功后复用原有 `startPalaceStrifeCase` 登记 `pending_resolution` 案件，投放失败不登记案件。
+- 已调整：初始属性下的 QTE 难度上调，基础成功区间更窄、指针移动更快；高药理 / 高心计仍会降低难度。
+- 已处理：NPC 宫斗可把玩家作为目标，也可把玩家作为嫁祸对象；玩家被害或被嫁祸且案件进入调查时会标记养心殿裁断。
+- 已补测试：下毒点击完成会先出现“下毒时机”QTE，未停止前不会生成 `palaceStrifeCases`。
+- 已补测试：NPC 宫斗 runtime 可生成“目标为玩家”和“嫁祸给玩家”的案件；主流程跨旬可由敌意筹谋生成目标为玩家的 NPC 宫斗案。
+- 验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "宫斗事务选择下毒|宫斗事务下毒完成前|宫斗事务完成后"` 通过，3 passed。
+- 验证：`npx tsc -p tsconfig.json --noEmit`、`npm run build:web` 通过；构建仍有既有 Vite 大 chunk 警告。
+- 验证：浏览器从新局走到寝殿宫斗事务，下毒完成后可见“下毒时机”QTE，控制台 error 为空，截图输出到 `output/qte-visible.png`。
+
+## 2026-06-05 v0.5.0 妃嫔扩容与掖庭毒药入口
+
+- 本轮目标：后宫存活妃嫔扩到 `12` 人；掖庭院增加可购买毒药的 NPC；玩家主动下毒必须先持有并在成功投放时消耗毒药。
+- 已处理：`buildInitialConcubineRoster()` 改为按路线固定妃嫔数量动态补足到 `12` 名存活妃嫔，并新增程雪砚、阿史那明珠、闻人照月、周怜星等生成模板。
+- 已处理：掖庭院新增 `YetingYardView` 与“掖庭掌事 · 月姑姑”，可购买陨颜丹、麝香、鹤顶红；杜娘普通货单不再出售毒药。
+- 已处理：宫斗事务下毒面板展示三种毒药持有数量；未持有对应毒药时不能进入 QTE；QTE 成功登记案件时消耗 `1` 份，失败不消耗，并增加同次成功防重复登记保护。
+- 已同步：`CHANGELOG.md`、`docs/palace-strife-architecture.md`、`docs/game-hard-rules.md`、`docs/system-hard-rules-integrated.md`、`docs/game-state-model.md`、`docs/codex-dialogue-handoff.md` 和 `codex-workdocs/2026-06-05-v050-roster-yeting-poison.md`。
+- 验证：`npx tsc -p tsconfig.json --noEmit` 通过。
+- 验证：`npx vitest run src/game/data/concubineRoster.test.ts src/__tests__/app-flow.test.tsx -t "宫门中的杜娘可购买|生成 12 名存活妃嫔|宫斗事务下毒|掖庭院月姑姑"` 通过，9 passed。
+- 验证：`npm run build:web` 通过；仍有既有 Vite 大 chunk 警告。
+- 验证：`web_game_playwright_client` 打开 `http://127.0.0.1:5173/` 生成启动页截图 `output/web-game-latest/shot-0.png`，未生成 console error 文件；另用 Playwright 全页截图 `output/web-game-latest/full-page.png` 确认页面正常加载，`full-page-errors.json` 为空。
+- 验证：`git diff --check` 仅提示 Windows 换行归一化，没有空白错误。
+
+## 2026-06-05 主动宫斗福德 toast 及时释放
+
+- 问题：下毒 QTE 成功时会先消耗毒药并触发物品 toast，随后 `startPalaceStrifeCase()` 登记案件扣福德但没有发出新的数值反馈信号，导致福德扣除 toast 滞留到下一次事件才显示。
+- 已修复：`startPalaceStrifeCase()` 在写入 `palaceStrifeCases` 和扣除福德后同步递增 `numericFeedbackSignal`，按当前视图释放 `chamber-action` 或 `map-event` 反馈。
+- 已补测试：玩家下毒投放成功、案件登记和毒药消耗后，等待数值提示中出现“福德”。
+- 验证：`npx tsc -p tsconfig.json --noEmit` 通过。
+- 验证：`npx vitest run src/game/data/concubineRoster.test.ts src/__tests__/app-flow.test.tsx -t "宫门中的杜娘可购买|生成 12 名存活妃嫔|宫斗事务下毒|掖庭院月姑姑|宫斗事务下毒投放成功"` 通过，9 passed。
+- 验证：`npm run build:web` 通过；仍有既有 Vite 大 chunk 警告。
+- 验证：`git diff --check` 仅提示 Windows 换行归一化，没有空白错误。
+
+## 2026-06-05 福德加点与运行时单位收口
+
+- 问题：福德此前在玩家面板和 toast 中按 `*10` 展示，导致主动下毒文案写 `福德-10`，toast 却显示 `福德 -100`。
+- 已修复：区分属性分配点数和运行时福德值。属性分配页仍按 `1` 点显示 `10` 福德；点击确认进入剧情时，通过 `finalizeAttributeAssignment()` 将福德点数折算成运行时福德真值。
+- 已修复：`FORTUNE_POINT_TO_VALUE_RATIO` 保持运行时倍率 `1`，`convertFortunePoints()` 允许负值并直接返回实际福德；`NumericChangeToastLayer` 展示运行时福德差值，不再二次 `*10`。
+- 已修复：侍寝怀孕概率继续读取 `convertFortunePoints()`，因此正式游戏中按运行时福德值判定。
+- 已补测试：属性页福德加点验证 `1` 点显示 / 折算为 `10` 福德；侍寝怀孕测试验证运行时福德 `3` 对应 `3%`；下毒成功 toast 明确断言 `福德 -10`。
+- 验证：`npx tsc -p tsconfig.json --noEmit` 通过。
+- 验证：`npx vitest run src/__tests__/app-flow.test.tsx src/game/lib/nightlyServiceRuntime.test.ts src/game/store/gameFlowStore.save.test.ts -t "福德加点|direct fortune|宫斗事务下毒投放成功|祈福会增加福德|pays the fortune cost|属性调整"` 通过，6 passed。
+- 验证：`npm run build:web` 通过；仍有既有 Vite 大 chunk 警告。
+- 验证：`git diff --check` 仅提示 Windows 换行归一化，没有空白错误。
+- 验证：`127.0.0.1:5173` 已有本地服务占用，本轮另起 `http://127.0.0.1:5174/` 验证；清空 localStorage 后 DOM 文本为 `凤华录 / 开始 / 前尘 / 回溯 / 设置`，console error 为空。截图暴露出既有启动页图片资源污染问题，未在本轮福德逻辑中处理。
+- 复验：`http://127.0.0.1:5174/` 清空 localStorage 后 DOM 文本仍为 `凤华录 / 开始 / 前尘 / 回溯 / 设置`，console error 为空，截图输出 `output/web-game-5174/fortune-units-start.png`。
+
+## 2026-06-05 全属性加点与运行时真值审计
+
+- 问题：福德单位修正后，同类风险仍可能存在于健康、心计、容貌、气质和副属性，即属性分配阶段的点数被正式流程当真值使用，或运行时真值被 UI / toast 再次乘倍率展示。
+- 已修复：`finalizeAttributeAssignment()` 现在统一折算所有属性。主属性按每点 `100`、福德按每点 `10`、副属性按每点 `10` 写入运行时真值，并设置 `attributeStatsFinalized`。
+- 已修复：寝殿技能条、玩家面板、数值 toast、侍寝、宫斗、下毒 QTE、太医院剧情、寝殿行动、熬夜惩罚和月度用度结算按运行时真值读取；需要 `0..10` 能力档的局部公式只在公式内部反推，不改 `state.stats`。
+- 已修复：正式属性增减中的小数点数残留已清空，例如寝殿行动副属性加 `2`、熬夜健康 / 气质扣 `10`、影落掖庭太医院抄药方药理加 `1`。
+- 已补测试：新增“确认进入剧情会将所有加点属性折算为运行时真值”；熬夜惩罚和侍寝怀孕测试改为运行时真值输入；影落掖庭太医院剧情测试改为运行时属性。
+- 已同步：`CHANGELOG.md`、`docs/game-state-model.md`、`docs/game-system-breakdown.md`、`docs/codex-dialogue-handoff.md`、`codex-workdocs/2026-06-05-v050-attribute-runtime-units.md`。
+- 验证：`npx tsc -p tsconfig.json --noEmit` 通过。
+- 验证：`npx vitest run src/game/lib/yingluoyetingStoryRuntime.test.ts src/__tests__/app-flow.test.tsx src/game/store/gameFlowStore.save.test.ts src/game/lib/nightlyServiceRuntime.test.ts src/game/lib/palaceStrifeRuntime.test.ts -t "属性|福德加点|direct fortune|player service|宫斗事务下毒投放成功|祈福会增加福德|pays the fortune cost|resolves poison|resolves rumor|reveals pregnancy|熬夜惩罚|copy prescription"` 通过，18 passed。
+
+## 2026-06-05 已确认属性存档恢复入口修正
+
+- 问题：玩家在属性创建面板点击“确认进入剧情”后，存档内 `state.stats` 已经是运行时真值；但回溯恢复逻辑只看 `openingGuideFinished`，会把“已确认属性但未完成开场”的存档送回属性创建面板，导致面板再次按创建阶段倍率展示属性。
+- 已修复：`resolveResumeViewFromSave()` 先判断 `attributeStatsFinalized`；未确认属性才回 `attribute-assignment`，已确认但未完成开场则回 `opening-dialogue`。
+- 已加防御：`AttributeAssignmentView` 若异常拿到 `attributeStatsFinalized=true`，直接展示运行时真值，剩余点数显示“已确认”，属性加减禁用。
+- 已补测试：覆盖已确认属性存档回溯不再进入创建面板，以及创建面板异常接收已确认真值时不显示 `30000` 这类二次倍率值。
+- 已同步：`CHANGELOG.md`、`docs/game-state-model.md`、`docs/game-system-breakdown.md`、`docs/codex-dialogue-handoff.md`。
+- 验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "回溯已确认属性|属性创建面板若拿到已确认属性|确认进入剧情会将所有加点属性|福德加点"` 通过，4 passed。
+- 验证：`npx tsc -p tsconfig.json --noEmit` 通过。
+
+## 2026-06-05 开发期银两 debug 指令
+
+- 已新增浏览器控制台入口：开发期可执行 `palaceDebug.addSilver(数量)` 给玩家增加银两。
+- 实现走 `debugAddSilver()` store 动作，同步 `state.silver` / `hiddenStats.silver`，并触发当前界面对应的数值反馈。
+- 该入口只用于开发调试，不接 UI、不作为正式经济来源。
+- 验证：`npx vitest run src/game/lib/debugConsole.test.ts src/game/store/gameFlowStore.save.test.ts -t "debug"` 通过，3 passed；`npx tsc -p tsconfig.json --noEmit`、`npm run build:web` 通过。
+- 验证：`web_game_playwright_client` 启动页截图正常，页面上下文执行 `palaceDebug.addSilver(7)` 返回成功，银两从 `1000` 增至 `1007`，console error 为空。

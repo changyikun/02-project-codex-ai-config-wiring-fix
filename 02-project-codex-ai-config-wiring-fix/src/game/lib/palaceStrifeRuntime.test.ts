@@ -4,6 +4,7 @@ import {
   advancePalaceStrifeInvestigations,
   applyPalaceStrifeBribe,
   generateNpcPalaceStrifeCase,
+  PLAYER_PALACE_STRIFE_TARGET_ID,
   resolvePalaceStrifeAttempt,
   resolvePalaceStrifeSeverity,
   resolvePalaceStrifeConvictionPenalty,
@@ -216,6 +217,56 @@ describe('palaceStrifeRuntime', () => {
       actionKind: 'rumor',
     });
     expect(result?.summary).toContain('暗流');
+  });
+
+  it('allows npc palace strife to target or frame the player', () => {
+    const hostileAggressor = {
+      ...target,
+      id: 'consort-hostile',
+      name: '姚铃儿',
+      rankLabel: '贵妃',
+      stats: {
+        ...target.stats,
+        ambition: 100,
+        stress: 96,
+        intrigue: 820,
+        relationToPlayer: -80,
+      },
+      rivals: [],
+    } satisfies ConcubineProfile;
+
+    const targeted = generateNpcPalaceStrifeCase({
+      concubines: [hostileAggressor, target],
+      existingCases: [],
+      playerState,
+      playerRankLabel: '皇后',
+      preferredActorConsortId: hostileAggressor.id,
+      preferredTargetConsortId: PLAYER_PALACE_STRIFE_TARGET_ID,
+      time: { year: 1, month: 2, xun: 1 },
+    });
+    const framed = generateNpcPalaceStrifeCase({
+      concubines: [hostileAggressor, target],
+      existingCases: [],
+      playerState,
+      playerRankLabel: '皇后',
+      preferredActorConsortId: hostileAggressor.id,
+      preferredTargetConsortId: target.id,
+      time: { year: 1, month: 2, xun: 2 },
+    });
+
+    expect(targeted).toMatchObject({
+      actorId: 'npc',
+      actorConsortId: hostileAggressor.id,
+      targetConsortId: PLAYER_PALACE_STRIFE_TARGET_ID,
+      targetName: '皇后 谢令仪',
+    });
+    expect(framed).toMatchObject({
+      actorId: 'npc',
+      actorConsortId: hostileAggressor.id,
+      targetConsortId: target.id,
+      framedTargetConsortId: PLAYER_PALACE_STRIFE_TARGET_ID,
+      framedTargetName: '皇后 谢令仪',
+    });
   });
 });
 

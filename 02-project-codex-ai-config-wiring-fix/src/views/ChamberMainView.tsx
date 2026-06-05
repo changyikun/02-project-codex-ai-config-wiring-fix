@@ -7,6 +7,7 @@ import { KitchenView } from '../components/chamber/KitchenView';
 import { MiaoYinHallView } from '../components/chamber/MiaoYinHallView';
 import { NightlyServiceEventView, OVERNIGHT_TRANSITION_MS } from '../components/chamber/NightlyServiceEventView';
 import { TaiHospitalView } from '../components/chamber/TaiHospitalView';
+import { YetingYardView } from '../components/chamber/YetingYardView';
 import { ConcubineListView } from '../components/consorts/ConcubineListView';
 import { ConsortAudiencePanel } from '../components/consorts/ConsortAudiencePanel';
 import { HaremPalaceView } from '../components/consorts/HaremPalaceView';
@@ -48,6 +49,16 @@ const skillLabelMap: Record<string, string> = {
   embroidery: '刺绣',
   medicine: '药理',
   politics: '政治',
+};
+
+const ATTRIBUTE_STATS_FINALIZED_FLAG = 'attributeStatsFinalized';
+
+const resolveSkillDisplayValue = (rawValue: number, statsFinalized: boolean): number => {
+  if (!Number.isFinite(rawValue)) {
+    return 0;
+  }
+
+  return Math.round(statsFinalized || Math.abs(rawValue) > 10 ? rawValue : rawValue * 10);
 };
 
 const bottomToolMessage: Record<string, string> = {
@@ -199,6 +210,7 @@ export function ChamberMainView() {
   const isHuaQingPoolScene = activeChamberPanel === 'main' && activeMapLocation === '华清池';
   const isTaiHospitalScene = activeChamberPanel === 'main' && activeMapLocation === '太医院';
   const isMiaoYinHallScene = activeChamberPanel === 'main' && activeMapLocation === '妙音堂';
+  const isYetingYardScene = activeChamberPanel === 'main' && activeMapLocation === '掖庭院';
   const isHaremPanelActive = activeChamberPanel === 'harem';
   const pendingNightlyServiceEvent = nightlyService.pendingEvent;
   const pendingNightlyServiceNotice = nightlyService.pendingNotice;
@@ -310,7 +322,8 @@ export function ChamberMainView() {
       activeMapLocation === '宝华殿' ||
       activeMapLocation === '华清池' ||
       activeMapLocation === '太医院' ||
-      activeMapLocation === '妙音堂'
+      activeMapLocation === '妙音堂' ||
+      activeMapLocation === '掖庭院'
     ) {
       setPendingChamberDialogueAction(null);
       setDialogueText('');
@@ -369,9 +382,9 @@ export function ChamberMainView() {
       ['poetry', 'painting', 'talent', 'embroidery', 'medicine', 'politics'].map((key) => ({
         key,
         label: skillLabelMap[key],
-        value: Math.round(Number(state.stats[key] ?? 0) * 10),
+        value: resolveSkillDisplayValue(Number(state.stats[key] ?? 0), Boolean(state.flags[ATTRIBUTE_STATS_FINALIZED_FLAG])),
       })),
-    [state.stats],
+    [state.flags, state.stats],
   );
 
   const currentXunKey = getCurrentXunKey(time.year, time.month, time.xun);
@@ -1057,6 +1070,8 @@ export function ChamberMainView() {
           <TaiHospitalView concubines={concubines} />
         ) : isMiaoYinHallScene ? (
           <MiaoYinHallView concubines={concubines} />
+        ) : isYetingYardScene ? (
+          <YetingYardView />
         ) : isJianzhangAudience ? (
           <DowagerAudiencePanel onLeave={enterMapMain} />
         ) : activeChamberPanel === 'harem' ? (

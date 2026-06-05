@@ -2,11 +2,20 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import {
   PLAYER_FAVOR_RANGE,
+  PLAYER_SILVER_RANGE,
   PRESTIGE_RANGE,
   STAMINA_INITIAL_PER_XUN,
   STAMINA_MAX,
   getFavorTierByValue,
 } from '../../config/constants';
+import {
+  convertAppearancePoints,
+  convertFortuneAttributePoints,
+  convertHealthPoints,
+  convertIntriguePoints,
+  convertSkillLevel,
+  convertTemperamentPoints,
+} from '../../config/formulas';
 import type { ChamberPanelId } from '../../config/bedchamber';
 import {
   DEFAULT_MONTHLY_EXPENSE_STRATEGY,
@@ -39,8 +48,10 @@ import { resolveMonthlyFamilyPrestigeDelta } from '../lib/familyPrestigeRuntime'
 import {
   advancePalaceStrifeInvestigations,
   applyPalaceStrifeBribe,
+  buildPlayerPalaceStrifeTarget,
   describePalaceStrifeInvestigationChanges,
   generateNpcPalaceStrifeCase,
+  isPlayerPalaceStrifeTargetId,
   resolvePalaceStrifeAttempt,
   resolvePalaceStrifeConvictionPenalty,
   resolvePalaceStrifeSeverity,
@@ -124,6 +135,14 @@ interface AdvanceTimeOptions {
   lateNightPenalty?: boolean;
 }
 
+export interface DebugSilverResult {
+  success: boolean;
+  message: string;
+  requestedAmount: number;
+  appliedAmount: number;
+  silver: number;
+}
+
 export interface GameFlowStore {
   currentView: CurrentView;
   scene: SceneId;
@@ -182,6 +201,7 @@ export interface GameFlowStore {
   completeOvernightTransition: (reason?: PendingOvernightReturn['reason']) => void;
   setSave: (save: NumericSaveEnvelope) => void;
   setAttributeValue: (key: string, value: number) => void;
+  finalizeAttributeAssignment: () => void;
   validatePoints: () => void;
   ensureBondProfile: (routeId?: GameNumericsState['routeId']) => void;
   ensureConcubines: (routeId?: GameNumericsState['routeId']) => void;
@@ -222,6 +242,7 @@ export interface GameFlowStore {
   startNewGame: () => void;
   resumeLastSave: () => { success: boolean; message: string };
   applyStoryEffects: (effects: Partial<GameNumericsState> & { stats?: Record<string, number>; flags?: Record<string, boolean> }) => void;
+  debugAddSilver: (amount: number | string) => DebugSilverResult;
   markNumericFeedbackEvent: (bucket: NumericFeedbackBucket) => void;
 }
 
@@ -238,12 +259,16 @@ const sumExcessPoints = (stats: Record<string, number>, mins: Record<string, num
 
 const clampInt = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, Math.floor(value)));
 const clampToRange = (value: number, range: readonly [number, number]): number => Math.max(range[0], Math.min(range[1], value));
+const parseDebugSilverAmount = (amount: number | string): number => {
+  const parsed = typeof amount === 'string' ? Number(amount.trim()) : amount;
+  return Number.isFinite(parsed) ? Math.floor(parsed) : 0;
+};
 const timeSlots: PalaceTimeState['slot'][] = ['清晨', '上午', '中午', '下午', '傍晚', '夜晚', '深夜'];
 const DEFAULT_AFFAIRS_SOURCE = '????' as AffairSourceLabel;
 const LATE_NIGHT_PENALTY = {
   stress: 2,
-  health: -0.1,
-  temperament: -0.1,
+  health: -10,
+  temperament: -10,
 } as const;
 const getCurrentXunKey = (time: PalaceTimeState): string => `${time.year}-${time.month}-${time.xun}`;
 const getNextXunMorning = (time: PalaceTimeState): PalaceTimeState => {
@@ -278,6 +303,9 @@ const findConsortById = (
 ): ConcubineProfile | undefined =>
   consortId ? [...concubines, ...customConsorts].find((consort) => consort.id === consortId) : undefined;
 
+const resolvePlayerRankLabelForState = (state: GameNumericsState, hiddenStats?: HiddenStatsState): string =>
+  normalizeTrackedPlayerRankLabel(hiddenStats?.initialRank) ?? resolvePlayerRankByPrestige(state.prestige);
+
 const buildAttackerStateForPalaceStrife = (
   caseState: PalaceStrifeCaseState,
   playerState: GameNumericsState,
@@ -310,6 +338,7 @@ const buildAttackerStateForPalaceStrife = (
 const resolvePendingPalaceStrifeCasesForTransition = (
   caseStates: PalaceStrifeCaseState[],
   playerState: GameNumericsState,
+  hiddenStats: HiddenStatsState,
   concubines: ConcubineProfile[],
   customConsorts: ConcubineProfile[],
 ): { cases: PalaceStrifeCaseState[]; lines: string[]; resolvedIds: Set<string> } => {
@@ -320,7 +349,9 @@ const resolvePendingPalaceStrifeCasesForTransition = (
       return caseState;
     }
 
-    const target = findConsortById(caseState.targetConsortId, concubines, customConsorts);
+    const target = isPlayerPalaceStrifeTargetId(caseState.targetConsortId)
+      ? buildPlayerPalaceStrifeTarget(playerState, resolvePlayerRankLabelForState(playerState, hiddenStats))
+      : findConsortById(caseState.targetConsortId, concubines, customConsorts);
     if (!target) {
       resolvedIds.add(caseState.id);
       const missingTargetCase: PalaceStrifeCaseState = {
@@ -353,7 +384,11 @@ const resolvePendingPalaceStrifeCasesForTransition = (
       framedTargetConsortId: caseState.framedTargetConsortId,
       framedTargetName: caseState.framedTargetName,
       queuedRolls: undefined,
-      yangxinHearingRequired: caseState.actorId === 'player' && resolved.status === 'investigating',
+      yangxinHearingRequired:
+        resolved.status === 'investigating' &&
+        (caseState.actorId === 'player' ||
+          isPlayerPalaceStrifeTargetId(caseState.targetConsortId) ||
+          isPlayerPalaceStrifeTargetId(caseState.framedTargetConsortId)),
     };
     resolvedIds.add(caseState.id);
     lines.push(
@@ -371,6 +406,7 @@ const settlePalaceStrifeForXunTransitions = (
   caseStates: PalaceStrifeCaseState[],
   xunTransitions: number,
   playerState: GameNumericsState,
+  hiddenStats: HiddenStatsState,
   concubines: ConcubineProfile[],
   customConsorts: ConcubineProfile[],
   nextTime: PalaceTimeState,
@@ -381,7 +417,7 @@ const settlePalaceStrifeForXunTransitions = (
 
   for (let i = 0; i < xunTransitions; i += 1) {
     const beforeStep = nextCases;
-    const resolved = resolvePendingPalaceStrifeCasesForTransition(nextCases, playerState, concubines, customConsorts);
+    const resolved = resolvePendingPalaceStrifeCasesForTransition(nextCases, playerState, hiddenStats, concubines, customConsorts);
     const afterInvestigation = resolved.cases.map((caseState) =>
       resolved.resolvedIds.has(caseState.id) ? caseState : advancePalaceStrifeInvestigations([caseState], 1)[0],
     );
@@ -397,6 +433,8 @@ const settlePalaceStrifeForXunTransitions = (
   const npcCase = generateNpcPalaceStrifeCase({
     concubines: [...concubines, ...customConsorts],
     existingCases: nextCases,
+    playerState,
+    playerRankLabel: resolvePlayerRankLabelForState(playerState, hiddenStats),
     time: {
       year: nextTime.year,
       month: nextTime.month,
@@ -878,6 +916,37 @@ const validatePointsState = (state: GameNumericsState): GameNumericsState => {
   };
 };
 
+const ATTRIBUTE_STATS_FINALIZED_FLAG = 'attributeStatsFinalized';
+
+const finalizeAttributeStats = (state: GameNumericsState): GameNumericsState => {
+  if (state.flags[ATTRIBUTE_STATS_FINALIZED_FLAG]) {
+    return state;
+  }
+
+  const stats = state.stats ?? {};
+  return {
+    ...state,
+    stats: {
+      ...stats,
+      health: convertHealthPoints(Number(stats.health ?? 0)),
+      fortune: convertFortuneAttributePoints(Number(stats.fortune ?? 0)),
+      intrigue: convertIntriguePoints(Number(stats.intrigue ?? 0)),
+      appearance: convertAppearancePoints(Number(stats.appearance ?? 0)),
+      temperament: convertTemperamentPoints(Number(stats.temperament ?? 0)),
+      poetry: convertSkillLevel(Number(stats.poetry ?? 0)),
+      talent: convertSkillLevel(Number(stats.talent ?? 0)),
+      painting: convertSkillLevel(Number(stats.painting ?? 0)),
+      embroidery: convertSkillLevel(Number(stats.embroidery ?? 0)),
+      medicine: convertSkillLevel(Number(stats.medicine ?? 0)),
+      politics: convertSkillLevel(Number(stats.politics ?? 0)),
+    },
+    flags: {
+      ...state.flags,
+      [ATTRIBUTE_STATS_FINALIZED_FLAG]: true,
+    },
+  };
+};
+
 const initialState: GameNumericsState = validatePointsState({
   name: '沈容儿',
   age: 15,
@@ -990,8 +1059,11 @@ const resolveResumeViewFromSave = (saveGame: SaveGameV1): CurrentView => {
   if (!saveGame.route.selectedRoute) {
     return 'route-selection';
   }
-  if (!saveGame.player.state.flags.openingGuideFinished) {
+  if (!saveGame.player.state.flags[ATTRIBUTE_STATS_FINALIZED_FLAG]) {
     return 'attribute-assignment';
+  }
+  if (!saveGame.player.state.flags.openingGuideFinished) {
+    return 'opening-dialogue';
   }
   if (!saveGame.player.state.flags.mapGuideFinished) {
     return 'map-main';
@@ -1292,7 +1364,9 @@ export const useGameFlowStore = create<GameFlowStore>()(
       patchState: (patch) =>
         set((current) => {
           const merged = { ...current.state, ...patch };
-          const shouldValidate = 'family' in patch || 'stats' in patch || 'pointsTotal' in patch || 'pointsLeft' in patch;
+          const shouldValidate =
+            !current.state.flags[ATTRIBUTE_STATS_FINALIZED_FLAG] &&
+            ('family' in patch || 'stats' in patch || 'pointsTotal' in patch || 'pointsLeft' in patch);
           const nextState = {
             ...(shouldValidate ? validatePointsState(merged) : merged),
             favor: normalizePlayerFavor(merged.favor ?? current.state.favor),
@@ -1395,7 +1469,14 @@ export const useGameFlowStore = create<GameFlowStore>()(
             },
           };
         }),
-      validatePoints: () => set((current) => ({ state: validatePointsState(current.state) })),
+      finalizeAttributeAssignment: () =>
+        set((current) => ({
+          state: finalizeAttributeStats(current.state),
+        })),
+      validatePoints: () =>
+        set((current) => ({
+          state: current.state.flags[ATTRIBUTE_STATS_FINALIZED_FLAG] ? current.state : validatePointsState(current.state),
+        })),
       ensureBondProfile: (routeId) =>
         set((current) => {
           const targetRouteId = routeId ?? current.state.routeId;
@@ -1997,6 +2078,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
                   current.palaceStrifeCases,
                   xunTransitions,
                   current.state,
+                  current.hiddenStats,
                   current.concubines,
                   current.customConsorts,
                   nextTime,
@@ -2011,8 +2093,14 @@ export const useGameFlowStore = create<GameFlowStore>()(
                   return caseState.outcome === 'convicted' && previous?.outcome !== 'convicted';
                 })
               : [];
-          const playerConvictedCases = newlyConvictedCases.filter((caseState) => caseState.actorId === 'player');
-          const npcConvictedCases = newlyConvictedCases.filter((caseState) => caseState.actorId === 'npc');
+          const playerConvictedCases = newlyConvictedCases.filter(
+            (caseState) =>
+              caseState.actorId === 'player' || isPlayerPalaceStrifeTargetId(caseState.framedTargetConsortId),
+          );
+          const npcConvictedCases = newlyConvictedCases.filter(
+            (caseState) =>
+              caseState.actorId === 'npc' && !isPlayerPalaceStrifeTargetId(caseState.framedTargetConsortId),
+          );
           const convictionPenalties = playerConvictedCases.map(resolvePalaceStrifeConvictionPenalty);
           const npcConvictionPenaltyLines = describeNpcPalaceStrifeConvictionPenalties(npcConvictedCases);
           const convictionPenaltyTotals = convictionPenalties.reduce(
@@ -2434,6 +2522,10 @@ export const useGameFlowStore = create<GameFlowStore>()(
               },
             },
             palaceStrifeCases: [...latest.palaceStrifeCases, caseState],
+            numericFeedbackSignal: {
+              sequence: latest.numericFeedbackSignal.sequence + 1,
+              bucket: latest.currentView === 'map-main' ? 'map-event' : 'chamber-action',
+            },
           };
         });
         const result: PalaceStrifeResolution = {
@@ -2534,6 +2626,63 @@ export const useGameFlowStore = create<GameFlowStore>()(
           briefing: '',
         });
         return { success: true, message: '已读取上一次存档。' };
+      },
+      debugAddSilver: (amount) => {
+        const requestedAmount = parseDebugSilverAmount(amount);
+        if (requestedAmount <= 0) {
+          const currentSilver = get().state.silver;
+          return {
+            success: false,
+            message: 'debug 加银两需要传入大于 0 的整数。',
+            requestedAmount,
+            appliedAmount: 0,
+            silver: currentSilver,
+          };
+        }
+
+        let result: DebugSilverResult = {
+          success: false,
+          message: 'debug 加银两失败。',
+          requestedAmount,
+          appliedAmount: 0,
+          silver: get().state.silver,
+        };
+
+        set((current) => {
+          const nextSilver = clampToRange(current.state.silver + requestedAmount, PLAYER_SILVER_RANGE);
+          const appliedAmount = nextSilver - current.state.silver;
+          result = {
+            success: appliedAmount > 0,
+            message:
+              appliedAmount > 0
+                ? `debug 已增加 ${appliedAmount} 银两，当前银两 ${nextSilver}。`
+                : `当前银两已达到上限 ${PLAYER_SILVER_RANGE[1]}。`,
+            requestedAmount,
+            appliedAmount,
+            silver: nextSilver,
+          };
+
+          if (appliedAmount <= 0) {
+            return current;
+          }
+
+          return {
+            state: {
+              ...current.state,
+              silver: nextSilver,
+            },
+            hiddenStats: {
+              ...current.hiddenStats,
+              silver: nextSilver,
+            },
+            numericFeedbackSignal: {
+              sequence: current.numericFeedbackSignal.sequence + 1,
+              bucket: current.currentView === 'map-main' ? 'map-event' : 'chamber-action',
+            },
+          };
+        });
+
+        return result;
       },
       markNumericFeedbackEvent: (bucket) =>
         set((current) => ({

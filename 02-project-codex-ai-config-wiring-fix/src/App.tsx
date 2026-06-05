@@ -4,6 +4,7 @@ import { MAP_HOTSPOTS } from './config/palaceUi';
 import { getDialogueRootStyle } from './config/dialogueConfig';
 import { NumericChangeToastLayer } from './components/status/NumericChangeToastLayer';
 import { getConcubineDisplayRankText } from './game/data/concubineRoster';
+import { installPalaceDebugConsole } from './game/lib/debugConsole';
 import { useGameFlowStore } from './game/store/gameFlowStore';
 import type { ConcubineProfile, MapAreaId, NpcActivityIntent, NpcActivityPurpose } from './game/types';
 import { AttributeAssignmentView } from './views/AttributeAssignmentView';
@@ -68,6 +69,13 @@ export default function App() {
   const [startSceneNotice, setStartSceneNotice] = useState('');
   const npcActivityDebugLoggedXunRef = useRef<string | null>(null);
   const dialogueRootStyle = getDialogueRootStyle();
+
+  useEffect(() => {
+    if (import.meta.env.PROD || import.meta.env.MODE === 'test') {
+      return undefined;
+    }
+    return installPalaceDebugConsole();
+  }, []);
 
   useEffect(() => {
     const preventBrowserExtraction = (event: Event) => {

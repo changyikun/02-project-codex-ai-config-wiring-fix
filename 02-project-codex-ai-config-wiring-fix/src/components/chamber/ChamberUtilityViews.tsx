@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { AFFAIRS_UI_BACKGROUND, BOND_UI_BACKGROUND, CHRONICLE_UI_BACKGROUND, INVENTORY_UI_BACKGROUND, MISC_INFO_UI_BACKGROUND } from '../../config/locationSceneBackgrounds';
 import { getMonthlyExpenseStrategyConfig } from '../../config/monthlyExpenseStrategy';
 import { resolveUnlockedBondCharacters } from '../../game/data/bondPresets';
-import { getInventoryRecyclePrice } from '../../game/data/inventoryPresets';
+import { getInventoryRecyclePrice, getPoisonInventoryItemIdByName } from '../../game/data/inventoryPresets';
 import { FAMILY_AID_BONUS, FAMILY_AID_COST, FAMILY_AID_QUARTERLY_PRESTIGE } from '../../game/lib/familyGovernanceRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type { BondProfileState, ConcubineProfile, GameNumericsState, HiddenStatsState, RouteId, SettlementReport, YangxinHearingStance } from '../../game/types';
@@ -12,6 +12,7 @@ type MiscInfoCardId = 'emperor' | 'officials' | 'dowager' | 'father' | 'court';
 type InventoryTabId = 'tonic' | 'gift' | 'pill' | 'key-item';
 type AffairStepId = 'target' | 'method' | 'ally' | 'item' | 'finish';
 type AffairSourceLabel = '宫斗事务' | '家族事务' | '朝堂事务';
+type PoisonQteOutcome = 'success' | 'failure';
 
 const yangxinStanceLabels: Record<YangxinHearingStance, string> = {
   argue: '据理力争',
@@ -51,6 +52,30 @@ const affairSteps: Array<{ id: AffairStepId; label: string }> = [
   { id: 'item', label: '道具' },
   { id: 'finish', label: '完成' },
 ];
+
+const clampNumber = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+
+const resolvePointScaleStat = (value: number, divisor: number): number => {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.abs(value) > 10 ? value / divisor : value;
+};
+
+const resolvePoisonQteConfig = (state: GameNumericsState): { targetStart: number; targetEnd: number; speed: number } => {
+  const medicine = resolvePointScaleStat(Number(state.stats.medicine ?? 0), 10);
+  const intrigue = resolvePointScaleStat(Number(state.stats.intrigue ?? 0), 100);
+  const stress = Number(state.stress ?? 0);
+  const targetWidth = clampNumber(10 + medicine * 2.8 + intrigue * 0.8 - stress * 0.05, 8, 34);
+  const targetCenter = clampNumber(52 + (intrigue - 4) * 1.2 - stress * 0.025, targetWidth / 2 + 4, 100 - targetWidth / 2 - 4);
+  const speed = clampNumber(118 - medicine * 5 - intrigue * 2.5 + stress * 0.55, 55, 150);
+
+  return {
+    targetStart: targetCenter - targetWidth / 2,
+    targetEnd: targetCenter + targetWidth / 2,
+    speed,
+  };
+};
 
 const miscCardOrder: Array<{ id: MiscInfoCardId; label: string }> = [
   { id: 'emperor', label: '皇帝' },
@@ -683,18 +708,28 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
     return <FamilyAffairsPanelView onClose={onClose} />;
   }
 
+  const state = useGameFlowStore((store) => store.state);
+  const inventory = useGameFlowStore((store) => store.inventory);
   const startPalaceStrifeCase = useGameFlowStore((store) => store.startPalaceStrifeCase);
+  const consumeInventoryItem = useGameFlowStore((store) => store.consumeInventoryItem);
   const [activeStep, setActiveStep] = useState<AffairStepId>('target');
   const [selectedTarget, setSelectedTarget] = useState<string>('');
   const [selectedMethod, setSelectedMethod] = useState('散布流言');
   const [selectedAlly, setSelectedAlly] = useState('无');
   const [selectedFrameTarget, setSelectedFrameTarget] = useState('无');
   const [selectedItem, setSelectedItem] = useState('不使用');
+  const [palaceCaseRegistered, setPalaceCaseRegistered] = useState(false);
+  const [poisonQteActive, setPoisonQteActive] = useState(false);
+  const [poisonQteOutcome, setPoisonQteOutcome] = useState<PoisonQteOutcome | undefined>();
+  const [poisonQtePosition, setPoisonQtePosition] = useState(0);
+  const poisonQtePositionRef = useRef(0);
+  const poisonQteDirectionRef = useRef(1);
   const [resultText, setResultText] = useState(
     entrySource === '朝堂事务'
       ? '朝堂事务当前是政治谋划预留入口，只暂存方案，不改数值，也不会进入旬月结算。'
       : '宫斗事务会真实发起玩家主动宫斗，完成后登记案件，并进入追查或夜晚结算。',
   );
+  const poisonQteConfig = useMemo(() => resolvePoisonQteConfig(state), [state]);
 
   useEffect(() => {
     setActiveStep(entrySource === '朝堂事务' ? 'method' : 'target');
@@ -737,6 +772,14 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
   }, [entrySource, palaceAffairConcubines, selectedTarget]);
 
   const poisonItems = useMemo(() => ['鹤顶红', '麝香', '陨颜丹'], []);
+  const poisonInventoryQuantities = useMemo(() => {
+    const quantities: Record<string, number> = {};
+    poisonItems.forEach((poisonName) => {
+      const itemId = getPoisonInventoryItemIdByName(poisonName);
+      quantities[poisonName] = itemId ? (inventory.find((item) => item.itemId === itemId)?.quantity ?? 0) : 0;
+    });
+    return quantities;
+  }, [inventory, poisonItems]);
   const rumorItems = useMemo(() => ['欺凌宫人', '奢侈浪费', '与人偷情', '意图谋逆', '不敬先祖'], []);
   const frameTargets = useMemo(() => {
     if (entrySource !== '宫斗事务') {
@@ -791,7 +834,124 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
     }
   }, [items, selectedItem]);
 
+  useEffect(() => {
+    setPoisonQteActive(false);
+    setPoisonQteOutcome(undefined);
+    setPoisonQtePosition(0);
+    setPalaceCaseRegistered(false);
+    poisonQtePositionRef.current = 0;
+    poisonQteDirectionRef.current = 1;
+  }, [entrySource, selectedTarget, selectedMethod, selectedItem, selectedAlly, selectedFrameTarget]);
+
+  useEffect(() => {
+    if (!poisonQteActive) {
+      return undefined;
+    }
+
+    let frameId = 0;
+    let lastFrameTime = window.performance.now();
+    const tick = (timestamp: number) => {
+      const elapsedSeconds = Math.max(0, (timestamp - lastFrameTime) / 1000);
+      lastFrameTime = timestamp;
+      const rawPosition = poisonQtePositionRef.current + poisonQteDirectionRef.current * poisonQteConfig.speed * elapsedSeconds;
+      let nextPosition = rawPosition;
+
+      if (nextPosition > 100) {
+        nextPosition = 100 - (nextPosition - 100);
+        poisonQteDirectionRef.current = -1;
+      } else if (nextPosition < 0) {
+        nextPosition = Math.abs(nextPosition);
+        poisonQteDirectionRef.current = 1;
+      }
+
+      const clampedPosition = clampNumber(nextPosition, 0, 100);
+      poisonQtePositionRef.current = clampedPosition;
+      setPoisonQtePosition(clampedPosition);
+      frameId = window.requestAnimationFrame(tick);
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [poisonQteActive, poisonQteConfig.speed]);
+
   const selectedTargetProfile = targets.find((item) => item.id === selectedTarget) ?? targets[0];
+
+  const beginPoisonQte = () => {
+    setPoisonQteActive(true);
+    setPoisonQteOutcome(undefined);
+    setPoisonQtePosition(0);
+    poisonQtePositionRef.current = 0;
+    poisonQteDirectionRef.current = 1;
+    setActiveStep('finish');
+    setResultText(`${selectedTargetProfile.rankLabel} ${selectedTargetProfile.name}：杯盏已递到近前，需把握时机下手。`);
+  };
+
+  const registerPalaceStrifeCase = (): boolean => {
+    if (palaceCaseRegistered) {
+      setResultText('本次宫斗事务已登记，待当旬夜晚结算。');
+      setActiveStep('finish');
+      return true;
+    }
+
+    if (selectedMethod === '下毒') {
+      const poisonItemId = getPoisonInventoryItemIdByName(selectedItem);
+      if (!poisonItemId || (poisonInventoryQuantities[selectedItem] ?? 0) <= 0) {
+        setResultText(`未备${selectedItem}，不可空手投毒。可去掖庭院寻月姑姑购买毒药。`);
+        setActiveStep('item');
+        return false;
+      }
+
+      const consumed = consumeInventoryItem(poisonItemId);
+      if (!consumed) {
+        setResultText(`未能取出${selectedItem}，本次下毒未登记案件。可去掖庭院确认毒药数量。`);
+        setActiveStep('item');
+        return false;
+      }
+    }
+
+    const result = startPalaceStrifeCase({
+      targetConsortId: selectedTargetProfile.id,
+      actionKind: selectedMethod === '下毒' ? 'poison' : 'rumor',
+      methodLabel: selectedMethod,
+      itemLabel: selectedItem,
+      allyLabel: selectedAlly,
+      framedTargetName: selectedFrameTarget === '无' ? undefined : selectedFrameTarget,
+    });
+    const investigationText =
+      result.caseState.status === 'investigating'
+        ? ` 当前定案率 ${result.caseState.convictionRate}%，案件已进入追查。`
+        : '';
+    setResultText(
+      `${selectedTargetProfile.rankLabel} ${selectedTargetProfile.name}：${result.resultText}${investigationText}`,
+    );
+    setPalaceCaseRegistered(true);
+    setActiveStep('finish');
+    return true;
+  };
+
+  const handlePoisonQteStop = () => {
+    if (!poisonQteActive) {
+      return;
+    }
+
+    const position = poisonQtePositionRef.current;
+    const succeeded = position >= poisonQteConfig.targetStart && position <= poisonQteConfig.targetEnd;
+    setPoisonQteActive(false);
+
+    if (succeeded) {
+      const registered = registerPalaceStrifeCase();
+      setPoisonQteOutcome(registered ? 'success' : undefined);
+      return;
+    }
+
+    setPoisonQteOutcome('failure');
+    setResultText(
+      `${selectedTargetProfile.rankLabel} ${selectedTargetProfile.name}：你错过了杯盏遮掩的时机，毒未能稳妥落下。本次下毒未登记案件。`,
+    );
+  };
 
   const handleFinish = () => {
     if (entrySource === '宫斗事务' && !selectedTargetProfile) {
@@ -806,23 +966,19 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
       return;
     }
 
+    if (entrySource === '宫斗事务' && selectedMethod === '下毒' && (poisonInventoryQuantities[selectedItem] ?? 0) <= 0) {
+      setResultText(`未备${selectedItem}，不可空手投毒。可去掖庭院寻月姑姑购买毒药。`);
+      setActiveStep('item');
+      return;
+    }
+
     if (entrySource === '宫斗事务' && selectedTargetProfile) {
-      const result = startPalaceStrifeCase({
-        targetConsortId: selectedTargetProfile.id,
-        actionKind: selectedMethod === '下毒' ? 'poison' : 'rumor',
-        methodLabel: selectedMethod,
-        itemLabel: selectedItem,
-        allyLabel: selectedAlly,
-        framedTargetName: selectedFrameTarget === '无' ? undefined : selectedFrameTarget,
-      });
-      const investigationText =
-        result.caseState.status === 'investigating'
-          ? ` 当前定案率 ${result.caseState.convictionRate}%，案件已进入追查。`
-          : '';
-      setResultText(
-        `${selectedTargetProfile.rankLabel} ${selectedTargetProfile.name}：${result.resultText}${investigationText}`,
-      );
-      setActiveStep('finish');
+      if (selectedMethod === '下毒' && poisonQteOutcome !== 'success') {
+        beginPoisonQte();
+        return;
+      }
+
+      registerPalaceStrifeCase();
       return;
     }
 
@@ -842,6 +998,7 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
               type="button"
               className={`chamber-utility-view__affair-step ${activeStep === step.id ? 'is-active' : ''}`}
               onClick={() => (step.id === 'finish' ? handleFinish() : setActiveStep(step.id))}
+              disabled={poisonQteActive}
             >
               {step.label}
             </button>
@@ -934,19 +1091,75 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
                   key={item}
                   type="button"
                   className={selectedItem === item ? 'is-active' : ''}
+                  disabled={entrySource === '宫斗事务' && selectedMethod === '下毒' && (poisonInventoryQuantities[item] ?? 0) <= 0}
                   onClick={() => setSelectedItem(item)}
                 >
                   <strong>{item}</strong>
-                  <span>{entrySource === '宫斗事务' && selectedMethod !== '下毒' ? '点击后作为本次流言内容' : entrySource === '宫斗事务' ? '点击后作为本次所用毒物' : '点击后作为本次携带道具'}</span>
+                  <span>
+                    {entrySource === '宫斗事务' && selectedMethod === '下毒'
+                      ? `持有 ${poisonInventoryQuantities[item] ?? 0} 份，投放成功后消耗 1 份`
+                      : entrySource === '宫斗事务' && selectedMethod !== '下毒'
+                        ? '点击后作为本次流言内容'
+                        : entrySource === '宫斗事务'
+                          ? '点击后作为本次所用毒物'
+                          : '点击后作为本次携带道具'}
+                  </span>
                 </button>
               ))}
             </div>
           ) : null}
 
           {activeStep === 'finish' ? (
-            <div className="chamber-utility-view__empty-state">
-              {entrySource === '宫斗事务' ? '本次宫斗事务已登记，待当旬夜晚结算。' : '朝堂事务草案已暂存，当前不会生效。'}
-            </div>
+            <>
+              {entrySource === '宫斗事务' && selectedMethod === '下毒' && (poisonQteActive || poisonQteOutcome) ? (
+                <div className="chamber-utility-view__poison-qte" aria-label="下毒时机">
+                  <div className="chamber-utility-view__poison-qte-scene" aria-hidden="true">
+                    <span className="chamber-utility-view__poison-qte-cup" />
+                    <span className="chamber-utility-view__poison-qte-cup is-faint" />
+                  </div>
+                  <div className="chamber-utility-view__poison-qte-track">
+                    <span
+                      className="chamber-utility-view__poison-qte-target"
+                      style={{
+                        left: `${poisonQteConfig.targetStart}%`,
+                        width: `${poisonQteConfig.targetEnd - poisonQteConfig.targetStart}%`,
+                      }}
+                    />
+                    <span
+                      className="chamber-utility-view__poison-qte-hand"
+                      style={{ left: `${poisonQtePosition}%` }}
+                    />
+                  </div>
+                  <div className="chamber-utility-view__poison-qte-meta">
+                    <span>{`药理影响区域宽度，心计与压力影响移动速度。当前成功区间 ${Math.round(poisonQteConfig.targetEnd - poisonQteConfig.targetStart)}%。`}</span>
+                    {poisonQteOutcome ? (
+                      <strong>{poisonQteOutcome === 'success' ? '投放成功，案件已登记。' : '投放失败，未登记案件。'}</strong>
+                    ) : null}
+                  </div>
+                  <div className="chamber-utility-view__option-grid">
+                    <button type="button" onClick={handlePoisonQteStop} disabled={!poisonQteActive}>
+                      <strong>停止并下毒</strong>
+                      <span>指针落入浅色区域时投放成功</span>
+                    </button>
+                    {poisonQteOutcome === 'failure' ? (
+                      <button type="button" onClick={beginPoisonQte}>
+                        <strong>重新寻找时机</strong>
+                        <span>重新开始本次 QTE 表现</span>
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+              <div className="chamber-utility-view__empty-state">
+                {entrySource === '宫斗事务'
+                  ? selectedMethod === '下毒' && poisonQteActive
+                    ? '正在等待投放时机，尚未登记案件。'
+                    : selectedMethod === '下毒' && poisonQteOutcome === 'failure'
+                      ? '本次投放未成，尚未进入当旬夜晚结算。'
+                      : '本次宫斗事务已登记，待当旬夜晚结算。'
+                  : '朝堂事务草案已暂存，当前不会生效。'}
+              </div>
+            </>
           ) : null}
         </section>
       </div>

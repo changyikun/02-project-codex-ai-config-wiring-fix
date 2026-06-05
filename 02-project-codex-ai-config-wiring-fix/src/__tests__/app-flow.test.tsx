@@ -12,7 +12,7 @@ import { getFavorTierByValue, STAMINA_INITIAL_PER_XUN } from '../config/constant
 import { GUIDE_TENDENCY_OPTIONS } from '../config/palaceUi';
 import { buildInitialBondProfile } from '../game/data/bondPresets';
 import { buildInitialConcubineRoster } from '../game/data/concubineRoster';
-import { buildMusicScoreItem, cloneInitialInventory } from '../game/data/inventoryPresets';
+import { buildMusicScoreItem, buildYetingPoisonCatalog, cloneInitialInventory } from '../game/data/inventoryPresets';
 import { buildRouteProfiles } from '../game/data/routeProfiles';
 import { buildInitialNpcActivityState } from '../game/lib/npcActivityRuntime';
 import { YINGLUOYETING_STORY_FLAGS } from '../game/lib/yingluoyetingStoryRuntime';
@@ -353,6 +353,49 @@ describe('App 主流程切换', () => {
     });
   });
 
+  it('回溯已确认属性但未完成开场的存档会回到开场，不再回创建面板二次放大属性', async () => {
+    const routeProfile = buildRouteProfiles()[0];
+    act(() => {
+      useGameFlowStore.getState().applyRouteSelection(routeProfile);
+      useGameFlowStore.setState((state) => ({
+        ...state,
+        currentView: 'start',
+        state: {
+          ...state.state,
+          stats: {
+            ...state.state.stats,
+            health: 300,
+            fortune: 40,
+            intrigue: 500,
+            appearance: 600,
+            temperament: 700,
+            poetry: 10,
+            talent: 20,
+            painting: 30,
+            embroidery: 40,
+            medicine: 50,
+            politics: 20,
+          },
+          flags: {
+            ...state.state.flags,
+            attributeStatsFinalized: true,
+          },
+        },
+      }));
+    });
+    const saveGame = useGameFlowStore.getState().exportSaveGameV1('2026-06-02T01:30:00.000Z');
+    localStorage.setItem(SAVE_GAME_STORAGE_KEY, JSON.stringify({ state: { saveGame }, version: 0 }));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '回溯历史进度' }));
+
+    expect(await screen.findByLabelText('开场对话框')).toBeInTheDocument();
+    expect(useGameFlowStore.getState().currentView).toBe('opening-dialogue');
+    expect(screen.queryByRole('button', { name: '确认进入剧情' })).not.toBeInTheDocument();
+    expect(useGameFlowStore.getState().state.stats.health).toBe(300);
+  });
+
   it('没有存档时回溯会留在开始页并显示提示', async () => {
     localStorage.clear();
     render(<App />);
@@ -452,6 +495,114 @@ describe('App 主流程切换', () => {
     fireEvent.click(decreaseHealth);
 
     expect(increaseHealth).not.toBeDisabled();
+  });
+
+  it('福德加点按每点十点显示，进入剧情后折算为运行时福德值', async () => {
+    render(<App />);
+
+    await clickStartNewGame();
+    fireEvent.click(await screen.findByRole('button', { name: '确定' }));
+    const confirmStory = await screen.findByRole('button', { name: '确认进入剧情' });
+
+    const initialFortunePoints = Number(useGameFlowStore.getState().state.stats.fortune);
+    fireEvent.click(screen.getByRole('button', { name: '福德增加' }));
+    const expectedFortunePoints = initialFortunePoints + 1;
+    const expectedFortuneValue = expectedFortunePoints * 10;
+    expect(useGameFlowStore.getState().state.stats.fortune).toBe(expectedFortunePoints);
+    expect(screen.getByText(String(expectedFortuneValue))).toBeInTheDocument();
+
+    fireEvent.click(confirmStory);
+
+    await screen.findByLabelText('开场对话框');
+    expect(useGameFlowStore.getState().state.stats.fortune).toBe(expectedFortuneValue);
+  });
+
+  it('确认进入剧情会将所有加点属性折算为运行时真值', async () => {
+    render(<App />);
+
+    await clickStartNewGame();
+    fireEvent.click(await screen.findByRole('button', { name: '确定' }));
+    const confirmStory = await screen.findByRole('button', { name: '确认进入剧情' });
+
+    act(() => {
+      useGameFlowStore.setState((current) => ({
+        state: {
+          ...current.state,
+          pointsLeft: 0,
+          stats: {
+            ...current.state.stats,
+            health: 3,
+            fortune: 4,
+            intrigue: 5,
+            appearance: 6,
+            temperament: 7,
+            poetry: 1,
+            talent: 2,
+            painting: 3,
+            embroidery: 4,
+            medicine: 5,
+            politics: 2,
+          },
+        },
+      }));
+    });
+
+    fireEvent.click(confirmStory);
+
+    await screen.findByLabelText('开场对话框');
+    expect(useGameFlowStore.getState().state.stats).toMatchObject({
+      health: 300,
+      fortune: 40,
+      intrigue: 500,
+      appearance: 600,
+      temperament: 700,
+      poetry: 10,
+      talent: 20,
+      painting: 30,
+      embroidery: 40,
+      medicine: 50,
+      politics: 20,
+    });
+  });
+
+  it('属性创建面板若拿到已确认属性，只展示运行时真值且禁用加减', async () => {
+    render(<App />);
+
+    await clickStartNewGame();
+    fireEvent.click(await screen.findByRole('button', { name: '确定' }));
+    await screen.findByRole('button', { name: '确认进入剧情' });
+
+    act(() => {
+      useGameFlowStore.setState((current) => ({
+        state: {
+          ...current.state,
+          stats: {
+            ...current.state.stats,
+            health: 300,
+            fortune: 40,
+            intrigue: 500,
+            appearance: 600,
+            temperament: 700,
+            poetry: 10,
+            talent: 20,
+            painting: 30,
+            embroidery: 40,
+            medicine: 50,
+            politics: 20,
+          },
+          flags: {
+            ...current.state.flags,
+            attributeStatsFinalized: true,
+          },
+        },
+      }));
+    });
+
+    expect(screen.getByText(/已确认/)).toBeInTheDocument();
+    expect(screen.getByText('300')).toBeInTheDocument();
+    expect(screen.queryByText('30000')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '健康增加' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '健康减少' })).toBeDisabled();
   });
 
   it('角色初始化和属性调整阶段不会显示数值变化 toast', async () => {
@@ -1022,6 +1173,7 @@ describe('App 主流程切换', () => {
           ...state.state.flags,
           bedchamberIntroShown: true,
           mapGuideFinished: true,
+          attributeStatsFinalized: true,
         },
       },
     }));
@@ -1045,6 +1197,7 @@ describe('App 主流程切换', () => {
           ...state.state.flags,
           bedchamberIntroShown: true,
           mapGuideFinished: true,
+          attributeStatsFinalized: true,
         },
       },
     }));
@@ -1858,6 +2011,7 @@ describe('App 主流程切换', () => {
           ...state.state.flags,
           bedchamberIntroShown: true,
           mapGuideFinished: true,
+          attributeStatsFinalized: true,
         },
       },
       time: {
@@ -2194,8 +2348,9 @@ describe('App 主流程切换', () => {
     fireEvent.click(screen.getByRole('button', { name: '购买' }));
     expect(await screen.findByRole('dialog', { name: '杜娘购买弹窗' })).toBeInTheDocument();
     const purchaseButtons = await screen.findAllByRole('button', { name: /^购买 / });
-    expect(purchaseButtons.length).toBeGreaterThanOrEqual(8);
-    expect(purchaseButtons.length).toBeLessThanOrEqual(10);
+    expect(purchaseButtons.length).toBeGreaterThanOrEqual(5);
+    expect(purchaseButtons.length).toBeLessThanOrEqual(7);
+    expect(screen.queryByRole('button', { name: '购买 鹤顶红' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '购买 缠枝香囊' }));
 
@@ -2305,6 +2460,7 @@ describe('App 主流程切换', () => {
         favor: 55,
         flags: {
           ...state.state.flags,
+          attributeStatsFinalized: true,
           isLianQiaoMet: true,
         },
       },
@@ -2353,7 +2509,7 @@ describe('App 主流程切换', () => {
 
     await waitFor(() => {
       expect(useGameFlowStore.getState().musicHallProgress.musicScoreMastery?.['score-phoenix-return']?.masteryPercent).toBeGreaterThan(0);
-      expect(useGameFlowStore.getState().state.stats.talent).toBeCloseTo(talentBeforePractice + 0.2);
+      expect(useGameFlowStore.getState().state.stats.talent).toBeCloseTo(talentBeforePractice + 2);
     });
     expect(await within(screen.getByLabelText('数值变化提示')).findByText('乐理 +2')).toBeInTheDocument();
     await clickDialogueAdvance();
@@ -3691,6 +3847,257 @@ describe('App 主流程切换', () => {
     expect(screen.queryByText('补品')).not.toBeInTheDocument();
   });
 
+  it('宫斗事务下毒完成前先进入投放QTE', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        openingTendency: '节衣缩食',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      bondProfile: buildInitialBondProfile('lanyinxuguo', '1-1-1'),
+      concubineRouteId: 'lanyinxuguo',
+      concubines: buildInitialConcubineRoster('lanyinxuguo'),
+      inventory: [buildYetingPoisonCatalog()[0]],
+      palaceStrifeCases: [],
+    }));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '吩咐娇娇' }));
+    fireEvent.click(screen.getByRole('button', { name: '宫斗事务' }));
+    fireEvent.click(screen.getByRole('button', { name: '方式' }));
+    fireEvent.click(screen.getByRole('button', { name: /下毒/ }));
+    fireEvent.click(screen.getByRole('button', { name: '道具' }));
+    fireEvent.click(screen.getByRole('button', { name: '完成' }));
+
+    expect(await screen.findByLabelText('下毒时机')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /停止并下毒/ })).toBeInTheDocument();
+    expect(screen.getByText(/杯盏已递到近前/)).toBeInTheDocument();
+    expect(screen.getByText('正在等待投放时机，尚未登记案件。')).toBeInTheDocument();
+    expect(screen.queryByText('本次宫斗事务已登记，待当旬夜晚结算。')).not.toBeInTheDocument();
+    expect(useGameFlowStore.getState().palaceStrifeCases).toEqual([]);
+  });
+
+  it('宫斗事务下毒必须先持有毒药', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        openingTendency: '节衣缩食',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      bondProfile: buildInitialBondProfile('lanyinxuguo', '1-1-1'),
+      concubineRouteId: 'lanyinxuguo',
+      concubines: buildInitialConcubineRoster('lanyinxuguo'),
+      inventory: cloneInitialInventory(),
+      palaceStrifeCases: [],
+    }));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '吩咐娇娇' }));
+    fireEvent.click(screen.getByRole('button', { name: '宫斗事务' }));
+    fireEvent.click(screen.getByRole('button', { name: '方式' }));
+    fireEvent.click(screen.getByRole('button', { name: /下毒/ }));
+    fireEvent.click(screen.getByRole('button', { name: '道具' }));
+    expect(await screen.findAllByText(/持有 0 份/)).toHaveLength(3);
+    fireEvent.click(screen.getByRole('button', { name: '完成' }));
+
+    expect(await screen.findByText(/可去掖庭院寻月姑姑购买毒药/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('下毒时机')).not.toBeInTheDocument();
+    expect(useGameFlowStore.getState().palaceStrifeCases).toEqual([]);
+  });
+
+  it('宫斗事务下毒投放成功会消耗毒药并登记案件', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    let rafCallback: FrameRequestCallback | null = null;
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      rafCallback = callback;
+      return 1;
+    });
+    const cancelAnimationFrameSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        openingTendency: '节衣缩食',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        stats: {
+          ...state.state.stats,
+          fortune: 90,
+          medicine: 0,
+          intrigue: 0,
+        },
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+          attributeStatsFinalized: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      bondProfile: buildInitialBondProfile('lanyinxuguo', '1-1-1'),
+      concubineRouteId: 'lanyinxuguo',
+      concubines: buildInitialConcubineRoster('lanyinxuguo'),
+      inventory: [buildYetingPoisonCatalog()[0]],
+      palaceStrifeCases: [],
+    }));
+
+    try {
+      render(<App />);
+
+      fireEvent.click(screen.getByRole('button', { name: '吩咐娇娇' }));
+      fireEvent.click(screen.getByRole('button', { name: '宫斗事务' }));
+      fireEvent.click(screen.getByRole('button', { name: '方式' }));
+      fireEvent.click(screen.getByRole('button', { name: /下毒/ }));
+      fireEvent.click(screen.getByRole('button', { name: '道具' }));
+      fireEvent.click(screen.getByRole('button', { name: '完成' }));
+
+      expect(await screen.findByLabelText('下毒时机')).toBeInTheDocument();
+      expect(rafCallback).not.toBeNull();
+      act(() => {
+        rafCallback?.(window.performance.now() + 350);
+      });
+      fireEvent.click(screen.getByRole('button', { name: /停止并下毒/ }));
+
+      await waitFor(() => {
+        const flow = useGameFlowStore.getState();
+        expect(flow.palaceStrifeCases).toHaveLength(1);
+        expect(flow.inventory.find((item) => item.itemId === 'hedandinghong')).toBeUndefined();
+      });
+      expect(screen.getByText(/投放成功，案件已登记/)).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByLabelText('数值变化提示')).toHaveTextContent(/福德 -10/);
+      });
+    } finally {
+      requestAnimationFrameSpy.mockRestore();
+      cancelAnimationFrameSpy.mockRestore();
+    }
+  });
+
+  it('掖庭院月姑姑可购买毒药', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '掖庭院',
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        openingTendency: '节衣缩食',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        silver: 1000,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      bondProfile: buildInitialBondProfile('lanyinxuguo', '1-1-1'),
+      concubineRouteId: 'lanyinxuguo',
+      concubines: buildInitialConcubineRoster('lanyinxuguo'),
+      inventory: cloneInitialInventory(),
+    }));
+
+    render(<App />);
+
+    expect(await screen.findByLabelText('掖庭院场景')).toHaveTextContent('月姑姑');
+    fireEvent.click(screen.getByRole('button', { name: '买毒药' }));
+    expect(await screen.findByRole('dialog', { name: '月姑姑毒药货单' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '购买 陨颜丹' }));
+
+    await waitFor(() => {
+      const flow = useGameFlowStore.getState();
+      expect(flow.state.silver).toBe(850);
+      expect(flow.inventory.find((item) => item.itemId === 'yunyandan')?.quantity).toBe(1);
+    });
+    expect(screen.getByText(/将陨颜丹用旧纸包好递来/)).toBeInTheDocument();
+  });
+
   it('宫斗事务完成后先登记待结算，不提前显示进入追查', async () => {
     const defaultFavorTier = getFavorTierByValue(50);
     useGameFlowStore.setState((state) => ({
@@ -4626,8 +5033,8 @@ describe('App 主流程切换', () => {
   it('后宫深夜拜访妃嫔结束后会在清晨通报熬夜惩罚并扣属性', async () => {
     const defaultFavorTier = getFavorTierByValue(50);
     const concubines = buildInitialConcubineRoster('lanyinxuguo');
-    const initialHealth = 4;
-    const initialTemperament = 4;
+    const initialHealth = 400;
+    const initialTemperament = 400;
     const initialStress = 10;
     useGameFlowStore.setState((state) => ({
       ...state,
@@ -4653,6 +5060,7 @@ describe('App 主流程切换', () => {
         flags: {
           bedchamberIntroShown: true,
           mapGuideFinished: true,
+          attributeStatsFinalized: true,
         },
       },
       hiddenStats: {
@@ -4713,8 +5121,8 @@ describe('App 主流程切换', () => {
     expect(await screen.findByText(/昨夜歇得太晚/)).toBeInTheDocument();
     expect(screen.getByText(/压力\+2，健康-10，气质-10/)).toBeInTheDocument();
     expect(useGameFlowStore.getState().state.stress).toBe(initialStress + 2);
-    expect(useGameFlowStore.getState().state.stats.health).toBeCloseTo(initialHealth - 0.1);
-    expect(useGameFlowStore.getState().state.stats.temperament).toBeCloseTo(initialTemperament - 0.1);
+    expect(useGameFlowStore.getState().state.stats.health).toBeCloseTo(initialHealth - 10);
+    expect(useGameFlowStore.getState().state.stats.temperament).toBeCloseTo(initialTemperament - 10);
   }, 10000);
 
   it('公共地点排班妃嫔会显示为可点击交互而不是自动抢占对白', async () => {
@@ -6246,6 +6654,7 @@ describe('App 主流程切换', () => {
         flags: {
           ...state.state.flags,
           bedchamberIntroShown: true,
+          attributeStatsFinalized: true,
         },
       },
       hiddenStats: {
@@ -6298,6 +6707,7 @@ describe('App 主流程切换', () => {
       state: {
         ...state.state,
         routeId: 'lanyinxuguo',
+        family: '',
         silver: 1000,
         favor: 50,
         prestige: 1000,
@@ -6310,6 +6720,7 @@ describe('App 主流程切换', () => {
         flags: {
           ...state.state.flags,
           bedchamberIntroShown: true,
+          attributeStatsFinalized: true,
         },
       },
       hiddenStats: {

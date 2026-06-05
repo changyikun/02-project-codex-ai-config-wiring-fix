@@ -225,6 +225,24 @@ const DU_NIANG_ALWAYS_AVAILABLE_ITEMS: readonly InventoryItem[] = [
     canRecycle: true,
   },
   {
+    itemId: 'linglong-rouge',
+    name: '玲珑胭脂',
+    category: 'gift',
+    rarity: 'green',
+    quantity: 1,
+    price: 90,
+    favorDelta: 6,
+    healthDelta: 0,
+    appearanceDelta: 12,
+    temperamentDelta: 0,
+    description: '常见的细盒胭脂，既能自己留用，也适合顺手送礼。',
+    canSell: true,
+    canRecycle: true,
+  },
+] as const;
+
+const YETING_POISON_ITEMS: readonly InventoryItem[] = [
+  {
     itemId: 'hedandinghong',
     name: '鹤顶红',
     category: 'medicine',
@@ -266,21 +284,6 @@ const DU_NIANG_ALWAYS_AVAILABLE_ITEMS: readonly InventoryItem[] = [
     appearanceDelta: 0,
     temperamentDelta: 0,
     description: '药性阴狠，常被拿来针对容貌与气质。',
-    canSell: true,
-    canRecycle: true,
-  },
-  {
-    itemId: 'linglong-rouge',
-    name: '玲珑胭脂',
-    category: 'gift',
-    rarity: 'green',
-    quantity: 1,
-    price: 90,
-    favorDelta: 6,
-    healthDelta: 0,
-    appearanceDelta: 12,
-    temperamentDelta: 0,
-    description: '常见的细盒胭脂，既能自己留用，也适合顺手送礼。',
     canSell: true,
     canRecycle: true,
   },
@@ -458,6 +461,12 @@ const hashSeed = (seed: string): number =>
   seed.split('').reduce((accumulator, char, index) => accumulator + char.charCodeAt(0) * (index + 17), 0);
 
 const DU_NIANG_RARE_SHELF_LIMIT = 2;
+const YETING_POISON_ITEM_IDS = ['yunyandan', 'shexiang', 'hedandinghong'] as const;
+const YETING_POISON_ITEM_ID_BY_NAME: Record<string, (typeof YETING_POISON_ITEM_IDS)[number]> = {
+  陨颜丹: 'yunyandan',
+  麝香: 'shexiang',
+  鹤顶红: 'hedandinghong',
+};
 
 const resolveRareOfferStock = (seed: string, itemId: string): number => {
   const hash = hashSeed(`${seed}:${itemId}`);
@@ -500,6 +509,20 @@ export const buildKitchenFoodCatalog = (): InventoryItem[] =>
   KITCHEN_FOOD_ITEMS.map((item) => ({
     ...item,
   }));
+
+export const buildYetingPoisonCatalog = (): InventoryItem[] =>
+  YETING_POISON_ITEMS.filter((item) =>
+    YETING_POISON_ITEM_IDS.includes(item.itemId as (typeof YETING_POISON_ITEM_IDS)[number]),
+  ).map((item) => ({
+    ...item,
+    quantity: 1,
+  }));
+
+export const getPoisonInventoryItemIdByName = (poisonName: string): string | undefined =>
+  YETING_POISON_ITEM_ID_BY_NAME[poisonName];
+
+export const isPoisonInventoryItem = (item: InventoryItem): boolean =>
+  YETING_POISON_ITEM_IDS.includes(item.itemId as (typeof YETING_POISON_ITEM_IDS)[number]);
 
 export const isMusicScoreItem = (item: InventoryItem): boolean => item.category === 'music-score';
 

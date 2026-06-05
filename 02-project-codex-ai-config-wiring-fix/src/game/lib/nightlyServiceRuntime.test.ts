@@ -146,7 +146,7 @@ describe('nightly service runtime', () => {
     expect(result.lines.join(' ')).not.toContain('声望+');
   });
 
-  it('checks pregnancy after player service using converted fortune value', () => {
+  it('checks pregnancy after player service using the direct fortune value', () => {
     const result = resolvePlayerNightlyServiceEvent({
       routeId: 'lanyinxuguo',
       pendingEvent: {
@@ -184,11 +184,11 @@ describe('nightly service runtime', () => {
     });
 
     expect(result.pregnancy).toEqual({
-      succeeded: true,
-      rate: 30,
+      succeeded: false,
+      rate: 3,
       roll: 30,
     });
-    expect(result.lines.join(' ')).toContain('太医请脉');
+    expect(result.lines.join(' ')).not.toContain('太医请脉');
   });
 
   it('keeps gentle praise and smear from raising interest and applies only one third-party favor effect', () => {

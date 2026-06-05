@@ -5614,6 +5614,13 @@ button {
   transform: translateY(-2px);
 }
 
+.chamber-utility-view__affair-step:disabled,
+.chamber-utility-view__option-grid button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  transform: none;
+}
+
 .chamber-utility-view__top-tab.is-active,
 .chamber-utility-view__header-pill.is-active,
 .chamber-utility-view__affair-step.is-active,
@@ -5893,6 +5900,119 @@ button {
 
 .chamber-utility-view__empty-state {
   padding: 18px 20px;
+}
+
+.chamber-utility-view__poison-qte {
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: rgba(255, 247, 243, 0.82);
+  box-shadow:
+    0 14px 24px rgba(111, 65, 61, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.68);
+}
+
+.chamber-utility-view__poison-qte-scene {
+  position: relative;
+  height: 86px;
+  border-radius: 16px;
+  background:
+    linear-gradient(90deg, rgba(109, 61, 57, 0.08), rgba(255, 245, 240, 0.24), rgba(109, 61, 57, 0.08)),
+    linear-gradient(180deg, rgba(255, 251, 248, 0.8), rgba(237, 214, 209, 0.72));
+  overflow: hidden;
+}
+
+.chamber-utility-view__poison-qte-cup {
+  position: absolute;
+  left: 50%;
+  bottom: 15px;
+  width: 74px;
+  height: 42px;
+  border: 3px solid rgba(108, 58, 62, 0.42);
+  border-top-width: 7px;
+  border-radius: 10px 10px 18px 18px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, rgba(246, 232, 226, 0.9), rgba(215, 176, 168, 0.76));
+}
+
+.chamber-utility-view__poison-qte-cup::after {
+  content: '';
+  position: absolute;
+  right: -22px;
+  top: 8px;
+  width: 21px;
+  height: 20px;
+  border: 3px solid rgba(108, 58, 62, 0.34);
+  border-left: 0;
+  border-radius: 0 18px 18px 0;
+}
+
+.chamber-utility-view__poison-qte-cup.is-faint {
+  left: 34%;
+  width: 52px;
+  height: 31px;
+  opacity: 0.28;
+}
+
+.chamber-utility-view__poison-qte-track {
+  position: relative;
+  height: 44px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(116, 63, 67, 0.16), rgba(255, 255, 255, 0.48));
+  box-shadow: inset 0 0 0 1px rgba(118, 68, 70, 0.15);
+}
+
+.chamber-utility-view__poison-qte-target {
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  border-radius: 999px;
+  background: rgba(190, 219, 175, 0.74);
+  box-shadow:
+    inset 0 0 0 1px rgba(82, 117, 72, 0.22),
+    0 0 18px rgba(121, 163, 104, 0.18);
+}
+
+.chamber-utility-view__poison-qte-hand {
+  position: absolute;
+  top: 4px;
+  width: 8px;
+  height: 36px;
+  border-radius: 999px;
+  background: #6b2430;
+  transform: translateX(-50%);
+  box-shadow:
+    0 0 0 4px rgba(107, 36, 48, 0.13),
+    0 10px 16px rgba(80, 38, 36, 0.2);
+}
+
+.chamber-utility-view__poison-qte-hand::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -10px;
+  width: 22px;
+  height: 14px;
+  border-radius: 14px 14px 10px 10px;
+  background: #8f4a51;
+  transform: translateX(-50%);
+}
+
+.chamber-utility-view__poison-qte-meta {
+  display: grid;
+  gap: 4px;
+  color: #73474a;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.chamber-utility-view__poison-qte-meta strong {
+  color: #5a2630;
+  font-family: 'STSong', 'SimSun', serif;
+  font-size: 18px;
+  font-weight: 600;
 }
 
 .chamber-utility-view__bond-result {
@@ -6382,6 +6502,177 @@ button {
   font-size: 18px;
 }
 
+.yeting-yard-view {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  color: #4b2025;
+}
+
+.yeting-yard-view__header {
+  position: absolute;
+  left: 92px;
+  top: 86px;
+  width: min(470px, calc(100% - 220px));
+  padding: 18px 22px;
+  border-radius: 8px;
+  background: rgba(255, 248, 239, 0.9);
+  box-shadow:
+    0 16px 26px rgba(64, 32, 34, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.68);
+}
+
+.yeting-yard-view__header span {
+  display: block;
+  color: #5a2630;
+  font-family: 'STSong', 'SimSun', serif;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.yeting-yard-view__header p,
+.yeting-yard-view__npc-card p,
+.yeting-yard-view__shop-card p,
+.yeting-yard-view__shop-card span,
+.yeting-yard-view__shop-header span {
+  margin: 0;
+  line-height: 1.55;
+  letter-spacing: 0;
+}
+
+.yeting-yard-view__header p {
+  margin-top: 8px;
+  font-size: 18px;
+  color: #704247;
+}
+
+.yeting-yard-view__npc-card,
+.yeting-yard-view__shop-modal {
+  position: absolute;
+  right: 188px;
+  top: 186px;
+  width: min(450px, calc(100% - 500px));
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 251, 246, 0.94), rgba(244, 234, 227, 0.91)),
+    radial-gradient(circle at top left, rgba(172, 93, 76, 0.16), transparent 58%);
+  box-shadow:
+    0 22px 38px rgba(65, 36, 37, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.66);
+}
+
+.yeting-yard-view__npc-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 104px;
+  gap: 16px;
+  align-items: center;
+  padding: 20px 22px;
+}
+
+.yeting-yard-view__npc-card strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #5a2630;
+  font-family: 'STSong', 'SimSun', serif;
+  font-size: 26px;
+}
+
+.yeting-yard-view__npc-card p {
+  color: #704247;
+  font-size: 17px;
+}
+
+.yeting-yard-view__npc-card button,
+.yeting-yard-view__shop-header button,
+.yeting-yard-view__shop-card button {
+  min-height: 44px;
+  border: 1px solid rgba(118, 60, 57, 0.34);
+  border-radius: 6px;
+  background: rgba(119, 53, 55, 0.9);
+  color: #fff8ef;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.yeting-yard-view__npc-card button:hover:not(:disabled),
+.yeting-yard-view__shop-header button:hover:not(:disabled),
+.yeting-yard-view__shop-card button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.yeting-yard-view__shop-modal {
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100% - 260px);
+  padding: 20px 22px;
+}
+
+.yeting-yard-view__shop-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.yeting-yard-view__shop-header div {
+  display: grid;
+  gap: 4px;
+}
+
+.yeting-yard-view__shop-header strong {
+  color: #5a2630;
+  font-family: 'STSong', 'SimSun', serif;
+  font-size: 26px;
+}
+
+.yeting-yard-view__shop-header span,
+.yeting-yard-view__shop-card span {
+  color: #7a474b;
+  font-size: 16px;
+}
+
+.yeting-yard-view__shop-list {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.yeting-yard-view__shop-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px;
+  gap: 12px;
+  align-items: center;
+  padding: 15px 17px;
+  border-radius: 8px;
+  background: rgba(255, 250, 246, 0.9);
+  box-shadow:
+    0 12px 20px rgba(103, 61, 58, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+
+.yeting-yard-view__shop-card h3 {
+  margin: 0 0 6px;
+  color: #5a2630;
+  font-family: 'STSong', 'SimSun', serif;
+  font-size: 21px;
+}
+
+.yeting-yard-view__shop-card p {
+  margin-bottom: 8px;
+  color: #704247;
+  font-size: 16px;
+}
+
+.yeting-yard-view__shop-card button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 @media (max-width: 1120px) {
   .kitchen-view__header {
     left: 88px;
@@ -6400,6 +6691,12 @@ button {
   .kitchen-view__shop-modal {
     right: 168px;
     width: min(408px, calc(100% - 398px));
+  }
+
+  .yeting-yard-view__npc-card,
+  .yeting-yard-view__shop-modal {
+    right: 154px;
+    width: min(408px, calc(100% - 388px));
   }
 }
 

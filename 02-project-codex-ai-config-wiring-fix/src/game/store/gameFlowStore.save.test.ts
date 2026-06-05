@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PRESTIGE_RANGE } from '../../config/constants';
+import { PLAYER_PALACE_STRIFE_TARGET_ID } from '../lib/palaceStrifeRuntime';
 import { YINGLUOYETING_STORY_FLAGS } from '../lib/yingluoyetingStoryRuntime';
 import { SAVE_GAME_SCHEMA_VERSION, SAVE_GAME_STORAGE_KEY } from '../save/saveGameV1';
 import { useGameFlowStore } from './gameFlowStore';
@@ -633,6 +634,67 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     expect(flow.settlementReports[0].lines.join(' ')).toContain('宫中暗流');
   });
 
+  it('creates npc palace strife cases that can target or frame the player', () => {
+    const [aggressor, rival, ...rest] = useGameFlowStore.getState().concubines;
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      time: {
+        year: 2,
+        month: 3,
+        xun: 2,
+        slotIndex: 0,
+        slot: '清晨',
+        slotProgress: 0,
+      },
+      palaceStrifeCases: [],
+      settlementReports: [],
+      latestSettlementReportId: undefined,
+      concubines: [
+        {
+          ...aggressor,
+          stats: {
+            ...aggressor.stats,
+            ambition: 100,
+            stress: 95,
+            intrigue: 820,
+            relationToPlayer: -90,
+          },
+          rivals: [rival.id],
+        },
+        rival,
+        ...rest,
+      ],
+      npcActivity: {
+        xunKey: '2-3-2',
+        triggeredVisitIds: [],
+        entries: {
+          [`npc-activity-2-3-2-${aggressor.id}`]: {
+            id: `npc-activity-2-3-2-${aggressor.id}`,
+            xunKey: '2-3-2',
+            actorConsortId: aggressor.id,
+            targetConsortId: PLAYER_PALACE_STRIFE_TARGET_ID,
+            location: 'home',
+            intent: 'hostile-plot',
+            purpose: 'plot',
+            summary: `${aggressor.name}暗中筹谋。`,
+            resolved: false,
+          },
+        },
+      },
+    }));
+
+    useGameFlowStore.getState().advanceTime(7);
+
+    const flow = useGameFlowStore.getState();
+    expect(flow.palaceStrifeCases[0]).toMatchObject({
+      actorId: 'npc',
+      actorConsortId: aggressor.id,
+      targetConsortId: PLAYER_PALACE_STRIFE_TARGET_ID,
+      targetName: '皇后 谢令仪',
+      status: 'pending_resolution',
+    });
+  });
+
   it('resolves a required Yangxin hearing once and lowers conviction on successful argument', () => {
     useGameFlowStore.setState((state) => ({
       ...state,
@@ -773,6 +835,37 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     expect(result.success).toBe(false);
     expect(flow.state.silver).toBe(5);
     expect(flow.palaceStrifeCases[0].convictionRate).toBe(35);
+  });
+
+  it('adds player silver through the debug store command and triggers numeric feedback', () => {
+    const before = useGameFlowStore.getState();
+
+    const result = useGameFlowStore.getState().debugAddSilver('66');
+
+    const flow = useGameFlowStore.getState();
+    expect(result).toMatchObject({
+      success: true,
+      requestedAmount: 66,
+      appliedAmount: 66,
+      silver: 1300,
+    });
+    expect(flow.state.silver).toBe(1300);
+    expect(flow.hiddenStats.silver).toBe(1300);
+    expect(flow.numericFeedbackSignal.sequence).toBe(before.numericFeedbackSignal.sequence + 1);
+    expect(flow.numericFeedbackSignal.bucket).toBe('chamber-action');
+  });
+
+  it('rejects invalid debug silver amounts without changing state', () => {
+    const before = useGameFlowStore.getState();
+
+    const result = useGameFlowStore.getState().debugAddSilver('abc');
+
+    const flow = useGameFlowStore.getState();
+    expect(result.success).toBe(false);
+    expect(result.appliedAmount).toBe(0);
+    expect(flow.state.silver).toBe(before.state.silver);
+    expect(flow.hiddenStats.silver).toBe(before.hiddenStats.silver);
+    expect(flow.numericFeedbackSignal.sequence).toBe(before.numericFeedbackSignal.sequence);
   });
 
   it('allows player prestige losses to go below zero within the configured range', () => {
@@ -1277,10 +1370,11 @@ describe('gameFlowStore SaveGameV1 integration', () => {
         prestige: 900,
         stats: {
           ...state.state.stats,
-          fortune: 3,
+          fortune: 30,
         },
         flags: {
           ...state.state.flags,
+          attributeStatsFinalized: true,
           pregnant: false,
         },
       },

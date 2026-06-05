@@ -93,19 +93,24 @@ const getScaledStat = (stats: Record<string, number>, key: string): number => {
   return value <= 10 ? value * 100 : value;
 };
 
+const getSkillLevel = (stats: Record<string, number>, key: string): number => {
+  const value = Number(stats[key] ?? 0);
+  return value > 10 ? value / 10 : value;
+};
+
 export const resolveNightlyServiceActionDelta = (
   actionId: NightlyServiceInteractionActionId,
   stats: Record<string, number>,
 ): number => {
   switch (actionId) {
     case 'music': {
-      const music = Number(stats.talent ?? 0);
+      const music = getSkillLevel(stats, 'talent');
       if (music > 8) return 15;
       if (music > 5) return 5;
       return 0;
     }
     case 'poetry':
-      return Number(stats.poetry ?? 0) > 8 ? 15 : -10;
+      return getSkillLevel(stats, 'poetry') > 8 ? 15 : -10;
     case 'shy': {
       const temperament = getScaledStat(stats, 'temperament');
       if (temperament > 900) return 25;

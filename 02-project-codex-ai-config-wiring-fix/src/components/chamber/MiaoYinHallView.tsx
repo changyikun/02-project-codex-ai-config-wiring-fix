@@ -544,7 +544,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
       time,
       seed: `${currentSeed}:practice`,
     });
-    applyStoryEffects({ stats: { talent: 0.2 } });
+    applyStoryEffects({ stats: { talent: 2 } });
     patchMusicHallProgress({
       lastPracticedMusicScoreId: itemId,
       musicScoreMastery: {
