@@ -6,6 +6,11 @@ import type {
   PalaceStrifeResolution,
   PalaceStrifeRolls,
   PalaceStrifeSeverity,
+  PalaceStrifeSuspectState,
+  YangxinVerdictChoiceId,
+  YangxinVerdictEventState,
+  YangxinVerdictPenaltyState,
+  YangxinVerdictRelationshipDeltaState,
   YangxinHearingStance,
 } from '../types';
 
@@ -17,6 +22,9 @@ interface PalaceStrifeAttemptInput {
   itemLabel: string;
   allyLabel: string;
   framedTargetName?: string;
+  actualActor?: PalaceStrifeTargetProfile;
+  framedTarget?: PalaceStrifeTargetProfile;
+  suspectCandidates?: PalaceStrifeTargetProfile[];
   time: {
     year: number;
     month: number;
@@ -40,6 +48,13 @@ interface NpcPalaceStrifeGenerationInput {
 }
 
 type PalaceStrifeTargetProfile = Pick<ConcubineProfile, 'id' | 'name' | 'rankLabel' | 'stats'>;
+
+interface YangxinVerdictEventInput {
+  caseState: PalaceStrifeCaseState;
+  playerState: GameNumericsState;
+  playerRankLabel: string;
+  concubines: ConcubineProfile[];
+}
 
 export const PLAYER_PALACE_STRIFE_TARGET_ID = 'player';
 
@@ -139,6 +154,165 @@ export const buildPlayerPalaceStrifeTarget = (
   },
 });
 
+const getSuspectSubjectType = (subjectId: string): PalaceStrifeSuspectState['subjectType'] =>
+  subjectId === PLAYER_PALACE_STRIFE_TARGET_ID ? 'player' : 'consort';
+
+const buildSuspectId = (subjectId: string): string => `suspect-${subjectId}`;
+
+const getHighestSuspicionRate = (suspects: PalaceStrifeSuspectState[]): number =>
+  suspects.reduce((highest, suspect) => Math.max(highest, suspect.suspicionRate), 0);
+
+const normalizeSuspectRate = (value: number): number => clamp(Math.round(value), 0, 100);
+
+const getPendingVerdictSuspect = (caseState: PalaceStrifeCaseState): PalaceStrifeSuspectState | undefined =>
+  (caseState.suspects ?? []).find((suspect) => suspect.id === caseState.pendingVerdictSuspectId) ??
+  (caseState.suspects ?? []).find((suspect) => suspect.suspicionRate >= 100);
+
+const formatYangxinCaseTargetName = (caseState: PalaceStrifeCaseState): string =>
+  isPlayerPalaceStrifeTargetId(caseState.targetConsortId) ? '娘娘' : caseState.targetName;
+
+const formatYangxinFramedTargetName = (caseState: PalaceStrifeCaseState): string =>
+  isPlayerPalaceStrifeTargetId(caseState.framedTargetConsortId) ? '你' : (caseState.framedTargetName ?? '被嫁祸者');
+
+const formatYangxinSuspectName = (suspect: PalaceStrifeSuspectState | undefined): string =>
+  suspect?.subjectType === 'player' ? '你' : (suspect?.name ?? '定罪候选人');
+
+const markCasePendingVerdict = (
+  caseState: PalaceStrifeCaseState,
+  suspect: PalaceStrifeSuspectState | undefined,
+  convictionRate: number,
+  summary: string,
+): PalaceStrifeCaseState => ({
+  ...caseState,
+  pendingVerdictSuspectId: suspect?.id ?? caseState.pendingVerdictSuspectId,
+  convictedSuspectId: undefined,
+  archivedXunKey: undefined,
+  resolutionSummary: '已达定罪门槛，待养心殿裁断。',
+  status: 'pending_verdict',
+  outcome: 'pending',
+  convictionRate,
+  summary,
+});
+
+const upsertSuspect = (
+  suspects: PalaceStrifeSuspectState[],
+  profile: PalaceStrifeTargetProfile | undefined,
+  suspicionRate: number,
+  reason: string,
+  flags: Pick<PalaceStrifeSuspectState, 'isActualActor' | 'isFramed'> = {},
+): PalaceStrifeSuspectState[] => {
+  if (!profile) {
+    return suspects;
+  }
+
+  const existingIndex = suspects.findIndex((suspect) => suspect.subjectId === profile.id);
+  const nextSuspect: PalaceStrifeSuspectState = {
+    id: buildSuspectId(profile.id),
+    subjectType: getSuspectSubjectType(profile.id),
+    subjectId: profile.id,
+    name: formatStrifeTargetName(profile),
+    suspicionRate: normalizeSuspectRate(suspicionRate),
+    reason,
+    ...flags,
+  };
+
+  if (existingIndex === -1) {
+    return [...suspects, nextSuspect];
+  }
+
+  return suspects.map((suspect, index) =>
+    index === existingIndex
+      ? {
+          ...suspect,
+          suspicionRate: Math.max(suspect.suspicionRate, nextSuspect.suspicionRate),
+          reason: suspect.isActualActor || suspect.isFramed ? suspect.reason : nextSuspect.reason,
+          isActualActor: suspect.isActualActor || nextSuspect.isActualActor,
+          isFramed: suspect.isFramed || nextSuspect.isFramed,
+        }
+      : suspect,
+  );
+};
+
+const buildPalaceStrifeSuspects = (input: {
+  actualActor?: PalaceStrifeTargetProfile;
+  target: PalaceStrifeTargetProfile;
+  framedTarget?: PalaceStrifeTargetProfile;
+  suspectCandidates?: PalaceStrifeTargetProfile[];
+  baseConvictionRate: number;
+  severity: PalaceStrifeSeverity;
+  actionSucceeded: boolean;
+  concealmentRoll: number;
+  concealmentSuccessRate: number;
+}): PalaceStrifeSuspectState[] => {
+  const severityBonus = input.severity === 'heavy' ? 15 : input.severity === 'medium' ? 8 : 0;
+  const exposureBonus = Math.max(0, input.concealmentRoll - input.concealmentSuccessRate) / 3;
+  let suspects: PalaceStrifeSuspectState[] = [];
+
+  suspects = upsertSuspect(
+    suspects,
+    input.actualActor,
+    input.baseConvictionRate + severityBonus + exposureBonus + (input.actionSucceeded ? 6 : 0),
+    '行动痕迹与动机最重，内廷优先追查。',
+    { isActualActor: true },
+  );
+
+  suspects = upsertSuspect(
+    suspects,
+    input.framedTarget,
+    Math.max(70, input.baseConvictionRate + 25),
+    '现场线索被刻意引向此人，嫌疑骤然升高。',
+    { isFramed: true },
+  );
+
+  if (isPlayerPalaceStrifeTargetId(input.target.id) && input.actualActor?.id !== PLAYER_PALACE_STRIFE_TARGET_ID) {
+    suspects = upsertSuspect(
+      suspects,
+      input.target,
+      Math.max(25, input.baseConvictionRate - 15),
+      '娘娘被卷入案中，仍需在调查册上留名。',
+    );
+  }
+
+  const candidateRows = (input.suspectCandidates ?? [])
+    .filter((candidate) => !suspects.some((suspect) => suspect.subjectId === candidate.id) && candidate.id !== input.target.id)
+    .map((candidate) => {
+      const ambition = normalizeTargetScore(Number(candidate.stats.ambition ?? 0));
+      const stress = normalizeTargetScore(Number(candidate.stats.stress ?? 0));
+      const relationRisk = Math.max(0, -normalizeTargetScore(Number(candidate.stats.relationToPlayer ?? 0)));
+      const intrigue = normalizeTargetScore(Number(candidate.stats.intrigue ?? 0));
+      const motive = 18 + ambition / 4 + stress / 5 + relationRisk / 3 + intrigue / 30;
+      return { candidate, motive };
+    })
+    .sort((left, right) => right.motive - left.motive);
+
+  for (const row of candidateRows) {
+    if (suspects.length >= 3) {
+      break;
+    }
+    suspects = upsertSuspect(
+      suspects,
+      row.candidate,
+      Math.min(65, row.motive),
+      '与受害者有利益牵连或宫中动机，被列入次要嫌疑。',
+    );
+  }
+
+  return suspects
+    .sort((left, right) => right.suspicionRate - left.suspicionRate)
+    .slice(0, 3);
+};
+
+const syncCaseConvictionFromSuspects = (caseState: PalaceStrifeCaseState): PalaceStrifeCaseState => {
+  const suspects = caseState.suspects ?? [];
+  if (suspects.length === 0) {
+    return caseState;
+  }
+  return {
+    ...caseState,
+    convictionRate: getHighestSuspicionRate(suspects),
+  };
+};
+
 const buildSeededRoll = (seed: string, salt: number): number => {
   let value = salt;
   for (let i = 0; i < seed.length; i += 1) {
@@ -214,6 +388,20 @@ export const resolvePalaceStrifeAttempt = (input: PalaceStrifeAttemptInput): Pal
           95,
         ),
       );
+  const actualActor = input.actualActor ?? buildPlayerPalaceStrifeTarget(input.playerState);
+  const suspects = concealmentSucceeded
+    ? []
+    : buildPalaceStrifeSuspects({
+        actualActor,
+        target: input.target,
+        framedTarget: input.framedTarget,
+        suspectCandidates: input.suspectCandidates,
+        baseConvictionRate: convictionRate,
+        severity,
+        actionSucceeded,
+        concealmentRoll,
+        concealmentSuccessRate,
+      });
   const xunKey = buildCaseIdTimeKey(input.time);
   const targetName = formatStrifeTargetName(input.target);
   const actionLabel = input.actionKind === 'poison' ? '下毒' : '造谣';
@@ -244,7 +432,8 @@ export const resolvePalaceStrifeAttempt = (input: PalaceStrifeAttemptInput): Pal
     status,
     outcome: concealmentSucceeded ? 'cold_case' : 'pending',
     investigationXunsElapsed: 0,
-    convictionRate,
+    convictionRate: suspects.length > 0 ? getHighestSuspicionRate(suspects) : convictionRate,
+    suspects,
     yangxinHearingRequired: !concealmentSucceeded,
     summary,
   };
@@ -357,6 +546,7 @@ export const generateNpcPalaceStrifeCase = (
     outcome: 'pending',
     investigationXunsElapsed: 0,
     convictionRate: 0,
+    suspects: [],
     summary: `${formatConsortName(actor)}与${formatStrifeTargetName(target)}之间暗流渐起${
       resolvedFrameTarget ? `，线索隐隐指向${formatStrifeTargetName(resolvedFrameTarget)}` : ''
     }，待当旬夜晚结算。`,
@@ -395,15 +585,34 @@ export const resolveYangxinHearing = (
     100,
   );
   const stanceLabel = stance === 'argue' ? '据理力争' : stance === 'plead' ? '委婉求情' : '沉默认错';
+  const currentSuspects = caseState.suspects ?? [];
+  const targetSuspect =
+    currentSuspects.find((suspect) => suspect.subjectType === 'player') ??
+    currentSuspects.slice().sort((left, right) => right.suspicionRate - left.suspicionRate)[0];
+  const nextSuspects =
+    targetSuspect && currentSuspects.length > 0
+      ? currentSuspects
+          .map((suspect) =>
+            suspect.id === targetSuspect.id
+              ? {
+                  ...suspect,
+                  suspicionRate: convictionRate,
+                }
+              : suspect,
+          )
+          .sort((left, right) => right.suspicionRate - left.suspicionRate)
+      : currentSuspects;
+  const nextConvictionRate = nextSuspects.length > 0 ? getHighestSuspicionRate(nextSuspects) : convictionRate;
 
   return {
     ...caseState,
-    convictionRate,
-    status: convictionRate <= 0 ? 'resolved' : caseState.status,
-    outcome: convictionRate <= 0 ? 'cold_case' : caseState.outcome,
+    convictionRate: nextConvictionRate,
+    suspects: nextSuspects,
+    status: nextConvictionRate <= 0 ? 'resolved' : caseState.status,
+    outcome: nextConvictionRate <= 0 ? 'cold_case' : caseState.outcome,
     yangxinHearingResolved: true,
-    yangxinHearingSummary: `${stanceLabel}后${success ? '自证有力' : '未能打动皇帝'}，定案率调整为${convictionRate}%。`,
-    summary: `${caseState.summary} ${stanceLabel}后定案率调整为${convictionRate}%。`,
+    yangxinHearingSummary: `${stanceLabel}后${success ? '自证有力' : '未能打动皇帝'}，最高定案率调整为${nextConvictionRate}%。`,
+    summary: `${caseState.summary} ${stanceLabel}后最高定案率调整为${nextConvictionRate}%。`,
   };
 };
 
@@ -413,27 +622,52 @@ const advanceSingleInvestigation = (caseState: PalaceStrifeCaseState): PalaceStr
   }
 
   const frameGrowth = caseState.framedTargetName ? frameModifiers.investigationGrowth : 0;
-  const nextConvictionRate = Math.min(
-    100,
-    Math.round(caseState.convictionRate + investigationGrowthBySeverity[caseState.severity] + frameGrowth),
-  );
+  const baseGrowth = investigationGrowthBySeverity[caseState.severity];
   const nextElapsed = (caseState.investigationXunsElapsed ?? 0) + 1;
-  const isConvicted = nextConvictionRate >= 100;
-  const isFinished = isConvicted || nextElapsed >= 3;
-  const outcome = isFinished ? (isConvicted ? 'convicted' : 'cold_case') : 'pending';
-  const summary =
-    outcome === 'convicted'
-      ? `${caseState.targetName}一案定案率已至${nextConvictionRate}%，内廷拟正式定罪。`
-      : outcome === 'cold_case'
-        ? `${caseState.targetName}一案三旬未定，暂作疑案封存。`
-        : `${caseState.targetName}一案仍在追查，当前定案率${nextConvictionRate}%。`;
+  const currentSuspects = caseState.suspects ?? [];
+  const nextSuspects =
+    currentSuspects.length > 0
+      ? currentSuspects
+          .map((suspect) => ({
+            ...suspect,
+            suspicionRate: Math.min(100, Math.round(suspect.suspicionRate + baseGrowth + (suspect.isFramed ? frameGrowth : 0))),
+          }))
+          .sort((left, right) => right.suspicionRate - left.suspicionRate)
+      : [];
+  const nextConvictionRate =
+    nextSuspects.length > 0
+      ? getHighestSuspicionRate(nextSuspects)
+      : Math.min(100, Math.round(caseState.convictionRate + baseGrowth + frameGrowth));
+  const convictedSuspect = nextSuspects.find((suspect) => suspect.suspicionRate >= 100);
+  const reachesVerdictThreshold = Boolean(convictedSuspect) || nextConvictionRate >= 100;
+  if (reachesVerdictThreshold) {
+    const summary = `${caseState.targetName}一案中${convictedSuspect?.name ?? '首要嫌疑人'}定案率已至${nextConvictionRate}%，待养心殿裁断。`;
+    return markCasePendingVerdict(
+      {
+        ...caseState,
+        suspects: nextSuspects,
+        investigationXunsElapsed: nextElapsed,
+      },
+      convictedSuspect,
+      nextConvictionRate,
+      summary,
+    );
+  }
+
+  const isColdCase = nextElapsed >= 3;
+  const summary = isColdCase
+    ? `${caseState.targetName}一案三旬未定，暂作疑案封存。`
+    : `${caseState.targetName}一案仍在追查，当前定案率${nextConvictionRate}%。`;
 
   return {
     ...caseState,
     convictionRate: nextConvictionRate,
+    suspects: nextSuspects,
+    archivedXunKey: isColdCase ? `${caseState.year}-${caseState.month}-${caseState.xun}+${nextElapsed}` : caseState.archivedXunKey,
+    resolutionSummary: isColdCase ? summary : caseState.resolutionSummary,
     investigationXunsElapsed: nextElapsed,
-    status: isFinished ? 'resolved' : 'investigating',
-    outcome,
+    status: isColdCase ? 'resolved' : 'investigating',
+    outcome: isColdCase ? 'cold_case' : 'pending',
     summary,
   };
 };
@@ -457,6 +691,9 @@ export const describePalaceStrifeInvestigationChanges = (
   return afterCases
     .filter((caseState) => beforeById.get(caseState.id)?.convictionRate !== caseState.convictionRate)
     .map((caseState) => {
+      if (caseState.status === 'pending_verdict') {
+        return '';
+      }
       if (caseState.outcome === 'convicted') {
         return `${caseState.targetName}一案定案率${caseState.convictionRate}%，已到定罪门槛。`;
       }
@@ -464,11 +701,17 @@ export const describePalaceStrifeInvestigationChanges = (
         return `${caseState.targetName}一案定案率${caseState.convictionRate}%，三旬未定，暂作疑案。`;
       }
       return `${caseState.targetName}一案仍在追查，已过${caseState.investigationXunsElapsed}旬，定案率${caseState.convictionRate}%。`;
-    });
+    })
+    .filter(Boolean);
 };
 
 export const applyPalaceStrifeBribe = (caseState: PalaceStrifeCaseState, silverSpent: number): PalaceStrifeCaseState => {
   const reduction = Math.floor(Math.max(0, silverSpent) / 20) * 5;
+  const primarySuspect = (caseState.suspects ?? []).slice().sort((left, right) => right.suspicionRate - left.suspicionRate)[0];
+  if (primarySuspect) {
+    return applyPalaceStrifeSuspectIntervention(caseState, primarySuspect.id, -reduction);
+  }
+
   const convictionRate = Math.max(0, caseState.convictionRate - reduction);
   return {
     ...caseState,
@@ -477,14 +720,402 @@ export const applyPalaceStrifeBribe = (caseState: PalaceStrifeCaseState, silverS
   };
 };
 
+export const applyPalaceStrifeSuspectIntervention = (
+  caseState: PalaceStrifeCaseState,
+  suspectId: string,
+  suspicionDelta: number,
+): PalaceStrifeCaseState => {
+  if (caseState.status !== 'investigating') {
+    return caseState;
+  }
+
+  const nextSuspects = (caseState.suspects ?? [])
+    .map((suspect) =>
+      suspect.id === suspectId
+        ? {
+            ...suspect,
+            suspicionRate: normalizeSuspectRate(suspect.suspicionRate + suspicionDelta),
+          }
+        : suspect,
+    )
+    .sort((left, right) => right.suspicionRate - left.suspicionRate);
+  const convictedSuspect = nextSuspects.find((suspect) => suspect.suspicionRate >= 100);
+  const nextCase: PalaceStrifeCaseState = convictedSuspect
+    ? markCasePendingVerdict(
+        {
+          ...caseState,
+          suspects: nextSuspects,
+        },
+        convictedSuspect,
+        getHighestSuspicionRate(nextSuspects),
+        `${caseState.targetName}一案中${convictedSuspect.name}定案率已至100%，待养心殿裁断。`,
+      )
+    : {
+    ...caseState,
+    suspects: nextSuspects,
+    convictionRate: getHighestSuspicionRate(nextSuspects),
+    resolutionSummary: caseState.resolutionSummary,
+  };
+  return {
+    ...nextCase,
+    summary: convictedSuspect
+      ? `${caseState.targetName}一案中${convictedSuspect.name}定案率已至100%，待养心殿裁断。`
+      : `${caseState.targetName}一案已由娇娇打点，最高定案率${nextCase.convictionRate}%。`,
+  };
+};
+
+const scalePenaltyDelta = (value: number, multiplier: number): number => {
+  if (value === 0) {
+    return 0;
+  }
+  const magnitude = Math.max(0, Math.round(Math.abs(value) * multiplier));
+  return value < 0 ? -magnitude : magnitude;
+};
+
 export const resolvePalaceStrifeConvictionPenalty = (
   caseState: PalaceStrifeCaseState,
-): { prestigeDelta: number; favorDelta: number; stressDelta: number; summary: string } => {
+  multiplier = 1,
+): YangxinVerdictPenaltyState => {
   const penalty = convictionPenaltyBySeverity[caseState.severity];
+  const scaledPenalty = {
+    prestigeDelta: scalePenaltyDelta(penalty.prestigeDelta, multiplier),
+    favorDelta: scalePenaltyDelta(penalty.favorDelta, multiplier),
+    stressDelta: scalePenaltyDelta(penalty.stressDelta, multiplier),
+  };
   return {
-    ...penalty,
-    summary: `${caseState.targetName}一案定罪，扣声望${Math.abs(penalty.prestigeDelta)}、宠爱${Math.abs(penalty.favorDelta)}${
-      penalty.stressDelta > 0 ? `，压力+${penalty.stressDelta}` : ''
+    ...scaledPenalty,
+    summary: `${caseState.targetName}一案定罪，扣声望${Math.abs(scaledPenalty.prestigeDelta)}、宠爱${Math.abs(scaledPenalty.favorDelta)}${
+      scaledPenalty.stressDelta > 0 ? `，压力+${scaledPenalty.stressDelta}` : ''
     }。`,
+  };
+};
+
+const severityLabel: Record<PalaceStrifeSeverity, string> = {
+  light: '轻案',
+  medium: '中案',
+  heavy: '重案',
+};
+
+const yangxinChoiceLabels: Record<YangxinVerdictChoiceId, string> = {
+  argue: '据理力争',
+  plead: '委婉求情',
+  accept: '沉默认罚',
+  'self-defend': '据证自辩',
+  'self-doubt': '陈明疑点',
+  'self-plead': '伏身求宽',
+  'self-shift': '攀指旁人',
+  'self-accept': '沉默领罪',
+  'demand-punish': '请皇上严断',
+  'state-facts': '只陈案情',
+  'raise-doubt': '指出疑点',
+  'plead-mercy': '代为求情',
+  'silent-observe': '沉默旁听',
+};
+
+const buildYangxinPlayerChoices = (isPlayerSuspect: boolean): YangxinVerdictEventState['playerChoices'] =>
+  isPlayerSuspect
+    ? [
+        { id: 'self-defend', label: '据证自辩', effectHint: '尽力为自己开脱，减罚最多，但更容易激怒受害者一方。' },
+        { id: 'self-doubt', label: '陈明疑点', effectHint: '不硬顶圣意，只指出案中仍有疑处，温和减轻处罚。' },
+        { id: 'self-plead', label: '伏身求宽', effectHint: '承认处境，请求从轻发落，减罚稳定且关系风险较低。' },
+        { id: 'self-shift', label: '攀指旁人', effectHint: '把部分疑点引向旁人，可能减罚，但会留下更重关系隐患。' },
+        { id: 'self-accept', label: '沉默领罪', effectHint: '不主动减轻处罚，但避免额外言语冲突。' },
+      ]
+    : [
+        { id: 'demand-punish', label: '请皇上严断', effectHint: '倾向加重处罚，受害者一方更容易认同你的态度。' },
+        { id: 'state-facts', label: '只陈案情', effectHint: '只补充自己知道的事实，不主动加重或减轻处罚。' },
+        { id: 'raise-doubt', label: '指出疑点', effectHint: '提示案中仍有疑处，小幅减轻处罚，关系波动较低。' },
+        { id: 'plead-mercy', label: '代为求情', effectHint: '明确替定罪候选人求宽，减罚较多，但会得罪受害者一方。' },
+        { id: 'silent-observe', label: '沉默旁听', effectHint: '不介入裁断，只旁听结果，避免额外关系冲突。' },
+      ];
+
+const resolveYangxinVerdictPenaltyMultiplier = (
+  severity: PalaceStrifeSeverity,
+  choiceId: YangxinVerdictChoiceId,
+): number => {
+  if (choiceId === 'demand-punish') {
+    return severity === 'heavy' ? 1.08 : 1.12;
+  }
+  if (choiceId === 'accept' || choiceId === 'self-accept' || choiceId === 'silent-observe' || choiceId === 'state-facts') {
+    return 1;
+  }
+  if (choiceId === 'self-plead' || choiceId === 'plead') {
+    return severity === 'light' ? 0.84 : severity === 'medium' ? 0.9 : 0.94;
+  }
+  if (choiceId === 'self-doubt' || choiceId === 'raise-doubt') {
+    return severity === 'light' ? 0.82 : severity === 'medium' ? 0.88 : 0.92;
+  }
+  if (choiceId === 'self-shift') {
+    return severity === 'light' ? 0.78 : severity === 'medium' ? 0.86 : 0.9;
+  }
+  if (choiceId === 'plead-mercy') {
+    return severity === 'light' ? 0.76 : severity === 'medium' ? 0.84 : 0.9;
+  }
+  if (choiceId === 'self-defend') {
+    return severity === 'light' ? 0.72 : severity === 'medium' ? 0.8 : 0.86;
+  }
+  return severity === 'light' ? 0.75 : severity === 'medium' ? 0.82 : 0.88;
+};
+
+const getSuspectRelationDeltaForYangxinChoice = (choiceId: YangxinVerdictChoiceId): number => {
+  if (choiceId === 'demand-punish') {
+    return -2;
+  }
+  if (choiceId === 'plead-mercy') {
+    return 3;
+  }
+  if (choiceId === 'raise-doubt' || choiceId === 'argue') {
+    return 1;
+  }
+  if (choiceId === 'plead') {
+    return 2;
+  }
+  return 0;
+};
+
+const getVictimRelationDeltaForYangxinChoice = (choiceId: YangxinVerdictChoiceId): number => {
+  if (choiceId === 'demand-punish') {
+    return 2;
+  }
+  if (choiceId === 'plead-mercy' || choiceId === 'argue' || choiceId === 'self-shift') {
+    return -2;
+  }
+  if (choiceId === 'raise-doubt' || choiceId === 'plead' || choiceId === 'self-doubt' || choiceId === 'self-plead') {
+    return -1;
+  }
+  if (choiceId === 'self-defend') {
+    return -3;
+  }
+  return 0;
+};
+
+const getConsortById = (concubines: ConcubineProfile[], consortId: string | undefined): ConcubineProfile | undefined =>
+  consortId ? concubines.find((consort) => consort.id === consortId) : undefined;
+
+const upsertAttendee = (
+  attendees: YangxinVerdictEventState['attendees'],
+  attendee: YangxinVerdictEventState['attendees'][number] | undefined,
+): YangxinVerdictEventState['attendees'] => {
+  if (!attendee) {
+    return attendees;
+  }
+  if (attendees.some((item) => item.id === attendee.id)) {
+    return attendees;
+  }
+  return [...attendees, attendee];
+};
+
+const buildConsortAttendee = (
+  consort: ConcubineProfile | undefined,
+  role: string,
+  reason: string,
+): YangxinVerdictEventState['attendees'][number] | undefined =>
+  consort
+    ? {
+        id: `consort-${consort.id}`,
+        subjectType: 'consort',
+        subjectId: consort.id,
+        name: `${consort.rankLabel} ${consort.name}`,
+        role,
+        reason,
+      }
+    : undefined;
+
+export const buildYangxinVerdictEvent = ({
+  caseState,
+  concubines,
+}: YangxinVerdictEventInput): YangxinVerdictEventState | undefined => {
+  if (caseState.status !== 'pending_verdict') {
+    return undefined;
+  }
+
+  const pendingSuspect = getPendingVerdictSuspect(caseState);
+  if (!pendingSuspect) {
+    return undefined;
+  }
+
+  const targetConsort = getConsortById(concubines, caseState.targetConsortId);
+  const actorConsort = getConsortById(concubines, caseState.actorConsortId);
+  const framedConsort = getConsortById(concubines, caseState.framedTargetConsortId);
+  const suspectConsort = pendingSuspect.subjectType === 'consort' ? getConsortById(concubines, pendingSuspect.subjectId) : undefined;
+  const isPlayerTarget = isPlayerPalaceStrifeTargetId(caseState.targetConsortId);
+  const isPlayerFramed = isPlayerPalaceStrifeTargetId(caseState.framedTargetConsortId);
+  const isPlayerSuspect = pendingSuspect.subjectType === 'player';
+  const caseTargetName = formatYangxinCaseTargetName(caseState);
+  const suspectDisplayName = formatYangxinSuspectName(pendingSuspect);
+  const framedDisplayName = formatYangxinFramedTargetName(caseState);
+  const attendeeLimit = caseState.severity === 'light' ? 4 : caseState.severity === 'medium' ? 6 : 8;
+  let attendees: YangxinVerdictEventState['attendees'] = [
+    {
+      id: 'emperor',
+      subjectType: 'emperor',
+      subjectId: 'emperor',
+      name: '皇帝',
+      role: '裁断者',
+      reason: '养心殿裁决宫斗案件。',
+    },
+  ];
+
+  attendees = upsertAttendee(attendees, {
+    id: 'player',
+    subjectType: 'player',
+    subjectId: PLAYER_PALACE_STRIFE_TARGET_ID,
+    name: '娘娘',
+    role: isPlayerSuspect ? '定罪候选人' : isPlayerTarget ? '受害者' : isPlayerFramed ? '被嫁祸者' : '相关旁听',
+    reason: '案件牵连娘娘本人，必须到场听裁。',
+  });
+  attendees = upsertAttendee(
+    attendees,
+    buildConsortAttendee(suspectConsort, '定罪候选人', '嫌疑定案率已经达到养心殿裁断门槛。'),
+  );
+  attendees = upsertAttendee(
+    attendees,
+    buildConsortAttendee(targetConsort, '受害者', '案件直接侵害其名声或安危。'),
+  );
+  attendees = upsertAttendee(
+    attendees,
+    buildConsortAttendee(framedConsort, '被嫁祸者', '案件中存在嫁祸线索，需当面陈情。'),
+  );
+  attendees = upsertAttendee(
+    attendees,
+    buildConsortAttendee(actorConsort, '实际发起者', '案卷线索指向其可能参与筹谋。'),
+  );
+  if (caseState.severity !== 'light') {
+    attendees = upsertAttendee(attendees, {
+      id: 'jiaojiao',
+      subjectType: 'maid',
+      subjectId: 'jiaojiao',
+      name: '娇娇',
+      role: '贴身宫女',
+      reason: '娘娘身边人可就起居行踪作证。',
+    });
+  }
+
+  const limitedAttendees = attendees.slice(0, attendeeLimit);
+  const statements: YangxinVerdictEventState['statements'] = [
+    {
+      id: 'emperor-open',
+      speakerId: 'emperor',
+      speakerName: '皇帝',
+      speakerRole: '裁断者',
+      text: `${caseTargetName}一案，内廷已将${suspectDisplayName}推至定罪门槛。此案为${severityLabel[caseState.severity]}，今日只问该如何裁处，不再翻案。`,
+      effectSummary: '确认进入裁断阶段。',
+    },
+    {
+      id: 'suspect-statement',
+      speakerId: pendingSuspect.subjectType === 'player' ? 'player' : `consort-${pendingSuspect.subjectId}`,
+      speakerName: suspectDisplayName,
+      speakerRole: '定罪候选人',
+      text:
+        pendingSuspect.subjectType === 'player'
+          ? '你垂首听裁，只求皇上看明案中轻重。'
+          : `${pendingSuspect.name}俯身回话，称自己并非全无分辨之处，只愿皇上酌情从轻。`,
+      effectSummary: '定罪候选人陈情。',
+    },
+  ];
+
+  if (caseState.framedTargetName) {
+    statements.push({
+      id: 'framed-statement',
+      speakerId: isPlayerFramed ? 'player' : `consort-${caseState.framedTargetConsortId}`,
+      speakerName: framedDisplayName,
+      speakerRole: '被嫁祸者',
+      text: `${framedDisplayName}提及案中嫁祸痕迹，请求养心殿不要只看表面线索。`,
+      effectSummary: '嫁祸线索会影响旁人关系。',
+    });
+  }
+
+  if (caseState.severity !== 'light') {
+    statements.push({
+      id: 'witness-statement',
+      speakerId: 'jiaojiao',
+      speakerName: '娇娇',
+      speakerRole: '贴身宫女',
+      text: '奴婢只敢照实回禀：娘娘近来行止，宫中已有多处传言。若皇上要重罚，也请容奴婢把可证之处说全。',
+      effectSummary: '贴身宫女作证，允许玩家选择求情姿态。',
+    });
+  }
+
+  return {
+    id: `yangxin-verdict-${caseState.id}`,
+    sourceType: 'palace-strife',
+    sourceId: caseState.id,
+    severity: caseState.severity,
+    stage: 'summon',
+    attendees: limitedAttendees,
+    statements,
+    playerChoices: buildYangxinPlayerChoices(isPlayerSuspect),
+  };
+};
+
+export const resolveYangxinVerdictResult = (
+  event: YangxinVerdictEventState,
+  caseState: PalaceStrifeCaseState,
+  choiceId: YangxinVerdictChoiceId,
+): NonNullable<YangxinVerdictEventState['result']> => {
+  const pendingSuspect = getPendingVerdictSuspect(caseState);
+  const multiplier = resolveYangxinVerdictPenaltyMultiplier(caseState.severity, choiceId);
+  const penalty = resolvePalaceStrifeConvictionPenalty(caseState, multiplier);
+  const relationshipDeltas: YangxinVerdictRelationshipDeltaState[] = [];
+  const suspectRelationDelta = getSuspectRelationDeltaForYangxinChoice(choiceId);
+  const victimRelationDelta = getVictimRelationDeltaForYangxinChoice(choiceId);
+
+  if (pendingSuspect?.subjectType === 'consort' && suspectRelationDelta !== 0) {
+    relationshipDeltas.push({
+      consortId: pendingSuspect.subjectId,
+      relationToPlayerDelta: suspectRelationDelta,
+      reason:
+        suspectRelationDelta > 0
+          ? '玩家在裁断中为定罪候选人减罚。'
+          : '玩家在裁断中倾向加重处罚，定罪候选人记恨。',
+    });
+  }
+
+  if (!isPlayerPalaceStrifeTargetId(caseState.targetConsortId) && victimRelationDelta !== 0) {
+    relationshipDeltas.push({
+      consortId: caseState.targetConsortId,
+      relationToPlayerDelta: victimRelationDelta,
+      reason:
+        victimRelationDelta > 0
+          ? '玩家在裁断中倾向严惩，受害者一方认可。'
+          : '玩家在裁断中减轻处罚或为自己开脱，受害者一方不满。',
+    });
+  }
+
+  const choiceLabel = event.playerChoices.find((choice) => choice.id === choiceId)?.label ?? yangxinChoiceLabels[choiceId];
+  const reductionText =
+    multiplier === 1
+      ? '未作减罚'
+      : multiplier > 1
+        ? `处罚按${Math.round(multiplier * 100)}%加重`
+      : `处罚按${Math.round(multiplier * 100)}%落地`;
+  const suspectDisplayName = formatYangxinSuspectName(pendingSuspect);
+  return {
+    choiceId,
+    choiceLabel,
+    penaltyMultiplier: multiplier,
+    penalty,
+    relationshipDeltas,
+    summary: `${choiceLabel}后，皇帝准予${reductionText}。${suspectDisplayName}定罪，${penalty.summary}`,
+  };
+};
+
+export const finalizeYangxinVerdictCase = (
+  caseState: PalaceStrifeCaseState,
+  event: YangxinVerdictEventState,
+): PalaceStrifeCaseState => {
+  const pendingSuspect = getPendingVerdictSuspect(caseState);
+  const verdictSummary = event.result?.summary ?? `${formatYangxinSuspectName(pendingSuspect)}已由养心殿裁断定罪。`;
+  return {
+    ...caseState,
+    status: 'resolved',
+    outcome: 'convicted',
+    convictedSuspectId: pendingSuspect?.id ?? caseState.pendingVerdictSuspectId,
+    verdictAttendees: event.attendees,
+    verdictSummary,
+    penaltyApplied: true,
+    archivedXunKey: caseState.archivedXunKey ?? `${caseState.year}-${caseState.month}-${caseState.xun}+yangxin`,
+    resolutionSummary: verdictSummary,
+    summary: verdictSummary,
   };
 };

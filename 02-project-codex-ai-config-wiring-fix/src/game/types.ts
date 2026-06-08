@@ -106,14 +106,102 @@ export interface PalaceTimeState {
 
 export type PalaceStrifeActionKind = 'rumor' | 'poison';
 export type PalaceStrifeSeverity = 'light' | 'medium' | 'heavy';
-export type PalaceStrifeCaseStatus = 'pending_resolution' | 'investigating' | 'resolved';
+export type PalaceStrifeCaseStatus = 'pending_resolution' | 'investigating' | 'pending_verdict' | 'resolved';
 export type PalaceStrifeCaseOutcome = 'pending' | 'cold_case' | 'convicted';
 export type PalaceStrifeActorId = 'player' | 'npc';
+export type PalaceStrifeSuspectSubjectType = 'player' | 'consort';
 export type YangxinHearingStance = 'argue' | 'plead' | 'confess';
+export type YangxinVerdictEventStage = 'summon' | 'statements' | 'player-choice' | 'verdict' | 'done';
+export type YangxinVerdictEventSourceType = 'palace-strife' | 'npc-event';
+export type YangxinVerdictChoiceId =
+  | 'argue'
+  | 'plead'
+  | 'accept'
+  | 'self-defend'
+  | 'self-doubt'
+  | 'self-plead'
+  | 'self-shift'
+  | 'self-accept'
+  | 'demand-punish'
+  | 'state-facts'
+  | 'raise-doubt'
+  | 'plead-mercy'
+  | 'silent-observe';
+export type YangxinVerdictAttendeeSubjectType = 'emperor' | 'eunuch' | 'maid' | PalaceStrifeSuspectSubjectType;
 
 export interface PalaceStrifeRolls {
   action: number;
   concealment: number;
+}
+
+export interface PalaceStrifeSuspectState {
+  id: string;
+  subjectType: PalaceStrifeSuspectSubjectType;
+  subjectId: string;
+  name: string;
+  suspicionRate: number;
+  isActualActor?: boolean;
+  isFramed?: boolean;
+  reason: string;
+}
+
+export interface YangxinVerdictAttendeeState {
+  id: string;
+  subjectType: YangxinVerdictAttendeeSubjectType;
+  subjectId: string;
+  name: string;
+  role: string;
+  reason: string;
+}
+
+export interface YangxinVerdictStatementState {
+  id: string;
+  speakerId: string;
+  speakerName: string;
+  speakerRole: string;
+  text: string;
+  effectSummary?: string;
+}
+
+export interface YangxinVerdictPlayerChoiceState {
+  id: YangxinVerdictChoiceId;
+  label: string;
+  effectHint: string;
+}
+
+export interface YangxinVerdictRelationshipDeltaState {
+  consortId: string;
+  relationToPlayerDelta: number;
+  reason: string;
+}
+
+export interface YangxinVerdictPenaltyState {
+  prestigeDelta: number;
+  favorDelta: number;
+  stressDelta: number;
+  summary: string;
+}
+
+export interface YangxinVerdictResultState {
+  choiceId: YangxinVerdictChoiceId;
+  choiceLabel: string;
+  penaltyMultiplier: number;
+  penalty: YangxinVerdictPenaltyState;
+  relationshipDeltas: YangxinVerdictRelationshipDeltaState[];
+  summary: string;
+}
+
+export interface YangxinVerdictEventState {
+  id: string;
+  sourceType: YangxinVerdictEventSourceType;
+  sourceId: string;
+  severity: PalaceStrifeSeverity;
+  stage: YangxinVerdictEventStage;
+  attendees: YangxinVerdictAttendeeState[];
+  statements: YangxinVerdictStatementState[];
+  playerChoices: YangxinVerdictPlayerChoiceState[];
+  selectedChoiceId?: YangxinVerdictChoiceId;
+  result?: YangxinVerdictResultState;
 }
 
 export interface PalaceStrifeCaseState {
@@ -145,6 +233,14 @@ export interface PalaceStrifeCaseState {
   outcome: PalaceStrifeCaseOutcome;
   investigationXunsElapsed: number;
   convictionRate: number;
+  suspects?: PalaceStrifeSuspectState[];
+  convictedSuspectId?: string;
+  pendingVerdictSuspectId?: string;
+  verdictAttendees?: YangxinVerdictAttendeeState[];
+  verdictSummary?: string;
+  penaltyApplied?: boolean;
+  archivedXunKey?: string;
+  resolutionSummary?: string;
   yangxinHearingRequired?: boolean;
   yangxinHearingResolved?: boolean;
   yangxinHearingSummary?: string;

@@ -29,6 +29,7 @@ const huaqingchiBackground = '/assets/routes/backgrounds/huaqingchi_daytime.png'
 const gongmenBackground = '/assets/routes/backgrounds/gongmen_daytime.png';
 const taiHospitalBackground = '/assets/routes/backgrounds/taiyiyuan_daytime.png';
 const yangxinOutsideBackground = '/assets/routes/backgrounds/yangxindian_outside_daytime.png';
+export const YANGXIN_VERDICT_BACKGROUND = '/assets/routes/backgrounds/yangxin_verdict_daytime.png';
 const imperialKitchenBackground = '/assets/routes/backgrounds/yushanfang_daytime.png';
 const imperialStudyBackground = '/assets/routes/backgrounds/yushufang_outside_daytime.png';
 const zhengyangGateBackground = '/assets/routes/backgrounds/zhengyangmen_daytime.png';

@@ -80,6 +80,17 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     }));
   });
 
+  const completePendingYangxinVerdict = (caseId = 'palace-strife-1') => {
+    const begin = useGameFlowStore.getState().beginPendingYangxinVerdict(caseId);
+    expect(begin.success).toBe(true);
+    expect(useGameFlowStore.getState().advanceYangxinVerdict().success).toBe(true);
+    expect(useGameFlowStore.getState().advanceYangxinVerdict().success).toBe(true);
+    expect(useGameFlowStore.getState().advanceYangxinVerdict('accept').success).toBe(true);
+    const event = useGameFlowStore.getState().pendingYangxinVerdict;
+    expect(event?.stage).toBe('verdict');
+    expect(useGameFlowStore.getState().finalizeYangxinVerdict(event?.id ?? '').success).toBe(true);
+  };
+
   it('exports durable state as SaveGameV1 without transient UI fields', () => {
     const saveGame = useGameFlowStore.getState().exportSaveGameV1('2026-05-22T06:00:00.000Z');
     const encoded = JSON.stringify(saveGame);
@@ -816,6 +827,165 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     expect(flow.palaceStrifeCases[0].convictionRate).toBe(30);
   });
 
+  it('spends silver to raise or lower a specific palace strife suspect', () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      palaceStrifeCases: state.palaceStrifeCases.map((caseState) => ({
+        ...caseState,
+        suspects: [
+          {
+            id: 'suspect-player',
+            subjectType: 'player',
+            subjectId: PLAYER_PALACE_STRIFE_TARGET_ID,
+            name: '皇后 谢令仪',
+            suspicionRate: 35,
+            isActualActor: true,
+            reason: '行动痕迹与动机最重，内廷优先追查。',
+          },
+          {
+            id: 'suspect-cui',
+            subjectType: 'consort',
+            subjectId: 'consort-cui',
+            name: '贵人 崔令蓉',
+            suspicionRate: 70,
+            isFramed: true,
+            reason: '现场线索被刻意引向此人，嫌疑骤然升高。',
+          },
+        ],
+        convictionRate: 70,
+      })),
+    }));
+
+    const lower = useGameFlowStore.getState().adjustPalaceStrifeSuspect('palace-strife-1', 'suspect-cui', 'decrease');
+    const raise = useGameFlowStore.getState().adjustPalaceStrifeSuspect('palace-strife-1', 'suspect-cui', 'increase');
+
+    const flow = useGameFlowStore.getState();
+    expect(lower.success).toBe(true);
+    expect(raise.success).toBe(true);
+    expect(flow.state.silver).toBe(1194);
+    expect(flow.hiddenStats.silver).toBe(1194);
+    expect(flow.palaceStrifeCases[0].suspects?.find((suspect) => suspect.id === 'suspect-cui')?.suspicionRate).toBe(70);
+    expect(flow.palaceStrifeCases[0].convictionRate).toBe(70);
+  });
+
+  it('moves to pending verdict when suspect intervention pushes suspicion to 100', () => {
+    const targetConsort = useGameFlowStore.getState().concubines[0];
+    const beforePrestige = Number(targetConsort.stats.prestige ?? 0);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      palaceStrifeCases: state.palaceStrifeCases.map((caseState) => ({
+        ...caseState,
+        suspects: [
+          {
+            id: `suspect-${targetConsort.id}`,
+            subjectType: 'consort',
+            subjectId: targetConsort.id,
+            name: `${targetConsort.rankLabel} ${targetConsort.name}`,
+            suspicionRate: 95,
+            isFramed: true,
+            reason: '现场线索被刻意引向此人，嫌疑骤然升高。',
+          },
+        ],
+        convictionRate: 95,
+      })),
+    }));
+
+    const result = useGameFlowStore.getState().adjustPalaceStrifeSuspect('palace-strife-1', `suspect-${targetConsort.id}`, 'increase');
+
+    const flow = useGameFlowStore.getState();
+    expect(result.success).toBe(true);
+    expect(flow.palaceStrifeCases[0]).toMatchObject({
+      status: 'pending_verdict',
+      outcome: 'pending',
+      pendingVerdictSuspectId: `suspect-${targetConsort.id}`,
+      convictionRate: 100,
+    });
+    expect(flow.palaceStrifeCases[0].convictedSuspectId).toBeUndefined();
+    expect(flow.concubines.find((consort) => consort.id === targetConsort.id)?.stats.prestige).toBe(beforePrestige);
+
+    completePendingYangxinVerdict();
+
+    const finalized = useGameFlowStore.getState();
+    expect(finalized.palaceStrifeCases[0]).toMatchObject({
+      status: 'resolved',
+      outcome: 'convicted',
+      convictedSuspectId: `suspect-${targetConsort.id}`,
+      penaltyApplied: true,
+    });
+    expect(finalized.concubines.find((consort) => consort.id === targetConsort.id)?.stats.prestige).toBe(beforePrestige - 150);
+  });
+
+  it('applies player penalties only after Yangxin verdict finalization', () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      state: {
+        ...state.state,
+        prestige: 2500,
+        favor: 40,
+        stress: 20,
+      },
+      hiddenStats: {
+        ...state.hiddenStats,
+        prestige: 2500,
+        favor: 40,
+        stress: 20,
+      },
+      palaceStrifeCases: state.palaceStrifeCases.map((caseState) => ({
+        ...caseState,
+        suspects: [
+          {
+            id: 'suspect-player',
+            subjectType: 'player',
+            subjectId: PLAYER_PALACE_STRIFE_TARGET_ID,
+            name: '皇后 谢令仪',
+            suspicionRate: 95,
+            isActualActor: true,
+            reason: '行动痕迹与动机最重，内廷优先追查。',
+          },
+        ],
+        convictionRate: 95,
+      })),
+    }));
+
+    const result = useGameFlowStore.getState().adjustPalaceStrifeSuspect('palace-strife-1', 'suspect-player', 'increase');
+
+    const flow = useGameFlowStore.getState();
+    expect(result.success).toBe(true);
+    expect(flow.palaceStrifeCases[0]).toMatchObject({
+      status: 'pending_verdict',
+      outcome: 'pending',
+      pendingVerdictSuspectId: 'suspect-player',
+    });
+    expect(flow.state).toMatchObject({
+      silver: 1214,
+      prestige: 2500,
+      favor: 40,
+      stress: 20,
+    });
+    expect(flow.hiddenStats).toMatchObject({
+      silver: 1214,
+      prestige: 2500,
+      favor: 40,
+      stress: 20,
+    });
+
+    completePendingYangxinVerdict();
+
+    const finalized = useGameFlowStore.getState();
+    expect(finalized.palaceStrifeCases[0]).toMatchObject({
+      status: 'resolved',
+      outcome: 'convicted',
+      convictedSuspectId: 'suspect-player',
+      penaltyApplied: true,
+    });
+    expect(finalized.state).toMatchObject({
+      silver: 1214,
+      prestige: 2350,
+      favor: 37,
+      stress: 20,
+    });
+  });
+
   it('does not bribe palace strife cases when silver is insufficient', () => {
     useGameFlowStore.setState((state) => ({
       ...state,
@@ -945,6 +1115,17 @@ describe('gameFlowStore SaveGameV1 integration', () => {
           outcome: 'pending',
           investigationXunsElapsed: 1,
           convictionRate: 90,
+          suspects: [
+            {
+              id: 'suspect-player',
+              subjectType: 'player',
+              subjectId: PLAYER_PALACE_STRIFE_TARGET_ID,
+              name: '皇后 谢令仪',
+              suspicionRate: 90,
+              isActualActor: true,
+              reason: '行动痕迹与动机最重，内廷优先追查。',
+            },
+          ],
           summary: '重案正在追查。',
         },
       ],
@@ -953,13 +1134,25 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     useGameFlowStore.getState().advanceTime(7);
 
     const afterConviction = useGameFlowStore.getState();
-    expect(afterConviction.palaceStrifeCases[0].outcome).toBe('convicted');
-    expect(afterConviction.state.prestige).toBe(-650);
-    expect(afterConviction.state.favor).toBe(40);
-    expect(afterConviction.state.stress).toBe(30);
-    expect(afterConviction.hiddenStats.prestige).toBe(-650);
-    expect(afterConviction.hiddenStats.favor).toBe(40);
-    expect(afterConviction.settlementReports[0].lines.join(' ')).toContain('扣声望750');
+    expect(afterConviction.palaceStrifeCases[0]).toMatchObject({
+      status: 'pending_verdict',
+      outcome: 'pending',
+      pendingVerdictSuspectId: 'suspect-player',
+    });
+    expect(afterConviction.pendingYangxinVerdict?.stage).toBe('summon');
+    expect(afterConviction.state.prestige).toBe(100);
+    expect(afterConviction.state.favor).toBe(50);
+    expect(afterConviction.state.stress).toBe(20);
+
+    completePendingYangxinVerdict('palace-strife-heavy');
+
+    const afterVerdict = useGameFlowStore.getState();
+    expect(afterVerdict.palaceStrifeCases[0].outcome).toBe('convicted');
+    expect(afterVerdict.state.prestige).toBe(-650);
+    expect(afterVerdict.state.favor).toBe(40);
+    expect(afterVerdict.state.stress).toBe(30);
+    expect(afterVerdict.hiddenStats.prestige).toBe(-650);
+    expect(afterVerdict.hiddenStats.favor).toBe(40);
 
     useGameFlowStore.getState().advanceTime(7);
 
@@ -1029,6 +1222,17 @@ describe('gameFlowStore SaveGameV1 integration', () => {
           outcome: 'pending',
           investigationXunsElapsed: 2,
           convictionRate: 90,
+          suspects: [
+            {
+              id: 'suspect-player',
+              subjectType: 'player',
+              subjectId: PLAYER_PALACE_STRIFE_TARGET_ID,
+              name: '美人 谢令仪',
+              suspicionRate: 90,
+              isActualActor: true,
+              reason: '行动痕迹与动机最重，内廷优先追查。',
+            },
+          ],
           summary: '重案正在追查。',
         },
       ],
@@ -1038,12 +1242,19 @@ describe('gameFlowStore SaveGameV1 integration', () => {
 
     const flow = useGameFlowStore.getState();
     const latestReport = flow.settlementReports.at(-1);
-    expect(flow.state.prestige).toBe(250);
-    expect(flow.hiddenStats.initialRank).toBe('才人');
+    expect(flow.state.prestige).toBe(1000);
+    expect(flow.pendingYangxinVerdict?.stage).toBe('summon');
+    expect(flow.hiddenStats.initialRank).toBe('嫔');
     expect(latestReport?.kind).toBe('month');
-    expect(latestReport?.summary).toContain('当前位份：才人');
-    expect(latestReport?.summary).toContain('当前声望：250 / 350');
-    expect(latestReport?.summary).toContain('扣声望750');
+    expect(latestReport?.summary).toContain('当前位份：嫔');
+    expect(latestReport?.summary).toContain('当前声望：1000 / 750');
+    expect(latestReport?.summary).not.toContain('扣声望750');
+
+    completePendingYangxinVerdict('palace-strife-heavy-month-end');
+
+    const afterVerdict = useGameFlowStore.getState();
+    expect(afterVerdict.state.prestige).toBe(250);
+    expect(afterVerdict.palaceStrifeCases[0].outcome).toBe('convicted');
   });
 
   it('uses player-facing palace strife status in monthly reports', () => {
@@ -1222,6 +1433,17 @@ describe('gameFlowStore SaveGameV1 integration', () => {
           outcome: 'pending',
           investigationXunsElapsed: 1,
           convictionRate: 90,
+          suspects: [
+            {
+              id: `suspect-${actor.id}`,
+              subjectType: 'consort',
+              subjectId: actor.id,
+              name: `${actor.rankLabel} ${actor.name}`,
+              suspicionRate: 90,
+              isActualActor: true,
+              reason: '行动痕迹与动机最重，内廷优先追查。',
+            },
+          ],
           summary: '重案正在追查。',
         },
       ],

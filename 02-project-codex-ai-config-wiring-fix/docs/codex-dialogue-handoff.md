@@ -1292,6 +1292,97 @@ npm run build
 - `git diff --check` 仅提示 Windows 换行归一化，没有空白错误
 - `web_game_playwright_client` 打开 `http://127.0.0.1:5173/` 生成启动页截图，未生成 console error 文件
 
+### 15.33 v0.5.1 调查与定罪闭环
+
+本轮把宫斗案件从“案件单一获罪率”升级为“案件下最多三名嫌疑人的独立定案率”，并把调查入口放回“宫斗事务”面板内。
+
+已经成立的规则：
+
+- `PalaceStrifeCaseState.suspects` 是当前案件调查真值；每名嫌疑人保存主体类型、主体 ID、名称、定案率、实际发起者标记、被嫁祸标记和嫌疑理由。
+- `convictionRate` 只同步最高嫌疑人的 `suspicionRate`，用于概览展示和旧逻辑兼容，不再作为唯一裁判。
+- 暴露案件生成嫌疑人时，实际发起者、被嫁祸者、牵连玩家优先纳入；被嫁祸者初始定案率至少 `70`。
+- 每旬推进时所有嫌疑人增长：轻 / 中 / 重为 `+8 / +14 / +20`，被嫁祸者额外 `+5`。
+- 任一嫌疑人定案率达到 `100`，案件立即写入 `convictedSuspectId` 并归档；三旬无人到 `100` 时归档为疑案。
+- “宫斗事务”只有存在调查中或已归档案件时才显示“调查”步骤；仅待夜晚结算的案件不显示空调查页。
+- 玩家可花 `20` 银两对任一嫌疑人执行定案率 `-5` 或 `+5`；本节原实现曾在推高到 `100` 后直接结案，已在 15.34 修订为进入待裁断。
+- 养心殿裁断第一版原计划复用旧入口；已在 15.34 修订为由待裁断事件触发全局对话舞台。
+- 开发期存档不迁移旧结构：旧宫斗案件如果缺少 `suspects`，`SaveGameV1` 读取时直接判为不兼容并清档。
+
+关键文件：
+
+- `src/game/types.ts`
+- `src/game/lib/palaceStrifeRuntime.ts`
+- `src/game/store/gameFlowStore.ts`
+- `src/game/save/saveGameV1.ts`
+- `src/components/chamber/ChamberUtilityViews.tsx`
+- `src/index.css`
+
+验证结果：
+
+- `npx tsc -p tsconfig.json --noEmit` 通过
+- `npx vitest run src/game/lib/palaceStrifeRuntime.test.ts src/game/save/saveGameV1.test.ts src/game/store/gameFlowStore.save.test.ts` 通过
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "宫斗事务调查页|养心殿裁断|宫斗事务下毒|宫斗事务对象"` 通过
+
+### 15.34 v0.5.1 养心殿裁断与求情阶段
+
+本轮把“嫌疑到 100 后直接结案”改成“待裁断 -> 养心殿裁断 -> 处罚落地”。
+
+- `PalaceStrifeCaseState.status` 新增 `pending_verdict`；调查推进或银两干预把嫌疑人推到 `100` 时，只写入 `pendingVerdictSuspectId`、`status='pending_verdict'` 和“待养心殿裁断”摘要，不写 `convictedSuspectId`，不扣声望 / 宠爱 / 压力。
+- 玩家相关待裁断案会生成 `pendingYangxinVerdict`，下一旬清晨优先展示内侍传旨，强制切入寝殿全局对话舞台；裁断阶段包含相关人发言、玩家选择“据理力争 / 委婉求情 / 沉默认罚”、皇帝裁断结果。
+- 裁断完成后才调用 `finalizeYangxinVerdictCase()` 写入 `convictedSuspectId`、`verdictSummary`、`penaltyApplied`、`archivedXunKey` 与 `resolutionSummary`，并应用玩家或 NPC 惩罚。NPC-only 待裁断案不打断玩家，由内廷静默裁断后进入普通结算。
+- 宫斗事务调查页新增“待裁断案件”展示；待裁断案不能继续银两干预。
+- 地图养心殿不再提供旧“养心殿裁断”工具面板入口；旧 `resolveYangxinHearing` / `yangxinHearingRequired` 仅保留兼容测试期间，不作为新流程入口。
+- `SaveGameV1` schema 提升到 `2`，`cases.pendingYangxinVerdict` 成为必需字段，可为 `null`；旧 schema 或缺字段存档直接清除。
+
+涉及文件：
+
+- `src/game/types.ts`
+- `src/game/lib/palaceStrifeRuntime.ts`
+- `src/game/store/gameFlowStore.ts`
+- `src/game/save/saveGameV1.ts`
+- `src/views/ChamberMainView.tsx`
+- `src/views/MapMainView.tsx`
+- `src/components/chamber/ChamberUtilityViews.tsx`
+
+验证：
+
+- `npx tsc --noEmit` 通过
+- `npx vitest run src/game/lib/palaceStrifeRuntime.test.ts src/game/save/saveGameV1.test.ts src/game/store/gameFlowStore.save.test.ts` 通过
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "养心殿裁断通过对话事件|宫斗事务调查页"` 通过
+
+### 15.35 v0.5.1 养心殿裁断场景修订
+
+本轮修正 15.34 中“裁断切入寝殿全局对话舞台”的表现问题：裁断不再使用独立假场景，也不再在完成后自动回寝殿。
+
+- 玩家相关待裁断案触发传唤时，`gameFlowStore` 会把 `activeMapLocation` 设置为 `养心殿`；清晨自动触发、手动 `beginPendingYangxinVerdict()` 和 `finalizeYangxinVerdict()` 都保持真实地点状态。
+- 裁断对白直接由 `ChamberMainView` 的 `GlobalDialogueStage` 覆盖在当前场景上；普通养心殿地点背景和裁断专用背景需要分开维护。
+- 裁断发言按当前发言人显示立绘：内侍、皇帝、娇娇、玩家或具体妃嫔；玩家作为定罪候选人 / 被嫁祸者时正文使用“你 / 娘娘”，不显示玩家本名。
+- 裁断结束后 `pendingYangxinVerdict` 清空，但 `activeMapLocation` 仍为 `养心殿`，玩家需要自行外出或回宫。
+- 后续修订：普通进入养心殿恢复地点外景和入场剧情；裁断事件单独使用 `yangxin_verdict_daytime.png`，不再复用侍寝图。玩家本人是定罪候选人时，选择按钮改为“为己申辩 / 低头请罪 / 沉默领罪”。
+- 后续修订：裁断按钮进一步按身份分流。玩家本人是定罪候选人时显示“据证自辩 / 陈明疑点 / 伏身求宽 / 攀指旁人 / 沉默领罪”；玩家不是嫌疑人时显示“请皇上严断 / 只陈案情 / 指出疑点 / 代为求情 / 沉默旁听”。处罚倍率与关系影响由 `resolveYangxinVerdictPenaltyMultiplier()` 和裁断关系 delta helper 统一计算。
+- 后续修订：`summon` 阶段保留在玩家寝宫，`advanceYangxinVerdict()` 从 `summon` 进入 `statements` 时才设置 `activeMapLocation='养心殿'` 并切到裁断专用背景。
+
+涉及文件：
+
+- `src/views/ChamberMainView.tsx`
+- `src/game/store/gameFlowStore.ts`
+- `src/game/lib/palaceStrifeRuntime.ts`
+- `src/config/locationSceneBackgrounds.ts`
+- `src/__tests__/app-flow.test.tsx`
+
+验证：
+
+- `npx tsc --noEmit` 通过
+- `npx vitest run src/config/locationSceneBackgrounds.test.ts src/__tests__/app-flow.test.tsx -t "LOCATION_SCENE_BACKGROUNDS|养心殿裁断通过对话事件"` 通过
+- `npx vitest run src/game/lib/palaceStrifeRuntime.test.ts src/game/save/saveGameV1.test.ts src/game/store/gameFlowStore.save.test.ts` 通过
+- `npm run build:web` 通过；仍有既有 Vite 大 chunk 警告
+- `web_game_playwright_client` 打开 `http://127.0.0.1:5173/`，启动页截图输出到 `output/web-game-v051-yangxin-real-scene/shot-0.png`
+- in-app browser 重载 `http://127.0.0.1:5173/`，页面标题为“宫斗 AI 文字游戏”，启动入口可见，控制台无 error
+- 追加验证：`npx tsc --noEmit`、`npx vitest run src/config/locationSceneBackgrounds.test.ts src/__tests__/app-flow.test.tsx -t "LOCATION_SCENE_BACKGROUNDS|养心殿裁断通过对话事件|普通进入养心殿"`、`npx vitest run src/game/lib/palaceStrifeRuntime.test.ts src/game/store/gameFlowStore.save.test.ts`、`npm run build:web` 均通过；in-app browser 重载本地页无 error
+- 追加验证：`npx tsc --noEmit`、`npx vitest run src/game/lib/palaceStrifeRuntime.test.ts src/__tests__/app-flow.test.tsx -t "self-defense choices|witness and mercy choices|养心殿裁断通过对话事件"` 通过
+- 追加验证：`npx vitest run src/game/store/gameFlowStore.save.test.ts`、`npx vitest run src/config/locationSceneBackgrounds.test.ts`、`npm run build:web` 通过；in-app browser 重载本地页无 error
+- 追加验证：`npx tsc --noEmit`、`npx vitest run src/__tests__/app-flow.test.tsx -t "养心殿裁断通过对话事件|普通进入养心殿"`、`npx vitest run src/game/lib/palaceStrifeRuntime.test.ts src/game/store/gameFlowStore.save.test.ts`、`npm run build:web` 通过
+
 ### 15.31 开发期银两 debug 指令
 
 本轮新增浏览器控制台调试入口，用于开发阶段快速补足玩家银两。
@@ -1319,6 +1410,29 @@ npm run build
 - `npm run build:web` 通过；仍有既有 Vite 大 chunk 警告
 - `web_game_playwright_client` 打开 `http://127.0.0.1:5173/` 生成启动页截图，未生成 console error 文件
 - 页面上下文执行 `palaceDebug.addSilver(7)` 返回成功，银两从 `1000` 增至 `1007`，console error 为空
+
+### 15.32 宫斗事务候选对象动态读取
+
+本轮修复后宫扩容到 `12` 人后，宫斗事务仍只显示前 `6` 个妃嫔的问题。
+
+已经成立的规则：
+
+- 玩家主动宫斗的目标对象必须从当前 `concubines` 中所有 `status === 'live'` 且住所不包含冷宫的妃嫔动态读取。
+- 宫斗目标、嫁祸对象和合谋候选都不得再按旧面板容量做 `.slice(0, 6)` 固定截断。
+- 可滚动面板负责承接人数增长；不要为了 UI 排版把规则层候选硬裁掉。
+- `startPalaceStrifeCase()` 本身已经支持当前 roster 中的妃嫔；这次问题在 `AffairsPanelView` 的 UI 候选列表。
+
+关键文件：
+
+- `src/components/chamber/ChamberUtilityViews.tsx`
+- `src/__tests__/app-flow.test.tsx`
+
+验证结果：
+
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "宫斗事务对象|宫斗事务选择下毒|宫斗事务下毒"` 通过，5 passed
+- `npx tsc -p tsconfig.json --noEmit` 通过
+- `npm run build:web` 通过；仍有既有 Vite 大 chunk 警告
+- `web_game_playwright_client` 打开 `http://127.0.0.1:5173/` 生成启动页截图，未生成 console error 文件；截图仍可见既有启动页图片资源污染，非本轮宫斗候选问题
 
 ### 15.28 v0.5.0 妃嫔规模与掖庭毒药入口
 

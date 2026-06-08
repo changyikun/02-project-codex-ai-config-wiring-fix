@@ -10,7 +10,7 @@ import type { BondProfileState, ConcubineProfile, GameNumericsState, HiddenStats
 type ChronicleTabId = 'edict' | 'secret' | 'quarrel' | 'event' | 'rumor';
 type MiscInfoCardId = 'emperor' | 'officials' | 'dowager' | 'father' | 'court';
 type InventoryTabId = 'tonic' | 'gift' | 'pill' | 'key-item';
-type AffairStepId = 'target' | 'method' | 'ally' | 'item' | 'finish';
+type AffairStepId = 'target' | 'method' | 'ally' | 'item' | 'investigation' | 'finish';
 type AffairSourceLabel = '宫斗事务' | '家族事务' | '朝堂事务';
 type PoisonQteOutcome = 'success' | 'failure';
 
@@ -50,6 +50,7 @@ const affairSteps: Array<{ id: AffairStepId; label: string }> = [
   { id: 'method', label: '方式' },
   { id: 'ally', label: '合谋' },
   { id: 'item', label: '道具' },
+  { id: 'investigation', label: '调查' },
   { id: 'finish', label: '完成' },
 ];
 
@@ -258,10 +259,7 @@ interface ChroniclePanelViewProps {
 }
 
 export function ChroniclePanelView({ time, state, hiddenStats, settlementReports, onClose }: ChroniclePanelViewProps) {
-  const palaceStrifeCases = useGameFlowStore((store) => store.palaceStrifeCases);
-  const bribePalaceStrifeCase = useGameFlowStore((store) => store.bribePalaceStrifeCase);
   const [activeTab, setActiveTab] = useState<ChronicleTabId>('edict');
-  const [interventionText, setInterventionText] = useState('');
   const monthReports = useMemo(
     () => settlementReports.filter((report) => report.kind === 'month').slice().reverse(),
     [settlementReports],
@@ -340,20 +338,6 @@ export function ChroniclePanelView({ time, state, hiddenStats, settlementReports
     }),
     [hiddenStats.favor, hiddenStats.silver, monthReports, state.openingTendency, state.residenceName, state.stamina, time.month, time.xun, time.year, xunReports],
   );
-  const investigatingCases = useMemo(
-    () => palaceStrifeCases.filter((caseState) => caseState.status === 'investigating'),
-    [palaceStrifeCases],
-  );
-  const formatCaseParties = (caseState: (typeof investigatingCases)[number]): string =>
-    caseState.actorId === 'npc' && caseState.actorName
-      ? `${caseState.actorName} -> ${caseState.targetName}`
-      : `娘娘 -> ${caseState.targetName}`;
-
-  const handleBribeCase = (caseId: string) => {
-    const result = bribePalaceStrifeCase(caseId, 20);
-    setInterventionText(result.message);
-  };
-
   return (
     <UtilityPanelShell ariaLabel="纪事面板" backgroundImage={CHRONICLE_UI_BACKGROUND} onClose={onClose}>
       <div className="chamber-utility-view__toolbar chamber-utility-view__toolbar--chronicle">
@@ -370,20 +354,6 @@ export function ChroniclePanelView({ time, state, hiddenStats, settlementReports
       </div>
 
       <div className="chamber-utility-view__body chamber-utility-view__body--chronicle">
-        {activeTab === 'event' && investigatingCases.length > 0 ? (
-          <article className="chamber-utility-view__entry-card">
-            <h3>调查期打点</h3>
-            <p>{interventionText || '娇娇可替娘娘暗中打点。每花20两，可压下5点定案率。'}</p>
-            <div className="chamber-utility-view__option-grid">
-              {investigatingCases.map((caseState) => (
-                <button key={caseState.id} type="button" onClick={() => handleBribeCase(caseState.id)}>
-                  <strong>{formatCaseParties(caseState)}</strong>
-                  <span>{`${caseState.methodLabel}：${caseState.itemLabel}；已查${caseState.investigationXunsElapsed}旬，定案率${caseState.convictionRate}%；花20两打点`}</span>
-                </button>
-              ))}
-            </div>
-          </article>
-        ) : null}
         {entries[activeTab].map((entry) => (
           <article key={entry.title} className="chamber-utility-view__entry-card">
             <h3>{entry.title}</h3>
@@ -710,7 +680,9 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
 
   const state = useGameFlowStore((store) => store.state);
   const inventory = useGameFlowStore((store) => store.inventory);
+  const palaceStrifeCases = useGameFlowStore((store) => store.palaceStrifeCases);
   const startPalaceStrifeCase = useGameFlowStore((store) => store.startPalaceStrifeCase);
+  const adjustPalaceStrifeSuspect = useGameFlowStore((store) => store.adjustPalaceStrifeSuspect);
   const consumeInventoryItem = useGameFlowStore((store) => store.consumeInventoryItem);
   const [activeStep, setActiveStep] = useState<AffairStepId>('target');
   const [selectedTarget, setSelectedTarget] = useState<string>('');
@@ -718,6 +690,7 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
   const [selectedAlly, setSelectedAlly] = useState('无');
   const [selectedFrameTarget, setSelectedFrameTarget] = useState('无');
   const [selectedItem, setSelectedItem] = useState('不使用');
+  const [investigationText, setInvestigationText] = useState('');
   const [palaceCaseRegistered, setPalaceCaseRegistered] = useState(false);
   const [poisonQteActive, setPoisonQteActive] = useState(false);
   const [poisonQteOutcome, setPoisonQteOutcome] = useState<PoisonQteOutcome | undefined>();
@@ -746,8 +719,30 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
   );
 
   const targets = useMemo(
-    () => (entrySource === '宫斗事务' ? palaceAffairConcubines : concubines).slice(0, 6),
+    () => (entrySource === '宫斗事务' ? palaceAffairConcubines : concubines),
     [concubines, entrySource, palaceAffairConcubines],
+  );
+  const investigatingCases = useMemo(
+    () => palaceStrifeCases.filter((caseState) => caseState.status === 'investigating'),
+    [palaceStrifeCases],
+  );
+  const pendingVerdictCases = useMemo(
+    () => palaceStrifeCases.filter((caseState) => caseState.status === 'pending_verdict'),
+    [palaceStrifeCases],
+  );
+  const archivedCases = useMemo(
+    () => palaceStrifeCases.filter((caseState) => caseState.status === 'resolved'),
+    [palaceStrifeCases],
+  );
+  const affairStepOptions = useMemo(
+    () =>
+      affairSteps.filter((step) => {
+        if (step.id !== 'investigation') {
+          return true;
+        }
+        return entrySource === '宫斗事务' && investigatingCases.length + pendingVerdictCases.length + archivedCases.length > 0;
+      }),
+    [archivedCases.length, entrySource, investigatingCases.length, pendingVerdictCases.length],
   );
 
   const methods = useMemo(
@@ -766,7 +761,6 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
     }
     const eligibleAllies = palaceAffairConcubines
       .filter((concubine) => concubine.id !== selectedTarget && concubine.stats.relationToPlayer >= 60)
-      .slice(0, 6)
       .map((concubine) => `${concubine.rankLabel} ${concubine.name}`);
     return ['无', ...eligibleAllies];
   }, [entrySource, palaceAffairConcubines, selectedTarget]);
@@ -783,14 +777,16 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
   const rumorItems = useMemo(() => ['欺凌宫人', '奢侈浪费', '与人偷情', '意图谋逆', '不敬先祖'], []);
   const frameTargets = useMemo(() => {
     if (entrySource !== '宫斗事务') {
-      return ['无'];
+      return [{ id: '无', label: '无' }];
     }
     return [
-      '无',
+      { id: '无', label: '无' },
       ...palaceAffairConcubines
         .filter((concubine) => concubine.id !== selectedTarget)
-        .slice(0, 6)
-        .map((concubine) => `${concubine.rankLabel} ${concubine.name}`),
+        .map((concubine) => ({
+          id: concubine.id,
+          label: `${concubine.rankLabel} ${concubine.name}`,
+        })),
     ];
   }, [entrySource, palaceAffairConcubines, selectedTarget]);
 
@@ -823,7 +819,7 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
   }, [allies, selectedAlly]);
 
   useEffect(() => {
-    if (!frameTargets.includes(selectedFrameTarget)) {
+    if (!frameTargets.some((target) => target.id === selectedFrameTarget)) {
       setSelectedFrameTarget('无');
     }
   }, [frameTargets, selectedFrameTarget]);
@@ -833,6 +829,12 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
       setSelectedItem(items[0] ?? '不使用');
     }
   }, [items, selectedItem]);
+
+  useEffect(() => {
+    if (!affairStepOptions.some((step) => step.id === activeStep)) {
+      setActiveStep(entrySource === '朝堂事务' ? 'method' : 'target');
+    }
+  }, [activeStep, affairStepOptions, entrySource]);
 
   useEffect(() => {
     setPoisonQteActive(false);
@@ -878,6 +880,7 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
   }, [poisonQteActive, poisonQteConfig.speed]);
 
   const selectedTargetProfile = targets.find((item) => item.id === selectedTarget) ?? targets[0];
+  const selectedFrameTargetEntry = frameTargets.find((item) => item.id === selectedFrameTarget);
 
   const beginPoisonQte = () => {
     setPoisonQteActive(true);
@@ -918,7 +921,8 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
       methodLabel: selectedMethod,
       itemLabel: selectedItem,
       allyLabel: selectedAlly,
-      framedTargetName: selectedFrameTarget === '无' ? undefined : selectedFrameTarget,
+      framedTargetConsortId: selectedFrameTarget === '无' ? undefined : selectedFrameTarget,
+      framedTargetName: selectedFrameTarget === '无' ? undefined : selectedFrameTargetEntry?.label,
     });
     const investigationText =
       result.caseState.status === 'investigating'
@@ -988,11 +992,16 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
     setActiveStep('finish');
   };
 
+  const handleSuspectIntervention = (caseId: string, suspectId: string, direction: 'increase' | 'decrease') => {
+    const result = adjustPalaceStrifeSuspect(caseId, suspectId, direction);
+    setInvestigationText(result.message);
+  };
+
   return (
     <UtilityPanelShell ariaLabel="宫斗事务面板" backgroundImage={AFFAIRS_UI_BACKGROUND} onClose={onClose}>
       <div className="chamber-utility-view__body chamber-utility-view__body--affairs">
         <aside className="chamber-utility-view__affairs-steps">
-          {affairSteps.map((step) => (
+          {affairStepOptions.map((step) => (
             <button
               key={step.id}
               type="button"
@@ -1066,12 +1075,12 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
                   <div className="chamber-utility-view__option-grid">
                     {frameTargets.map((frameTarget) => (
                       <button
-                        key={frameTarget}
+                        key={frameTarget.id}
                         type="button"
-                        className={selectedFrameTarget === frameTarget ? 'is-active' : ''}
-                        onClick={() => setSelectedFrameTarget(frameTarget)}
+                        className={selectedFrameTarget === frameTarget.id ? 'is-active' : ''}
+                        onClick={() => setSelectedFrameTarget(frameTarget.id)}
                       >
-                        <strong>{frameTarget}</strong>
+                        <strong>{frameTarget.label}</strong>
                         <span>点击后作为嫁祸对象</span>
                       </button>
                     ))}
@@ -1106,6 +1115,82 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
                   </span>
                 </button>
               ))}
+            </div>
+          ) : null}
+
+          {activeStep === 'investigation' ? (
+            <div className="chamber-utility-view__investigation-list">
+              {investigationText ? <div className="chamber-utility-view__empty-state">{investigationText}</div> : null}
+              {investigatingCases.length > 0 ? (
+                <>
+                  <h4>调查案件</h4>
+                  {investigatingCases.map((caseState) => (
+                    <article key={caseState.id} className="chamber-utility-view__entry-card">
+                      <h3>{caseState.targetName}</h3>
+                      <p>{`${caseState.methodLabel}：${caseState.itemLabel}。${caseState.summary} 已查${caseState.investigationXunsElapsed}旬，最高定案率${caseState.convictionRate}%。`}</p>
+                      <div className="chamber-utility-view__option-grid">
+                        {(caseState.suspects ?? []).map((suspect) => (
+                          <div key={suspect.id} className="chamber-utility-view__suspect-card">
+                            <strong>{suspect.name}</strong>
+                            <span>{`定案率 ${suspect.suspicionRate}%`}</span>
+                            <p>{suspect.reason}</p>
+                            <button type="button" onClick={() => handleSuspectIntervention(caseState.id, suspect.id, 'decrease')}>
+                              <strong>花20两压低嫌疑</strong>
+                              <span>定案率 -5</span>
+                            </button>
+                            <button type="button" onClick={() => handleSuspectIntervention(caseState.id, suspect.id, 'increase')}>
+                              <strong>花20两推高嫌疑</strong>
+                              <span>定案率 +5</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
+                </>
+              ) : null}
+              {pendingVerdictCases.length > 0 ? (
+                <>
+                  <h4>待裁断案件</h4>
+                  {pendingVerdictCases.map((caseState) => {
+                    const pendingSuspect = (caseState.suspects ?? []).find(
+                      (suspect) => suspect.id === caseState.pendingVerdictSuspectId,
+                    );
+                    return (
+                      <article key={caseState.id} className="chamber-utility-view__entry-card">
+                        <h3>{caseState.targetName}</h3>
+                        <p>
+                          {`${caseState.methodLabel}：${caseState.itemLabel}。${pendingSuspect?.name ?? '首要嫌疑人'}已达定罪门槛，待养心殿传唤裁断。`}
+                        </p>
+                      </article>
+                    );
+                  })}
+                </>
+              ) : null}
+              {archivedCases.length > 0 ? (
+                <>
+                  <h4>归档案件</h4>
+                  {archivedCases.map((caseState) => {
+                    const suspects = caseState.suspects ?? [];
+                    const convictedSuspect = suspects.find((suspect) => suspect.id === caseState.convictedSuspectId);
+                    return (
+                      <article key={caseState.id} className="chamber-utility-view__entry-card">
+                        <h3>{caseState.targetName}</h3>
+                        <p>
+                          {caseState.outcome === 'convicted'
+                            ? `${convictedSuspect?.name ?? '首要嫌疑人'}定罪。${caseState.resolutionSummary ?? caseState.summary}`
+                            : `三旬未定，暂作疑案。${caseState.resolutionSummary ?? caseState.summary}`}
+                        </p>
+                        <ul className="chamber-utility-view__entry-lines" aria-label="最终嫌疑分布">
+                          {suspects.map((suspect) => (
+                            <li key={suspect.id}>{`${suspect.name}：${suspect.suspicionRate}%`}</li>
+                          ))}
+                        </ul>
+                      </article>
+                    );
+                  })}
+                </>
+              ) : null}
             </div>
           ) : null}
 

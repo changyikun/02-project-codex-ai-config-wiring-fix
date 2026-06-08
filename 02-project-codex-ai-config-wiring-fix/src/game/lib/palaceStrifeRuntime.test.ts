@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   advancePalaceStrifeInvestigations,
   applyPalaceStrifeBribe,
+  applyPalaceStrifeSuspectIntervention,
+  buildYangxinVerdictEvent,
   generateNpcPalaceStrifeCase,
   PLAYER_PALACE_STRIFE_TARGET_ID,
+  resolveYangxinVerdictResult,
   resolvePalaceStrifeAttempt,
   resolvePalaceStrifeSeverity,
   resolvePalaceStrifeConvictionPenalty,
@@ -143,6 +146,43 @@ describe('palaceStrifeRuntime', () => {
     expect(framed.caseState.framedTargetName).toBe('贵人 姚铃儿');
   });
 
+  it('builds up to three suspects and heavily raises the framed suspect', () => {
+    const framedTarget = {
+      ...target,
+      id: 'consort-yao',
+      name: '姚铃儿',
+      rankLabel: '贵人',
+      stats: {
+        ...target.stats,
+        relationToPlayer: -60,
+        ambition: 90,
+        stress: 80,
+      },
+    } satisfies ConcubineProfile;
+    const result = resolvePalaceStrifeAttempt({
+      playerState,
+      target,
+      framedTarget,
+      suspectCandidates: [target, framedTarget],
+      actionKind: 'rumor',
+      methodLabel: '散布流言',
+      itemLabel: '与人偷情',
+      allyLabel: '无',
+      time: { year: 1, month: 2, xun: 1 },
+      rolls: { action: 1, concealment: 99 },
+    });
+
+    expect(result.caseState.suspects).toHaveLength(2);
+    expect(result.caseState.suspects?.find((suspect) => suspect.isFramed)).toMatchObject({
+      subjectId: framedTarget.id,
+      suspicionRate: expect.any(Number),
+    });
+    expect(result.caseState.suspects?.find((suspect) => suspect.isFramed)?.suspicionRate).toBeGreaterThanOrEqual(70);
+    expect(result.caseState.convictionRate).toBe(
+      Math.max(...(result.caseState.suspects ?? []).map((suspect) => suspect.suspicionRate)),
+    );
+  });
+
   it('advances investigating cases by severity each xun', () => {
     const [nextCase] = advancePalaceStrifeInvestigations([
       buildCase({ severity: 'light', convictionRate: 35 }),
@@ -154,7 +194,7 @@ describe('palaceStrifeRuntime', () => {
     expect(nextCase.outcome).toBe('pending');
   });
 
-  it('resolves investigations after three xun or when conviction reaches 100', () => {
+  it('archives cold cases after three xun and sends 100-rate suspects to pending verdict', () => {
     const [coldCase] = advancePalaceStrifeInvestigations([
       buildCase({ severity: 'light', convictionRate: 50, investigationXunsElapsed: 2 }),
     ]);
@@ -165,14 +205,26 @@ describe('palaceStrifeRuntime', () => {
     expect(coldCase.status).toBe('resolved');
     expect(coldCase.outcome).toBe('cold_case');
     expect(coldCase.convictionRate).toBe(58);
-    expect(convictedCase.status).toBe('resolved');
-    expect(convictedCase.outcome).toBe('convicted');
+    expect(convictedCase.status).toBe('pending_verdict');
+    expect(convictedCase.outcome).toBe('pending');
+    expect(convictedCase.pendingVerdictSuspectId).toBe('suspect-player');
+    expect(convictedCase.convictedSuspectId).toBeUndefined();
     expect(convictedCase.convictionRate).toBe(100);
   });
 
   it('reduces conviction rate through bribes without going below zero', () => {
     expect(applyPalaceStrifeBribe(buildCase({ convictionRate: 43 }), 20).convictionRate).toBe(38);
     expect(applyPalaceStrifeBribe(buildCase({ convictionRate: 4 }), 40).convictionRate).toBe(0);
+  });
+
+  it('can raise a suspect to pending verdict through intervention', () => {
+    const raised = applyPalaceStrifeSuspectIntervention(buildCase({ convictionRate: 95 }), 'suspect-player', 5);
+
+    expect(raised.status).toBe('pending_verdict');
+    expect(raised.outcome).toBe('pending');
+    expect(raised.pendingVerdictSuspectId).toBe('suspect-player');
+    expect(raised.convictedSuspectId).toBeUndefined();
+    expect(raised.convictionRate).toBe(100);
   });
 
   it('resolves conviction penalties by severity', () => {
@@ -185,6 +237,90 @@ describe('palaceStrifeRuntime', () => {
       prestigeDelta: -750,
       favorDelta: -10,
       stressDelta: 10,
+    });
+  });
+
+  it('uses self-defense choices when the player is the pending verdict suspect', () => {
+    const caseState = buildCase({
+      status: 'pending_verdict',
+      severity: 'medium',
+      convictionRate: 100,
+      pendingVerdictSuspectId: 'suspect-player',
+      suspects: [
+        {
+          id: 'suspect-player',
+          subjectType: 'player',
+          subjectId: PLAYER_PALACE_STRIFE_TARGET_ID,
+          name: '皇后 谢令仪',
+          suspicionRate: 100,
+          isActualActor: true,
+          reason: '行动痕迹与动机最重，内廷优先追查。',
+        },
+      ],
+    });
+
+    const event = buildYangxinVerdictEvent({
+      caseState,
+      playerState,
+      playerRankLabel: '皇后',
+      concubines: [target],
+    });
+
+    expect(event?.playerChoices.map((choice) => choice.label)).toEqual([
+      '据证自辩',
+      '陈明疑点',
+      '伏身求宽',
+      '攀指旁人',
+      '沉默领罪',
+    ]);
+    expect(resolveYangxinVerdictResult(event!, caseState, 'self-defend')).toMatchObject({
+      choiceLabel: '据证自辩',
+      penaltyMultiplier: 0.8,
+    });
+  });
+
+  it('uses witness and mercy choices when another consort is the pending verdict suspect', () => {
+    const caseState = buildCase({
+      status: 'pending_verdict',
+      severity: 'medium',
+      convictionRate: 100,
+      pendingVerdictSuspectId: 'suspect-cui',
+      suspects: [
+        {
+          id: 'suspect-cui',
+          subjectType: 'consort',
+          subjectId: target.id,
+          name: '贵人 崔令蓉',
+          suspicionRate: 100,
+          isActualActor: true,
+          reason: '行动痕迹与动机最重，内廷优先追查。',
+        },
+      ],
+    });
+
+    const event = buildYangxinVerdictEvent({
+      caseState,
+      playerState,
+      playerRankLabel: '皇后',
+      concubines: [target],
+    });
+    const mercy = resolveYangxinVerdictResult(event!, caseState, 'plead-mercy');
+    const punish = resolveYangxinVerdictResult(event!, caseState, 'demand-punish');
+
+    expect(event?.playerChoices.map((choice) => choice.label)).toEqual([
+      '请皇上严断',
+      '只陈案情',
+      '指出疑点',
+      '代为求情',
+      '沉默旁听',
+    ]);
+    expect(mercy).toMatchObject({
+      choiceLabel: '代为求情',
+      penaltyMultiplier: 0.84,
+    });
+    expect(punish).toMatchObject({
+      choiceLabel: '请皇上严断',
+      penaltyMultiplier: 1.12,
     });
   });
 
@@ -270,30 +406,44 @@ describe('palaceStrifeRuntime', () => {
   });
 });
 
-const buildCase = (patch: Partial<PalaceStrifeCaseState> = {}): PalaceStrifeCaseState => ({
-  id: 'palace-strife-1',
-  xunKey: '1-2-1',
-  year: 1,
-  month: 2,
-  xun: 1,
-  actorId: 'player',
-  targetConsortId: 'consort-cui',
-  targetName: '贵人 崔令蓉',
-  actionKind: 'rumor',
-  methodLabel: '散布流言',
-  itemLabel: '不使用',
-  allyLabel: '无',
-  severity: 'light',
-  actionSuccessRate: 52,
-  concealmentSuccessRate: 61,
-  actionRoll: 12,
-  concealmentRoll: 88,
-  actionSucceeded: true,
-  concealmentSucceeded: false,
-  status: 'investigating',
-  outcome: 'pending',
-  investigationXunsElapsed: 0,
-  convictionRate: 35,
-  summary: '流言已起，内廷开始追查源头。',
-  ...patch,
-});
+const buildCase = (patch: Partial<PalaceStrifeCaseState> = {}): PalaceStrifeCaseState => {
+  const suspicionRate = patch.convictionRate ?? 35;
+  return {
+    id: 'palace-strife-1',
+    xunKey: '1-2-1',
+    year: 1,
+    month: 2,
+    xun: 1,
+    actorId: 'player',
+    targetConsortId: 'consort-cui',
+    targetName: '贵人 崔令蓉',
+    actionKind: 'rumor',
+    methodLabel: '散布流言',
+    itemLabel: '不使用',
+    allyLabel: '无',
+    severity: 'light',
+    actionSuccessRate: 52,
+    concealmentSuccessRate: 61,
+    actionRoll: 12,
+    concealmentRoll: 88,
+    actionSucceeded: true,
+    concealmentSucceeded: false,
+    status: 'investigating',
+    outcome: 'pending',
+    investigationXunsElapsed: 0,
+    convictionRate: suspicionRate,
+    suspects: [
+      {
+        id: 'suspect-player',
+        subjectType: 'player',
+        subjectId: PLAYER_PALACE_STRIFE_TARGET_ID,
+        name: '娘娘 谢令仪',
+        suspicionRate,
+        isActualActor: true,
+        reason: '行动痕迹与动机最重，内廷优先追查。',
+      },
+    ],
+    summary: '流言已起，内廷开始追查源头。',
+    ...patch,
+  };
+};

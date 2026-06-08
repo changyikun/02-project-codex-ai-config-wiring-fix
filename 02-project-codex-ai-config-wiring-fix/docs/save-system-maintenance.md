@@ -30,6 +30,8 @@
 - 必须保存：玩家数值、隐藏数值、时间、路线、妃嫔、库存、交易记录、关系进度、地点进度、侍寝进度、旬月通报、宫斗案件。
 - NPC 旬级行动和 NPC-NPC 关系矩阵属于长期真值：它们决定本旬玩家能在何处遇到谁、谁在谁殿内同场、以及旬末 NPC 关系如何变化。
 - `progress.npcActivity.entries` 中未收束的 `visit-consort.targetConsortId` 表示目标妃嫔本旬在自己寝宫会客；读档恢复或 UI 重建时不得因为目标自己的旧公共外出条目或特殊住址导致她从寝宫消失。玩家结束这次会客后，该 `visit-consort` 标记为 `resolved=true`，来访妃嫔回自己的寝宫，目标不再显示“会客中”。公共外出的 `resolved=true` 只表示已交谈，NPC 仍留在原目的地。
+- `cases.palaceStrifeCases` 中每个宫斗案件必须保存 `suspects` 数组。v0.5.1 起，案件裁判以嫌疑人独立 `suspicionRate` 为准，`convictionRate` 只是最高定案率展示值；缺少 `suspects` 的旧案件视为不兼容存档。
+- `cases.pendingYangxinVerdict` 保存玩家相关待裁断案的养心殿对话事件状态。它是长期真值，因为刷新后仍必须继续“传唤 / 发言 / 选择 / 裁断”流程，不能退回娇娇通报或直接结案。
 - 读取存档后，UI 阶段由 `resolveResumeViewFromSave` 从 durable state 推断。
 
 当前恢复规则：
@@ -81,3 +83,5 @@
 - `progress.musicHall.musicScoreMastery`：曲谱长期学习真值。按曲谱 `itemId` 保存难度、完成度、练习次数、表现上限、最近一次练习预演表现分和最近练习时间；若后续结构变化，清旧档而不是反向推断。
 - `progress.npcActivity`：当前旬 NPC 行动表。缺失则视为不兼容存档，不能在恢复阶段临时生成来迁移旧档。
 - `relations.npcRelationMatrix`：NPC-NPC 双向关系矩阵。缺失则视为不兼容存档，不能在恢复阶段补 `{}` 来迁移旧档。
+- `cases.palaceStrifeCases[].suspects`：宫斗调查嫌疑人列表。缺失则视为不兼容存档，不能把旧 `convictionRate` 反推成单一嫌疑人来迁移旧档。
+- `cases.pendingYangxinVerdict`：当前养心殿裁断事件。`SaveGameV1` schema `2` 起为必需字段，可为 `null`；缺失则视为不兼容存档。

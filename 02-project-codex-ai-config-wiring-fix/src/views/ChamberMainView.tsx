@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { AffairsPanelView, BondPanelView, ChroniclePanelView, InventoryPanelView, MiscInfoPanelView, YangxinHearingPanelView } from '../components/chamber/ChamberUtilityViews';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { AffairsPanelView, BondPanelView, ChroniclePanelView, InventoryPanelView, MiscInfoPanelView } from '../components/chamber/ChamberUtilityViews';
 import { BaohuaHallView } from '../components/chamber/BaohuaHallView';
 import { DowagerAudiencePanel } from '../components/chamber/DowagerAudiencePanel';
 import { HuaQingPoolView } from '../components/chamber/HuaQingPoolView';
@@ -26,7 +26,12 @@ import {
   DEFAULT_MONTHLY_EXPENSE_STRATEGY,
   MONTHLY_EXPENSE_STRATEGIES,
 } from '../config/monthlyExpenseStrategy';
-import { HAREM_OUTSIDE_BACKGROUND, LOCATION_SCENE_BACKGROUNDS, resolvePlayerHomeBackground } from '../config/locationSceneBackgrounds';
+import {
+  HAREM_OUTSIDE_BACKGROUND,
+  LOCATION_SCENE_BACKGROUNDS,
+  YANGXIN_VERDICT_BACKGROUND,
+  resolvePlayerHomeBackground,
+} from '../config/locationSceneBackgrounds';
 import { buildRandomMusicScoreItem } from '../game/data/inventoryPresets';
 import { buildInitialBondProfile } from '../game/data/bondPresets';
 import {
@@ -67,6 +72,7 @@ const bottomToolMessage: Record<string, string> = {
 };
 const ASSISTANT_PORTRAIT_SRC = '/assets/dialogue/jiaojiao-final.png';
 const EUNUCH_PORTRAIT_SRC = '/assets/characters/men/taijian.png';
+const EMPEROR_PORTRAIT_SRC = '/assets/characters/men/emperor.jpg';
 const JIAOJIAO_COMMAND_PROMPT = '娘娘，有何吩咐？';
 const LIANQIAO_PORTRAIT_SRC = '/assets/characters/women/lianqiao.jpg';
 const EXPENSE_EXPLANATION_OPTION_ID = 'expense-explanation';
@@ -185,6 +191,9 @@ export function ChamberMainView() {
     npcActivity,
     acknowledgeNpcPlayerVisit,
     resolveNpcActivityEntry,
+    pendingYangxinVerdict,
+    advanceYangxinVerdict,
+    finalizeYangxinVerdict,
   } = useGameFlowStore();
   const [dialogueText, setDialogueText] = useState('');
   const [bedchamberGiftItemName, setBedchamberGiftItemName] = useState('');
@@ -194,6 +203,7 @@ export function ChamberMainView() {
   const [expenseStrategyPanelOpen, setExpenseStrategyPanelOpen] = useState(false);
   const [utilityReturnPanel, setUtilityReturnPanel] = useState<ChamberPanelId | null>(null);
   const [npcPlayerVisitResultText, setNpcPlayerVisitResultText] = useState('');
+  const [yangxinStatementIndex, setYangxinStatementIndex] = useState(0);
   const [activeLocationAudience, setActiveLocationAudience] = useState<{
     entryId: string;
     consortId: string;
@@ -202,6 +212,7 @@ export function ChamberMainView() {
   const [pendingChamberDialogueAction, setPendingChamberDialogueAction] =
     useState<PendingChamberDialogueAction>(null);
   const overnightTransitionRunKeyRef = useRef<string | null>(null);
+  const suppressNextYangxinEntryNarrativeRef = useRef(false);
   const isResidenceLocation = activeMapLocation === state.residenceName;
   const isOutsideScene = Boolean(activeMapLocation && !isResidenceLocation);
   const isJianzhangAudience = activeChamberPanel === 'main' && activeMapLocation === '建章宫';
@@ -214,24 +225,27 @@ export function ChamberMainView() {
   const isHaremPanelActive = activeChamberPanel === 'harem';
   const pendingNightlyServiceEvent = nightlyService.pendingEvent;
   const pendingNightlyServiceNotice = nightlyService.pendingNotice;
-  const shouldDelayNightlyServiceOverlay = Boolean(dialogueText);
+  const shouldDelayNightlyServiceOverlay = Boolean(dialogueText || pendingYangxinVerdict);
   const shouldShowPendingNightlyServiceEvent = Boolean(pendingNightlyServiceEvent && !shouldDelayNightlyServiceOverlay);
   const shouldShowPendingNightlyServiceNotice = Boolean(
     !shouldShowPendingNightlyServiceEvent && pendingNightlyServiceNotice && !shouldDelayNightlyServiceOverlay,
   );
   const isOvernightTransitionActive = overnightTransitionPhase !== 'hidden';
+  const isOvernightTransitionVisualActive = isOvernightTransitionActive && !pendingYangxinVerdict;
   const isNightlyOverlayActive = Boolean(
-    shouldShowPendingNightlyServiceEvent || shouldShowPendingNightlyServiceNotice || isOvernightTransitionActive,
+    shouldShowPendingNightlyServiceEvent || shouldShowPendingNightlyServiceNotice || isOvernightTransitionVisualActive,
   );
   const shouldHideChamberUiForNightlyOverlay = Boolean(
-    shouldShowPendingNightlyServiceEvent || shouldShowPendingNightlyServiceNotice || overnightTransitionPhase === 'fade-in',
+    shouldShowPendingNightlyServiceEvent || shouldShowPendingNightlyServiceNotice || (overnightTransitionPhase === 'fade-in' && !pendingYangxinVerdict),
   );
   const isJiaojiaoPanel = activeChamberPanel === 'jiaojiao';
   const isFullSurfacePanel = activeChamberPanel !== 'main' && !isJiaojiaoPanel;
   const showResidenceUi = !isOutsideScene && !isFullSurfacePanel;
   const currentSceneLabel = isHaremPanelActive ? '后宫' : activeMapLocation ?? state.residenceName;
   const currentSceneBackground =
-    isHaremPanelActive
+    pendingYangxinVerdict && pendingYangxinVerdict.stage !== 'summon'
+      ? YANGXIN_VERDICT_BACKGROUND
+      : isHaremPanelActive
       ? HAREM_OUTSIDE_BACKGROUND
       : isOutsideScene && activeMapLocation
         ? LOCATION_SCENE_BACKGROUNDS[activeMapLocation]
@@ -274,6 +288,10 @@ export function ChamberMainView() {
   }, [activeMapLocation]);
 
   useEffect(() => {
+    setYangxinStatementIndex(0);
+  }, [pendingYangxinVerdict?.id, pendingYangxinVerdict?.stage]);
+
+  useEffect(() => {
     if (overnightTransitionPhase === 'hidden' || overnightTransitionPhase === 'settlement') {
       return undefined;
     }
@@ -299,6 +317,12 @@ export function ChamberMainView() {
   }, [completeOvernightTransition, overnightTransitionPhase, overnightTransitionReason, time.month, time.slotIndex, time.slotProgress, time.xun, time.year]);
 
   useEffect(() => {
+    if (pendingYangxinVerdict) {
+      setPendingChamberDialogueAction(null);
+      setDialogueText('');
+      return;
+    }
+
     if (!state.flags.bedchamberIntroShown) {
       setDialogueText(`娘娘，咱们已回到${state.residenceName}。接下来您可以安排学习、休养，也可外出继续探看宫中各处。`);
       patchState({
@@ -337,13 +361,19 @@ export function ChamberMainView() {
     }
 
     if (activeMapLocation && !isResidenceLocation) {
+      if (activeMapLocation === '养心殿' && suppressNextYangxinEntryNarrativeRef.current) {
+        suppressNextYangxinEntryNarrativeRef.current = false;
+        setPendingChamberDialogueAction(null);
+        setDialogueText('');
+        return;
+      }
       setPendingChamberDialogueAction(null);
       setDialogueText(buildMapTransitionNarrative({ kind: 'enter-location', locationName: activeMapLocation }));
       return;
     }
 
     // Keep locally-triggered action narratives visible across the stat/time rerender.
-  }, [activeChamberPanel, activeMapLocation, isResidenceLocation, mapEventText, patchState, setMapEventText, state.flags, state.residenceName]);
+  }, [activeChamberPanel, activeMapLocation, isResidenceLocation, mapEventText, patchState, pendingYangxinVerdict, setMapEventText, state.flags, state.residenceName]);
 
   useEffect(() => {
     if (activeChamberPanel !== 'main' || isOutsideScene || !state.flags.isLianQiaoMet || musicHallProgress.lianQiaoAffection <= 60 || bedchamberGiftItemName) {
@@ -418,6 +448,7 @@ export function ChamberMainView() {
       latestSettlementReport &&
       latestSettlementReport.id !== lastSeenSettlementReportId &&
       !dialogueText &&
+      !pendingYangxinVerdict &&
       !pendingNightlyServiceEvent &&
       !pendingNightlyServiceNotice &&
       (overnightTransitionPhase === 'hidden' || overnightTransitionPhase === 'settlement') &&
@@ -433,6 +464,7 @@ export function ChamberMainView() {
     pendingNpcPlayerVisit &&
       pendingNpcPlayerVisitor &&
       !dialogueText &&
+      !pendingYangxinVerdict &&
       !showSettlementReport &&
       !isNightlyOverlayActive &&
       !bedchamberGiftItemName &&
@@ -453,12 +485,170 @@ export function ChamberMainView() {
           ],
     [npcPlayerVisitResultText],
   );
+  const hasMoreYangxinStatements = Boolean(
+    pendingYangxinVerdict?.stage === 'statements' &&
+      pendingYangxinVerdict.statements.length > 0 &&
+      yangxinStatementIndex < pendingYangxinVerdict.statements.length - 1,
+  );
+  const yangxinVerdictDialogue = useMemo(() => {
+    if (!pendingYangxinVerdict) {
+      return undefined;
+    }
+
+    const buildPortrait = (speakerId: string, speakerName: string): { label: string; portrait?: ReactNode } => {
+      if (speakerId === 'emperor') {
+        return {
+          label: '皇帝立绘',
+          portrait: (
+            <img
+              src={EMPEROR_PORTRAIT_SRC}
+              alt="皇帝"
+              className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--emperor"
+            />
+          ),
+        };
+      }
+
+      if (speakerId === 'jiaojiao') {
+        return {
+          label: '娇娇立绘',
+          portrait: (
+            <img
+              src={ASSISTANT_PORTRAIT_SRC}
+              alt="娇娇"
+              className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant"
+            />
+          ),
+        };
+      }
+
+      if (speakerId === 'player') {
+        return {
+          label: '主角立绘',
+          portrait: selectedRoute?.portrait ? (
+            <img
+              src={selectedRoute.portrait}
+              alt="你"
+              className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--player"
+            />
+          ) : undefined,
+        };
+      }
+
+      const consortId = speakerId.startsWith('consort-') ? speakerId.slice('consort-'.length) : '';
+      const consort = allConsorts.find((candidate) => candidate.id === consortId);
+      if (consort) {
+        return {
+          label: `${consort.name}立绘`,
+          portrait: (
+            <AutoCutoutPortrait
+              src={getConcubinePortraitPath(consort.portraitId)}
+              alt={consort.name}
+              threshold={18}
+              sampleInset={16}
+              className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--consort"
+            />
+          ),
+        };
+      }
+
+      return { label: `${speakerName}剪影` };
+    };
+
+    if (pendingYangxinVerdict.stage === 'summon') {
+      return {
+        sceneLabel: '养心殿传唤',
+        portraitLabel: '内侍立绘',
+        portrait: (
+          <img
+            src={EUNUCH_PORTRAIT_SRC}
+            alt="内侍"
+            className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--eunuch"
+          />
+        ),
+        characterIdentity: '传旨内侍',
+        characterName: '内侍',
+        content: '养心殿传旨，请娘娘即刻前往听裁。',
+        nextActionLabel: '前往养心殿',
+      };
+    }
+
+    if (pendingYangxinVerdict.stage === 'statements') {
+      const statement =
+        pendingYangxinVerdict.statements[Math.min(yangxinStatementIndex, Math.max(0, pendingYangxinVerdict.statements.length - 1))];
+      if (!statement) {
+        return {
+          sceneLabel: '养心殿裁断',
+          portraitLabel: '皇帝立绘',
+          portrait: buildPortrait('emperor', '皇帝').portrait,
+          characterIdentity: '裁断者',
+          characterName: '皇帝',
+          content: '相关人已经到齐，皇帝命内廷呈上案卷。',
+          nextActionLabel: '回话',
+        };
+      }
+
+      const portraitConfig = buildPortrait(statement.speakerId, statement.speakerName);
+      return {
+        sceneLabel: '养心殿裁断',
+        portraitLabel: portraitConfig.label,
+        portrait: portraitConfig.portrait,
+        characterIdentity: statement.speakerRole,
+        characterName: statement.speakerId === 'player' ? '你' : statement.speakerName,
+        content: statement.text,
+        nextActionLabel: hasMoreYangxinStatements ? '继续听裁' : '回话',
+      };
+    }
+
+    if (pendingYangxinVerdict.stage === 'player-choice') {
+      const portraitConfig = buildPortrait('emperor', '皇帝');
+      const playerIsSuspect = pendingYangxinVerdict.attendees.some(
+        (attendee) => attendee.id === 'player' && attendee.role === '定罪候选人',
+      );
+      return {
+        sceneLabel: '养心殿求情',
+        portraitLabel: portraitConfig.label,
+        portrait: portraitConfig.portrait,
+        characterIdentity: '裁断者',
+        characterName: '皇帝',
+        content: playerIsSuspect
+          ? '皇帝将案卷合上，准你在裁断落下前为自己说最后一句。你要如何自处？'
+          : '皇帝将案卷合上，准你在裁断落下前说最后一句。你要如何回话？',
+        nextActionLabel: undefined,
+      };
+    }
+
+    const portraitConfig = buildPortrait('emperor', '皇帝');
+    return {
+      sceneLabel: '养心殿裁断结果',
+      portraitLabel: portraitConfig.label,
+      portrait: portraitConfig.portrait,
+      characterIdentity: '裁断者',
+      characterName: '皇帝',
+      content: pendingYangxinVerdict.result?.summary ?? '皇帝已经落下裁断，命内廷照此执行。',
+      nextActionLabel: '退下',
+    };
+  }, [allConsorts, hasMoreYangxinStatements, pendingYangxinVerdict, selectedRoute?.portrait, yangxinStatementIndex]);
+  const yangxinVerdictOptions =
+    pendingYangxinVerdict?.stage === 'player-choice'
+      ? pendingYangxinVerdict.playerChoices.map((choice) => ({
+          id: choice.id,
+          label: choice.label,
+          effectHint: choice.effectHint,
+        }))
+      : [];
   const isJiaojiaoChamberDialogue = isJiaojiaoSpokenText(dialogueText);
   const chamberDialogueClassName = `global-dialogue-stage--chamber ${
     isJiaojiaoChamberDialogue ? 'global-dialogue-stage--assistant' : 'global-dialogue-stage--narration'
   }`;
   const isChamberDialogueBlocking = Boolean(
-    dialogueText || showSettlementReport || showNpcPlayerVisit || isNightlyOverlayActive || bedchamberGiftItemName || Boolean(activeLocationAudience),
+    dialogueText ||
+      pendingYangxinVerdict ||
+      showSettlementReport ||
+      showNpcPlayerVisit ||
+      isNightlyOverlayActive ||
+      bedchamberGiftItemName ||
+      Boolean(activeLocationAudience),
   );
   const isChamberUiInteractionLocked = isChamberDialogueBlocking || expenseStrategyPanelOpen;
 
@@ -474,7 +664,7 @@ export function ChamberMainView() {
       return undefined;
     }
 
-    if (currentSceneBackground !== displayedSceneBackground && isChamberDialogueBlocking) {
+    if (currentSceneBackground !== displayedSceneBackground && isChamberDialogueBlocking && !pendingYangxinVerdict) {
       setPendingSceneBackground(currentSceneBackground);
       return undefined;
     }
@@ -499,6 +689,7 @@ export function ChamberMainView() {
     displayedSceneBackground,
     isChamberDialogueBlocking,
     isOvernightTransitionActive,
+    pendingYangxinVerdict,
     pendingSceneBackground,
   ]);
 
@@ -603,6 +794,28 @@ export function ChamberMainView() {
     if (overnightTransitionPhase === 'settlement') {
       setOvernightTransitionPhase('fade-out');
     }
+  };
+
+  const handleYangxinVerdictNext = () => {
+    if (!pendingYangxinVerdict) {
+      return;
+    }
+    if (pendingYangxinVerdict.stage === 'statements' && hasMoreYangxinStatements) {
+      setYangxinStatementIndex((current) => Math.min(current + 1, pendingYangxinVerdict.statements.length - 1));
+      return;
+    }
+    if (pendingYangxinVerdict.stage === 'verdict') {
+      setOvernightTransitionPhase('hidden');
+      setOvernightTransitionReason(undefined);
+      suppressNextYangxinEntryNarrativeRef.current = true;
+      finalizeYangxinVerdict(pendingYangxinVerdict.id);
+      return;
+    }
+    advanceYangxinVerdict();
+  };
+
+  const handleYangxinVerdictChoice = (choiceId: string) => {
+    advanceYangxinVerdict(choiceId as Parameters<typeof advanceYangxinVerdict>[0]);
   };
 
   const handleTrainingAction = (actionId: string) => {
@@ -902,7 +1115,7 @@ export function ChamberMainView() {
           />
         ) : null}
 
-        {!pendingNightlyServiceEvent && !pendingNightlyServiceNotice && isOvernightTransitionActive ? (
+        {!pendingYangxinVerdict && !pendingNightlyServiceEvent && !pendingNightlyServiceNotice && isOvernightTransitionActive ? (
           <section
             className={`nightly-service-event nightly-service-event--overnight nightly-service-event--${overnightTransitionPhase}`}
             aria-label="一夜过去"
@@ -1029,6 +1242,7 @@ export function ChamberMainView() {
         !activeLocationAudience &&
         activeLocationNpcActivities.length > 0 &&
         !dialogueText &&
+        !pendingYangxinVerdict &&
         !showSettlementReport &&
         !showNpcPlayerVisit &&
         !isNightlyOverlayActive ? (
@@ -1103,8 +1317,6 @@ export function ChamberMainView() {
           <InventoryPanelView onClose={handleUtilityPanelClose} />
         ) : activeChamberPanel === 'affairs' ? (
           <AffairsPanelView entrySource={activeAffairsSource} concubines={concubines} onClose={handleUtilityPanelClose} />
-        ) : activeChamberPanel === 'yangxin' ? (
-          <YangxinHearingPanelView onClose={handleUtilityPanelClose} />
         ) : activeChamberPanel === 'misc' ? (
           <MiscInfoPanelView state={state} hiddenStats={hiddenStats} bondProfile={activeBondProfile} onClose={handleUtilityPanelClose} />
         ) : activeChamberPanel === 'stats' ? (
@@ -1117,6 +1329,25 @@ export function ChamberMainView() {
           />
         ) : activeChamberPanel === 'consorts' ? (
           <ConcubineListView concubines={concubines} onClose={handleUtilityPanelClose} />
+        ) : null}
+
+        {pendingYangxinVerdict && yangxinVerdictDialogue ? (
+          <GlobalDialogueStage
+            sceneLabel={yangxinVerdictDialogue.sceneLabel}
+            portraitLabel={yangxinVerdictDialogue.portraitLabel}
+            portrait={yangxinVerdictDialogue.portrait}
+            ariaLabel="养心殿裁断"
+            className="global-dialogue-stage--chamber global-dialogue-stage--yangxin"
+            dialogueClassName="palace-dialogue-box--chamber"
+            characterIdentity={yangxinVerdictDialogue.characterIdentity}
+            characterName={yangxinVerdictDialogue.characterName}
+            content={yangxinVerdictDialogue.content}
+            options={yangxinVerdictOptions}
+            onSelectOption={pendingYangxinVerdict.stage === 'player-choice' ? handleYangxinVerdictChoice : undefined}
+            nextActionLabel={yangxinVerdictDialogue.nextActionLabel}
+            onNextAction={pendingYangxinVerdict.stage === 'player-choice' ? undefined : handleYangxinVerdictNext}
+            numericFeedbackBucket="settlement"
+          />
         ) : null}
 
         {showSettlementReport && latestSettlementReport ? (

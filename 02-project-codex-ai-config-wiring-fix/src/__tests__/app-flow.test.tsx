@@ -38,6 +38,11 @@ const resetFlowStore = () => {
       familyAidBonus: 0,
       familyAidPrestigePending: 0,
       stamina: STAMINA_INITIAL_PER_XUN,
+      silver: 1000,
+      prestige: 2500,
+      stress: 30,
+      favor: 50,
+      trueHeart: 35,
       flags: {},
     },
     hiddenStats: {
@@ -58,6 +63,8 @@ const resetFlowStore = () => {
     settlementReports: [],
     latestSettlementReportId: undefined,
     lastSeenSettlementReportId: undefined,
+    palaceStrifeCases: [],
+    pendingYangxinVerdict: undefined,
     numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
     pendingViewTransitionCleanup: undefined,
     bondProfile: buildInitialBondProfile('lanyinxuguo', '1-1-1'),
@@ -320,6 +327,7 @@ describe('App 主流程切换', () => {
           name: '谢令仪',
           flags: {
             ...state.state.flags,
+            attributeStatsFinalized: true,
             openingGuideFinished: true,
             mapGuideFinished: true,
           },
@@ -1499,6 +1507,46 @@ describe('App 主流程切换', () => {
     expect(useGameFlowStore.getState().activeMapLocation).toBe('后宫');
     await waitFor(() => expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined());
     expect(screen.queryByLabelText('寝殿对白')).not.toBeInTheDocument();
+  });
+
+  it('普通进入养心殿时使用地点背景并展示入场剧情', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '养心殿',
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      pendingYangxinVerdict: undefined,
+    }));
+
+    const { container } = render(<App />);
+
+    expect(await screen.findByText(/行至养心殿前/)).toBeInTheDocument();
+    expect(container.querySelector('.chamber-main__background--current')?.getAttribute('style')).toContain(
+      '/assets/routes/backgrounds/yangxindian_outside_daytime.png',
+    );
   });
 
   it('后宫内左侧工具面板关闭后会回到后宫，而不是空白外景', async () => {
@@ -3847,6 +3895,63 @@ describe('App 主流程切换', () => {
     expect(screen.queryByText('补品')).not.toBeInTheDocument();
   });
 
+  it('宫斗事务对象和嫁祸对象会显示全部存活非冷宫妃嫔', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    const roster = buildInitialConcubineRoster('lanyinxuguo');
+    const eligibleConsorts = roster.filter((consort) => consort.status === 'live' && !consort.residence.includes('冷宫'));
+    const lastGeneratedTarget = eligibleConsorts.at(-1)!;
+
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        openingTendency: '节衣缩食',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      bondProfile: buildInitialBondProfile('lanyinxuguo', '1-1-1'),
+      concubineRouteId: 'lanyinxuguo',
+      concubines: roster,
+    }));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '吩咐娇娇' }));
+    fireEvent.click(screen.getByRole('button', { name: '宫斗事务' }));
+
+    expect(eligibleConsorts.length).toBeGreaterThan(6);
+    eligibleConsorts.forEach((consort) => {
+      expect(screen.getByText(`${consort.rankLabel} ${consort.name}`)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '合谋' }));
+
+    expect(screen.getByText(`${lastGeneratedTarget.rankLabel} ${lastGeneratedTarget.name}`)).toBeInTheDocument();
+  });
+
   it('宫斗事务下毒完成前先进入投放QTE', async () => {
     const defaultFavorTier = getFavorTierByValue(50);
     useGameFlowStore.setState((state) => ({
@@ -4146,13 +4251,13 @@ describe('App 主流程切换', () => {
     expect(screen.queryByText(/案件已进入追查/)).not.toBeInTheDocument();
   });
 
-  it('养心殿裁断面板可处理牵连玩家的调查案', async () => {
+  it('养心殿裁断通过对话事件处理牵连玩家的待裁断案', async () => {
     const defaultFavorTier = getFavorTierByValue(80);
     useGameFlowStore.setState((state) => ({
       ...state,
       currentView: 'bedchamber',
       scene: 'activity',
-      activeChamberPanel: 'yangxin',
+      activeChamberPanel: 'main',
       activeMapLocation: undefined,
       routeId: 'lanyinxuguo',
       state: {
@@ -4204,32 +4309,77 @@ describe('App 主流程切换', () => {
           concealmentRoll: 88,
           actionSucceeded: true,
           concealmentSucceeded: false,
-          status: 'investigating',
+          status: 'pending_verdict',
           outcome: 'pending',
           investigationXunsElapsed: 0,
-          convictionRate: 60,
-          yangxinHearingRequired: true,
+          convictionRate: 100,
+          suspects: [
+            {
+              id: 'suspect-player',
+              subjectType: 'player',
+              subjectId: 'player',
+              name: '皇后 谢令仪',
+              suspicionRate: 100,
+              isActualActor: true,
+              reason: '行动痕迹与动机最重，内廷优先追查。',
+            },
+          ],
+          pendingVerdictSuspectId: 'suspect-player',
           summary: '内廷已开始追查源头。',
         },
       ],
     }));
+    expect(useGameFlowStore.getState().beginPendingYangxinVerdict('palace-strife-yangxin-ui').success).toBe(true);
+    expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined();
 
-    render(<App />);
+    const { container } = render(<App />);
 
-    expect(await screen.findByLabelText('养心殿裁断面板')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /据理力争/ }));
+    expect(await screen.findByText(/养心殿传旨/)).toBeInTheDocument();
+    expect(container.querySelector('.chamber-main__background--current')?.getAttribute('style')).toContain(
+      '/assets/routes/home/home_yeting_dawn%20till%20dask.png',
+    );
+    fireEvent.click(screen.getByLabelText(/对话正文/));
+    expect(useGameFlowStore.getState().activeMapLocation).toBe('养心殿');
+    await waitFor(() =>
+      expect(container.querySelector('.chamber-main__background--current')?.getAttribute('style')).toContain(
+        '/assets/routes/backgrounds/yangxin_verdict_daytime.png',
+      ),
+    );
+    expect(await screen.findByText(/内廷已将你推至定罪门槛/)).toBeInTheDocument();
+    expect(screen.queryByText(/皇后 谢令仪推至定罪门槛/)).not.toBeInTheDocument();
+    expect(useGameFlowStore.getState().activeMapLocation).toBe('养心殿');
+    fireEvent.click(screen.getByLabelText(/对话正文/));
+    expect(await screen.findByText(/你垂首听裁/)).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText(/对话正文/));
+    expect(await screen.findByText(/奴婢只敢照实回禀/)).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText(/对话正文/));
+    expect(await screen.findByRole('button', { name: /据证自辩/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /陈明疑点/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /伏身求宽/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /攀指旁人/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /沉默领罪/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /据理力争/ })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /据证自辩/ }));
 
-    expect(await screen.findByText(/据理力争后自证有力/)).toBeInTheDocument();
-    expect(useGameFlowStore.getState().palaceStrifeCases[0].convictionRate).toBe(30);
+    expect(await screen.findByText(/据证自辩后，皇帝准予处罚按80%落地/)).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText(/对话正文/));
+    expect(useGameFlowStore.getState().pendingYangxinVerdict).toBeUndefined();
+    expect(useGameFlowStore.getState().palaceStrifeCases[0]).toMatchObject({
+      status: 'resolved',
+      outcome: 'convicted',
+      convictedSuspectId: 'suspect-player',
+      penaltyApplied: true,
+    });
+    expect(useGameFlowStore.getState().activeMapLocation).toBe('养心殿');
   });
 
-  it('纪事事件页会显示 NPC 宫斗案的发起者和目标', async () => {
+  it('宫斗事务调查页会显示调查案件并可花银两调整嫌疑', async () => {
     const defaultFavorTier = getFavorTierByValue(50);
     useGameFlowStore.setState((state) => ({
       ...state,
       currentView: 'bedchamber',
       scene: 'activity',
-      activeChamberPanel: 'chronicle',
+      activeChamberPanel: 'main',
       activeMapLocation: undefined,
       routeId: 'lanyinxuguo',
       state: {
@@ -4278,7 +4428,27 @@ describe('App 主流程切换', () => {
           status: 'investigating',
           outcome: 'pending',
           investigationXunsElapsed: 1,
-          convictionRate: 64,
+          convictionRate: 70,
+          suspects: [
+            {
+              id: 'suspect-yao',
+              subjectType: 'consort',
+              subjectId: 'consort-yao',
+              name: '贵妃 姚铃儿',
+              suspicionRate: 40,
+              isActualActor: true,
+              reason: '行动痕迹与动机最重，内廷优先追查。',
+            },
+            {
+              id: 'suspect-cui',
+              subjectType: 'consort',
+              subjectId: 'consort-cui',
+              name: '贵人 崔令蓉',
+              suspicionRate: 70,
+              isFramed: true,
+              reason: '现场线索被刻意引向此人，嫌疑骤然升高。',
+            },
+          ],
           summary: '内廷已开始追查源头。',
         },
       ],
@@ -4286,10 +4456,20 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '事件' }));
+    fireEvent.click(screen.getByRole('button', { name: '吩咐娇娇' }));
+    fireEvent.click(screen.getByRole('button', { name: '宫斗事务' }));
+    fireEvent.click(screen.getByRole('button', { name: '调查' }));
 
-    expect(await screen.findByText('贵妃 姚铃儿 -> 贵人 崔令蓉')).toBeInTheDocument();
-    expect(screen.getByText(/散布流言：与人偷情/)).toBeInTheDocument();
+    expect(await screen.findByText('调查案件')).toBeInTheDocument();
+    expect(screen.getAllByText('贵人 崔令蓉').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/定案率 70%/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: /花20两压低嫌疑/ })[1]);
+
+    await waitFor(() => {
+      expect(useGameFlowStore.getState().state.silver).toBe(980);
+      expect(useGameFlowStore.getState().palaceStrifeCases[0].suspects?.find((suspect) => suspect.id === 'suspect-cui')?.suspicionRate).toBe(65);
+    });
+    expect(screen.getByText(/压低贵人 崔令蓉嫌疑/)).toBeInTheDocument();
   });
 
   it('寝殿嫔妃面板可切换状态并展示对应名单', async () => {

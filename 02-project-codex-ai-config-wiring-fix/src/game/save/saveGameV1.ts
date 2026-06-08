@@ -14,13 +14,14 @@ import type {
   PalaceBanquetProgressState,
   PalaceTimeState,
   PalaceStrifeCaseState,
+  YangxinVerdictEventState,
   RouteId,
   RouteSelectionProfile,
   SettlementReport,
   TempleProgressState,
 } from '../types';
 
-export const SAVE_GAME_SCHEMA_VERSION = 1;
+export const SAVE_GAME_SCHEMA_VERSION = 2;
 export const SAVE_GAME_STORAGE_KEY = 'palace-galgame-flow';
 
 export interface SaveGameV1Source {
@@ -46,6 +47,7 @@ export interface SaveGameV1Source {
   npcRelationMatrix: NpcRelationMatrix;
   settlementReports: SettlementReport[];
   palaceStrifeCases: PalaceStrifeCaseState[];
+  pendingYangxinVerdict?: YangxinVerdictEventState;
   latestSettlementReportId?: string;
   lastSeenSettlementReportId?: string;
 }
@@ -83,6 +85,7 @@ export interface SaveGameV1 {
   };
   cases: {
     palaceStrifeCases: PalaceStrifeCaseState[];
+    pendingYangxinVerdict: YangxinVerdictEventState | null;
   };
   progress: {
     kitchen: KitchenProgressState;
@@ -101,6 +104,11 @@ interface PersistedSaveGameV1Envelope {
   };
 }
 
+const hasV051PalaceStrifeCases = (value: SaveGameV1): boolean =>
+  Array.isArray(value.cases?.palaceStrifeCases) &&
+  'pendingYangxinVerdict' in value.cases &&
+  value.cases.palaceStrifeCases.every((caseState) => Array.isArray(caseState.suspects));
+
 export const isSaveGameV1 = (value: unknown): value is SaveGameV1 =>
   Boolean(
     value &&
@@ -112,7 +120,8 @@ export const isSaveGameV1 = (value: unknown): value is SaveGameV1 =>
       (value as SaveGameV1).route &&
       (value as SaveGameV1).relations?.npcRelationMatrix &&
       (value as SaveGameV1).progress?.palaceBanquet &&
-      (value as SaveGameV1).progress?.npcActivity,
+      (value as SaveGameV1).progress?.npcActivity &&
+      hasV051PalaceStrifeCases(value as SaveGameV1),
   );
 
 const resolveSaveStorage = (storage?: Storage): Storage | undefined => {
@@ -187,6 +196,7 @@ export const buildSaveGameV1 = (source: SaveGameV1Source, savedAt = new Date().t
   },
   cases: {
     palaceStrifeCases: source.palaceStrifeCases,
+    pendingYangxinVerdict: source.pendingYangxinVerdict ?? null,
   },
   progress: {
     kitchen: source.kitchenProgress,

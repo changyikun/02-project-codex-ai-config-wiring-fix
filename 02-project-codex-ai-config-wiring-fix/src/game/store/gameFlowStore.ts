@@ -48,13 +48,17 @@ import { resolveMonthlyFamilyPrestigeDelta } from '../lib/familyPrestigeRuntime'
 import {
   advancePalaceStrifeInvestigations,
   applyPalaceStrifeBribe,
+  applyPalaceStrifeSuspectIntervention,
   buildPlayerPalaceStrifeTarget,
+  buildYangxinVerdictEvent,
   describePalaceStrifeInvestigationChanges,
+  finalizeYangxinVerdictCase,
   generateNpcPalaceStrifeCase,
   isPlayerPalaceStrifeTargetId,
   resolvePalaceStrifeAttempt,
   resolvePalaceStrifeConvictionPenalty,
   resolvePalaceStrifeSeverity,
+  resolveYangxinVerdictResult,
   resolveYangxinHearing,
 } from '../lib/palaceStrifeRuntime';
 import {
@@ -104,6 +108,8 @@ import type {
   PalaceStrifeCaseState,
   PalaceStrifeResolution,
   PalaceStrifeStartInput,
+  YangxinVerdictChoiceId,
+  YangxinVerdictEventState,
   YangxinHearingStance,
   TempleProgressState,
   RelationshipJudgeOutcome,
@@ -175,6 +181,7 @@ export interface GameFlowStore {
   npcRelationMatrix: NpcRelationMatrix;
   settlementReports: SettlementReport[];
   palaceStrifeCases: PalaceStrifeCaseState[];
+  pendingYangxinVerdict?: YangxinVerdictEventState;
   latestSettlementReportId?: string;
   lastSeenSettlementReportId?: string;
   numericFeedbackSignal: NumericFeedbackSignal;
@@ -236,7 +243,15 @@ export interface GameFlowStore {
   spendFamilyAid: () => { success: boolean; message: string };
   startPalaceStrifeCase: (input: PalaceStrifeStartInput) => PalaceStrifeResolution;
   bribePalaceStrifeCase: (caseId: string, silverSpent: number) => { success: boolean; message: string };
+  adjustPalaceStrifeSuspect: (
+    caseId: string,
+    suspectId: string,
+    direction: 'increase' | 'decrease',
+  ) => { success: boolean; message: string };
   resolveYangxinPalaceStrifeCase: (caseId: string, stance: YangxinHearingStance) => { success: boolean; message: string };
+  beginPendingYangxinVerdict: (caseId: string) => { success: boolean; message: string };
+  advanceYangxinVerdict: (choiceId?: YangxinVerdictChoiceId) => { success: boolean; message: string };
+  finalizeYangxinVerdict: (eventId: string) => { success: boolean; message: string };
   exportSaveGameV1: (savedAt?: string) => SaveGameV1;
   loadSaveGameV1: (saveGame: SaveGameV1) => void;
   startNewGame: () => void;
@@ -358,11 +373,23 @@ const resolvePendingPalaceStrifeCasesForTransition = (
         ...caseState,
         status: 'resolved',
         outcome: 'cold_case',
+        suspects: caseState.suspects,
         summary: `${caseState.targetName}一事失去对象，暂作疑案封存。`,
       };
       return missingTargetCase;
     }
 
+    const playerTarget = buildPlayerPalaceStrifeTarget(playerState, resolvePlayerRankLabelForState(playerState, hiddenStats));
+    const actualActor =
+      caseState.actorId === 'npc'
+        ? findConsortById(caseState.actorConsortId, concubines, customConsorts)
+        : playerTarget;
+    const framedTarget = isPlayerPalaceStrifeTargetId(caseState.framedTargetConsortId)
+      ? playerTarget
+      : findConsortById(caseState.framedTargetConsortId, concubines, customConsorts);
+    const suspectCandidates = [...concubines, ...customConsorts].filter(
+      (consort) => consort.status === 'live' && !consort.residence.includes('冷宫'),
+    );
     const resolved = resolvePalaceStrifeAttempt({
       playerState: buildAttackerStateForPalaceStrife(caseState, playerState, concubines, customConsorts),
       target,
@@ -371,6 +398,9 @@ const resolvePendingPalaceStrifeCasesForTransition = (
       itemLabel: caseState.itemLabel,
       allyLabel: caseState.allyLabel,
       framedTargetName: caseState.framedTargetName,
+      actualActor,
+      framedTarget,
+      suspectCandidates,
       time: {
         year: caseState.year,
         month: caseState.month,
@@ -402,6 +432,34 @@ const resolvePendingPalaceStrifeCasesForTransition = (
   return { cases, lines, resolvedIds };
 };
 
+const isPlayerRelatedPendingVerdictForSettlement = (caseState: PalaceStrifeCaseState): boolean =>
+  caseState.actorId === 'player' ||
+  isPlayerPalaceStrifeTargetId(caseState.targetConsortId) ||
+  isPlayerPalaceStrifeTargetId(caseState.framedTargetConsortId) ||
+  Boolean((caseState.suspects ?? []).some((suspect) => suspect.subjectType === 'player'));
+
+const finalizeNpcOnlyPendingVerdictForSettlement = (caseState: PalaceStrifeCaseState): PalaceStrifeCaseState => {
+  if (caseState.status !== 'pending_verdict' || isPlayerRelatedPendingVerdictForSettlement(caseState)) {
+    return caseState;
+  }
+
+  const event: YangxinVerdictEventState = {
+    id: `yangxin-verdict-auto-${caseState.id}`,
+    sourceType: 'palace-strife',
+    sourceId: caseState.id,
+    severity: caseState.severity,
+    stage: 'done',
+    attendees: [],
+    statements: [],
+    playerChoices: [],
+    selectedChoiceId: 'accept',
+  };
+  return finalizeYangxinVerdictCase(caseState, {
+    ...event,
+    result: resolveYangxinVerdictResult(event, caseState, 'accept'),
+  });
+};
+
 const settlePalaceStrifeForXunTransitions = (
   caseStates: PalaceStrifeCaseState[],
   xunTransitions: number,
@@ -421,8 +479,9 @@ const settlePalaceStrifeForXunTransitions = (
     const afterInvestigation = resolved.cases.map((caseState) =>
       resolved.resolvedIds.has(caseState.id) ? caseState : advancePalaceStrifeInvestigations([caseState], 1)[0],
     );
-    lines.push(...resolved.lines, ...describePalaceStrifeInvestigationChanges(beforeStep, afterInvestigation));
-    nextCases = afterInvestigation;
+    const afterNpcOnlyVerdicts = afterInvestigation.map(finalizeNpcOnlyPendingVerdictForSettlement);
+    lines.push(...resolved.lines, ...describePalaceStrifeInvestigationChanges(beforeStep, afterNpcOnlyVerdicts));
+    nextCases = afterNpcOnlyVerdicts;
   }
 
   const hostilePlotActivity = getHostilePlotActivity(npcActivity);
@@ -451,6 +510,65 @@ const settlePalaceStrifeForXunTransitions = (
   return { cases: nextCases, lines };
 };
 
+const getConvictedSuspect = (caseState: PalaceStrifeCaseState) =>
+  (caseState.suspects ?? []).find((suspect) => suspect.id === caseState.convictedSuspectId);
+
+const getConvictedConsortId = (caseState: PalaceStrifeCaseState): string | undefined => {
+  const suspect = getConvictedSuspect(caseState);
+  if (suspect?.subjectType === 'consort') {
+    return suspect.subjectId;
+  }
+  if (!suspect && caseState.actorId === 'npc') {
+    return caseState.actorConsortId;
+  }
+  return undefined;
+};
+
+const isPlayerConvictedInCase = (caseState: PalaceStrifeCaseState): boolean => {
+  const suspect = getConvictedSuspect(caseState);
+  if (suspect) {
+    return suspect.subjectType === 'player';
+  }
+  return caseState.actorId === 'player' || isPlayerPalaceStrifeTargetId(caseState.framedTargetConsortId);
+};
+
+const isPlayerRelatedPalaceStrifeCase = (caseState: PalaceStrifeCaseState): boolean =>
+  caseState.actorId === 'player' ||
+  isPlayerPalaceStrifeTargetId(caseState.targetConsortId) ||
+  isPlayerPalaceStrifeTargetId(caseState.framedTargetConsortId) ||
+  Boolean(
+    (caseState.suspects ?? []).some(
+      (suspect) =>
+        suspect.subjectType === 'player' &&
+        (suspect.id === caseState.pendingVerdictSuspectId || suspect.suspicionRate >= 100 || caseState.status === 'pending_verdict'),
+    ),
+  );
+
+const findPendingYangxinVerdictCase = (caseStates: PalaceStrifeCaseState[]): PalaceStrifeCaseState | undefined =>
+  caseStates.find(
+    (caseState) =>
+      caseState.status === 'pending_verdict' &&
+      !caseState.penaltyApplied &&
+      Boolean(caseState.pendingVerdictSuspectId) &&
+      isPlayerRelatedPalaceStrifeCase(caseState),
+  );
+
+const buildPendingYangxinVerdictEventForCase = (
+  caseState: PalaceStrifeCaseState | undefined,
+  playerState: GameNumericsState,
+  hiddenStats: HiddenStatsState,
+  concubines: ConcubineProfile[],
+  customConsorts: ConcubineProfile[],
+): YangxinVerdictEventState | undefined =>
+  caseState
+    ? buildYangxinVerdictEvent({
+        caseState,
+        playerState,
+        playerRankLabel: resolvePlayerRankLabelForState(playerState, hiddenStats),
+        concubines: [...concubines, ...customConsorts],
+      })
+    : undefined;
+
 const applyNpcPalaceStrifeConvictionPenalties = (
   concubines: ConcubineProfile[],
   convictedCases: PalaceStrifeCaseState[],
@@ -461,12 +579,13 @@ const applyNpcPalaceStrifeConvictionPenalties = (
 
   const penaltiesByActorId = new Map<string, ReturnType<typeof resolvePalaceStrifeConvictionPenalty>>();
   convictedCases.forEach((caseState) => {
-    if (caseState.actorId !== 'npc' || !caseState.actorConsortId) {
+    const convictedConsortId = getConvictedConsortId(caseState);
+    if (!convictedConsortId) {
       return;
     }
     const penalty = resolvePalaceStrifeConvictionPenalty(caseState);
-    const existing = penaltiesByActorId.get(caseState.actorConsortId);
-    penaltiesByActorId.set(caseState.actorConsortId, {
+    const existing = penaltiesByActorId.get(convictedConsortId);
+    penaltiesByActorId.set(convictedConsortId, {
       prestigeDelta: (existing?.prestigeDelta ?? 0) + penalty.prestigeDelta,
       favorDelta: (existing?.favorDelta ?? 0) + penalty.favorDelta,
       stressDelta: (existing?.stressDelta ?? 0) + penalty.stressDelta,
@@ -521,10 +640,11 @@ const applyNpcActivityStressDeltas = (
 
 const describeNpcPalaceStrifeConvictionPenalties = (convictedCases: PalaceStrifeCaseState[]): string[] =>
   convictedCases
-    .filter((caseState) => caseState.actorId === 'npc' && caseState.actorConsortId)
+    .filter((caseState) => getConvictedConsortId(caseState))
     .map((caseState) => {
       const penalty = resolvePalaceStrifeConvictionPenalty(caseState);
-      return `${caseState.actorName ?? caseState.actorConsortId}因${caseState.targetName}一案定罪，声望-${Math.abs(
+      const suspect = getConvictedSuspect(caseState);
+      return `${suspect?.name ?? caseState.actorName ?? getConvictedConsortId(caseState)}因${caseState.targetName}一案定罪，声望-${Math.abs(
         penalty.prestigeDelta,
       )}、宠爱-${Math.abs(penalty.favorDelta)}${penalty.stressDelta > 0 ? `，压力+${penalty.stressDelta}` : ''}。`;
     });
@@ -1103,6 +1223,7 @@ const createInitialGameFlowFields = (currentView: CurrentView): Partial<GameFlow
   npcRelationMatrix: initialNpcRelationMatrix,
   settlementReports: [],
   palaceStrifeCases: [],
+  pendingYangxinVerdict: undefined,
   latestSettlementReportId: undefined,
   lastSeenSettlementReportId: undefined,
   numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
@@ -1151,6 +1272,7 @@ const restoreSaveGameV1Fields = (saveGame: SaveGameV1): Partial<GameFlowStore> =
   npcRelationMatrix: saveGame.relations.npcRelationMatrix,
   settlementReports: saveGame.world.settlementReports,
   palaceStrifeCases: saveGame.cases?.palaceStrifeCases ?? [],
+  pendingYangxinVerdict: saveGame.cases?.pendingYangxinVerdict ?? undefined,
   latestSettlementReportId: saveGame.world.latestSettlementReportId,
   lastSeenSettlementReportId: saveGame.world.lastSeenSettlementReportId,
   numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
@@ -1191,6 +1313,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
       npcRelationMatrix: initialNpcRelationMatrix,
       settlementReports: [],
       palaceStrifeCases: [],
+      pendingYangxinVerdict: undefined,
       latestSettlementReportId: undefined,
       lastSeenSettlementReportId: undefined,
       numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
@@ -1339,6 +1462,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             }),
             settlementReports: [],
             palaceStrifeCases: [],
+            pendingYangxinVerdict: undefined,
             latestSettlementReportId: undefined,
             lastSeenSettlementReportId: undefined,
             numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
@@ -2093,14 +2217,8 @@ export const useGameFlowStore = create<GameFlowStore>()(
                   return caseState.outcome === 'convicted' && previous?.outcome !== 'convicted';
                 })
               : [];
-          const playerConvictedCases = newlyConvictedCases.filter(
-            (caseState) =>
-              caseState.actorId === 'player' || isPlayerPalaceStrifeTargetId(caseState.framedTargetConsortId),
-          );
-          const npcConvictedCases = newlyConvictedCases.filter(
-            (caseState) =>
-              caseState.actorId === 'npc' && !isPlayerPalaceStrifeTargetId(caseState.framedTargetConsortId),
-          );
+          const playerConvictedCases = newlyConvictedCases.filter(isPlayerConvictedInCase);
+          const npcConvictedCases = newlyConvictedCases.filter((caseState) => Boolean(getConvictedConsortId(caseState)));
           const convictionPenalties = playerConvictedCases.map(resolvePalaceStrifeConvictionPenalty);
           const npcConvictionPenaltyLines = describeNpcPalaceStrifeConvictionPenalties(npcConvictedCases);
           const convictionPenaltyTotals = convictionPenalties.reduce(
@@ -2213,6 +2331,18 @@ export const useGameFlowStore = create<GameFlowStore>()(
             nightlyServiceSettlement?.targetConsortId,
             nightlyServiceSettlement?.targetConsortFavorDelta ?? 0,
           );
+          const nextPendingYangxinVerdict =
+            current.pendingYangxinVerdict ??
+            (xunTransitions > 0
+              ? buildPendingYangxinVerdictEventForCase(
+                  findPendingYangxinVerdictCase(nextPalaceStrifeCases),
+                  nextState,
+                  current.hiddenStats,
+                  nextConcubines,
+                  nextCustomConsorts,
+                )
+              : undefined);
+          const shouldForceYangxinVerdict = Boolean(nextPendingYangxinVerdict && !current.pendingYangxinVerdict);
           const nextNpcActivity =
             xunTransitions > 0
               ? generateNpcActivities({
@@ -2299,6 +2429,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             customConsorts: nextCustomConsorts,
             npcRelationMatrix: npcRelationSettlement.matrix,
             npcActivity: nextNpcActivity,
+            pendingYangxinVerdict: nextPendingYangxinVerdict,
             palaceBanquetProgress: {
               ...current.palaceBanquetProgress,
               currentSeasonKey: resolvePalaceBanquetSeasonKeyForTime(nextTime),
@@ -2337,6 +2468,16 @@ export const useGameFlowStore = create<GameFlowStore>()(
             time: nextTime,
             settlementReports,
             latestSettlementReportId,
+            ...(shouldForceYangxinVerdict
+              ? {
+                  currentView: 'bedchamber' as const,
+                  scene: 'activity' as const,
+                  activeChamberPanel: 'main' as const,
+                  activeMapLocation: undefined,
+                  dialogue: undefined,
+                  mapEventText: '',
+                }
+              : {}),
           };
         }),
       acknowledgeSettlementReport: (reportId) =>
@@ -2509,6 +2650,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
           outcome: 'pending',
           investigationXunsElapsed: 0,
           convictionRate: 0,
+          suspects: [],
           summary: `${input.methodLabel}已布置，待当旬夜晚结算。`,
         };
         set((latest) => {
@@ -2556,7 +2698,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
           const nextSilver = Math.max(0, current.state.silver - cost);
           result = {
             success: true,
-            message: `${targetCase.targetName}一案已花费${cost}两打点，定案率降至${nextCase.convictionRate}%。`,
+            message: `${targetCase.targetName}一案已花费${cost}两打点，最高定案率降至${nextCase.convictionRate}%。`,
           };
 
           return {
@@ -2571,6 +2713,53 @@ export const useGameFlowStore = create<GameFlowStore>()(
             palaceStrifeCases: current.palaceStrifeCases.map((caseState) =>
               caseState.id === caseId ? nextCase : caseState,
             ),
+          };
+        });
+        return result;
+      },
+      adjustPalaceStrifeSuspect: (caseId, suspectId, direction) => {
+        const cost = 20;
+        let result = { success: false, message: '未找到可干预的嫌疑人。' };
+        set((current) => {
+          const targetCase = current.palaceStrifeCases.find((caseState) => caseState.id === caseId);
+          const targetSuspect = targetCase?.suspects?.find((suspect) => suspect.id === suspectId);
+          if (!targetCase || targetCase.status !== 'investigating' || !targetSuspect) {
+            return current;
+          }
+          if (current.state.silver < cost) {
+            result = { success: false, message: '银两不足，无法打点。' };
+            return current;
+          }
+
+          const delta = direction === 'increase' ? 5 : -5;
+          const nextCase = applyPalaceStrifeSuspectIntervention(targetCase, suspectId, delta);
+          const nextSuspect = nextCase.suspects?.find((suspect) => suspect.id === suspectId) ?? targetSuspect;
+          const reachedVerdict = nextCase.status === 'pending_verdict';
+          const nextSilver = current.state.silver - cost;
+          result = {
+            success: true,
+            message:
+              direction === 'increase'
+                ? `已花费20两推高${nextSuspect.name}嫌疑，当前定案率${nextSuspect.suspicionRate}%。${reachedVerdict ? '此案已达裁断门槛，待养心殿传唤。' : ''}`
+                : `已花费20两压低${nextSuspect.name}嫌疑，当前定案率${nextSuspect.suspicionRate}%。`,
+          };
+
+          return {
+            state: {
+              ...current.state,
+              silver: nextSilver,
+            },
+            hiddenStats: {
+              ...current.hiddenStats,
+              silver: nextSilver,
+            },
+            palaceStrifeCases: current.palaceStrifeCases.map((caseState) =>
+              caseState.id === caseId ? nextCase : caseState,
+            ),
+            numericFeedbackSignal: {
+              sequence: current.numericFeedbackSignal.sequence + 1,
+              bucket: current.currentView === 'map-main' ? 'map-event' : 'chamber-action',
+            },
           };
         });
         return result;
@@ -2598,6 +2787,199 @@ export const useGameFlowStore = create<GameFlowStore>()(
             palaceStrifeCases: current.palaceStrifeCases.map((caseState) =>
               caseState.id === caseId ? nextCase : caseState,
             ),
+          };
+        });
+        return result;
+      },
+      beginPendingYangxinVerdict: (caseId) => {
+        let result = { success: false, message: '未找到待裁断案件。' };
+        set((current) => {
+          const targetCase = current.palaceStrifeCases.find((caseState) => caseState.id === caseId);
+          const event = buildPendingYangxinVerdictEventForCase(
+            targetCase,
+            current.state,
+            current.hiddenStats,
+            current.concubines,
+            current.customConsorts,
+          );
+          if (!targetCase || !event) {
+            return current;
+          }
+
+          result = { success: true, message: '已传唤至养心殿听裁。' };
+          return {
+            currentView: 'bedchamber',
+            scene: 'activity',
+            activeChamberPanel: 'main',
+            activeMapLocation: undefined,
+            dialogue: undefined,
+            mapEventText: '',
+            pendingYangxinVerdict: event,
+          };
+        });
+        return result;
+      },
+      advanceYangxinVerdict: (choiceId) => {
+        let result = { success: false, message: '当前没有养心殿裁断事件。' };
+        set((current) => {
+          const event = current.pendingYangxinVerdict;
+          if (!event) {
+            return current;
+          }
+
+          if (event.stage === 'summon') {
+            result = { success: true, message: '已进入养心殿。' };
+            return {
+              currentView: 'bedchamber',
+              scene: 'activity',
+              activeChamberPanel: 'main',
+              activeMapLocation: '养心殿',
+              dialogue: undefined,
+              mapEventText: '',
+              pendingYangxinVerdict: {
+                ...event,
+                stage: 'statements',
+              },
+            };
+          }
+
+          if (event.stage === 'statements') {
+            result = { success: true, message: '已听完相关人发言。' };
+            return {
+              pendingYangxinVerdict: {
+                ...event,
+                stage: 'player-choice',
+              },
+            };
+          }
+
+          if (event.stage === 'player-choice') {
+            if (!choiceId) {
+              return current;
+            }
+            const targetCase = current.palaceStrifeCases.find((caseState) => caseState.id === event.sourceId);
+            if (!targetCase) {
+              return current;
+            }
+            const verdictResult = resolveYangxinVerdictResult(event, targetCase, choiceId);
+            result = { success: true, message: verdictResult.summary };
+            return {
+              pendingYangxinVerdict: {
+                ...event,
+                stage: 'verdict',
+                selectedChoiceId: choiceId,
+                result: verdictResult,
+              },
+            };
+          }
+
+          if (event.stage === 'verdict') {
+            result = { success: false, message: '裁断结果已出，请完成裁断。' };
+            return current;
+          }
+
+          result = { success: true, message: '裁断事件已结束。' };
+          return current;
+        });
+        return result;
+      },
+      finalizeYangxinVerdict: (eventId) => {
+        let result = { success: false, message: '当前没有可完成的养心殿裁断。' };
+        set((current) => {
+          const event = current.pendingYangxinVerdict;
+          if (!event || event.id !== eventId || event.sourceType !== 'palace-strife') {
+            return current;
+          }
+
+          const targetCase = current.palaceStrifeCases.find((caseState) => caseState.id === event.sourceId);
+          if (!targetCase || targetCase.status !== 'pending_verdict' || targetCase.penaltyApplied) {
+            return {
+              pendingYangxinVerdict: undefined,
+            };
+          }
+
+          const resolvedResult =
+            event.result ?? resolveYangxinVerdictResult(event, targetCase, event.selectedChoiceId ?? 'accept');
+          const resolvedEvent: YangxinVerdictEventState = {
+            ...event,
+            stage: 'done',
+            selectedChoiceId: resolvedResult.choiceId,
+            result: resolvedResult,
+          };
+          const finalizedCase = finalizeYangxinVerdictCase(targetCase, resolvedEvent);
+          const convictedSuspect = (targetCase.suspects ?? []).find(
+            (suspect) => suspect.id === finalizedCase.convictedSuspectId,
+          );
+          const penalty = resolvedResult.penalty;
+          const shouldPenalizePlayer = convictedSuspect?.subjectType === 'player';
+          const convictedConsortId = convictedSuspect?.subjectType === 'consort' ? convictedSuspect.subjectId : undefined;
+          const nextState = shouldPenalizePlayer
+            ? {
+                ...current.state,
+                prestige: normalizePrestige(current.state.prestige + penalty.prestigeDelta),
+                favor: normalizePlayerFavor(current.state.favor + penalty.favorDelta),
+                stress: Math.max(0, current.state.stress + penalty.stressDelta),
+              }
+            : current.state;
+          const applyVerdictConsortEffects = (consort: ConcubineProfile): ConcubineProfile => {
+            const relationDelta = resolvedResult.relationshipDeltas
+              .filter((delta) => delta.consortId === consort.id)
+              .reduce((total, delta) => total + delta.relationToPlayerDelta, 0);
+            const isConvictedConsort = convictedConsortId === consort.id;
+            if (!relationDelta && !isConvictedConsort) {
+              return consort;
+            }
+            return normalizeConcubineProfile({
+              ...consort,
+              stats: {
+                ...consort.stats,
+                prestige: isConvictedConsort
+                  ? normalizePrestige(Number(consort.stats.prestige ?? 0) + penalty.prestigeDelta)
+                  : Number(consort.stats.prestige ?? 0),
+                favor: isConvictedConsort
+                  ? Number(consort.stats.favor ?? 0) + penalty.favorDelta
+                  : Number(consort.stats.favor ?? 0),
+                stress: isConvictedConsort
+                  ? Math.max(0, Number(consort.stats.stress ?? 0) + penalty.stressDelta)
+                  : Number(consort.stats.stress ?? 0),
+                relationToPlayer: clampToRange(
+                  Number(consort.stats.relationToPlayer ?? 0) + relationDelta,
+                  [-100, 100],
+                ),
+              },
+            });
+          };
+          const nextConcubines = current.concubines.map(applyVerdictConsortEffects);
+          const nextCustomConsorts = current.customConsorts.map(applyVerdictConsortEffects);
+
+          result = { success: true, message: resolvedResult.summary };
+          return {
+            state: nextState,
+            hiddenStats: shouldPenalizePlayer
+              ? {
+                  ...current.hiddenStats,
+                  prestige: nextState.prestige,
+                  favor: nextState.favor,
+                  stress: nextState.stress,
+                  ...resolveFavorPresentation(nextState.favor),
+                }
+              : current.hiddenStats,
+            concubines: enforceRosterFavorCaps(nextConcubines, nextState.favor),
+            customConsorts: nextCustomConsorts,
+            palaceStrifeCases: current.palaceStrifeCases.map((caseState) =>
+              caseState.id === finalizedCase.id ? finalizedCase : caseState,
+            ),
+            pendingYangxinVerdict: undefined,
+            currentView: 'bedchamber',
+            scene: 'activity',
+            activeChamberPanel: 'main',
+            activeMapLocation: '养心殿',
+            dialogue: undefined,
+            mapEventText: '',
+            numericFeedbackSignal: {
+              sequence: current.numericFeedbackSignal.sequence + 1,
+              bucket: 'settlement',
+            },
           };
         });
         return result;

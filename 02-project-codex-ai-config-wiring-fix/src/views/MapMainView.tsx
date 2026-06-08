@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AutoCutoutPortrait } from '../components/visual/AutoCutoutPortrait';
-import { AffairsPanelView, BondPanelView, ChroniclePanelView, YangxinHearingPanelView } from '../components/chamber/ChamberUtilityViews';
+import { AffairsPanelView, BondPanelView, ChroniclePanelView } from '../components/chamber/ChamberUtilityViews';
 import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
 import { ConsortAudiencePanel } from '../components/consorts/ConsortAudiencePanel';
@@ -37,7 +37,7 @@ const MAP_ACTION_STAMINA_COST = 1;
 
 type GongmenNpcId = 'du-niang' | 'aling';
 type GongmenTradeMode = 'buy' | 'sell';
-type MapUtilityPanelId = Extract<ChamberPanelId, 'consorts' | 'stats' | 'chronicle' | 'bond' | 'harem' | 'affairs' | 'yangxin'>;
+type MapUtilityPanelId = Extract<ChamberPanelId, 'consorts' | 'stats' | 'chronicle' | 'bond' | 'harem' | 'affairs'>;
 type HotspotQuickAction =
   | {
       id: string;
@@ -186,7 +186,6 @@ export function MapMainView() {
         ];
       case '养心殿':
         return [
-          { id: 'open-yangxin-hearing', label: '养心殿裁断', summary: '处理牵连娘娘本人的宫斗案件。', kind: 'panel', panelId: 'yangxin' },
           { id: 'open-bond', label: '情缘管理', summary: '直接进入现有情缘面板。', kind: 'panel', panelId: 'bond' },
         ];
       case '冷宫':
@@ -876,8 +875,6 @@ export function MapMainView() {
           />
         ) : activeMapUtilityPanel === 'affairs' ? (
           <AffairsPanelView entrySource={activeAffairsSource} concubines={concubines} onClose={closeMapUtilityPanel} />
-        ) : activeMapUtilityPanel === 'yangxin' ? (
-          <YangxinHearingPanelView onClose={closeMapUtilityPanel} />
         ) : activeMapUtilityPanel === 'stats' ? (
           <PlayerStatsView
             state={state}

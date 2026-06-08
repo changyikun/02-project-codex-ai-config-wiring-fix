@@ -118,6 +118,9 @@ interface SaveGameV1 {
 - 未收束的 `visit-consort.targetConsortId` 是被拜访者本旬寝宫会客的真值；即使该目标自己的条目仍是公共外出，UI 也必须按目标在寝宫会客处理，并从公共地点可交互名单中排除。玩家结束殿内会客后，`visit-consort.resolved=true` 表示会客收束：来访者回自己的寝宫，被拜访者不再显示“会客中”。
 - NPC-NPC 真实关系保存于 `relations.npcRelationMatrix`，展示用 `allies / rivals` 只作为初始倾向；旬末送礼、试探、拉拢、传话、施压等变化以关系矩阵为准。
 - 毒药属于普通 `inventory` 数量物品，来源为掖庭院月姑姑交易；玩家主动下毒在 QTE 成功登记案件时通过 `consumeInventoryItem` 扣除对应毒药 `1` 份，失败不扣。
+- 宫斗案件保存于 `cases.palaceStrifeCases`。v0.5.1 起，每个案件必须包含 `suspects` 数组，最多三名嫌疑人；每名嫌疑人保存主体类型、主体 ID、名称、定案率、是否实际发起者、是否被嫁祸以及嫌疑理由。`convictionRate` 仅同步最高嫌疑人的定案率，用于旧 UI 兼容展示，不再作为唯一裁判字段。
+- 嫌疑人定案率达到 `100` 时，案件先写入 `status='pending_verdict'` 与 `pendingVerdictSuspectId`，不立即写 `convictedSuspectId`，也不立即扣处罚。玩家相关待裁断案由 `cases.pendingYangxinVerdict` 保存当前养心殿传唤 / 发言 / 选择 / 裁断事件状态；裁断完成后才写入 `convictedSuspectId`、`verdictSummary`、`penaltyApplied`、`archivedXunKey` 与 `resolutionSummary`。
+- 三旬无人达到 `100` 定案率时，案件以疑案归档。旧存档若存在宫斗案件但缺少 `suspects`，或缺少当前必需的 `cases.pendingYangxinVerdict` 字段，按开发期策略直接清档，不做 `convictionRate -> suspects` 或旧事件结构 fallback。
 
 ## 4. 顶层模块定义
 

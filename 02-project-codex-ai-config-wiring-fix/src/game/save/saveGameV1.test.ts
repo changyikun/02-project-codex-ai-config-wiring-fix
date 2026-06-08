@@ -149,6 +149,17 @@ const source: SaveGameV1Source = {
       outcome: 'pending',
       investigationXunsElapsed: 0,
       convictionRate: 35,
+      suspects: [
+        {
+          id: 'suspect-player',
+          subjectType: 'player',
+          subjectId: 'player',
+          name: '谢令仪',
+          suspicionRate: 35,
+          isActualActor: true,
+          reason: '行动痕迹与动机最重，内廷优先追查。',
+        },
+      ],
       summary: '流言已起，内廷开始追查源头。',
     },
   ],
@@ -168,6 +179,7 @@ describe('SaveGameV1', () => {
     expect(saveGame.world.settlementReports).toHaveLength(1);
     expect(saveGame.cases.palaceStrifeCases).toHaveLength(1);
     expect(saveGame.cases.palaceStrifeCases[0].status).toBe('investigating');
+    expect(saveGame.cases.palaceStrifeCases[0].suspects).toHaveLength(1);
     expect(saveGame.roster.concubines.length).toBeGreaterThan(0);
     expect(saveGame.inventory.items.length).toBeGreaterThan(0);
     expect(saveGame.progress.medical.jianNingMet).toBe(true);
@@ -204,6 +216,19 @@ describe('SaveGameV1', () => {
       progress: Partial<ReturnType<typeof buildSaveGameV1>['progress']>;
     };
     delete incompatibleSaveGame.progress.npcActivity;
+    localStorage.setItem(SAVE_GAME_STORAGE_KEY, JSON.stringify({ state: { saveGame: incompatibleSaveGame }, version: 0 }));
+
+    expect(readSaveGameV1FromStorage()).toBeUndefined();
+    expect(localStorage.getItem(SAVE_GAME_STORAGE_KEY)).toBeNull();
+  });
+
+  it('clears a pre-v0.5.1 palace strife case without suspects instead of migrating it', () => {
+    const incompatibleSaveGame = buildSaveGameV1(source, '2026-05-22T05:00:00.000Z') as unknown as {
+      cases: {
+        palaceStrifeCases: Array<{ suspects?: unknown }>;
+      };
+    };
+    delete incompatibleSaveGame.cases.palaceStrifeCases[0].suspects;
     localStorage.setItem(SAVE_GAME_STORAGE_KEY, JSON.stringify({ state: { saveGame: incompatibleSaveGame }, version: 0 }));
 
     expect(readSaveGameV1FromStorage()).toBeUndefined();
