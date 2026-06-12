@@ -57,7 +57,7 @@ interface HuaqingSceneActor extends HuaqingDialogueActor {
   consortId?: string;
 }
 
-const LIANQIAO_PORTRAIT_SRC = '/assets/characters/women/lianqiao.jpg';
+const LIANQIAO_PORTRAIT_SRC = '/assets/characters/women/yueshi.png';
 
 const isSpecialSlot = (slot: string): boolean => slot === '深夜';
 

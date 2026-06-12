@@ -92,7 +92,7 @@ const gongmenNpcProfiles: Record<
     portraitThreshold: 42,
   },
 };
-const ASSISTANT_PORTRAIT_SRC = '/assets/dialogue/jiaojiao-final.png';
+const ASSISTANT_PORTRAIT_SRC = '/assets/characters/women/jiaojiao.png';
 const createDialogueId = (prefix: string): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return `${prefix}-${crypto.randomUUID()}`;

@@ -70,11 +70,11 @@ const bottomToolMessage: Record<string, string> = {
   举办宴席: '宴席入口已预留，后续会接入宫宴花费、来客与声望收益。',
   皇嗣管理: '皇嗣管理入口已预留，后续会接入孩子成长、教育与立储判定。',
 };
-const ASSISTANT_PORTRAIT_SRC = '/assets/dialogue/jiaojiao-final.png';
+const ASSISTANT_PORTRAIT_SRC = '/assets/characters/women/jiaojiao.png';
 const EUNUCH_PORTRAIT_SRC = '/assets/characters/men/taijian.png';
-const EMPEROR_PORTRAIT_SRC = '/assets/characters/men/emperor.jpg';
+const EMPEROR_PORTRAIT_SRC = '/assets/characters/men/rongan.png';
 const JIAOJIAO_COMMAND_PROMPT = '娘娘，有何吩咐？';
-const LIANQIAO_PORTRAIT_SRC = '/assets/characters/women/lianqiao.jpg';
+const LIANQIAO_PORTRAIT_SRC = '/assets/characters/women/yueshi.png';
 const EXPENSE_EXPLANATION_OPTION_ID = 'expense-explanation';
 const EXPENSE_EXPLANATION_TEXT = [
   '娘娘，这三档说的是每月固定用度，不是立刻花一笔银子。寝殿这里调整后，是登记下月用度，等跨月结算时才生效。',

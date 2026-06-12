@@ -56,8 +56,8 @@ interface MiaoYinSceneActor extends MiaoYinDialogueActor {
   portraitSrc?: string;
 }
 
-const LIANQIAO_PORTRAIT_SRC = '/assets/characters/women/lianqiao.jpg';
-const EMPEROR_PORTRAIT_SRC = '/assets/characters/men/emperor.jpg';
+const LIANQIAO_PORTRAIT_SRC = '/assets/characters/women/yueshi.png';
+const EMPEROR_PORTRAIT_SRC = '/assets/characters/men/rongan.png';
 
 const hashSeed = (seed: string): number =>
   seed.split('').reduce((sum, char, index) => sum + char.charCodeAt(0) * (index + 27), 0);

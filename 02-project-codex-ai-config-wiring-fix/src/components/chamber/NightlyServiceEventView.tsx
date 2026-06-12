@@ -14,7 +14,7 @@ import type {
   NightlyServicePendingEvent,
 } from '../../game/types';
 
-const EMPEROR_PORTRAIT_SRC = '/assets/characters/men/emperor.jpg';
+const EMPEROR_PORTRAIT_SRC = '/assets/characters/men/rongan.png';
 const EUNUCH_PORTRAIT_SRC = '/assets/characters/men/taijian.png';
 const YANGXIN_BACKGROUND_SRC = '/assets/routes/backgrounds/shiqin.png';
 export const OVERNIGHT_TRANSITION_MS = 900;

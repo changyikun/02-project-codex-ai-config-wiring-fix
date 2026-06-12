@@ -15,7 +15,7 @@ interface HistoryEntry {
   text: string;
 }
 
-const DOWAGER_PORTRAIT_SRC = '/assets/characters/women/taihou-cutout.png';
+const DOWAGER_PORTRAIT_SRC = '/assets/characters/women/taihou.png';
 
 const DOWAGER_PERSONA = {
   personality:

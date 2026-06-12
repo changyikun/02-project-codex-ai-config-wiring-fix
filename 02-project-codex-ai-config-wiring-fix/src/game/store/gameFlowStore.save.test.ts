@@ -375,7 +375,7 @@ describe('gameFlowStore SaveGameV1 integration', () => {
       biography: '',
       clearanceRequirement: '',
       difficulty: '困难',
-      portrait: '/assets/routes/portraits/yingluoyeting.png',
+      portrait: '/assets/characters/women/chenbi.png',
       fontMask: '/assets/routes/fonts/yingluoyeting-mask.png',
       bannerHeight: 82,
       statsLocked: false,

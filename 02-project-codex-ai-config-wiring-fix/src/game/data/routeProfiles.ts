@@ -129,7 +129,7 @@ export const buildRouteProfiles = (): RouteSelectionProfile[] => {
         '粗衣粝食，磨不掉骨中傲气。身陷囫囵，又怎会放过任何可以翻盘的机会。只是这一次的路无人知晓结局。',
       clearanceRequirement: '十年内到达妃位，并达成结局【沉冤得雪】。',
       difficulty: '困难',
-      portrait: '/assets/routes/portraits/yingluoyeting.png',
+      portrait: '/assets/characters/women/chenbi.png',
       fontMask: '/assets/routes/fonts/yingluoyeting-mask.png',
       bannerHeight: 82,
       bannerOffsetTop: 4,

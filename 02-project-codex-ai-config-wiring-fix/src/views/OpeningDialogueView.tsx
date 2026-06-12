@@ -10,7 +10,7 @@ import { useGameFlowStore } from '../game/store/gameFlowStore';
 const openingBackground = '/assets/home-bg.png';
 const yetingOpeningBackground = '/assets/routes/backgrounds/yeting_daytime.png';
 const yushufangInsideBackground = '/assets/routes/backgrounds/yushufang_inside_daytime.png';
-const npcPortrait = '/assets/dialogue/jiaojiao-final.png';
+const npcPortrait = '/assets/characters/women/jiaojiao.png';
 const middleAgedPalaceMaidPortrait = '/assets/characters/women/gongren_middleage.png';
 const npcName = '娇娇';
 const expenseExplanationOption = {
@@ -28,7 +28,7 @@ const expenseExplanationText = [
 const routePortraitById: Record<string, string> = {
   lanyinxuguo: '/assets/player/lanyinxuguo-cutout.png',
   fushengrumeng: '/assets/player/ningxiaoman-cutout.png',
-  yingluoyeting: '/assets/routes/portraits/yingluoyeting.png',
+  yingluoyeting: '/assets/characters/women/chenbi.png',
   chenyuansucuo: '/assets/routes/portraits/chenyuansucuo.png',
 };
 

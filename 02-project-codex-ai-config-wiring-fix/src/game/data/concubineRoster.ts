@@ -91,22 +91,22 @@ type GeneratedConcubineTemplate = {
 };
 
 const WOMEN_ASSET_BASE_PATH = '/assets/characters/women/';
-const CONSORT_PORTRAIT_FALLBACK_FILENAME = '鑺辨.png';
-const quietConsortFallbackFilename = '濮滆姺.png';
-const lyricalConsortFallbackFilename = 'lianqiao.jpg';
+const CONSORT_PORTRAIT_FALLBACK_FILENAME = 'feizi2.png';
+const quietConsortFallbackFilename = 'feizi1.png';
+const lyricalConsortFallbackFilename = 'yueshi.png';
 
 const WOMEN_ASSET_FILENAME_BY_ID: Partial<Record<WomenPortraitId | '阿翎' | '太后' | '杜娘' | '娇娇' | '方瑶', string>> = {
-  花棠: '鑺辨.png',
-  姜芷: '濮滆姺.png',
+  花棠: 'feizi2.png',
+  姜芷: 'feizi1.png',
   方瑶: '鏂圭憲.png',
-  连翘: 'lianqiao.jpg',
+  连翘: 'yueshi.png',
   阿翎: 'aling.jpg',
-  太后: 'taihou-cutout.png',
+  太后: 'taihou.png',
   杜娘: 'du-niang.jpg',
-  娇娇: 'jiaojiao.jpg',
+  娇娇: 'jiaojiao.png',
 
   陈妙仪: quietConsortFallbackFilename,
-  陈婉宁: quietConsortFallbackFilename,
+  陈婉宁: 'chenwanning.png',
   崔令蓉: CONSORT_PORTRAIT_FALLBACK_FILENAME,
   崔莺莺: CONSORT_PORTRAIT_FALLBACK_FILENAME,
   杜若蘅: quietConsortFallbackFilename,

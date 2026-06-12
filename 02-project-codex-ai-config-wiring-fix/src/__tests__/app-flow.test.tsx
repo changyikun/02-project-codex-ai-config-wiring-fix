@@ -729,7 +729,7 @@ describe('App 主流程切换', () => {
       <GlobalDialogueStage
         sceneLabel="测试剧情舞台"
         portraitLabel="娇娇立绘"
-        portrait={<img src="/assets/dialogue/jiaojiao-final.png" alt="娇娇" />}
+        portrait={<img src="/assets/characters/women/jiaojiao.png" alt="娇娇" />}
         characterIdentity="场景旁白"
         characterName="掖庭院"
         quotedSpeakerIdentity="内廷听用宫人"
@@ -742,7 +742,7 @@ describe('App 主流程切换', () => {
           return {
             label: '沉璧立绘',
             placement: 'dialogue-left',
-            portrait: <img src="/assets/routes/portraits/yingluoyeting.png" alt="沉璧" />,
+            portrait: <img src="/assets/characters/women/chenbi.png" alt="沉璧" />,
           };
         }}
         content="隔着屏风问话时，你只答礼制、曲名和用典：“妾听闻此曲本为旧制，若用在今日，当避其锋芒。”"
@@ -767,7 +767,7 @@ describe('App 主流程切换', () => {
       <GlobalDialogueStage
         sceneLabel="测试剧情舞台"
         portraitLabel="娇娇立绘"
-        portrait={<img src="/assets/dialogue/jiaojiao-final.png" alt="娇娇" />}
+        portrait={<img src="/assets/characters/women/jiaojiao.png" alt="娇娇" />}
         characterIdentity="掖庭引路宫女"
         characterName="娇娇"
         quotedSpeakerIdentity="内廷听用宫人"
@@ -1214,7 +1214,7 @@ describe('App 主流程切换', () => {
 
     expect(container.querySelector('.chamber-main__inner-panel')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '吩咐娇娇' })).toHaveClass('chamber-main__jiaojiao-entry');
-    expect(document.querySelector('.chamber-main__jiaojiao-entry img')).toHaveAttribute('src', '/assets/dialogue/jiaojiao-final.png');
+    expect(document.querySelector('.chamber-main__jiaojiao-entry img')).toHaveAttribute('src', '/assets/characters/women/jiaojiao.png');
     expect(screen.getByRole('button', { name: '诵读经典' })).toHaveClass('chamber-main__scene-button--vertical');
     expect(screen.getByRole('button', { name: '结束本旬' })).toHaveClass('chamber-main__scene-button--horizontal');
   });
