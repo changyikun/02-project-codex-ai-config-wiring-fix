@@ -6,14 +6,19 @@ import {
   getConcubinePortraitPath,
 } from '../../game/data/concubineRoster';
 import {
-  requestBaohuaDialogueWithFallback,
+  requestBaohuaLocalDialogue,
   type BaohuaDialogueActor,
 } from '../../game/lib/baohuaDialogueRuntime';
 import { buildLocationActionNarrative } from '../../game/lib/actionNarrativeRuntime';
 import { clampToRange, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
+import {
+  CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN,
+  buildConsortPublicEncounterSendOffNarrativeEntry,
+  type ConsortSendOffNarrative,
+} from '../../game/lib/consortVisitRuntime';
 import { getNpcActivitiesAtLocation } from '../../game/lib/npcActivityRuntime';
-import { requestRelationshipJudgementWithFallback } from '../../game/lib/relationshipJudgeRuntime';
-import { requestTempleAmbientWithFallback } from '../../game/lib/templeAmbientRuntime';
+import { requestRelationshipJudgementLocal } from '../../game/lib/relationshipJudgeRuntime';
+import { requestTempleAmbientLocal } from '../../game/lib/templeAmbientRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type {
   ConcubineProfile,
@@ -89,6 +94,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
   const [pendingDangYiUnlock, setPendingDangYiUnlock] = useState(false);
   const [actionResultText, setActionResultText] = useState('');
   const [pendingTimedActionOutcome, setPendingTimedActionOutcome] = useState<TimedLocationActionOutcome | null>(null);
+  const [pendingEncounterSendOff, setPendingEncounterSendOff] = useState<ConsortSendOffNarrative | null>(null);
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const dialogueOptions = dialogueTurn?.options ?? [];
@@ -169,7 +175,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     },
   ) => {
     const payload = buildPayload(actor, topic, actionId, actionLabel, overrides);
-    const nextTurn = await requestBaohuaDialogueWithFallback(payload, actor);
+    const nextTurn = await requestBaohuaLocalDialogue(payload, actor);
     const speakerLabel = `${nextTurn.speakerIdentity} · ${nextTurn.speakerName}`;
 
     setDialogueTurn(nextTurn);
@@ -200,6 +206,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     setHistory([]);
     setSceneHint('');
     setActiveEncounterLabel(actionLabel);
+    setPendingEncounterSendOff(null);
 
     try {
       await runNarrativeTurn(actor, 'visit', actionId, actionLabel, {
@@ -238,6 +245,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     setSceneHint('');
     setBusy(false);
     setPendingTimedActionOutcome(null);
+    setPendingEncounterSendOff(null);
     finishTimedLocationAction(outcome);
   };
 
@@ -252,7 +260,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     patchTempleProgress({ worshipCount: nextCount });
 
     try {
-      const ambient = await requestTempleAmbientWithFallback({
+      const ambient = await requestTempleAmbientLocal({
         routeId: state.routeId,
         playerName: state.name,
         playerRank: playerRankLabel,
@@ -300,7 +308,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     applyStoryEffects({ stats: { fortune: 1 } });
 
     try {
-      const ambient = await requestTempleAmbientWithFallback({
+      const ambient = await requestTempleAmbientLocal({
         routeId: state.routeId,
         playerName: state.name,
         playerRank: playerRankLabel,
@@ -334,7 +342,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     patchTempleProgress({ strollCount: nextCount });
 
     try {
-      const ambient = await requestTempleAmbientWithFallback({
+      const ambient = await requestTempleAmbientLocal({
         routeId: state.routeId,
         playerName: state.name,
         playerRank: playerRankLabel,
@@ -394,7 +402,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     setBusy(true);
 
     try {
-      const judgement = await requestRelationshipJudgementWithFallback(
+      const judgement = await requestRelationshipJudgementLocal(
         {
           routeId: state.routeId,
           npcId: activeActor.id,
@@ -405,7 +413,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
           currentAffection: activeActor.currentAffection,
           recentContext: nextHistory.map((entry) => `${entry.speaker}：${entry.text}`),
         },
-        option.fallbackToneTag,
+        option.localToneTag,
       );
 
       if (activeActor.actorKind === 'consort' && activeActor.consortId) {
@@ -416,9 +424,18 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
           currentAffection: clampToRange(activeActor.currentAffection + summary.appliedAffectionDelta, 0, 100),
         };
         setActiveActor(nextActor);
+        if (summary.actionCountThisXun >= CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN) {
+          setPendingEncounterSendOff(
+            buildConsortPublicEncounterSendOffNarrativeEntry(`${nextActor.identity} ${nextActor.name}`, '宝华殿'),
+          );
+        }
+
+        const settlementNotice = summary.actionLimitHit
+          ? '本旬与她的互动回合已用尽，关系不再变化。'
+          : '本地关系结算已落地。';
 
         await runNarrativeTurn(nextActor, 'follow-up', 'baohua-follow-up', activeEncounterLabel, {
-          actionResult: `${judgement.reason} 本地关系结算已落地。`,
+          actionResult: `${judgement.reason} ${settlementNotice}`,
           selectedOptionId: option.id,
           selectedOptionLabel: option.label,
           historyOverride: nextHistory,
@@ -467,7 +484,22 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
       return;
     }
 
-    if (dialogueTurn.phase === 'finish' || dialogueTurn.nextActionLabel !== '下一句') {
+    if (dialogueTurn.phase !== 'continue' || dialogueTurn.mode !== 'line') {
+      if (pendingEncounterSendOff) {
+        setDialogueTurn({
+          ...dialogueTurn,
+          mode: 'line',
+          phase: 'finish',
+          speakerIdentity: pendingEncounterSendOff.speakerIdentity || '场景旁白',
+          speakerName: pendingEncounterSendOff.speakerName || pendingEncounterSendOff.narrationName || '宝华殿偶遇',
+          text: pendingEncounterSendOff.text,
+          options: [],
+          sceneHint: pendingEncounterSendOff.sceneHint || '偶遇已经收束，不宜在外景强留。',
+        });
+        setSceneHint(pendingEncounterSendOff.sceneHint || '偶遇已经收束，不宜在外景强留。');
+        setPendingEncounterSendOff(null);
+        return;
+      }
       closeEncounter();
       return;
     }
@@ -558,7 +590,6 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
             onSelectOption={(optionId) => {
               void handleOptionSelect(optionId);
             }}
-            nextActionLabel={dialogueOptions.length === 0 ? dialogueTurn?.nextActionLabel : undefined}
             onNextAction={
               dialogueOptions.length === 0
                 ? () => {
@@ -577,7 +608,6 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
           className="global-dialogue-stage--baohua"
           dialogueClassName="palace-dialogue-box--baohua-encounter"
           content={actionResultText}
-          nextActionLabel={pendingTimedActionOutcome?.shouldSleep ? '回宫歇下' : '收起'}
           onNextAction={closeActionResult}
           busy={busy}
         />

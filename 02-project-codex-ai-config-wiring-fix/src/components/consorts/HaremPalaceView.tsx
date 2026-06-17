@@ -8,8 +8,10 @@ import {
 } from '../../config/locationSceneBackgrounds';
 import {
   canStartConsortVisit,
+  CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN,
   CONSORT_VISIT_STAMINA_BLOCK_TEXT,
   CONSORT_VISIT_STAMINA_COST,
+  buildConsortInteractionLimitNarrative,
 } from '../../game/lib/consortVisitRuntime';
 import { getNpcVisitAtResidence, isNpcAtOwnResidence } from '../../game/lib/npcActivityRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
@@ -59,7 +61,7 @@ const getResidencePresenceLabel = (
 };
 
 export function HaremPalaceView({ concubines, playerResidenceName, playerName, playerRankLabel }: HaremPalaceViewProps) {
-  const { state, npcActivity, resolveNpcActivityEntry, enterMainChamber } = useGameFlowStore();
+  const { state, time, npcActivity, consortInteractionMap, resolveNpcActivityEntry, enterMainChamber } = useGameFlowStore();
   const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [selectedPalaceId, setSelectedPalaceId] = useState<HaremPalaceId | null>(null);
   const [selectedHallId, setSelectedHallId] = useState<string | null>(null);
@@ -98,7 +100,24 @@ export function HaremPalaceView({ concubines, playerResidenceName, playerName, p
     setActionNote('');
   }, [selectedPalaceId]);
 
+  const currentXunKey = `${time.year}-${time.month}-${time.xun}`;
+  const getInteractionCountThisXun = (consortId: string): number =>
+    consortInteractionMap[consortId]?.xunKey === currentXunKey
+      ? Number(consortInteractionMap[consortId]?.actionCountThisXun ?? 0)
+      : 0;
+  const isConsortInteractionLimitReached = (consortId: string): boolean =>
+    getInteractionCountThisXun(consortId) >= CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN;
+  const buildResidentLimitNote = (resident: ConcubineProfile): string =>
+    buildConsortInteractionLimitNarrative(`${resident.rankLabel} ${resident.name}`);
+
   const startConsortAudience = (consortId: string) => {
+    const targetConsort = concubines.find((consort) => consort.id === consortId);
+    if (targetConsort && isConsortInteractionLimitReached(consortId)) {
+      setActionNote(buildResidentLimitNote(targetConsort));
+      setActiveResidentId(null);
+      return;
+    }
+
     if (!canStartConsortVisit(state.stamina)) {
       setActionNote(CONSORT_VISIT_STAMINA_BLOCK_TEXT);
       setActiveResidentId(null);
@@ -196,6 +215,10 @@ export function HaremPalaceView({ concubines, playerResidenceName, playerName, p
           if (!singleResident) {
             return;
           }
+          if (isConsortInteractionLimitReached(singleResident.id)) {
+            setActionNote(buildResidentLimitNote(singleResident));
+            return;
+          }
           if (!getNpcVisitAtResidence(npcActivity, singleResident.id)) {
             startConsortAudience(singleResident.id);
           }
@@ -286,18 +309,27 @@ export function HaremPalaceView({ concubines, playerResidenceName, playerName, p
 
           {selectedHallOccupancy && selectedHallOccupancy.presentResidents.length > 0 ? (
             <section className="harem-palace-view__resident-actions" aria-label={`${selectedHall?.suffix ?? '殿位'}可拜访妃嫔`}>
-              {selectedHallOccupancy.presentResidents.map((resident) => (
-                <button
-                  key={resident.id}
-                  type="button"
-                  className="harem-palace-view__utility-button"
-                  onClick={() => startConsortAudience(resident.id)}
-                >
-                  {`拜访 ${resident.rankLabel} ${resident.name}${
-                    getNpcVisitAtResidence(npcActivity, resident.id) ? '（会客中）' : ''
-                  }`}
-                </button>
-              ))}
+              {selectedHallOccupancy.presentResidents.map((resident) => {
+                const limitReached = isConsortInteractionLimitReached(resident.id);
+                return (
+                  <button
+                    key={resident.id}
+                    type="button"
+                    className="harem-palace-view__utility-button"
+                    onClick={() => startConsortAudience(resident.id)}
+                    disabled={limitReached}
+                  >
+                    {`拜访 ${resident.rankLabel} ${resident.name}${
+                      getNpcVisitAtResidence(npcActivity, resident.id) ? '（会客中）' : limitReached ? '（本旬已会）' : ''
+                    }`}
+                  </button>
+                );
+              })}
+              {selectedHallOccupancy.presentResidents
+                .filter((resident) => isConsortInteractionLimitReached(resident.id))
+                .map((resident) => (
+                  <p key={`${resident.id}-limit`}>{buildResidentLimitNote(resident)}</p>
+                ))}
             </section>
           ) : null}
 

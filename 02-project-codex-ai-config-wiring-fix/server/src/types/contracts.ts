@@ -175,7 +175,6 @@ export interface OpeningDialogueResponse {
   speakerIdentity: string;
   speakerName: string;
   text: string;
-  nextActionLabel: string;
   timeCost: number;
   dataEffects: DialogueDataEffects;
   options: StoryBranchOption[];
@@ -270,7 +269,7 @@ export interface ConsortDialogueOption {
   id: string;
   label: string;
   effectHint: string;
-  fallbackToneTag: RelationshipToneTag;
+  localToneTag: RelationshipToneTag;
   nextTopic?: string;
 }
 
@@ -339,7 +338,6 @@ export interface ConsortDialogueResponse {
   speakerIdentity: string;
   speakerName: string;
   text: string;
-  nextActionLabel: string;
   sceneHint?: string;
   options: ConsortDialogueOption[];
   memoryCandidates?: DialogueMemoryCandidate[];

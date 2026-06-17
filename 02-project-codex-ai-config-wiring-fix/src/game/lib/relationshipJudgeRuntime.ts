@@ -1,9 +1,4 @@
-import {
-  requestRelationshipJudge,
-  type RelationshipJudgeRequestPayload,
-  type RelationshipJudgeResponsePayload,
-} from '../../ai/relationshipJudgeAgent';
-import { shouldUseRealtimeAiGameplay } from '../../config/gameplayMode';
+import type { RelationshipJudgeRequestPayload } from '../../ai/relationshipJudgeAgent';
 import type { RelationshipJudgeOutcome, RelationshipToneTag } from '../types';
 
 const toneDeltaMap: Record<RelationshipToneTag, Pick<RelationshipJudgeOutcome, 'favorDelta' | 'affectionDelta'>> = {
@@ -22,57 +17,25 @@ const toneReasonMap: Record<RelationshipToneTag, string> = {
   neutral: '这句更多是在维持场面，系统按中性处理。',
 };
 
-const isToneTag = (value: unknown): value is RelationshipToneTag => {
-  return value === 'friendly' || value === 'flirt' || value === 'cold' || value === 'reject' || value === 'neutral';
-};
-
-const normalizeJudgeResponse = (
-  response: RelationshipJudgeResponsePayload,
-  fallbackToneTag: RelationshipToneTag,
-  optionText: string,
-): RelationshipJudgeOutcome => {
-  const toneTag = isToneTag(response.toneTag) ? response.toneTag : fallbackToneTag;
-  const mapped = toneDeltaMap[toneTag];
-
-  return {
-    toneTag,
-    favorDelta: mapped.favorDelta,
-    affectionDelta: mapped.affectionDelta,
-    reason: String(response.reason ?? '').trim() || toneReasonMap[toneTag],
-    confidence: Number.isFinite(response.confidence) ? Math.max(0, Math.min(1, response.confidence)) : 0.5,
-    source: 'ai',
-    optionText,
-  };
-};
-
 export const buildLocalRelationshipJudgement = (
-  fallbackToneTag: RelationshipToneTag,
+  localToneTag: RelationshipToneTag,
   optionText: string,
 ): RelationshipJudgeOutcome => {
-  const mapped = toneDeltaMap[fallbackToneTag];
+  const mapped = toneDeltaMap[localToneTag];
   return {
-    toneTag: fallbackToneTag,
+    toneTag: localToneTag,
     favorDelta: mapped.favorDelta,
     affectionDelta: mapped.affectionDelta,
-    reason: toneReasonMap[fallbackToneTag],
+    reason: toneReasonMap[localToneTag],
     confidence: 0,
-    source: 'fallback',
+    source: 'local',
     optionText,
   };
 };
 
-export const requestRelationshipJudgementWithFallback = async (
+export const requestRelationshipJudgementLocal = async (
   payload: RelationshipJudgeRequestPayload,
-  fallbackToneTag: RelationshipToneTag,
+  localToneTag: RelationshipToneTag,
 ): Promise<RelationshipJudgeOutcome> => {
-  if (!shouldUseRealtimeAiGameplay()) {
-    return buildLocalRelationshipJudgement(fallbackToneTag, payload.optionText);
-  }
-
-  try {
-    const response = await requestRelationshipJudge(payload);
-    return normalizeJudgeResponse(response, fallbackToneTag, payload.optionText);
-  } catch {
-    return buildLocalRelationshipJudgement(fallbackToneTag, payload.optionText);
-  }
+  return buildLocalRelationshipJudgement(localToneTag, payload.optionText);
 };

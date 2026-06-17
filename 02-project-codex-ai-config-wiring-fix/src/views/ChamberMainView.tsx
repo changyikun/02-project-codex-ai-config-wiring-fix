@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { AffairsPanelView, BondPanelView, ChroniclePanelView, InventoryPanelView, MiscInfoPanelView } from '../components/chamber/ChamberUtilityViews';
 import { BaohuaHallView } from '../components/chamber/BaohuaHallView';
 import { DowagerAudiencePanel } from '../components/chamber/DowagerAudiencePanel';
+import { EmperorAudiencePanel } from '../components/chamber/EmperorAudiencePanel';
 import { HuaQingPoolView } from '../components/chamber/HuaQingPoolView';
 import { KitchenView } from '../components/chamber/KitchenView';
 import { MiaoYinHallView } from '../components/chamber/MiaoYinHallView';
@@ -11,7 +12,7 @@ import { YetingYardView } from '../components/chamber/YetingYardView';
 import { ConcubineListView } from '../components/consorts/ConcubineListView';
 import { ConsortAudiencePanel } from '../components/consorts/ConsortAudiencePanel';
 import { HaremPalaceView } from '../components/consorts/HaremPalaceView';
-import { DIALOGUE_EXPLICIT_PAGE_BREAK, GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
+import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
 import { PlayerStatsView } from '../components/status/PlayerStatsView';
 import { AutoCutoutPortrait } from '../components/visual/AutoCutoutPortrait';
@@ -39,13 +40,25 @@ import {
   getConcubinePortraitPath,
 } from '../game/data/concubineRoster';
 import {
-  buildChamberActionNarrative,
+  buildChamberActionNarrativeEntry,
   buildMapTransitionNarrative,
+  buildMapTransitionNarrativeEntry,
 } from '../game/lib/actionNarrativeRuntime';
 import { getRarityColor } from '../game/lib/bedchamberRuntime';
 import { isJiaojiaoSpokenText } from '../game/lib/dialoguePresentation';
 import { getNpcActivitiesAtLocation, getPendingNpcPlayerVisit } from '../game/lib/npcActivityRuntime';
+import {
+  EMPEROR_AUDIENCE_OPEN_SLOTS,
+  isEmperorPublicEncounterAvailable,
+} from '../game/lib/emperorActivityRuntime';
+import { renderNarrativeEntry, type NarrativeEntry } from '../game/narrative/narrativeCatalog';
+import {
+  narrativeEntryToGlobalDialogueFields,
+  narrativeEntryToPresentation,
+  type NarrativePresentationFields,
+} from '../game/narrative/narrativeDialogueAdapter';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
+import type { EmperorInteractionSource, MapAreaId } from '../game/types';
 
 const skillLabelMap: Record<string, string> = {
   poetry: '诗词',
@@ -76,12 +89,6 @@ const EMPEROR_PORTRAIT_SRC = '/assets/characters/men/rongan.png';
 const JIAOJIAO_COMMAND_PROMPT = '娘娘，有何吩咐？';
 const LIANQIAO_PORTRAIT_SRC = '/assets/characters/women/yueshi.png';
 const EXPENSE_EXPLANATION_OPTION_ID = 'expense-explanation';
-const EXPENSE_EXPLANATION_TEXT = [
-  '娘娘，这三档说的是每月固定用度，不是立刻花一笔银子。寝殿这里调整后，是登记下月用度，等跨月结算时才生效。',
-  '节衣缩食：每月用月俸四分之一。好处是省银两；代价是起居和体面受损，声望-5，健康-1。',
-  '量入为出：每月用月俸一半。它最稳妥，不额外增减声望和健康。',
-  '锦衣玉食：每月用月俸四分之三。花费重些，但能撑住体面与起居，声望+10，健康+1。',
-].join(DIALOGUE_EXPLICIT_PAGE_BREAK);
 const CHAMBER_BACKGROUND_CROSSFADE_MS = 680;
 
 const getCurrentXunKey = (year: number, month: number, xun: number): string => `${year}-${month}-${xun}`;
@@ -95,6 +102,7 @@ type PendingChamberDialogueAction =
   | null;
 
 type NpcPlayerVisitChoiceId = 'receive' | 'probe' | 'decline';
+type ChamberDialoguePresentation = NarrativePresentationFields;
 
 const buildChamberBackgroundStyle = (backgroundImage?: string): CSSProperties | undefined =>
   backgroundImage
@@ -106,17 +114,14 @@ const buildChamberBackgroundStyle = (backgroundImage?: string): CSSProperties | 
       }
     : undefined;
 
-const buildOvernightReminderText = (origin: 'map' | 'chamber', reason: 'deep-night' | 'stamina'): string => {
-  if (origin === 'map') {
-    return reason === 'stamina'
-      ? '娘娘，今日体力已经尽了。奴婢陪您回宫歇下，余下的事明儿清晨再听回禀。'
-      : '娘娘，夜已经深了。奴婢陪您回宫歇下，等明儿清晨再听各处回禀。';
-  }
-
-  return reason === 'stamina'
-    ? '娘娘，今日体力已经尽了。奴婢替您收拾灯烛，先歇下吧。'
-    : '娘娘，已经深夜了。奴婢替您放下帐子，先歇下吧。';
-};
+const buildOvernightReminderEntry = (
+  origin: 'map' | 'chamber',
+  reason: 'deep-night' | 'stamina',
+  residenceName: string,
+): NarrativeEntry =>
+  renderNarrativeEntry(`overnight.reminder.${origin}.${reason}`, {
+    residenceName,
+  });
 
 const npcVisitPurposeLabel: Record<string, string> = {
   gift: '送礼',
@@ -158,6 +163,7 @@ export function ChamberMainView() {
     selectedRoute,
     activeChamberPanel,
     activeMapLocation,
+    activeMapLocationEntryTime,
     activeAffairsSource,
     mapEventText,
     openChamberPanel,
@@ -194,8 +200,10 @@ export function ChamberMainView() {
     pendingYangxinVerdict,
     advanceYangxinVerdict,
     finalizeYangxinVerdict,
+    resolveZhengyangEmperorWait,
   } = useGameFlowStore();
   const [dialogueText, setDialogueText] = useState('');
+  const [dialoguePresentation, setDialoguePresentation] = useState<ChamberDialoguePresentation | null>(null);
   const [bedchamberGiftItemName, setBedchamberGiftItemName] = useState('');
   const [overnightTransitionPhase, setOvernightTransitionPhase] = useState<OvernightTransitionPhase>('hidden');
   const [overnightTransitionReason, setOvernightTransitionReason] = useState<'deep-night' | 'stamina' | undefined>(undefined);
@@ -209,13 +217,19 @@ export function ChamberMainView() {
     consortId: string;
     summary: string;
   } | null>(null);
+  const [activeEmperorAudience, setActiveEmperorAudience] = useState<{
+    source: EmperorInteractionSource;
+    location: MapAreaId;
+  } | null>(null);
+  const [emperorNoticeText, setEmperorNoticeText] = useState('');
+  const [jianzhangAudienceMode, setJianzhangAudienceMode] = useState<'dowager' | null>(null);
   const [pendingChamberDialogueAction, setPendingChamberDialogueAction] =
     useState<PendingChamberDialogueAction>(null);
   const overnightTransitionRunKeyRef = useRef<string | null>(null);
   const suppressNextYangxinEntryNarrativeRef = useRef(false);
   const isResidenceLocation = activeMapLocation === state.residenceName;
   const isOutsideScene = Boolean(activeMapLocation && !isResidenceLocation);
-  const isJianzhangAudience = activeChamberPanel === 'main' && activeMapLocation === '建章宫';
+  const isJianzhangAudience = activeChamberPanel === 'main' && activeMapLocation === '建章宫' && jianzhangAudienceMode === 'dowager';
   const isKitchenScene = activeChamberPanel === 'main' && activeMapLocation === '御膳房';
   const isBaohuaHallScene = activeChamberPanel === 'main' && activeMapLocation === '宝华殿';
   const isHuaQingPoolScene = activeChamberPanel === 'main' && activeMapLocation === '华清池';
@@ -223,6 +237,11 @@ export function ChamberMainView() {
   const isMiaoYinHallScene = activeChamberPanel === 'main' && activeMapLocation === '妙音堂';
   const isYetingYardScene = activeChamberPanel === 'main' && activeMapLocation === '掖庭院';
   const isHaremPanelActive = activeChamberPanel === 'harem';
+  const setDialogueFromEntry = (entry: NarrativeEntry) => {
+    const presentation = narrativeEntryToPresentation(entry);
+    setDialoguePresentation(presentation);
+    setDialogueText(presentation.text);
+  };
   const pendingNightlyServiceEvent = nightlyService.pendingEvent;
   const pendingNightlyServiceNotice = nightlyService.pendingNotice;
   const shouldDelayNightlyServiceOverlay = Boolean(dialogueText || pendingYangxinVerdict);
@@ -262,6 +281,20 @@ export function ChamberMainView() {
     [fadingSceneBackground],
   );
   const allConsorts = useMemo(() => [...concubines, ...customConsorts], [concubines, customConsorts]);
+  const activeLocationEntryTime = activeMapLocationEntryTime ?? time;
+  const emperorPublicEncounterAvailable = Boolean(
+    activeMapLocation &&
+      !isResidenceLocation &&
+      isEmperorPublicEncounterAvailable(state.routeId, activeLocationEntryTime, activeMapLocation),
+  );
+  const canRequestEmperorAtYangxin = Boolean(
+    activeMapLocation === '养心殿' && EMPEROR_AUDIENCE_OPEN_SLOTS.includes(activeLocationEntryTime.slot),
+  );
+  const shouldShowYangxinNightRefusal = Boolean(
+    activeMapLocation === '养心殿' &&
+      (activeLocationEntryTime.slot === '夜晚' || activeLocationEntryTime.slot === '深夜'),
+  );
+  const shouldShowZhengyangWait = Boolean(activeMapLocation === '正阳门' && activeLocationEntryTime.slot === '清晨');
   const activeLocationNpcActivities = useMemo(() => {
     if (!activeMapLocation || isResidenceLocation) {
       return [];
@@ -285,6 +318,9 @@ export function ChamberMainView() {
 
   useEffect(() => {
     setActiveLocationAudience(null);
+    setActiveEmperorAudience(null);
+    setEmperorNoticeText('');
+    setJianzhangAudienceMode(null);
   }, [activeMapLocation]);
 
   useEffect(() => {
@@ -324,7 +360,7 @@ export function ChamberMainView() {
     }
 
     if (!state.flags.bedchamberIntroShown) {
-      setDialogueText(`娘娘，咱们已回到${state.residenceName}。接下来您可以安排学习、休养，也可外出继续探看宫中各处。`);
+      setDialogueFromEntry(renderNarrativeEntry('chamber.intro.bedchamber', { residenceName: state.residenceName }));
       patchState({
         flags: {
           ...state.flags,
@@ -368,7 +404,7 @@ export function ChamberMainView() {
         return;
       }
       setPendingChamberDialogueAction(null);
-      setDialogueText(buildMapTransitionNarrative({ kind: 'enter-location', locationName: activeMapLocation }));
+      setDialogueFromEntry(buildMapTransitionNarrativeEntry({ kind: 'enter-location', locationName: activeMapLocation }));
       return;
     }
 
@@ -556,6 +592,8 @@ export function ChamberMainView() {
     };
 
     if (pendingYangxinVerdict.stage === 'summon') {
+      const summonEntry = renderNarrativeEntry('yangxin.verdict.summon');
+      const summonDialogue = narrativeEntryToGlobalDialogueFields(summonEntry);
       return {
         sceneLabel: '养心殿传唤',
         portraitLabel: '内侍立绘',
@@ -566,10 +604,7 @@ export function ChamberMainView() {
             className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--eunuch"
           />
         ),
-        characterIdentity: '传旨内侍',
-        characterName: '内侍',
-        content: '养心殿传旨，请娘娘即刻前往听裁。',
-        nextActionLabel: '前往养心殿',
+        ...summonDialogue,
       };
     }
 
@@ -577,14 +612,13 @@ export function ChamberMainView() {
       const statement =
         pendingYangxinVerdict.statements[Math.min(yangxinStatementIndex, Math.max(0, pendingYangxinVerdict.statements.length - 1))];
       if (!statement) {
+        const emptyStatementEntry = renderNarrativeEntry('yangxin.verdict.no-statement');
+        const emptyStatementDialogue = narrativeEntryToGlobalDialogueFields(emptyStatementEntry);
         return {
           sceneLabel: '养心殿裁断',
           portraitLabel: '皇帝立绘',
           portrait: buildPortrait('emperor', '皇帝').portrait,
-          characterIdentity: '裁断者',
-          characterName: '皇帝',
-          content: '相关人已经到齐，皇帝命内廷呈上案卷。',
-          nextActionLabel: '回话',
+          ...emptyStatementDialogue,
         };
       }
 
@@ -596,7 +630,6 @@ export function ChamberMainView() {
         characterIdentity: statement.speakerRole,
         characterName: statement.speakerId === 'player' ? '你' : statement.speakerName,
         content: statement.text,
-        nextActionLabel: hasMoreYangxinStatements ? '继续听裁' : '回话',
       };
     }
 
@@ -605,28 +638,25 @@ export function ChamberMainView() {
       const playerIsSuspect = pendingYangxinVerdict.attendees.some(
         (attendee) => attendee.id === 'player' && attendee.role === '定罪候选人',
       );
+      const choiceEntry = renderNarrativeEntry(playerIsSuspect ? 'yangxin.verdict.choice.self' : 'yangxin.verdict.choice.witness');
+      const choiceDialogue = narrativeEntryToGlobalDialogueFields(choiceEntry);
       return {
         sceneLabel: '养心殿求情',
         portraitLabel: portraitConfig.label,
         portrait: portraitConfig.portrait,
-        characterIdentity: '裁断者',
-        characterName: '皇帝',
-        content: playerIsSuspect
-          ? '皇帝将案卷合上，准你在裁断落下前为自己说最后一句。你要如何自处？'
-          : '皇帝将案卷合上，准你在裁断落下前说最后一句。你要如何回话？',
-        nextActionLabel: undefined,
+        ...choiceDialogue,
       };
     }
 
     const portraitConfig = buildPortrait('emperor', '皇帝');
+    const resultEntry = renderNarrativeEntry('yangxin.verdict.result.default');
+    const resultDialogue = narrativeEntryToGlobalDialogueFields(resultEntry);
     return {
       sceneLabel: '养心殿裁断结果',
       portraitLabel: portraitConfig.label,
       portrait: portraitConfig.portrait,
-      characterIdentity: '裁断者',
-      characterName: '皇帝',
-      content: pendingYangxinVerdict.result?.summary ?? '皇帝已经落下裁断，命内廷照此执行。',
-      nextActionLabel: '退下',
+      ...resultDialogue,
+      content: pendingYangxinVerdict.result?.summary ?? resultDialogue.content,
     };
   }, [allConsorts, hasMoreYangxinStatements, pendingYangxinVerdict, selectedRoute?.portrait, yangxinStatementIndex]);
   const yangxinVerdictOptions =
@@ -637,7 +667,11 @@ export function ChamberMainView() {
           effectHint: choice.effectHint,
         }))
       : [];
-  const isJiaojiaoChamberDialogue = isJiaojiaoSpokenText(dialogueText);
+  const activeDialoguePresentation = dialoguePresentation?.text === dialogueText ? dialoguePresentation : null;
+  const isJiaojiaoChamberDialogue =
+    activeDialoguePresentation?.portraitKey === 'jiaojiao' ||
+    activeDialoguePresentation?.actorKey === 'jiaojiao' ||
+    (!activeDialoguePresentation && isJiaojiaoSpokenText(dialogueText));
   const chamberDialogueClassName = `global-dialogue-stage--chamber ${
     isJiaojiaoChamberDialogue ? 'global-dialogue-stage--assistant' : 'global-dialogue-stage--narration'
   }`;
@@ -712,7 +746,7 @@ export function ChamberMainView() {
 
       closeChamberPanel();
       setPendingChamberDialogueAction('enter-map');
-      setDialogueText(buildMapTransitionNarrative({ kind: 'enter-map', fromResidence: state.residenceName }));
+      setDialogueFromEntry(buildMapTransitionNarrativeEntry({ kind: 'enter-map', fromResidence: state.residenceName }));
       return;
     }
 
@@ -762,7 +796,7 @@ export function ChamberMainView() {
     enterMainChamber();
     setPendingChamberDialogueAction('overnight-transition');
     setOvernightTransitionReason(pendingOvernightReturn.reason);
-    setDialogueText(buildOvernightReminderText(pendingOvernightReturn.origin, pendingOvernightReturn.reason));
+    setDialogueFromEntry(buildOvernightReminderEntry(pendingOvernightReturn.origin, pendingOvernightReturn.reason, state.residenceName));
     clearOvernightReturn();
   }, [
     activeChamberPanel,
@@ -828,7 +862,7 @@ export function ChamberMainView() {
 
     if (action.id === 'explore') {
       setPendingChamberDialogueAction('enter-map');
-      setDialogueText(buildMapTransitionNarrative({ kind: 'enter-map', fromResidence: state.residenceName }));
+      setDialogueFromEntry(buildMapTransitionNarrativeEntry({ kind: 'enter-map', fromResidence: state.residenceName }));
       return;
     }
 
@@ -848,7 +882,7 @@ export function ChamberMainView() {
 
     if ((action.staminaCost ?? 0) > state.stamina) {
       setPendingChamberDialogueAction(null);
-      setDialogueText('娘娘眼下体力不足，还是先歇一歇，再做这些事。');
+      setDialogueFromEntry(renderNarrativeEntry('chamber.notice.stamina-block', { residenceName: state.residenceName }));
       return;
     }
 
@@ -865,8 +899,8 @@ export function ChamberMainView() {
       advanceTime(action.timeCost ?? 1);
     }
     setPendingChamberDialogueAction(null);
-    setDialogueText(
-      buildChamberActionNarrative({
+    setDialogueFromEntry(
+      buildChamberActionNarrativeEntry({
         actionId: action.id,
         actionLabel: action.label,
         actionSummary: action.summary,
@@ -926,7 +960,10 @@ export function ChamberMainView() {
     }
 
     setPendingChamberDialogueAction(null);
-    setDialogueText(bottomToolMessage[toolLabel] ?? `${toolLabel}入口已预留，后续会补全对应功能。`);
+    setDialogueFromEntry(renderNarrativeEntry('chamber.notice.reserved-tool', {
+      residenceName: state.residenceName,
+      toolLabel,
+    }));
   };
 
   const handleOpenJiaojiaoPanel = () => {
@@ -982,7 +1019,7 @@ export function ChamberMainView() {
     if (pendingChamberDialogueAction === 'overnight-reminder') {
       const reason = state.stamina <= 0 ? 'stamina' : 'deep-night';
       setPendingChamberDialogueAction('overnight-transition');
-      setDialogueText(buildOvernightReminderText('chamber', reason));
+      setDialogueFromEntry(buildOvernightReminderEntry('chamber', reason, state.residenceName));
       return;
     }
 
@@ -1008,6 +1045,34 @@ export function ChamberMainView() {
       summary: activity.entry.summary,
     });
     resolveNpcActivityEntry(entryId);
+  };
+
+  const handleStartEmperorAudience = (source: EmperorInteractionSource, location: MapAreaId) => {
+    setDialogueText('');
+    setEmperorNoticeText('');
+    setPendingChamberDialogueAction(null);
+    setActiveLocationAudience(null);
+    setActiveEmperorAudience({ source, location });
+  };
+
+  const handleEmperorAudienceLeave = () => {
+    setActiveEmperorAudience(null);
+    setJianzhangAudienceMode(null);
+    setEmperorNoticeText('');
+    enterMapMain();
+  };
+
+  const handleZhengyangWait = () => {
+    const result = resolveZhengyangEmperorWait();
+    setDialogueText('');
+    setPendingChamberDialogueAction(null);
+    setEmperorNoticeText(result.message);
+  };
+
+  const handleYangxinNightRefusal = () => {
+    setDialogueText('');
+    setPendingChamberDialogueAction(null);
+    setEmperorNoticeText('内侍在阶前躬身拦下你：“娘娘，夜里养心殿已有安排，皇上不见后宫求见。更深露重，还请娘娘回宫。”');
   };
 
   const handleNpcPlayerVisitChoice = (choiceId: string) => {
@@ -1040,7 +1105,7 @@ export function ChamberMainView() {
   const handleExpenseExplanation = () => {
     setExpenseStrategyPanelOpen(false);
     setPendingChamberDialogueAction('reopen-expense-choice');
-    setDialogueText(EXPENSE_EXPLANATION_TEXT);
+    setDialogueFromEntry(renderNarrativeEntry('opening.expense.explanation', { residenceName: state.residenceName }));
   };
 
   const handleExpenseStrategySelect = (strategyId: (typeof MONTHLY_EXPENSE_STRATEGIES)[number]['id']) => {
@@ -1109,7 +1174,6 @@ export function ChamberMainView() {
             characterIdentity="夜间通报"
             characterName="内侍"
             content={pendingNightlyServiceNotice.lines.join('\n')}
-            nextActionLabel="知道了"
             onNextAction={handleNightlyServiceNoticeDone}
             numericFeedbackBucket="nightly-service"
           />
@@ -1236,6 +1300,73 @@ export function ChamberMainView() {
         ) : null}
 
         {!shouldHideChamberUiForNightlyOverlay &&
+        activeEmperorAudience ? (
+          <EmperorAudiencePanel
+            source={activeEmperorAudience.source}
+            location={activeEmperorAudience.location}
+            concubines={allConsorts}
+            onLeave={handleEmperorAudienceLeave}
+          />
+        ) : null}
+
+        {!shouldHideChamberUiForNightlyOverlay && emperorNoticeText ? (
+          <GlobalDialogueStage
+            sceneLabel="皇帝外景事件"
+            portraitLabel="内侍立绘"
+            portrait={<img src={EUNUCH_PORTRAIT_SRC} alt="内侍" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--eunuch" />}
+            ariaLabel="皇帝外景事件通报"
+            className="global-dialogue-stage--chamber"
+            dialogueClassName="palace-dialogue-box--chamber"
+            characterIdentity="内侍"
+            characterName="内侍"
+            content={emperorNoticeText}
+            onNextAction={() => {
+              setEmperorNoticeText('');
+              enterMapMain();
+            }}
+            numericFeedbackBucket="map-event"
+          />
+        ) : null}
+
+        {!shouldHideChamberUiForNightlyOverlay &&
+        activeChamberPanel === 'main' &&
+        activeMapLocation &&
+        !isResidenceLocation &&
+        !activeLocationAudience &&
+        !activeEmperorAudience &&
+        !dialogueText &&
+        !emperorNoticeText &&
+        !pendingYangxinVerdict &&
+        !showSettlementReport &&
+        !showNpcPlayerVisit &&
+        !isNightlyOverlayActive &&
+        (canRequestEmperorAtYangxin || shouldShowYangxinNightRefusal || shouldShowZhengyangWait || emperorPublicEncounterAvailable) ? (
+          <section className="chamber-main__location-visitors chamber-main__location-visitors--emperor" aria-label="皇帝动向入口">
+            <strong>御前动静</strong>
+            {canRequestEmperorAtYangxin ? (
+              <button type="button" onClick={() => handleStartEmperorAudience('yangxin-request', '养心殿')}>
+                求见皇上
+              </button>
+            ) : null}
+            {shouldShowYangxinNightRefusal ? (
+              <button type="button" onClick={handleYangxinNightRefusal}>
+                听内侍回话
+              </button>
+            ) : null}
+            {shouldShowZhengyangWait ? (
+              <button type="button" onClick={handleZhengyangWait}>
+                等待下朝
+              </button>
+            ) : null}
+            {emperorPublicEncounterAvailable && activeMapLocation ? (
+              <button type="button" onClick={() => handleStartEmperorAudience('public-encounter', activeMapLocation)}>
+                与皇上交谈
+              </button>
+            ) : null}
+          </section>
+        ) : null}
+
+        {!shouldHideChamberUiForNightlyOverlay &&
         activeChamberPanel === 'main' &&
         activeMapLocation &&
         !isResidenceLocation &&
@@ -1266,6 +1397,7 @@ export function ChamberMainView() {
             concubines={concubines}
             backLabel={`返回${activeMapLocation}`}
             initialActionLabel={`${activeMapLocation}偶遇`}
+            encounterPlace="public"
             initialActionResult={`${buildMapTransitionNarrative({
               kind: 'enter-location',
               locationName: activeMapLocation,
@@ -1288,6 +1420,19 @@ export function ChamberMainView() {
           <YetingYardView />
         ) : isJianzhangAudience ? (
           <DowagerAudiencePanel onLeave={enterMapMain} />
+        ) : activeChamberPanel === 'main' && activeMapLocation === '建章宫' && !activeLocationAudience && !activeEmperorAudience ? (
+          <section className="dowager-audience-view__briefing chamber-main__location-choice" aria-label="建章宫行动">
+            <strong>建章宫殿门半启，宫人正候在阶前。</strong>
+            <p>若要拜见太后，须先请宫人入内通传。若圣驾在此，也可另行上前见驾。</p>
+            <button type="button" onClick={() => setJianzhangAudienceMode('dowager')}>
+              拜见太后
+            </button>
+            {emperorPublicEncounterAvailable ? (
+              <button type="button" onClick={() => handleStartEmperorAudience('public-encounter', '建章宫')}>
+                与皇上交谈
+              </button>
+            ) : null}
+          </section>
         ) : activeChamberPanel === 'harem' ? (
           <HaremPalaceView
             concubines={concubines}
@@ -1344,7 +1489,6 @@ export function ChamberMainView() {
             content={yangxinVerdictDialogue.content}
             options={yangxinVerdictOptions}
             onSelectOption={pendingYangxinVerdict.stage === 'player-choice' ? handleYangxinVerdictChoice : undefined}
-            nextActionLabel={yangxinVerdictDialogue.nextActionLabel}
             onNextAction={pendingYangxinVerdict.stage === 'player-choice' ? undefined : handleYangxinVerdictNext}
             numericFeedbackBucket="settlement"
           />
@@ -1361,7 +1505,6 @@ export function ChamberMainView() {
             characterIdentity={latestSettlementReport.kind === 'event' ? '司乐女官' : '贴身宫女'}
             characterName={latestSettlementReport.kind === 'event' ? '掌册宫人' : '娇娇'}
             content={`${latestSettlementReport.title}。${latestSettlementReport.lines.join(' ')}`}
-            nextActionLabel="记下"
             onNextAction={() => handleSettlementReportDone(latestSettlementReport.id)}
             numericFeedbackBucket="settlement"
           />
@@ -1394,7 +1537,6 @@ export function ChamberMainView() {
             }
             options={npcPlayerVisitOptions}
             onSelectOption={npcPlayerVisitResultText ? undefined : handleNpcPlayerVisitChoice}
-            nextActionLabel={npcPlayerVisitResultText ? '记下' : undefined}
             onNextAction={npcPlayerVisitResultText ? handleNpcPlayerVisitDone : undefined}
           />
         ) : null}
@@ -1420,18 +1562,16 @@ export function ChamberMainView() {
             ariaLabel="寝殿对白"
             className={chamberDialogueClassName}
             dialogueClassName="palace-dialogue-box--chamber"
-            characterIdentity={isJiaojiaoChamberDialogue ? '贴身宫女' : '场景旁白'}
-            characterName={isJiaojiaoChamberDialogue ? '娇娇' : currentSceneLabel}
-            content={dialogueText}
-            nextActionLabel={
-              pendingChamberDialogueAction === 'enter-map'
-                ? '前往地图'
-                : pendingChamberDialogueAction === 'reopen-expense-choice'
-                  ? '重新选择'
-                  : pendingChamberDialogueAction === 'overnight-transition'
-                    ? '歇下'
-                    : '收起'
+            characterIdentity={
+              activeDialoguePresentation?.speakerIdentity ||
+              (isJiaojiaoChamberDialogue ? '贴身宫女' : '场景旁白')
             }
+            characterName={
+              activeDialoguePresentation?.speakerName ||
+              activeDialoguePresentation?.narrationName ||
+              (isJiaojiaoChamberDialogue ? '娇娇' : currentSceneLabel)
+            }
+            content={dialogueText}
             onNextAction={handleChamberDialogueDone}
           />
         ) : null}
@@ -1455,7 +1595,6 @@ export function ChamberMainView() {
             characterIdentity="妙音堂伶人"
             characterName="连翘"
             content={`连翘托宫人把一卷新谱送到了寝殿门前。她只留下一句话：这折《${bedchamberGiftItemName}》你若肯细听，想来不会白费。`}
-            nextActionLabel="收下"
             onNextAction={() => setBedchamberGiftItemName('')}
           />
         ) : null}

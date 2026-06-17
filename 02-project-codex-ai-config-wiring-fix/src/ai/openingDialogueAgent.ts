@@ -54,8 +54,10 @@ export interface OpeningDialogueResponsePayload {
   phase: 'continue' | 'finish';
   speakerIdentity: string;
   speakerName: string;
+  portraitKey?: string;
+  portraitPlacement?: 'stage' | 'dialogue-left' | '';
+  narrationName?: string;
   text: string;
-  nextActionLabel: string;
   timeCost: number;
   dataEffects: DialogueDataEffects;
   options: DialogueOption[];

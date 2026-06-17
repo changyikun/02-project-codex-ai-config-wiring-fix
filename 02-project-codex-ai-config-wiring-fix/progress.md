@@ -79,6 +79,31 @@ Original prompt: 添加存档系统，回溯可以读取上一次存档，开始
 - 验证：`npm run build:web`、`npm run build:api` 通过；`build:web` 仍有既有 Vite 大 chunk 警告。
 - 验证：in-app browser 打开 `http://127.0.0.1:5173/` 可正常加载启动页，console error 为 0。
 
+## 2026-06-15 妃嫔互动回合限制
+
+- 结论：NPC 拜访玩家已有 `triggeredVisitIds` 与 `resolved` 保证单条拜访只触发一次；缺口在玩家主动拜访妃嫔和公共地点妃嫔关系判定，可在同旬反复点交互。
+- 已处理：`ConsortInteractionProgress` 新增 `actionCountThisXun`，`recordConsortInteractionAction` 与 `applyConsortRelationshipJudgement` 共同限制每旬每名妃嫔最多 `3` 次普通互动。
+- 已处理：`ConsortAudiencePanel` 展示本旬剩余互动次数，次数用尽后“送礼 / 试探 / 拉拢”按钮进入不可交互态；单个话题最多继续 `2` 句后自动收束。
+- 已修订：普通会面最后一次互动后不再停留在灰按钮状态，而是展示宫人续茶送客、下旬再叙的收束对白，玩家点击正文后退出会面；同旬再次拜访在殿位处显示宫人婉拒，不消耗体力和时间。
+- 已处理：御膳房、太医院、妙音堂、宝华殿、华清池的妃嫔关系判定接入同一计数，次数耗尽后不再写普通关系变化。
+- 已处理：开发期存档校验新增 `consortInteractionMap` 互动计数字段检查，旧互动记录缺少 `actionCountThisXun` 时直接清档，不做迁移。
+- 已同步：`CHANGELOG.md`、`docs/game-state-model.md`、`docs/game-system-breakdown.md`、`docs/system-hard-rules-integrated.md`、`docs/codex-dialogue-handoff.md`，并补充“新增硬机制必须自带剧情解释和演出效果”的规则。
+- 验证：`npx tsc --noEmit` 通过；`npx vitest run src/game/save/saveGameV1.test.ts src/game/store/gameFlowStore.save.test.ts -t "consort interaction|consort interaction map|captures the current durable"` 通过，4 passed；`npx vitest run src/__tests__/app-flow.test.tsx -t "妃嫔会面|妃嫔送礼"` 通过，3 passed；`npx vitest run src/__tests__/app-flow.test.tsx -t "妃嫔本旬互动次数用尽"` 通过，1 passed；`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告。
+
+## 2026-06-16 剧情 CSV 完整 entry 消费修订
+
+- 问题：首轮 CSV 化仍有大量代码只读取 `text`，说话人、立绘 key、旁白名、场景提示继续在代码里 new / 硬编码，导致 CSV 对文案策划来说不是真正的剧情源。
+- 已处理：新增 `renderNarrativeEntry(id, vars)` 完整渲染入口，并让寝殿主舞台、地图引导、妃嫔 / 太后 fallback、地点偶遇 fallback、送客收束、宫门 NPC、皇帝互动、侍寝、养心殿裁断、影落掖庭主线优先读取完整 CSV entry。
+- 已处理：删除无用 `renderNarrativeField`；业务代码中清除直接 `renderNarrativeText` 调用，文本读取仅保留在底层 helper 与测试中。
+- 已修正：新增 `narrativeDialogueAdapter`，运行期通过 adapter 把 CSV entry 转为开场响应、全局舞台字段、妃嫔会面回合和普通展示字段；开场、寝殿、地图、宫门、影落掖庭主线、地点 fallback、送客收束、养心殿裁断不再各自逐项拆 `entry.speakerName` / `entry.text`。
+- 已处理：补充寝殿首次回宫、体力不足、预留入口、睡觉提醒等 CSV 条目，避免寝殿主舞台继续散落剧情正文。
+- 已同步：`CHANGELOG.md`、`src/game/narrative/csv/README.md`、`codex-workdocs/2026-06-16-v051-narrative-csv-config.md`、`docs/game-system-breakdown.md`、`docs/system-hard-rules-integrated.md`、`docs/codex-dialogue-handoff.md`。
+- 验证：`npx tsc --noEmit` 通过；`npx vitest run src/game/narrative/csvNarrativeLoader.test.ts src/game/lib/actionNarrativeRuntime.test.ts src/game/lib/localGameplayMode.test.ts server/tests/integration/aiRoutes.test.ts --reporter=verbose` 通过，19 passed；测试中仍有既有 AI key fallback 告警。
+- 复验：`npx vitest run src/game/narrative/csvNarrativeLoader.test.ts src/game/narrative/narrativeDialogueAdapter.test.ts src/game/lib/actionNarrativeRuntime.test.ts src/game/lib/localGameplayMode.test.ts --reporter=verbose` 通过，16 passed。
+- 复验：`npx vitest run src/__tests__/app-flow.test.tsx -t "御膳房可购买美食并在第四次闲逛强制触发布自游|宝华殿礼佛三次后结识当一|开场" --reporter=verbose` 通过；仍有既有 React `act(...)` 测试警告。
+- 验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "御膳房可购买美食并在第四次闲逛强制触发布自游|宝华殿礼佛三次后结识当一" --reporter=verbose` 通过；此前广口径流程测试发现 CSV 称谓回归，已把布自游恢复为“御厨”、当一恢复为“佛殿执事”。
+- 验证：`npm run build:web` 通过；仍有既有 Vite 大 chunk 警告。浏览器冒烟加载 `http://127.0.0.1:5173/`，启动页含“开始 / 回溯”，console error 为 0。
+
 ## 2026-06-03 地点行动统一结算
 
 - 问题：小场景作为 `ChamberMainView` 的 `activeMapLocation` 子状态存在，但地点内行动各自直接推进时间、各自写 `systemMessage`，导致“只能回宫不能回地图”“妙音堂普通听曲对白消失”“太医院深夜行动不触发睡觉”属于同一类流程分裂。
@@ -358,3 +383,51 @@ Original prompt: 添加存档系统，回溯可以读取上一次存档，开始
 - 追加验证：`npx tsc --noEmit`、`npx vitest run src/game/lib/palaceStrifeRuntime.test.ts src/__tests__/app-flow.test.tsx -t "self-defense choices|witness and mercy choices|养心殿裁断通过对话事件"` 通过。
 - 追加验证：`npx vitest run src/game/store/gameFlowStore.save.test.ts`、`npx vitest run src/config/locationSceneBackgrounds.test.ts`、`npm run build:web` 通过；in-app browser 重载本地页无 error。
 - 追加验证：`npx tsc --noEmit`、`npx vitest run src/__tests__/app-flow.test.tsx -t "养心殿裁断通过对话事件|普通进入养心殿"`、`npx vitest run src/game/lib/palaceStrifeRuntime.test.ts src/game/store/gameFlowStore.save.test.ts`、`npm run build:web` 通过。
+
+## 2026-06-15 v0.5.1 皇帝日间行为与互动机制
+
+- 本轮目标：新增皇帝旬内日间动向、养心殿求见、正阳门等待下朝、御花园 / 建章宫公共偶遇与完整皇帝互动页。
+- 已处理：新增 `emperorActivityRuntime`，按路线、旬、入场时辰和地点 deterministic 计算皇帝位置、养心殿求见成功率、正阳门偶遇和主行动结果。
+- 已处理：地图进入公共地点时记录 `activeMapLocationEntryTime` 临时上下文；地点进入本身消耗时间和体力，求见成功 / 失败、公共偶遇互动结束不再额外推进第二格。
+- 已处理：`SaveGameV1` schema 提升到 `3`，新增 `progress.emperorInteraction` 保存皇帝互动触发记录；开发期旧结构继续直接清档，不做 fallback。
+- 已处理：养心殿上午到傍晚可求见，夜晚 / 深夜由内侍劝归；正阳门清晨可等待下朝；御花园 / 建章宫中午到傍晚若皇帝在场可进入完整互动页。
+- 已处理：皇帝交互页支持一次主行动和一次附加话题。主行动包括研墨、按摩、关心、抚琴、闲聊、撒娇、入怀、对弈；附加话题在送礼、美言、诉苦中三选一。
+- 已处理：送礼消耗真实背包食物 / 绣品 / 字画，并新增字画类 `gift` 物品；美言 / 诉苦分别使目标妃嫔声望 `+5 / -5`。
+- 已同步：`CHANGELOG.md`、`docs/game-state-model.md`、`docs/game-system-breakdown.md`、`docs/system-hard-rules-integrated.md`、`docs/codex-dialogue-handoff.md`。
+- 验证：`npx tsc --noEmit` 通过。
+- 验证：`npx vitest run src/game/lib/emperorActivityRuntime.test.ts src/game/save/saveGameV1.test.ts src/game/store/gameFlowStore.save.test.ts --testNamePattern "emperor|SaveGameV1|inventory gift"` 通过。
+- 追加验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "普通进入养心殿|养心殿裁断|外出|建章宫|地图"` 通过，仍有既有 React `act(...)` 测试警告。
+- 追加验证：`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告；in-app browser 重载 `http://127.0.0.1:5173/`，启动页可见且 console error 为 0。
+
+## 2026-06-16 v0.5.1 会面收束顺序修复
+
+- 本轮目标：修复最后一次妃嫔互动结果被送客覆盖的问题，并补齐公共地点偶遇妃嫔 / 皇帝的外景收束演出。
+- 已处理：`ConsortAudiencePanel` 将本旬次数触顶收束拆为“先播放行动结果，再播放送客”；收束优先级高于 AI `下一句` 续句，避免最后一次行动被继续对白吞掉。
+- 已处理：妃嫔入场对白或行动结果未收起时，固定操作按钮禁用；玩家必须先读完当前对白再选择互动。
+- 已处理：公共地点妃嫔偶遇使用独立外景收束文案，表现为随侍提醒行程、今日偶遇到此为止、玩家让开宫道。
+- 已处理：皇帝公共偶遇新增 `farewell` 阶段，主行动结果后再播放外景“恭送圣驾”，不直接黑屏离场。
+- 已同步：`CHANGELOG.md`、`docs/game-system-breakdown.md`、`docs/system-hard-rules-integrated.md`、`docs/emperor-behavior-architecture.md`、`docs/codex-dialogue-handoff.md`、`codex-workdocs/2026-06-16-v051-audience-sendoff-sequencing.md`。
+- 验证：`npx tsc --noEmit` 通过。
+- 验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "妃嫔本旬互动次数用尽|公共地点排班妃嫔|户外偶遇皇帝" --reporter=verbose` 通过，3 passed。
+- 验证：`npx vitest run src/__tests__/app-flow.test.tsx --reporter=dot` 通过，136 passed；仍有既有 React `act(...)` 测试警告。
+- 验证：`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告。
+- 验证：`web_game_playwright_client` 打开 `http://127.0.0.1:5174/`，截图 `output/web-game-v051-sendoff-sequencing/shot-0.png` 可见启动页，未见空白渲染。
+
+## 2026-06-16 v0.5.1 剧情文本 CSV 配置化
+
+- 本轮目标：将代码中的剧情正文优先抽到 CSV，按系统域分文件维护，不抽纯 UI 标签、短错误提示和数值 / 状态逻辑。
+- 已处理：新增 `csvNarrativeLoader` 与 `narrativeCatalog`，通过 Vite `?raw` 读取 CSV，校验必填列、重复 ID、空正文和非法立绘位置。
+- 已处理：新增八类剧情 CSV，并迁移开场、用度说明、地图引导、寝殿 / 地点行动、地点 fallback、妃嫔 / 太后 fallback、宫门 NPC、皇帝互动、侍寝演出和养心殿裁断固定对白。
+- 已补测试：覆盖 CSV 解析、变量替换、全局 ID 唯一、代码引用 ID 存在性和缺失变量可见性。
+- 已同步：`CHANGELOG.md`、`docs/game-system-breakdown.md`、`docs/system-hard-rules-integrated.md`、`docs/codex-dialogue-handoff.md`、`codex-workdocs/2026-06-16-v051-narrative-csv-config.md`。
+- 验证：`npx tsc --noEmit` 通过；`npx vitest run src/game/narrative/csvNarrativeLoader.test.ts --reporter=verbose` 通过。
+- 追加验证：`npx vitest run src/game/narrative/csvNarrativeLoader.test.ts src/__tests__/app-flow.test.tsx --reporter=dot` 通过，`141 passed`；仍有既有 React `act(...)` 测试警告。
+- 追加验证：`npm run build:web` 通过；仍有既有 Vite 大 chunk 警告。
+- 追加验证：`web_game_playwright_client` 打开 `http://127.0.0.1:5173/`，截图 `output/web-game-v051-narrative-csv/shot-0.png` 可见启动页，未见空白渲染。
+- 追加文档：新增 `src/game/narrative/csv/README.md`，解释剧情 CSV 文件分工、统一表头字段含义、变量 / 分页 / CSV 转义规则、代码读取方式和校验规则；已单独强调文案策划最常编辑的说话人、立绘、正文和场景提示字段；`docs/codex-dialogue-handoff.md` 已加入阅读入口。
+- 表头修订：移除剧情 CSV 中的 `nextActionLabel` 列；剧情 CSV 只维护正文和演出元数据，不再混入下一步按钮文案。
+- 开场修订：`openingDialogueRuntime` 不再只读取 CSV 的 `text`，改为从 CSV entry 组装 `speakerIdentity`、`speakerName`、`portraitKey`、`portraitPlacement`、`narrationName` 与 `text`；开场响应和服务端 opening-dialogue 契约同步移除 `nextActionLabel`。
+- 验证：`npx tsc --noEmit` 通过；`npx vitest run src/game/narrative/csvNarrativeLoader.test.ts --reporter=verbose` 通过。
+- 追加验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "开场用度解释|寝殿调整用度说明|养心殿裁断通过对话事件|户外偶遇皇帝|结束本旬触发主角侍寝" --reporter=verbose` 通过，5 passed；仍有既有 React `act(...)` 测试警告。
+- 追加验证：`npx vitest run src/game/narrative/csvNarrativeLoader.test.ts src/game/lib/localGameplayMode.test.ts --reporter=verbose` 通过，9 passed；`npx vitest run server/tests/integration/aiRoutes.test.ts --reporter=verbose` 通过，6 passed。
+- 追加验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "开场|用度|影落掖庭" --reporter=verbose` 通过；仍有既有 React `act(...)` 测试警告。

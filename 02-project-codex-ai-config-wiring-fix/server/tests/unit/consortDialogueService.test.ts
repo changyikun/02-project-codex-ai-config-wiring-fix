@@ -74,7 +74,6 @@ describe('ConsortDialogueService', () => {
       speakerIdentity: '贵妃',
       speakerName: '姚铃儿',
       text: '姚铃儿将茶盏一转，忽而抬眼问：“娘娘今日这样问我，是想听真话，还是想看我如何回避？”',
-      nextActionLabel: '下一句',
       sceneHint: '她把话递了回来。',
       options: [],
       memoryCandidates: [],
@@ -85,7 +84,6 @@ describe('ConsortDialogueService', () => {
 
     expect(response.mode).toBe('branch');
     expect(response.options.length).toBeGreaterThan(0);
-    expect(response.nextActionLabel).toBe('收起');
   });
 
   it('把没有问号但明显索要表态的台词也兜底转成分支', async () => {
@@ -95,7 +93,6 @@ describe('ConsortDialogueService', () => {
       speakerIdentity: '贵妃',
       speakerName: '姚铃儿',
       text: '姚铃儿将杯沿轻轻一按，只抬眼望着你道：“娘娘若真有心来试我，便给妾一句准话。”',
-      nextActionLabel: '下一句',
       sceneHint: '她把话压到了你面前。',
       options: [],
       memoryCandidates: [],
@@ -109,7 +106,6 @@ describe('ConsortDialogueService', () => {
 
     expect(response.mode).toBe('branch');
     expect(response.options.length).toBeGreaterThan(0);
-    expect(response.nextActionLabel).toBe('收起');
   });
 
   it('会把送礼与 AI 候选整理成结构化 relationCandidates', async () => {
@@ -120,7 +116,6 @@ describe('ConsortDialogueService', () => {
       speakerIdentity: '贵妃',
       speakerName: '姚铃儿',
       text: '姚铃儿接过香囊，指尖在穗线上轻轻一拂，像是把那一点惊讶也按了下去：“娘娘这份心，妾会记着。”',
-      nextActionLabel: '下一句',
       sceneHint: '她把情绪压得很轻。',
       options: [],
       memoryCandidates: [
@@ -172,7 +167,6 @@ describe('ConsortDialogueService', () => {
       speakerIdentity: '宫门商贩',
       speakerName: '杜娘',
       text: '杜娘只把账册合拢，笑意仍旧稳当：“闲话可以听，只别把奴家也往深处牵。”',
-      nextActionLabel: '下一句',
       sceneHint: '她先把边界说在前头。',
       options: [],
       memoryCandidates: [
@@ -226,7 +220,6 @@ describe('ConsortDialogueService', () => {
       speakerIdentity: '贵妃',
       speakerName: '姚铃儿',
       text: '姚铃儿把茶盏轻轻搁回案上，语气仍旧端得极稳：“娘娘今日问到这里，妾该回的也都回了。再往下说，倒像是彼此都失了分寸，今日便先到这里吧。”',
-      nextActionLabel: '下一句',
       sceneHint: '她主动把话题收住。',
       options: [],
       memoryCandidates: [],
@@ -241,7 +234,6 @@ describe('ConsortDialogueService', () => {
     expect(response.mode).toBe('line');
     expect(response.phase).toBe('finish');
     expect(response.options).toEqual([]);
-    expect(response.nextActionLabel).toBe('收起');
   });
 
   it('同一 session 接近二十轮后会自动收束话题', async () => {
@@ -254,7 +246,6 @@ describe('ConsortDialogueService', () => {
         speakerIdentity: '贵妃',
         speakerName: '姚铃儿',
         text: '姚铃儿把话音压得很稳：“娘娘这句话，妾听明白了，只是眼下还不宜说得更深。”',
-        nextActionLabel: '下一句',
         sceneHint: '话头仍在延续。',
         options: [],
         memoryCandidates: [],
@@ -273,7 +264,6 @@ describe('ConsortDialogueService', () => {
 
     expect(latest?.phase).toBe('finish');
     expect(latest?.options).toEqual([]);
-    expect(latest?.nextActionLabel).toBe('收起');
     expect(latest?.sessionMemory?.totalExchangeCount).toBe(20);
     expect(aiCallCount).toBe(19);
   });
@@ -285,7 +275,6 @@ describe('ConsortDialogueService', () => {
       speakerIdentity: '贵妃',
       speakerName: '姚铃儿',
       text: '姚铃儿把话音压得很轻，像是还记得你上一回把话递到哪里。',
-      nextActionLabel: '下一句',
       sceneHint: '她接得上前话。',
       options: [],
       memoryCandidates: [],
@@ -324,7 +313,6 @@ describe('ConsortDialogueService', () => {
       speakerIdentity: '贵妃',
       speakerName: '姚铃儿',
       text: '姚铃儿把香囊收进袖中，语气仍旧端着：“既是娘娘的心意，妾自然记得。”',
-      nextActionLabel: '下一句',
       sceneHint: '她把这份心意记下了。',
       options: [],
       memoryCandidates: [

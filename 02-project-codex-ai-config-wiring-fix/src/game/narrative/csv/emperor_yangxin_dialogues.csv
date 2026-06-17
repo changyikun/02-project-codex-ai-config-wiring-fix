@@ -1,0 +1,10 @@
+id,group,routeId,locationId,actorKey,actionId,variant,order,speakerIdentity,speakerName,portraitKey,portraitPlacement,narrationName,text,sceneHint,notes
+"emperor.audience.request","emperor-audience","","养心殿","eunuch","request","","1","养心殿内侍","内侍","eunuch","stage","养心殿","你在养心殿外停步，檐下内侍垂手候着。你示意来意，他不敢怠慢，低声请你稍候，转身入殿通传。","","皇帝日间求见"
+"emperor.audience.intro.public","emperor-audience","","{{locationName}}","emperor","intro","public","2","皇帝","容安","emperor","stage","{{locationName}}","你在{{locationName}}见到容安。随行宫人稍稍退开，留出一段不远不近的距离。容安看向你，唇边仍带着惯常的温和笑意。\n“{{playerAddress}}，今日有何事？”","","皇帝公共地点偶遇"
+"emperor.audience.intro.yangxin","emperor-audience","","养心殿","emperor","intro","yangxin","3","皇帝","容安","emperor","stage","养心殿","内侍引你入殿，朱笔尚搁在折子旁。\n（容安放下朱笔，双手交叠置于案上）“{{playerAddress}}今日有何事？”","","养心殿求见成功"
+"emperor.audience.feedback.default","emperor-audience","","{{locationName}}","narration","feedback","default","4","场景旁白","{{locationName}}","","","{{locationName}}","殿中一时静了下来。","","皇帝互动反馈默认"
+"emperor.audience.farewell.public","emperor-audience","","{{locationName}}","narration","farewell","public","5","场景旁白","{{locationName}}偶遇","","","{{locationName}}","话到这里，随行内侍已经在远处低声提醒行程。你知道御前偶遇不能强留圣驾，便敛袖退到一旁，恭送容安离去。","","皇帝公共地点收束"
+"emperor.audience.farewell.yangxin","emperor-audience","","养心殿","narration","farewell","yangxin","6","场景旁白","养心殿","","","养心殿","内侍上前替容安收起案边折子，殿中烛火也随之低了些。你知今日求见已尽，便依礼告退，随宫人退出养心殿。","","养心殿求见收束"
+"nightly.service.summon","nightly-service","","寝殿","eunuch","summon","","10","传旨内侍","内侍","eunuch","stage","寝殿","夜色压到窗棂上时，外头忽然传来细碎脚步声。\n内侍在帘外躬身传话：“{{rankLabel}}{{playerName}}，养心殿传召。”\n这不是可推辞的邀约。宫人已候在廊下，灯笼一盏盏亮起来，照出通往养心殿的路。","","侍寝传召"
+"nightly.service.intro","nightly-service","","养心殿","emperor","intro","","11","皇帝","容安","emperor","stage","养心殿","养心殿内灯火压得很低，容安搁下手中折子，目光从案边移到你身上。你知道，今夜开口的分寸，会决定这一夜的冷暖。","","侍寝开场"
+"nightly.service.after","nightly-service","","养心殿","narration","after","","12","场景旁白","养心殿","","","养心殿","宫灯次第低下去，帷幔被夜风轻轻带动。殿外更漏声远了，近处只余衣料摩挲与压低的呼吸。今夜之后，宫中账册上会多记一笔，旁人的眼光也会随之改变。","","侍寝收束"

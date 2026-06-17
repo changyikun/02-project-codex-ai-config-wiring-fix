@@ -50,11 +50,11 @@ export const buildInitialBondProfile = (routeId: RouteId, xunKey: string): BondP
 };
 
 export const BOND_INTERACTION_OPTIONS: readonly BondInteractionOption[] = [
-  { id: 'warm-greeting', label: '温声问安', summary: '偏友好，先示以关心。', fallbackToneTag: 'friendly' },
-  { id: 'smiling-probe', label: '含笑试探', summary: '偏暧昧，言外多留余地。', fallbackToneTag: 'flirt' },
-  { id: 'measured-small-talk', label: '照例寒暄', summary: '偏中性，先不露心思。', fallbackToneTag: 'neutral' },
-  { id: 'cool-distance', label: '语气疏冷', summary: '偏冷淡，刻意拉开分寸。', fallbackToneTag: 'cold' },
-  { id: 'gentle-refusal', label: '婉拒靠近', summary: '偏拒斥，明示不愿更近。', fallbackToneTag: 'reject' },
+  { id: 'warm-greeting', label: '温声问安', summary: '偏友好，先示以关心。', localToneTag: 'friendly' },
+  { id: 'smiling-probe', label: '含笑试探', summary: '偏暧昧，言外多留余地。', localToneTag: 'flirt' },
+  { id: 'measured-small-talk', label: '照例寒暄', summary: '偏中性，先不露心思。', localToneTag: 'neutral' },
+  { id: 'cool-distance', label: '语气疏冷', summary: '偏冷淡，刻意拉开分寸。', localToneTag: 'cold' },
+  { id: 'gentle-refusal', label: '婉拒靠近', summary: '偏拒斥，明示不愿更近。', localToneTag: 'reject' },
 ] as const;
 
 export interface UnlockableBondCharacter {

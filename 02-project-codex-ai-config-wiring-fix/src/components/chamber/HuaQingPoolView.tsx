@@ -12,12 +12,17 @@ import {
   getConcubinePortraitPath,
 } from '../../game/data/concubineRoster';
 import {
-  requestHuaqingDialogueWithFallback,
+  requestHuaqingLocalDialogue,
   type HuaqingDialogueActor,
 } from '../../game/lib/huaqingDialogueRuntime';
 import { clampToRange, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
+import {
+  CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN,
+  buildConsortPublicEncounterSendOffNarrativeEntry,
+  type ConsortSendOffNarrative,
+} from '../../game/lib/consortVisitRuntime';
 import { getNpcActivitiesAtLocation } from '../../game/lib/npcActivityRuntime';
-import { requestRelationshipJudgementWithFallback } from '../../game/lib/relationshipJudgeRuntime';
+import { requestRelationshipJudgementLocal } from '../../game/lib/relationshipJudgeRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type {
   ConcubineProfile,
@@ -111,6 +116,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
   const [systemMessage, setSystemMessage] = useState('池上水雾缭绕，石阶与灯影都被暖意泡软了，越近的距离，越难把一句话说得全无波澜。');
   const [actionResultText, setActionResultText] = useState('');
   const [pendingTimedActionOutcome, setPendingTimedActionOutcome] = useState<TimedLocationActionOutcome | null>(null);
+  const [pendingEncounterSendOff, setPendingEncounterSendOff] = useState<ConsortSendOffNarrative | null>(null);
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const dialogueOptions = dialogueTurn?.options ?? [];
@@ -231,7 +237,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
     },
   ) => {
     const payload = buildPayload(actor, topic, actionId, actionLabel, overrides);
-    const nextTurn = await requestHuaqingDialogueWithFallback(payload, actor);
+    const nextTurn = await requestHuaqingLocalDialogue(payload, actor);
     const speakerLabel = `${nextTurn.speakerIdentity} · ${nextTurn.speakerName}`;
 
     setDialogueTurn(nextTurn);
@@ -253,6 +259,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
     setDialogueTurn(null);
     setHistory([]);
     setSceneHint('');
+    setPendingEncounterSendOff(null);
 
     try {
       await runNarrativeTurn(actor, 'visit', actionId, actionLabel, {
@@ -290,6 +297,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
     setSceneHint('');
     setBusy(false);
     setPendingTimedActionOutcome(null);
+    setPendingEncounterSendOff(null);
     finishTimedLocationAction(outcome);
   };
 
@@ -408,7 +416,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
     setBusy(true);
 
     try {
-      const judgement = await requestRelationshipJudgementWithFallback(
+      const judgement = await requestRelationshipJudgementLocal(
         {
           routeId: state.routeId,
           npcId: activeActor.id,
@@ -419,7 +427,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
           currentAffection: activeActor.currentAffection,
           recentContext: nextHistory.map((entry) => `${entry.speaker}：${entry.text}`),
         },
-        option.fallbackToneTag,
+        option.localToneTag,
       );
 
       if (activeActor.actorKind === 'lianqiao') {
@@ -455,8 +463,18 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
           currentAffection: clampToRange(activeActor.currentAffection + summary.appliedAffectionDelta, 0, 100),
         };
         setActiveActor(nextActor);
+        if (summary.actionCountThisXun >= CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN) {
+          setPendingEncounterSendOff(
+            buildConsortPublicEncounterSendOffNarrativeEntry(`${nextActor.identity} ${nextActor.name}`, '华清池'),
+          );
+        }
+
+        const settlementNotice = summary.actionLimitHit
+          ? '本旬与她的互动回合已用尽，关系不再变化。'
+          : '这一句已经落进她心里了。';
+
         await runNarrativeTurn(nextActor, 'follow-up', 'shared-bath-follow-up', '双人沐浴', {
-          actionResult: `${judgement.reason} 这一句已经落进她心里了。`,
+          actionResult: `${judgement.reason} ${settlementNotice}`,
           selectedOptionId: option.id,
           selectedOptionLabel: option.label,
           historyOverride: nextHistory,
@@ -472,7 +490,22 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
       return;
     }
 
-    if (dialogueTurn.phase === 'finish' || dialogueTurn.nextActionLabel !== '下一句') {
+    if (dialogueTurn.phase !== 'continue' || dialogueTurn.mode !== 'line') {
+      if (pendingEncounterSendOff) {
+        setDialogueTurn({
+          ...dialogueTurn,
+          mode: 'line',
+          phase: 'finish',
+          speakerIdentity: pendingEncounterSendOff.speakerIdentity || '场景旁白',
+          speakerName: pendingEncounterSendOff.speakerName || pendingEncounterSendOff.narrationName || '华清池偶遇',
+          text: pendingEncounterSendOff.text,
+          options: [],
+          sceneHint: pendingEncounterSendOff.sceneHint || '偶遇已经收束，不宜在外景强留。',
+        });
+        setSceneHint(pendingEncounterSendOff.sceneHint || '偶遇已经收束，不宜在外景强留。');
+        setPendingEncounterSendOff(null);
+        return;
+      }
       closeEncounter();
       return;
     }
@@ -552,7 +585,6 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
             onSelectOption={(optionId) => {
               void handleOptionSelect(optionId);
             }}
-            nextActionLabel={dialogueOptions.length === 0 ? dialogueTurn?.nextActionLabel : undefined}
             onNextAction={
               dialogueOptions.length === 0
                 ? () => {
@@ -571,7 +603,6 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
           className="global-dialogue-stage--huaqing"
           dialogueClassName="palace-dialogue-box--huaqing-encounter"
           content={actionResultText}
-          nextActionLabel={pendingTimedActionOutcome?.shouldSleep ? '回宫歇下' : '收起'}
           onNextAction={closeActionResult}
           busy={busy}
         />

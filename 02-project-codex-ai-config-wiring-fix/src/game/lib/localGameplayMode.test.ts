@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildInitialConcubineRoster } from '../data/concubineRoster';
-import { requestConsortDialogueWithFallback } from './consortDialogueRuntime';
-import { requestOpeningDialogueWithFallback } from './openingDialogueRuntime';
-import { requestRelationshipJudgementWithFallback } from './relationshipJudgeRuntime';
-import { requestTempleAmbientWithFallback } from './templeAmbientRuntime';
+import { requestConsortLocalDialogue } from './consortDialogueRuntime';
+import { requestOpeningLocalDialogue } from './openingDialogueRuntime';
+import { requestRelationshipJudgementLocal } from './relationshipJudgeRuntime';
+import { requestTempleAmbientLocal } from './templeAmbientRuntime';
 import type { ConsortDialogueRequestPayload } from '../../ai/consortDialogueAgent';
 import type { OpeningDialogueRequestPayload } from '../../ai/openingDialogueAgent';
 import type { RelationshipJudgeRequestPayload } from '../../ai/relationshipJudgeAgent';
@@ -82,7 +82,7 @@ describe('local-only gameplay mode', () => {
       timeContext,
     };
 
-    const result = await requestOpeningDialogueWithFallback(payload);
+    const result = await requestOpeningLocalDialogue(payload);
 
     expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(result.text).toContain('娇娇');
@@ -121,10 +121,9 @@ describe('local-only gameplay mode', () => {
       timeContext,
     };
 
-    const result = await requestConsortDialogueWithFallback(payload, consort);
+    const result = await requestConsortLocalDialogue(payload, consort);
 
     expect(globalThis.fetch).not.toHaveBeenCalled();
-    expect(result.usedFallback).toBe(true);
     expect(result.options).toEqual([]);
   });
 
@@ -140,15 +139,15 @@ describe('local-only gameplay mode', () => {
       recentContext: [],
     };
 
-    const result = await requestRelationshipJudgementWithFallback(payload, 'friendly');
+    const result = await requestRelationshipJudgementLocal(payload, 'friendly');
 
     expect(globalThis.fetch).not.toHaveBeenCalled();
-    expect(result.source).toBe('fallback');
+    expect(result.source).toBe('local');
     expect(result.favorDelta).toBe(1);
   });
 
   it('uses local ambient text without calling AI', async () => {
-    const result = await requestTempleAmbientWithFallback({
+    const result = await requestTempleAmbientLocal({
       routeId: 'lanyinxuguo',
       playerName: '谢令仪',
       playerRank: '皇后',

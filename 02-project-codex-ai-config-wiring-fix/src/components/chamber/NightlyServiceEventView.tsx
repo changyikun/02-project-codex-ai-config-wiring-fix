@@ -13,6 +13,7 @@ import type {
   NightlyServiceInteractionChoice,
   NightlyServicePendingEvent,
 } from '../../game/types';
+import { renderNarrativeEntry } from '../../game/narrative/narrativeCatalog';
 
 const EMPEROR_PORTRAIT_SRC = '/assets/characters/men/rongan.png';
 const EUNUCH_PORTRAIT_SRC = '/assets/characters/men/taijian.png';
@@ -38,11 +39,11 @@ const actionOptions = NIGHTLY_SERVICE_INTERACTION_ACTIONS.map((action) => ({
 
 const resolveActionFeedback = (
   choice: NightlyServiceInteractionChoice | null,
-  fallback: string | undefined,
+  defaultText: string | undefined,
   concubines: ConcubineProfile[],
 ): string => {
   if (choice?.actionId !== 'gentle') {
-    return fallback ?? '你把话慢慢放轻，殿中气息也随之缓下来。';
+    return defaultText ?? '你把话慢慢放轻，殿中气息也随之缓下来。';
   }
 
   if (choice.gentleBranchId === 'praise') {
@@ -59,7 +60,7 @@ const resolveActionFeedback = (
       : '你把话说得温和，殿中气息也随之缓下来。';
   }
 
-  return fallback ?? '你没有急着求赏，只把今日见闻慢慢说给他听。话到末处，殿中静下来，像是连烛火也跟着温顺了些。';
+  return defaultText ?? '你没有急着求赏，只把今日见闻慢慢说给他听。话到末处，殿中静下来，像是连烛火也跟着温顺了些。';
 };
 
 export function NightlyServiceEventView({
@@ -183,6 +184,10 @@ export function NightlyServiceEventView({
   ) : null;
 
   if (phase === 'notice') {
+    const summonEntry = renderNarrativeEntry('nightly.service.summon', {
+      rankLabel: pendingEvent.rankLabel,
+      playerName: pendingEvent.playerName,
+    });
     return (
       <section className={stageClassName} aria-label="侍寝太监通报">
         <div className="nightly-service-event__background" style={{ backgroundImage: `url("${YANGXIN_BACKGROUND_SRC}")` }} />
@@ -192,11 +197,10 @@ export function NightlyServiceEventView({
           portraitLabel="传旨太监立绘"
           portrait={<img src={EUNUCH_PORTRAIT_SRC} alt="传旨太监" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--eunuch" />}
           ariaLabel="侍寝太监通报"
-          characterIdentity="内侍"
-          characterName="传旨太监"
-          content={`夜色压到窗棂上时，外头忽然传来细碎脚步声。\n内侍在帘外躬身传话：“${pendingEvent.rankLabel}${pendingEvent.playerName}，养心殿传召。”\n这不是可推辞的邀约。宫人已候在廊下，灯笼一盏盏亮起来，照出通往养心殿的路。`}
+          characterIdentity={summonEntry.speakerIdentity}
+          characterName={summonEntry.speakerName}
+          content={summonEntry.text}
           splitQuotedDialogue={false}
-          nextActionLabel="前往养心殿"
           onNextAction={() => {
             setChooseIntroVisible(true);
             setPhase('choose');
@@ -208,6 +212,7 @@ export function NightlyServiceEventView({
   }
 
   if (phase === 'choose') {
+    const introEntry = renderNarrativeEntry('nightly.service.intro');
     return (
       <section className={stageClassName} aria-label="养心殿侍寝互动">
         <div className="nightly-service-event__background" style={{ backgroundImage: `url("${YANGXIN_BACKGROUND_SRC}")` }} />
@@ -263,10 +268,9 @@ export function NightlyServiceEventView({
             sceneLabel="养心殿侍寝互动"
             portraitLabel="旁白无立绘"
             ariaLabel="养心殿侍寝互动"
-            characterIdentity="场景旁白"
-            characterName="养心殿"
-            content="养心殿内灯火压得很低，容安搁下手中折子，目光从案边移到你身上。你知道，今夜开口的分寸，会决定这一夜的冷暖。"
-            nextActionLabel="开始互动"
+            characterIdentity={introEntry.speakerIdentity}
+            characterName={introEntry.speakerName}
+            content={introEntry.text}
             onNextAction={() => setChooseIntroVisible(false)}
           />
         ) : null}
@@ -288,13 +292,13 @@ export function NightlyServiceEventView({
           characterIdentity="场景旁白"
           characterName="养心殿"
           content={resolveActionFeedback(latestChoice, latestAction?.feedback, concubines)}
-          nextActionLabel={selectedChoices.length >= pendingEvent.maxInteractions ? '入帷' : '继续'}
           onNextAction={handleFeedbackDone}
         />
       </section>
     );
   }
 
+  const afterEntry = renderNarrativeEntry('nightly.service.after');
   return (
     <section className={stageClassName} aria-label="正式侍寝剧情">
       <div className="nightly-service-event__background" style={{ backgroundImage: `url("${YANGXIN_BACKGROUND_SRC}")` }} />
@@ -305,10 +309,9 @@ export function NightlyServiceEventView({
         sceneLabel="正式侍寝剧情"
         portraitLabel="旁白无立绘"
         ariaLabel="正式侍寝剧情"
-        characterIdentity="场景旁白"
-        characterName="养心殿"
-        content="宫灯次第低下去，帷幔被夜风轻轻带动。殿外更漏声远了，近处只余衣料摩挲与压低的呼吸。今夜之后，宫中账册上会多记一笔，旁人的眼光也会随之改变。"
-        nextActionLabel="夜尽"
+        characterIdentity={afterEntry.speakerIdentity}
+        characterName={afterEntry.speakerName}
+        content={afterEntry.text}
         onNextAction={() => setPhase('overnight')}
       />
     </section>

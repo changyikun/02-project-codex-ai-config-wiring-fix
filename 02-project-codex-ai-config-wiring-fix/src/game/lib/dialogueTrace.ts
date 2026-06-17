@@ -10,7 +10,7 @@ export interface DialogueTracePayload {
   relationPromotedCount?: number;
   relationRejectedCount?: number;
   relationEntryCount?: number;
-  usedFallback: boolean;
+  source: 'local' | 'ai';
 }
 
 export const traceDialogue = (payload: DialogueTracePayload): void => {

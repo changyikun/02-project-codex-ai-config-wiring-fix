@@ -5,7 +5,6 @@ interface LocationActionResultStageProps {
   content: string;
   className?: string;
   dialogueClassName?: string;
-  nextActionLabel?: string;
   busy?: boolean;
   onNextAction: () => void;
 }
@@ -15,7 +14,6 @@ export function LocationActionResultStage({
   content,
   className = 'global-dialogue-stage--chamber global-dialogue-stage--narration',
   dialogueClassName = 'palace-dialogue-box--chamber',
-  nextActionLabel = '收起',
   busy = false,
   onNextAction,
 }: LocationActionResultStageProps) {
@@ -30,7 +28,6 @@ export function LocationActionResultStage({
       characterIdentity="场景旁白"
       characterName={locationName}
       content={content}
-      nextActionLabel={nextActionLabel}
       onNextAction={onNextAction}
       busy={busy}
     />

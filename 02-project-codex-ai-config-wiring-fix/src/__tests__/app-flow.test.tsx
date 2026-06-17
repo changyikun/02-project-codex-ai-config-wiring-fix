@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
 import { CONSORT_DIALOGUE_TIMEOUT_MS } from '../ai/consortDialogueAgent';
+import { EmperorAudiencePanel } from '../components/chamber/EmperorAudiencePanel';
 import { InventoryPanelView } from '../components/chamber/ChamberUtilityViews';
 import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
 import { GlobalDialogue } from '../components/dialogue/PalaceDialogueBox';
@@ -665,7 +666,6 @@ describe('App 主流程切换', () => {
         characterIdentity="贵妃"
         characterName="姚铃儿"
         content={fullText}
-        nextActionLabel="下一句"
         onNextAction={onNextAction}
         typewriter={true}
       />,
@@ -798,7 +798,6 @@ describe('App 主流程切换', () => {
         characterIdentity="场景旁白"
         characterName="寝殿"
         content="右上角记着时辰、银两与体力，往后每做一件事，都得先看分寸与余力。"
-        nextActionLabel="下一句"
         onNextAction={onNextAction}
         typewriter={false}
       />,
@@ -2287,7 +2286,7 @@ describe('App 主流程切换', () => {
     expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined();
   });
 
-  it('开场本地 fallback 已显示时不会被后台 AI loading 锁住', async () => {
+  it('开场本地剧情已显示时不会被后台 AI loading 锁住', async () => {
     const fetchMock = vi.mocked(globalThis.fetch);
     fetchMock.mockReset();
     fetchMock.mockImplementation(() => new Promise<Response>(() => {}));
@@ -2396,8 +2395,8 @@ describe('App 主流程切换', () => {
     fireEvent.click(screen.getByRole('button', { name: '购买' }));
     expect(await screen.findByRole('dialog', { name: '杜娘购买弹窗' })).toBeInTheDocument();
     const purchaseButtons = await screen.findAllByRole('button', { name: /^购买 / });
-    expect(purchaseButtons.length).toBeGreaterThanOrEqual(5);
-    expect(purchaseButtons.length).toBeLessThanOrEqual(7);
+    expect(purchaseButtons.length).toBeGreaterThanOrEqual(7);
+    expect(purchaseButtons.length).toBeLessThanOrEqual(9);
     expect(screen.queryByRole('button', { name: '购买 鹤顶红' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '购买 缠枝香囊' }));
@@ -3417,7 +3416,7 @@ describe('App 主流程切换', () => {
     expect(useGameFlowStore.getState().kitchenProgress.buZiyouMet).toBe(true);
   });
 
-  it('NPC 初遇对白 AI 长时间无响应时会回退到本地选项', async () => {
+  it('NPC 初遇对白使用本地选项，不等待 AI 响应', async () => {
     const fetchMock = vi.mocked(globalThis.fetch);
     fetchMock.mockReset();
     fetchMock.mockImplementation((input, init) => {
@@ -3521,7 +3520,6 @@ describe('App 主流程切换', () => {
                   speakerIdentity: '御厨',
                   speakerName: '布自游',
                   text: '布自游把汤勺轻轻搁回灶边，抬眼时笑意还压在唇角：“娘娘既来了御膳房，总不至于只看一眼火候。若还想往下问，我便听着。”',
-                  nextActionLabel: '下一句',
                   sceneHint: '他没有立刻表态，还在等你把这句继续说完。',
                   options: [],
                 }
@@ -3531,12 +3529,11 @@ describe('App 主流程切换', () => {
                   speakerIdentity: '御厨',
                   speakerName: '布自游',
                   text: '他这才把视线真正落到你身上，声音却仍压得不紧不慢：“行，那娘娘就说吧。您想试我的心，还是想借这灶火先暖一暖场面？”',
-                  nextActionLabel: '收起',
                   sceneHint: '布自游已经把话口留出来了。',
                   options: [
-                    { id: 'probe', label: '借食单试探他', effectHint: '顺着闲话探一探他真正站哪边。', fallbackToneTag: 'neutral' },
-                    { id: 'warm', label: '放软语气示好', effectHint: '更容易稳稳攒一点好感。', fallbackToneTag: 'friendly' },
-                    { id: 'tease', label: '故意留半句玩笑', effectHint: '若他愿接，最容易牵出暧昧余地。', fallbackToneTag: 'flirt' },
+                    { id: 'probe', label: '借食单试探他', effectHint: '顺着闲话探一探他真正站哪边。', localToneTag: 'neutral' },
+                    { id: 'warm', label: '放软语气示好', effectHint: '更容易稳稳攒一点好感。', localToneTag: 'friendly' },
+                    { id: 'tease', label: '故意留半句玩笑', effectHint: '若他愿接，最容易牵出暧昧余地。', localToneTag: 'flirt' },
                   ],
                 },
         } as Response;
@@ -4636,6 +4633,8 @@ describe('App 主流程切换', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: '长春宫' }));
     fireEvent.click(await screen.findByRole('button', { name: /主殿[\s\S]*姚铃儿/ }));
+    expect(await screen.findByLabelText('贵妃 姚铃儿 日常对话')).toBeInTheDocument();
+    await clickDialogueAdvance();
     fireEvent.click(await screen.findByRole('button', { name: '送礼' }));
 
     const giftPicker = await screen.findByLabelText('送礼选物');
@@ -5345,6 +5344,15 @@ describe('App 主流程切换', () => {
       concubineRouteId: 'lanyinxuguo',
       concubines,
       inventory: cloneInitialInventory(),
+      consortInteractionMap: {
+        [visitor.id]: {
+          consortId: visitor.id,
+          xunKey: '1-1-1',
+          actionCountThisXun: 2,
+          favorDeltaThisXun: 0,
+          affectionDeltaThisXun: 0,
+        },
+      },
       npcActivity: {
         xunKey: '1-1-1',
         triggeredVisitIds: [],
@@ -5383,6 +5391,69 @@ describe('App 主流程切换', () => {
     expect(await screen.findByLabelText(new RegExp(`${visitor.name} 日常对话`))).toBeInTheDocument();
     expect(useGameFlowStore.getState().npcActivity.entries['public-visit-test'].resolved).toBe(true);
     expect(await screen.findByText(new RegExp(`${visitor.name}本旬在御花园赏花`))).toBeInTheDocument();
+
+    await clickDialogueAdvance();
+    await waitFor(() => {
+      expect(within(screen.getByLabelText('宫内互动操作')).getByRole('button', { name: '试探' })).not.toBeDisabled();
+    });
+    fireEvent.click(within(screen.getByLabelText('宫内互动操作')).getByRole('button', { name: '试探' }));
+    await waitFor(() => {
+      expect(useGameFlowStore.getState().consortInteractionMap[visitor.id]?.actionCountThisXun).toBe(3);
+    });
+    expect(await screen.findByText(/先向你敛衽请安/)).toBeInTheDocument();
+    expect(screen.queryByText(/今日偶遇到此为止/)).not.toBeInTheDocument();
+    await clickDialogueAdvance();
+    expect(await screen.findByText(/周遭又有宫人往来/)).toBeInTheDocument();
+  });
+
+  it('户外偶遇皇帝完成主行动后先显示结果，再触发恭送圣驾收束', async () => {
+    const defaultFavorTier = getFavorTierByValue(60);
+    const concubines = buildInitialConcubineRoster('lanyinxuguo');
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        favor: 60,
+        trueHeart: 40,
+        prestige: 2500,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        ...state.hiddenStats,
+        favor: 60,
+        trueHeart: 40,
+        prestige: 2500,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      concubines,
+      inventory: cloneInitialInventory(),
+    }));
+    const onLeave = vi.fn();
+
+    render(<EmperorAudiencePanel source="public-encounter" location="御花园" concubines={concubines} onLeave={onLeave} />);
+
+    expect(await screen.findByText(/你在御花园见到容安/)).toBeInTheDocument();
+    await clickDialogueAdvance();
+    fireEvent.click(await screen.findByRole('button', { name: '闲聊' }));
+
+    expect(await screen.findByText(/你拣了几句宫中闲话|你把话题绕得轻巧|你几句话便把殿中沉闷拆开/)).toBeInTheDocument();
+    expect(screen.queryByText(/恭送/)).not.toBeInTheDocument();
+    await clickDialogueAdvance();
+
+    expect(await screen.findByText(/不能强留圣驾/)).toBeInTheDocument();
+    expect(screen.getAllByLabelText('皇帝互动告退').length).toBeGreaterThan(0);
+    expect(onLeave).not.toHaveBeenCalled();
   });
 
   it('大地图地点弹窗不展示妃嫔信息，进入宫门后才显示可交互妃嫔', async () => {
@@ -5824,6 +5895,91 @@ describe('App 主流程切换', () => {
     expect(useGameFlowStore.getState().time.slotIndex).toBe(2);
   });
 
+  it('妃嫔本旬互动次数用尽后会送客并退出会面', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    const concubines = buildInitialConcubineRoster('lanyinxuguo');
+    const target = concubines.find((consort) => consort.name === '姚铃儿') ?? concubines[0];
+
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'harem',
+      activeMapLocation: undefined,
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        openingTendency: '节衣缩食',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      selectedRoute: undefined,
+      bondProfile: buildInitialBondProfile('lanyinxuguo', '1-1-1'),
+      concubineRouteId: 'lanyinxuguo',
+      concubines,
+      inventory: cloneInitialInventory(),
+      consortInteractionMap: {
+        [target.id]: {
+          consortId: target.id,
+          xunKey: '1-1-1',
+          actionCountThisXun: 2,
+          favorDeltaThisXun: 0,
+          affectionDeltaThisXun: 0,
+        },
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 1,
+        slot: '上午',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '长春宫' }));
+    fireEvent.click(await screen.findByRole('button', { name: /主殿[\s\S]*姚铃儿/ }));
+    expect(await screen.findByLabelText('贵妃 姚铃儿 日常对话')).toBeInTheDocument();
+    await clickDialogueAdvance();
+
+    await waitFor(() => {
+      expect(within(screen.getByLabelText('宫内互动操作')).getByRole('button', { name: '试探' })).not.toBeDisabled();
+    });
+    fireEvent.click(within(screen.getByLabelText('宫内互动操作')).getByRole('button', { name: '试探' }));
+
+    expect(await screen.findByText(/先向你敛衽请安/)).toBeInTheDocument();
+    expect(screen.queryByText(/余下的话不妨留到下旬再叙/)).not.toBeInTheDocument();
+    await clickDialogueAdvance();
+
+    expect(await screen.findByText(/余下的话不妨留到下旬再叙/)).toBeInTheDocument();
+    await clickDialogueAdvance();
+
+    await waitFor(() => expect(screen.queryByLabelText('贵妃 姚铃儿 日常对话')).not.toBeInTheDocument());
+    const visitButton = await screen.findByRole('button', { name: /拜访 贵妃 姚铃儿（本旬已会）/ });
+    expect(visitButton).toBeDisabled();
+    expect(screen.getByText(/本旬内不便再扰/)).toBeInTheDocument();
+  });
+
   it('妃嫔对话点击返回会直接离开会面且不请求 AI', async () => {
     const fetchMock = vi.mocked(globalThis.fetch);
     const requestPayloads: Array<Record<string, unknown>> = [];
@@ -5848,9 +6004,8 @@ describe('App 主流程切换', () => {
               speakerIdentity: '贵妃',
               speakerName: '姚铃儿',
               text: '姚铃儿将茶盏轻轻一转，笑意浅浅：“娘娘既来了，想来总有一句话要留给妾。”',
-              nextActionLabel: '收起',
               sceneHint: '她等你表态。',
-              options: [{ id: 'warm', label: '温声再问一句', effectHint: '先把敌意压下半寸。', fallbackToneTag: 'friendly' }],
+              options: [{ id: 'warm', label: '温声再问一句', effectHint: '先把敌意压下半寸。', localToneTag: 'friendly' }],
             }),
         } as Response;
       }
@@ -5942,7 +6097,6 @@ describe('App 主流程切换', () => {
                   speakerIdentity: '贵妃',
                   speakerName: '姚铃儿',
                   text: '姚铃儿指尖压着茶盏边沿，眼风却先从你衣襟上一掠而过，慢慢笑道：“娘娘今日肯亲自进殿，想来不是为了看这两枝新换的海棠。妾听着，娘娘不妨再把话往下说。”',
-                  nextActionLabel: '下一句',
                   sceneHint: '她还在试探你的来意。',
                   options: [],
                 }
@@ -5952,11 +6106,10 @@ describe('App 主流程切换', () => {
                   speakerIdentity: '贵妃',
                   speakerName: '姚铃儿',
                   text: '她话音落下时，眼尾那点笑意却并不真暖，反倒像是把门只开了半扇：“若娘娘真有心与我说句体己话，便看娘娘打算把这份好意放到什么分寸上。”',
-                  nextActionLabel: '收起',
                   sceneHint: '她开始等你表态了。',
                   options: [
-                    { id: 'warm', label: '缓声示好', effectHint: '先把敌意压下半寸。', fallbackToneTag: 'friendly' },
-                    { id: 'probe', label: '顺势试探', effectHint: '借她的话摸清真实态度。', fallbackToneTag: 'neutral' },
+                    { id: 'warm', label: '缓声示好', effectHint: '先把敌意压下半寸。', localToneTag: 'friendly' },
+                    { id: 'probe', label: '顺势试探', effectHint: '借她的话摸清真实态度。', localToneTag: 'neutral' },
                   ],
                 },
         } as Response;
@@ -6075,11 +6228,10 @@ describe('App 主流程切换', () => {
                   speakerIdentity: '贵妃',
                   speakerName: '姚铃儿',
                   text: '姚铃儿将茶盏轻轻一转，笑意浅浅：“娘娘既来了，想来总有一句话要留给妾。”',
-                  nextActionLabel: '收起',
                   sceneHint: '她等你表态。',
                   options: [
-                    { id: 'warm', label: '缓声示好', effectHint: '先把敌意压下半寸。', fallbackToneTag: 'friendly' },
-                    { id: 'probe', label: '顺势试探', effectHint: '借她的话摸清真实态度。', fallbackToneTag: 'neutral' },
+                    { id: 'warm', label: '缓声示好', effectHint: '先把敌意压下半寸。', localToneTag: 'friendly' },
+                    { id: 'probe', label: '顺势试探', effectHint: '借她的话摸清真实态度。', localToneTag: 'neutral' },
                   ],
                 }
               : {
@@ -6088,7 +6240,6 @@ describe('App 主流程切换', () => {
                   speakerIdentity: '贵妃',
                   speakerName: '姚铃儿',
                   text: '姚铃儿听完这句，眼底那点锋芒终于收了些：“娘娘肯把话说到这个分寸，妾自然也会记得。”',
-                  nextActionLabel: '收起',
                   sceneHint: '这一轮回应已经落定。',
                   options: [],
                 },
@@ -6159,7 +6310,7 @@ describe('App 主流程切换', () => {
     expect(consortPayloads).toEqual([]);
   });
 
-  it('御膳房选项点击后会保留上一句，直到真实回应或 fallback 返回', async () => {
+  it('御膳房选项点击后会保留上一句，直到本地回应返回', async () => {
     const fetchMock = vi.mocked(globalThis.fetch);
     let consortTurnCount = 0;
 
@@ -6192,11 +6343,10 @@ describe('App 主流程切换', () => {
               speakerIdentity: '布掌勺',
               speakerName: '布自游',
               text: '布自游拎着食盒从灶后转出来，低声笑道：“娘娘既肯走到这里，总该给我留一句能记住的话。”',
-              nextActionLabel: '收起',
               sceneHint: '他等你表态。',
               options: [
-                { id: 'warm', label: '放软语气示好', effectHint: '先把敌意压下半寸。', fallbackToneTag: 'friendly' },
-                { id: 'probe', label: '借食单试探他', effectHint: '借他的话摸清真实态度。', fallbackToneTag: 'neutral' },
+                { id: 'warm', label: '放软语气示好', effectHint: '先把敌意压下半寸。', localToneTag: 'friendly' },
+                { id: 'probe', label: '借食单试探他', effectHint: '借他的话摸清真实态度。', localToneTag: 'neutral' },
               ],
             }),
           } as Response);
@@ -7394,7 +7544,7 @@ describe('App 主流程切换', () => {
     expect(within(chamberDialogue).queryByText(/回到椒房殿/)).not.toBeInTheDocument();
   });
 
-  it('进入建章宫后会显示太后对话场景与两项固定交互', async () => {
+  it('进入建章宫后先显示空闲入口，选择拜见太后后进入太后交互', async () => {
     const defaultFavorTier = getFavorTierByValue(50);
     useGameFlowStore.setState((state) => ({
       ...state,
@@ -7422,6 +7572,9 @@ describe('App 主流程切换', () => {
     }));
 
     const { container } = render(<App />);
+
+    expect(await screen.findByText('建章宫殿门半启，宫人正候在阶前。')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '拜见太后' }));
 
     expect(await screen.findByText('建章宫 · 拜见太后')).toBeInTheDocument();
     expect((container.querySelector('.chamber-main__background') as HTMLElement).style.backgroundImage).toContain(

@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PRESTIGE_RANGE } from '../../config/constants';
+import { CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN } from '../lib/consortVisitRuntime';
 import { PLAYER_PALACE_STRIFE_TARGET_ID } from '../lib/palaceStrifeRuntime';
 import { YINGLUOYETING_STORY_FLAGS } from '../lib/yingluoyetingStoryRuntime';
 import { SAVE_GAME_SCHEMA_VERSION, SAVE_GAME_STORAGE_KEY } from '../save/saveGameV1';
@@ -105,6 +106,60 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     expect(encoded).not.toContain('activeChamberPanel');
     expect(encoded).not.toContain('temporary map copy');
     expect(encoded).not.toContain('temporary line');
+  });
+
+  it('resolves daytime emperor audience without advancing time again', () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      activeMapLocation: '养心殿',
+      activeMapLocationEntryTime: {
+        year: 2,
+        month: 3,
+        xun: 2,
+        slotIndex: 1,
+        slot: '上午',
+        slotProgress: 0,
+      },
+      state: {
+        ...state.state,
+        favor: 80,
+        trueHeart: 60,
+        stats: {
+          ...state.state.stats,
+          intrigue: 900,
+        },
+      },
+      hiddenStats: {
+        ...state.hiddenStats,
+        favor: 80,
+        trueHeart: 60,
+      },
+      nightlyService: {
+        ...state.nightlyService,
+        emperorMood: 70,
+      },
+    }));
+
+    const beforeTime = useGameFlowStore.getState().time;
+    const request = useGameFlowStore.getState().requestEmperorAudience('养心殿', 'yangxin-request');
+    const interaction = useGameFlowStore.getState().completeEmperorMainInteraction('chess', '养心殿', 'yangxin-request');
+    const flow = useGameFlowStore.getState();
+
+    expect(request.chance).toBeGreaterThan(0);
+    expect(interaction.success).toBe(true);
+    expect(flow.time).toEqual(beforeTime);
+    expect(flow.emperorInteraction.triggeredEncounterIds.some((id) => id.includes('养心殿:yangxin-request'))).toBe(true);
+  });
+
+  it('consumes a real inventory gift during emperor gift interaction', () => {
+    const gift = useGameFlowStore.getState().inventory.find((item) => item.itemId === 'pine-wind-scroll');
+    expect(gift?.quantity).toBeGreaterThan(0);
+
+    const result = useGameFlowStore.getState().completeEmperorGift('pine-wind-scroll');
+    const afterGift = useGameFlowStore.getState().inventory.find((item) => item.itemId === 'pine-wind-scroll');
+
+    expect(result.success).toBe(true);
+    expect(afterGift).toBeUndefined();
   });
 
   it('creates a dedicated palace banquet registration notice during the signup window', () => {
@@ -1636,5 +1691,46 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     const flow = useGameFlowStore.getState();
     expect(flow.state.flags.pregnant).toBe(true);
     expect(flow.settlementReports.at(-1)?.lines.join(' ')).toContain('太医请脉');
+  });
+
+  it('limits player-consort interactions per consort each xun', () => {
+    const consort = useGameFlowStore.getState().concubines[0];
+
+    for (let index = 0; index < CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN; index += 1) {
+      const result = useGameFlowStore.getState().recordConsortInteractionAction(consort.id, 'greet');
+      expect(result.success).toBe(true);
+      expect(result.actionCountThisXun).toBe(index + 1);
+      expect(result.actionLimitHit).toBe(false);
+    }
+
+    const blocked = useGameFlowStore.getState().recordConsortInteractionAction(consort.id, 'gift');
+    expect(blocked.success).toBe(false);
+    expect(blocked.actionLimitHit).toBe(true);
+    expect(useGameFlowStore.getState().consortInteractionMap[consort.id].actionCountThisXun).toBe(
+      CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN,
+    );
+  });
+
+  it('blocks relationship judgement after the consort interaction limit is reached', () => {
+    const consort = useGameFlowStore.getState().concubines[0];
+
+    for (let index = 0; index < CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN; index += 1) {
+      useGameFlowStore.getState().recordConsortInteractionAction(consort.id, 'greet');
+    }
+
+    const beforeRelation = useGameFlowStore.getState().concubines[0].stats.relationToPlayer;
+    const summary = useGameFlowStore.getState().applyConsortRelationshipJudgement(consort.id, 'greet', {
+      favorDelta: 3,
+      affectionDelta: 2,
+      toneTag: 'friendly',
+      optionText: '温声问候',
+      reason: '对方愿意接话。',
+      confidence: 0.8,
+      source: 'local',
+    });
+
+    expect(summary.actionLimitHit).toBe(true);
+    expect(summary.appliedFavorDelta).toBe(0);
+    expect(useGameFlowStore.getState().concubines[0].stats.relationToPlayer).toBe(beforeRelation);
   });
 });

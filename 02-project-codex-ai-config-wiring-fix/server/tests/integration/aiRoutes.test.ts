@@ -205,16 +205,14 @@ describe('AI routes integration', () => {
     const body = JSON.parse(response.body) as {
       speakerIdentity: string;
       speakerName: string;
-      options: Array<{ fallbackToneTag: string }>;
-      nextActionLabel: string;
+      options: Array<{ localToneTag: string }>;
     };
 
     expect(response.statusCode).toBe(200);
     expect(body.speakerIdentity).toBe('贵妃');
     expect(body.speakerName).toBe('姚铃儿');
     expect(body.options).toHaveLength(3);
-    expect(body.options.every((item) => ['friendly', 'flirt', 'cold', 'reject', 'neutral'].includes(item.fallbackToneTag))).toBe(true);
-    expect(body.nextActionLabel).toBe('收起');
+    expect(body.options.every((item) => ['friendly', 'flirt', 'cold', 'reject', 'neutral'].includes(item.localToneTag))).toBe(true);
   });
 
   it('relationship-judge 返回受控的语气标签与微调结果', async () => {

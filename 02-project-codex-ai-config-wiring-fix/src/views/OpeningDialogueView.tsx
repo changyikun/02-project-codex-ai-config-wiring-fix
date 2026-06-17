@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DIALOGUE_EXPLICIT_PAGE_BREAK, GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
+import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
 import { GUIDE_TENDENCY_OPTIONS } from '../config/palaceUi';
 import { buildOpeningNarrativeContext } from '../game/data/openingNarrativeProfiles';
-import { requestOpeningDialogueWithFallback, buildLocalOpeningDialogue } from '../game/lib/openingDialogueRuntime';
+import { requestOpeningLocalDialogue, buildLocalOpeningDialogue, buildOpeningDialogueFromCsv } from '../game/lib/openingDialogueRuntime';
 import { YINGLUOYETING_STORY_FLAGS } from '../game/lib/yingluoyetingStoryRuntime';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
 
@@ -18,13 +18,6 @@ const expenseExplanationOption = {
   label: '先问清用度',
   effectHint: '由当前说话人解释三档月度开销，不会定下策略。',
 } as const;
-const expenseExplanationNextActionLabel = '重新选择';
-const expenseExplanationText = [
-  '这三档说的是每月固定用度，不是一次性的赏赐。你现在选下，只是定本月按什么章法花银子。',
-  '节衣缩食：每月用月俸四分之一。好处是省银两；代价是起居和体面受损，声望-5，健康-1。',
-  '量入为出：每月用月俸一半。它最稳妥，不额外增减声望和健康。',
-  '锦衣玉食：每月用月俸四分之三。花费重些，但能撑住体面与起居，声望+10，健康+1。',
-].join(DIALOGUE_EXPLICIT_PAGE_BREAK);
 const routePortraitById: Record<string, string> = {
   lanyinxuguo: '/assets/player/lanyinxuguo-cutout.png',
   fushengrumeng: '/assets/player/ningxiaoman-cutout.png',
@@ -100,6 +93,7 @@ export function OpeningDialogueView() {
   const { state, hiddenStats, time, selectedRoute, patchState, enterMapMain } = useGameFlowStore();
   const [history, setHistory] = useState<Array<{ speaker: string; text: string }>>([]);
   const [turn, setTurn] = useState(1);
+  const [showingExpenseExplanation, setShowingExpenseExplanation] = useState(false);
   const playerTitle = resolvePlayerTitle(state.family, state.routeId);
   const narrativeContext = useMemo(() => buildOpeningNarrativeContext(state.routeId), [state.routeId]);
   const sceneBackground = resolveOpeningBackground(state.routeId, turn);
@@ -145,10 +139,11 @@ export function OpeningDialogueView() {
     const requestId = ++requestIdRef.current;
     setHistory([]);
     setTurn(1);
+    setShowingExpenseExplanation(false);
     setDialogueTurn(buildLocalOpeningDialogue(payload));
     setLoading(true);
 
-    requestOpeningDialogueWithFallback(payload)
+    requestOpeningLocalDialogue(payload)
       .then((response) => {
         if (!cancelled && requestId === requestIdRef.current) {
           setDialogueTurn(response);
@@ -169,7 +164,8 @@ export function OpeningDialogueView() {
   const showChoices = dialogueTurn.mode === 'branch';
   const isNarrationTurn = dialogueTurn.speakerIdentity === '场景旁白';
   const narrationName =
-    state.routeId === 'yingluoyeting' && turn <= 4 ? (turn >= 4 ? '后宫宫道' : dialogueTurn.speakerName) : state.residenceName;
+    dialogueTurn.narrationName ||
+    (state.routeId === 'yingluoyeting' && turn <= 4 ? (turn >= 4 ? '后宫宫道' : dialogueTurn.speakerName) : state.residenceName);
   const quotedOpeningSpeaker = resolveQuotedOpeningSpeaker(state.routeId, turn, state.name);
   const playerPortrait = selectedRoute?.portrait ?? routePortraitById[state.routeId];
 
@@ -177,10 +173,11 @@ export function OpeningDialogueView() {
     const payload = buildRequest(nextTurn, nextHistory);
     const requestId = ++requestIdRef.current;
     setTurn(nextTurn);
+    setShowingExpenseExplanation(false);
     setDialogueTurn(buildLocalOpeningDialogue(payload));
     setLoading(true);
     try {
-      const response = await requestOpeningDialogueWithFallback(payload);
+      const response = await requestOpeningLocalDialogue(payload);
       if (requestId === requestIdRef.current) {
         setDialogueTurn(response);
       }
@@ -198,9 +195,10 @@ export function OpeningDialogueView() {
 
     const branchTurn = state.routeId === 'yingluoyeting' ? 5 : 3;
 
-    if (dialogueTurn.nextActionLabel === expenseExplanationNextActionLabel) {
+    if (showingExpenseExplanation) {
       const payload = buildRequest(branchTurn, history);
       setTurn(branchTurn);
+      setShowingExpenseExplanation(false);
       setDialogueTurn(buildLocalOpeningDialogue(payload));
       return;
     }
@@ -212,25 +210,10 @@ export function OpeningDialogueView() {
 
   const handleSelectTendency = (optionId: string) => {
     if (optionId === expenseExplanationOption.id) {
-      setDialogueTurn({
-        mode: 'line',
-        phase: 'continue',
-        speakerIdentity: dialogueTurn.speakerIdentity,
-        speakerName: dialogueTurn.speakerName,
-        text: expenseExplanationText,
-        nextActionLabel: expenseExplanationNextActionLabel,
-        timeCost: 0,
-        dataEffects: {
-          silver: 0,
-          stamina: 0,
-          favor: 0,
-          prestige: 0,
-          stress: 0,
-          trueHeart: 0,
-          stats: {},
-        },
-        options: [],
-      });
+      setShowingExpenseExplanation(true);
+      setDialogueTurn(buildOpeningDialogueFromCsv('opening.expense.explanation', 'line', 'continue', {
+        residenceName: state.residenceName,
+      }));
       return;
     }
 
@@ -316,7 +299,6 @@ export function OpeningDialogueView() {
           characterIdentity={dialogueTurn.speakerIdentity}
           characterName={dialogueTurn.speakerName}
           content={dialogueTurn.text}
-          nextActionLabel={!showChoices ? dialogueTurn.nextActionLabel : undefined}
           onNextAction={!showChoices ? handleNextLine : undefined}
           options={showChoices ? [
             ...GUIDE_TENDENCY_OPTIONS.map((option) => ({

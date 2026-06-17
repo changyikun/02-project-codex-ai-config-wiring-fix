@@ -143,6 +143,20 @@ textarea,
   width: 190px;
 }
 
+.emperor-audience-event__actions--optional {
+  right: auto;
+  left: 28px;
+  width: 180px;
+}
+
+.emperor-audience-event__actions--main {
+  width: 134px;
+}
+
+.emperor-audience-event__status {
+  min-width: 320px;
+}
+
 .nightly-service-event__actions button {
   min-height: 46px;
   padding: 0 10px;
@@ -2480,6 +2494,27 @@ button {
   font-size: 0.82rem;
 }
 
+.chamber-main__location-choice {
+  position: absolute;
+  z-index: 38;
+  right: 8%;
+  bottom: 150px;
+  width: min(420px, 42vw);
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px;
+}
+
+.chamber-main__location-choice button {
+  min-height: 38px;
+  border: 1px solid rgba(121, 79, 48, 0.34);
+  border-radius: 6px;
+  background: rgba(112, 62, 39, 0.9);
+  color: #fff7e8;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: 1rem;
+}
+
 .chamber-main__expense-choice-overlay .palace-dialogue-box__option.is-active {
   border-color: #8f323b;
   background: rgba(143, 50, 59, 0.12);
@@ -4554,6 +4589,18 @@ button {
   display: grid;
   gap: 10px;
   z-index: 4;
+}
+
+.harem-palace-view__audience-action-note {
+  display: block;
+  padding: 6px 8px;
+  border: 1px solid rgba(194, 154, 127, 0.28);
+  border-radius: 10px;
+  background: rgba(255, 248, 239, 0.82);
+  color: rgba(92, 37, 39, 0.78);
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: center;
 }
 
 .harem-palace-view__audience-actions button,

@@ -9,12 +9,12 @@ import { HaremPalaceView } from '../components/consorts/HaremPalaceView';
 import { PlayerStatsView } from '../components/status/PlayerStatsView';
 import type { ChamberPanelId } from '../config/bedchamber';
 import { HAREM_OUTSIDE_BACKGROUND, LOCATION_SCENE_BACKGROUNDS } from '../config/locationSceneBackgrounds';
-import { buildMapHotspots, MAP_GUIDE_LINES, MAP_SIDEBAR_BUTTONS, resolveMapBackgroundImage, type MapHotspotConfig } from '../config/palaceUi';
+import { buildMapHotspots, MAP_SIDEBAR_BUTTONS, resolveMapBackgroundImage, type MapHotspotConfig } from '../config/palaceUi';
 import { buildInitialBondProfile } from '../game/data/bondPresets';
 import { buildDuNiangShopCatalog, getInventoryRecyclePrice, type DuNiangShopEntry } from '../game/data/inventoryPresets';
 import { getConcubineDisplayRankText } from '../game/data/concubineRoster';
 import {
-  requestGongmenToolDialogueWithFallback,
+  requestGongmenToolLocalDialogue,
   type GongmenToolDialogueHistoryEntry,
   type GongmenToolNpcProfile,
 } from '../game/lib/gongmenToolDialogueRuntime';
@@ -32,8 +32,24 @@ import {
 } from '../game/lib/yingluoyetingStoryRuntime';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
 import type { AffairSourceLabel, PalaceTimeState } from '../game/types';
+import { renderNarrativeEntry } from '../game/narrative/narrativeCatalog';
+import { narrativeEntryToDialogueFields, narrativeEntryToPresentation } from '../game/narrative/narrativeDialogueAdapter';
 
 const MAP_ACTION_STAMINA_COST = 1;
+const MAP_GUIDE_LINE_IDS = ['map.guide.line1', 'map.guide.line2'] as const;
+const duNiangLine1 = renderNarrativeEntry('gongmen.duniang.line1');
+const duNiangLine2 = renderNarrativeEntry('gongmen.duniang.line2');
+const alingLine1 = renderNarrativeEntry('gongmen.aling.line1');
+const alingLine2 = renderNarrativeEntry('gongmen.aling.line2');
+const duNiangLine1Fields = narrativeEntryToDialogueFields(duNiangLine1);
+const duNiangLine2Fields = narrativeEntryToDialogueFields(duNiangLine2);
+const alingLine1Fields = narrativeEntryToDialogueFields(alingLine1);
+const alingLine2Fields = narrativeEntryToDialogueFields(alingLine2);
+const duNiangSmallTalkEntries = [
+  renderNarrativeEntry('gongmen.duniang.line2'),
+  renderNarrativeEntry('gongmen.duniang.line3'),
+  renderNarrativeEntry('gongmen.duniang.line4'),
+] as const;
 
 type GongmenNpcId = 'du-niang' | 'aling';
 type GongmenTradeMode = 'buy' | 'sell';
@@ -69,25 +85,25 @@ const gongmenNpcProfiles: Record<
   }
 > = {
   'du-niang': {
-    identity: '宫门商贩',
-    name: '杜娘',
+    identity: duNiangLine1Fields.speakerIdentity,
+    name: duNiangLine1Fields.speakerName,
     portrait: '/assets/characters/women/du-niang.jpg',
 	    dialogueLines: [
-	      '杜娘立在宫门阴影下，拢着袖子含笑看你：“娘娘今日来得巧，我这边正好带了两匣新货。要买现成物件，还是把旧物折成银两，都好商量。”',
-	      '她抬手轻轻拨开箱笼，露出里面整齐叠好的香囊与药瓶：“宫里走动，人情往来最费银子。娘娘若有看中的，直说便是。”',
+	      duNiangLine1Fields.text,
+	      duNiangLine2Fields.text,
 	    ],
 	    personality: '中立、精明、市井、守口如瓶、买卖分明、不入情缘',
 	    summary:
 	      '杜娘是宫门处固定商贩 NPC，负责物品售卖与旧物回收。她消息灵通但不轻易交底，闲谈只能补足口吻与氛围，不得改动交易、库存、银两、时辰或关系硬规则。',
 	    alreadyCutout: true,
-	  },
+  },
   aling: {
-    identity: '故国旧识',
-    name: '阿翎',
+    identity: alingLine1Fields.speakerIdentity,
+    name: alingLine1Fields.speakerName,
     portrait: '/assets/characters/women/aling.jpg',
     dialogueLines: [
-      '阿翎隔着宫门风声望着你，嗓音仍旧低而稳：“我会留在这里。你若想问故国近况，或只是想同旧人说几句话，我都听着。”',
-      '她目光落在你袖口片刻，又慢慢收回去：“宫门人多眼杂，你若不便久留，我也会替你继续盯着外头的消息。”',
+      alingLine1Fields.text,
+      alingLine2Fields.text,
     ],
     portraitThreshold: 42,
   },
@@ -101,12 +117,8 @@ const createDialogueId = (prefix: string): string => {
 };
 
 const buildDuNiangLocalSmallTalkText = (historyLength: number): string => {
-  const variants = [
-    '杜娘把袖中账册合上，笑意仍浅：“娘娘若只是闲谈，奴家自然奉陪。只是宫门风紧，买卖归买卖，闲话归闲话，哪一句都得留半分余地。”',
-    '杜娘指尖在货箱铜扣上一点，慢声道：“宫里人来人往，真正值钱的未必是货，也未必是话。娘娘若只想听个热闹，奴家便只说热闹。”',
-    '杜娘抬眼看了看宫门外的风，仍旧笑得稳当：“娘娘放心，闲谈不入账，奴家也不会拿半句闲话去抵银两。”',
-  ];
-  return variants[Math.max(0, historyLength - 1) % variants.length];
+  const entry = duNiangSmallTalkEntries[Math.max(0, historyLength - 1) % duNiangSmallTalkEntries.length];
+  return narrativeEntryToDialogueFields(entry).text;
 };
 
 export function MapMainView() {
@@ -285,10 +297,12 @@ export function MapMainView() {
   const activeYingluoyetingDialogueName = activeYingluoyetingDialogueIsResult
     ? activeYingluoyetingEvent?.locationId ?? '主线剧情'
     : activeYingluoyetingEvent?.speakerName ?? '主线剧情';
+  const activeGuideEntry = guideActive ? renderNarrativeEntry(MAP_GUIDE_LINE_IDS[Math.min(guideStep, MAP_GUIDE_LINE_IDS.length - 1)]) : undefined;
+  const activeGuidePresentation = activeGuideEntry ? narrativeEntryToPresentation(activeGuideEntry) : undefined;
 
   const dialogueText = useMemo(() => {
     if (guideActive) {
-      return MAP_GUIDE_LINES[Math.min(guideStep, MAP_GUIDE_LINES.length - 1)];
+      return activeGuidePresentation?.text ?? '';
     }
     if (selectedHotspot) {
       return buildMapTransitionNarrative({
@@ -301,7 +315,7 @@ export function MapMainView() {
       return mapEventText;
     }
     return '';
-  }, [guideActive, guideStep, mapEventText, selectedHotspot]);
+  }, [activeGuidePresentation?.text, guideActive, mapEventText, selectedHotspot]);
   const latestSettlementReport = useMemo(() => {
     if (!latestSettlementReportId) {
       return undefined;
@@ -326,7 +340,7 @@ export function MapMainView() {
       !activeMapUtilityPanel &&
       !gongmenSceneActive,
   );
-  const isJiaojiaoMapDialogue = guideActive || isJiaojiaoSpokenText(dialogueText);
+  const isJiaojiaoMapDialogue = activeGuidePresentation?.actorKey === 'jiaojiao' || isJiaojiaoSpokenText(dialogueText);
   const mapDialogueClassName = `global-dialogue-stage--map ${
     isJiaojiaoMapDialogue ? 'global-dialogue-stage--assistant' : 'global-dialogue-stage--narration'
   }`;
@@ -562,7 +576,7 @@ export function MapMainView() {
     setSelectedHotspotId(null);
 
     if (selectedHotspot.id === '后宫') {
-      enterMainChamber('后宫');
+      enterMainChamber('后宫', previousTime);
       openChamberPanel('harem');
       return;
     }
@@ -572,7 +586,7 @@ export function MapMainView() {
       return;
     }
 
-    enterMainChamber(selectedHotspot.id);
+    enterMainChamber(selectedHotspot.id, previousTime);
   };
 
   const handleOpenGongmenNpc = (npcId: GongmenNpcId) => {
@@ -635,7 +649,7 @@ export function MapMainView() {
     gongmenAiRequestRef.current += 1;
     setGongmenAiBusy(false);
     setActiveTradeMode(mode);
-    setGongmenFeedback(mode === 'buy' ? '杜娘把货箱往前一推，示意你自己挑。' : '杜娘垂眼扫过你的背包，等着你开口回收。');
+    setGongmenFeedback(narrativeEntryToDialogueFields(renderNarrativeEntry(mode === 'buy' ? 'gongmen.duniang.buy' : 'gongmen.duniang.sell')).text);
   };
 
   const handleDuNiangSmallTalk = () => {
@@ -651,7 +665,7 @@ export function MapMainView() {
 
     const playerTurn: GongmenToolDialogueHistoryEntry = {
       speaker: `${state.family || '宫中人'} · ${state.name}`,
-      text: '只是同杜娘闲谈几句，不买也不卖。',
+      text: narrativeEntryToDialogueFields(renderNarrativeEntry('gongmen.duniang.idle')).text,
     };
     const nextHistory = [...gongmenAiHistory, playerTurn].slice(-6);
     const localText = buildDuNiangLocalSmallTalkText(nextHistory.length);
@@ -668,7 +682,7 @@ export function MapMainView() {
     }
 
     setGongmenAiBusy(true);
-    void requestGongmenToolDialogueWithFallback({
+    void requestGongmenToolLocalDialogue({
         saveId: gongmenSaveId,
         sessionId: gongmenSessionIds['du-niang'],
         requestId: createDialogueId('request-gongmen-du-niang'),
@@ -697,7 +711,7 @@ export function MapMainView() {
         relationPromotedCount: turn.relationMemoryPromotedCount,
         relationRejectedCount: turn.relationMemoryRejectedCount,
         relationEntryCount: turn.relationMemoryTotalEntryCount,
-        usedFallback: turn.usedFallback,
+        source: 'local',
       });
       })
       .finally(() => {
@@ -929,7 +943,6 @@ export function MapMainView() {
             characterName={activeYingluoyetingDialogueName}
             content={yingluoyetingResultText || activeYingluoyetingEvent.text}
             highlightText={yingluoyetingResultHint}
-            nextActionLabel={yingluoyetingResultText ? '收起' : undefined}
             onNextAction={yingluoyetingResultText ? handleYingluoyetingNextAction : undefined}
             options={yingluoyetingResultText ? [] : activeYingluoyetingEvent.options}
             onSelectOption={yingluoyetingResultText ? undefined : handleYingluoyetingChoice}
@@ -1025,13 +1038,6 @@ export function MapMainView() {
                 characterIdentity={activeNpcProfile.identity}
                 characterName={activeNpcProfile.name}
                 content={gongmenDialogue}
-                nextActionLabel={
-                  gongmenFeedback
-                    ? '知道了'
-                    : gongmenDialogueStep < activeNpcProfile.dialogueLines.length - 1
-                      ? '下一句'
-                      : '收起'
-                }
                 onNextAction={() => {
                   if (gongmenFeedback) {
                     gongmenAiRequestRef.current += 1;
@@ -1156,7 +1162,6 @@ export function MapMainView() {
             characterIdentity={latestSettlementReport.kind === 'event' ? '司乐女官' : '贴身宫女'}
             characterName={latestSettlementReport.kind === 'event' ? '掌册宫人' : '娇娇'}
             content={`${latestSettlementReport.title}。${latestSettlementReport.lines.join(' ')}`}
-            nextActionLabel="记下"
             onNextAction={() => acknowledgeSettlementReport(latestSettlementReport.id)}
             numericFeedbackBucket="settlement"
           />
@@ -1174,21 +1179,12 @@ export function MapMainView() {
             ariaLabel="地图引导对话框"
             className={mapDialogueClassName}
             dialogueClassName="palace-dialogue-box--map"
-            characterIdentity={isJiaojiaoMapDialogue ? '贴身宫女' : '场景旁白'}
-            characterName={isJiaojiaoMapDialogue ? '娇娇' : '宫道'}
+            characterIdentity={activeGuidePresentation?.speakerIdentity || (isJiaojiaoMapDialogue ? '贴身宫女' : '场景旁白')}
+            characterName={activeGuidePresentation?.speakerName || (isJiaojiaoMapDialogue ? '娇娇' : '宫道')}
             content={dialogueText}
-            nextActionLabel={
-              guideActive
-                ? guideStep >= MAP_GUIDE_LINES.length - 1
-                  ? openingHaremFirstMeetPending
-                    ? '前往后宫'
-                    : '回宫'
-                  : '继续'
-                : '收起'
-            }
             onNextAction={() => {
               if (guideActive) {
-                if (guideStep >= MAP_GUIDE_LINES.length - 1) {
+                if (guideStep >= MAP_GUIDE_LINE_IDS.length - 1) {
                   finishGuide();
                 } else {
                   setGuideStep((current) => current + 1);

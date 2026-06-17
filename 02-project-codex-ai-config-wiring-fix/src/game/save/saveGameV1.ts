@@ -4,6 +4,7 @@ import type {
   ConsortInteractionProgress,
   GameNumericsState,
   HiddenStatsState,
+  EmperorInteractionProgressState,
   InventoryItem,
   KitchenProgressState,
   MedicalProgressState,
@@ -21,7 +22,7 @@ import type {
   TempleProgressState,
 } from '../types';
 
-export const SAVE_GAME_SCHEMA_VERSION = 2;
+export const SAVE_GAME_SCHEMA_VERSION = 3;
 export const SAVE_GAME_STORAGE_KEY = 'palace-galgame-flow';
 
 export interface SaveGameV1Source {
@@ -42,6 +43,7 @@ export interface SaveGameV1Source {
   musicHallProgress: MusicHallProgressState;
   palaceBanquetProgress: PalaceBanquetProgressState;
   templeProgress: TempleProgressState;
+  emperorInteraction: EmperorInteractionProgressState;
   nightlyService: NightlyServiceState;
   npcActivity: NpcActivityState;
   npcRelationMatrix: NpcRelationMatrix;
@@ -93,6 +95,7 @@ export interface SaveGameV1 {
     musicHall: MusicHallProgressState;
     palaceBanquet: PalaceBanquetProgressState;
     temple: TempleProgressState;
+    emperorInteraction: EmperorInteractionProgressState;
     nightlyService: NightlyServiceState;
     npcActivity: NpcActivityState;
   };
@@ -109,6 +112,12 @@ const hasV051PalaceStrifeCases = (value: SaveGameV1): boolean =>
   'pendingYangxinVerdict' in value.cases &&
   value.cases.palaceStrifeCases.every((caseState) => Array.isArray(caseState.suspects));
 
+const hasConsortInteractionActionCounts = (value: SaveGameV1): boolean =>
+  Boolean(value.relations?.consortInteractionMap) &&
+  Object.values(value.relations.consortInteractionMap).every(
+    (progress) => typeof progress.actionCountThisXun === 'number',
+  );
+
 export const isSaveGameV1 = (value: unknown): value is SaveGameV1 =>
   Boolean(
     value &&
@@ -121,6 +130,8 @@ export const isSaveGameV1 = (value: unknown): value is SaveGameV1 =>
       (value as SaveGameV1).relations?.npcRelationMatrix &&
       (value as SaveGameV1).progress?.palaceBanquet &&
       (value as SaveGameV1).progress?.npcActivity &&
+      Array.isArray((value as SaveGameV1).progress?.emperorInteraction?.triggeredEncounterIds) &&
+      hasConsortInteractionActionCounts(value as SaveGameV1) &&
       hasV051PalaceStrifeCases(value as SaveGameV1),
   );
 
@@ -204,6 +215,7 @@ export const buildSaveGameV1 = (source: SaveGameV1Source, savedAt = new Date().t
     musicHall: source.musicHallProgress,
     palaceBanquet: source.palaceBanquetProgress,
     temple: source.templeProgress,
+    emperorInteraction: source.emperorInteraction,
     nightlyService: source.nightlyService,
     npcActivity: source.npcActivity,
   },

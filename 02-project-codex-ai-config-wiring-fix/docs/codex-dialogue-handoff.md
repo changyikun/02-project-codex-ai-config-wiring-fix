@@ -20,6 +20,10 @@
    - `docs/game-design-natural-language.md`
 6. 如涉及剧情文本、系统提示词、角色对白或场景生成，再读：
    - `docs/character-dialogue-system-patch.md`
+   - `src/game/narrative/csv/README.md`
+   - `src/game/narrative/narrativeCatalog.ts`
+   - `src/game/narrative/narrativeDialogueAdapter.ts`
+   - `src/game/narrative/csv/`
 
 ## 2. 当前必须保持的主流程
 
@@ -114,6 +118,12 @@
 ### 4.6 对话系统共享化与稳定性
 
 - Opening / map guide / chamber guidance / consort audience / kitchen / tai hospital / miao yin hall / dowager 场景都应复用共享对话框体系。
+- 剧情正文和基础演出元数据优先维护在 `src/game/narrative/csv/`，由 `narrativeCatalog` 通过稳定 ID 渲染；运行时代码只保留剧情 ID、变量对象、分支选择、状态推进和数值结算。需要完整剧情演出时读取完整 entry，不能只读取 `text` 后继续在代码里硬编码说话人、旁白名和立绘元数据。
+- 业务 runtime 不应直接拆 `NarrativeEntry` 字段来拼展示结构；需要通过 `src/game/narrative/narrativeDialogueAdapter.ts` 转换。开场用 `narrativeEntryToOpeningDialogueFields`，寝殿 / 地图舞台用 `narrativeEntryToPresentation` 或 `narrativeEntryToGlobalDialogueFields`，妃嫔 / 地点本地剧情用 `narrativeEntryToDialogueFields` 或 `narrativeEntryToConsortTurn`。
+- CSV 当前按 `opening_dialogues`、`map_chamber_dialogues`、`route_mainline_dialogues`、`location_encounters`、`relationship_audiences`、`emperor_yangxin_dialogues`、`palace_strife_verdict`、`npc_tools_dialogues` 拆分。不要为了单条剧情新建文件，也不要把所有系统重新合并成一张大表。
+- CSV 文本变量使用 `{{playerName}}` 这类模板；显式分页继续使用 `<<PAGE_BREAK>>`。缺变量会原样保留并由测试发现，不能在运行时悄悄吞掉。
+- 下一步按钮文案不属于剧情 CSV，也不应进入剧情 turn 或 AI response；线性推进由对话框点击和流程状态决定，明确选择必须走 `options`。
+- 当前玩法链路暂不接 AI 生成剧情正文；正常剧情正文和基础演出元数据只来自 CSV。AI 客户端 / 服务端代码可保留为遗留 helper，但不得被当前 React 组件或 runtime 作为正文第二来源导入。
 - 对话框位置、大小、边距、文本区域、说话人区域、按钮区域、选项区域的共享布局已稳定。
 - 长文本不再硬截断，对话框固定，文本区域滚动。
 - 点击对话内容区会立刻补全文字机当前句。
@@ -124,10 +134,10 @@
 - `src/components/dialogue/GlobalDialogueStage.tsx`
 - `src/index.css`
 
-### 4.7 AI 对话等待态与 fallback 修复
+### 4.7 AI 对话等待态与本地剧情修复
 
 - 已加入本地“回应中”过渡态，避免选项点击后界面像死掉。
-- 修过多处 timeout / fallback 回弹到旧选项的问题。
+- 旧 AI timeout / 本地文本回弹问题已收口；当前玩法入口统一改为 `request*LocalDialogue` / `request*AmbientLocal`。
 - 修过 NPC 无法顺利收束对话的问题。
 - `先行告退` 只在妃嫔对话场景保留，不应泛化到其他侧栏场景。
 
@@ -1201,11 +1211,12 @@ npm run build
 - 全局剧情遮罩仍然默认屏蔽背景 UI；不要为了修复混合场景而放宽 `GlobalDialogueStage` 的遮罩。
 - 如果场景是“对白 + 场景内固定按钮”，对白必须能先结束或收起，再开放底层按钮；侍寝和妃嫔会面已经按这个口径处理。
 - `NightlyServiceEventView` 的养心殿初始说明需要玩家确认后才显示互动按钮，避免对白遮罩盖住侍寝操作。
-- `ConsortAudiencePanel` 的妃嫔对白可以点击正文收起；收起后固定操作按钮仍留在会面页，不退出场景。
+- `ConsortAudiencePanel` 的妃嫔对白可以点击正文收起；收起后固定操作按钮仍留在会面页，不退出场景。玩家与同一妃嫔每旬最多进行 `3` 次普通互动，单个话题最多继续 `2` 句。次数耗尽时不能只禁用按钮，必须演出宫人送客并退出会面；同旬再次拜访只能在殿位处由宫人婉拒，不消耗体力和时间。
 - `DowagerAudiencePanel` 也必须遵守两态结构：建章宫空闲态只显示太后常驻立绘、场景说明和固定按钮；只有玩家选择“送礼问安 / 起身告辞”后才渲染 `GlobalDialogueStage`。对话态未收束时固定按钮需要禁用，不能通过放宽全局遮罩来解决点击问题。
 - 物品获得 / 失去纳入 `NumericChangeToastLayer`，新增物品按缺省 0 计算正向变化，消耗到 0 也会显示负向变化。
 - `grantInventoryItem`、`consumeInventoryItem`、`buyInventoryItem`、`sellInventoryItem` 会在成功改变背包后同步发出 toast 信号；角色初始化仍不能通过这些方法刷出初始化 toast。
 - 妙音堂深夜听曲必须先展示听曲结果与本次压力 toast，再由玩家确认回宫，之后复用娇娇睡觉提醒、黑屏过夜和清晨通报链路。
+- 后续新增硬机制时，要主动补齐合理化剧情解释和演出效果；本项目是强剧情驱动，不接受只有按钮禁用或数值变化的裸规则。
 
 关键文件：
 
@@ -1541,3 +1552,57 @@ npm run build
 - `npm run build:web` 通过；仍有既有 Vite 大 chunk 警告
 - `git diff --check` 仅提示 Windows 换行归一化，没有空白错误
 - `web_game_playwright_client` 打开 `http://127.0.0.1:5173/` 生成启动页截图，未生成 console error 文件
+
+### 15.36 v0.5.1 皇帝日间行为与互动机制
+
+本轮补齐皇帝在非侍寝时段的行为闭环：正阳门等待下朝、养心殿日间求见、御花园 / 建章宫公共偶遇以及完整皇帝互动页。
+
+已经成立的规则：
+
+- 皇帝行为由 `emperorActivityRuntime` 计算，按 `routeId + xunKey + entrySlot + location` 保持可复现；AI 不参与真实判定。
+- 地图进入地点本身消耗本次行动时间与体力；`activeMapLocationEntryTime` 保存本次入场时辰，求见 / 偶遇结束不再额外推进第二格。
+- 养心殿上午到傍晚可求见，上午成功率较低但不是固定拒绝；夜晚 / 深夜只触发内侍劝归。
+- 正阳门清晨可等待下朝，成功偶遇宠爱 `+1`；宠爱不进入 toast。
+- 御花园 / 建章宫中午到傍晚若皇帝在场，玩家进入地点后可点击皇帝入口并进入完整交互页。
+- 皇帝交互每次允许一次主行动和一次附加话题；送礼消耗真实背包食物、绣品或字画，美言 / 诉苦修改目标妃嫔声望 `+5 / -5`。
+- `SaveGameV1` schema 当前为 `3`，新增 `progress.emperorInteraction`；旧 schema 或缺字段存档按开发期规则清档。
+
+关键文件：
+
+- `src/game/lib/emperorActivityRuntime.ts`
+- `src/components/chamber/EmperorAudiencePanel.tsx`
+- `src/game/store/gameFlowStore.ts`
+- `src/views/ChamberMainView.tsx`
+- `src/config/locations.ts`
+
+验证结果：
+
+- `npx tsc --noEmit` 通过
+- `npx vitest run src/game/lib/emperorActivityRuntime.test.ts src/game/save/saveGameV1.test.ts` 通过
+- `npx vitest run src/game/lib/emperorActivityRuntime.test.ts src/game/save/saveGameV1.test.ts src/game/store/gameFlowStore.save.test.ts --testNamePattern "emperor|SaveGameV1|inventory gift"` 通过
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "普通进入养心殿|养心殿裁断|外出|建章宫|地图"` 通过，仍有既有 React `act(...)` 测试警告
+- `npm run build:web` 通过，仍有既有 Vite 大 chunk 警告
+- in-app browser 重载 `http://127.0.0.1:5173/`，启动页可见且 console error 为 0
+
+### 15.37 v0.5.1 会面收束顺序修复
+
+本轮修复妃嫔和皇帝互动收束抢占最后一次行动结果的问题。该类机制必须按强剧情顺序拆段，不得把行动结果、送客和离场合并成一个即时状态切换。
+
+已经成立的规则：
+
+- 妃嫔会面最后一次互动必须先播放本次互动结果，再播放送客收束；AI 返回的 `下一句` 续句不能抢在送客优先级前。
+- 妃嫔入场对白或行动结果对白未收起时，固定操作按钮禁用；玩家必须先读完当前对白，再选择下一项互动。
+- 殿内妃嫔收束使用“宫人送客 / 下旬再叙”，公共地点偶遇妃嫔使用“随侍提醒行程 / 今日偶遇到此为止 / 让开宫道”。
+- 皇帝公共地点偶遇完成主行动后，先播放主行动结果，再播放外景“恭送圣驾”收束，不直接黑屏离开。
+
+关键文件：
+
+- `src/components/consorts/ConsortAudiencePanel.tsx`
+- `src/game/lib/consortVisitRuntime.ts`
+- `src/components/chamber/EmperorAudiencePanel.tsx`
+- `src/__tests__/app-flow.test.tsx`
+
+验证结果：
+
+- `npx vitest run src/__tests__/app-flow.test.tsx -t "妃嫔本旬互动次数用尽|公共地点排班妃嫔|户外偶遇皇帝" --reporter=verbose` 通过，3 passed
+- `npx vitest run src/__tests__/app-flow.test.tsx --reporter=dot` 通过，136 passed；仍有既有 React `act(...)` 测试警告

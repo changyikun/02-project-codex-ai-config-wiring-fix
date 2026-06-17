@@ -1,4 +1,6 @@
 import type { GameNumericsState, InventoryItem, MapAreaId, PalaceTimeState } from '../types';
+import { renderNarrativeEntry } from '../narrative/narrativeCatalog';
+import { narrativeEntryToDialogueFields } from '../narrative/narrativeDialogueAdapter';
 import { resolvePlayerDisplayName } from './playerNameRuntime';
 
 export const YINGLUOYETING_EVIDENCE_ITEM_IDS = {
@@ -139,6 +141,8 @@ const hasInventoryItem = (inventory: InventoryItem[], itemId: string): boolean =
   inventory.some((item) => item.itemId === itemId && item.quantity > 0);
 
 const hasFlag = (state: GameNumericsState, flag: string): boolean => Boolean(state.flags?.[flag]);
+const resolveNarrativeLocationId = (entryLocationId: string, fallback: MapAreaId): MapAreaId =>
+  (entryLocationId || fallback) as MapAreaId;
 
 const isAfterFirstMonth = (time: PalaceTimeState): boolean => time.year > 1 || time.month >= 2;
 const isAfterSecondMonth = (time: PalaceTimeState): boolean => time.year > 1 || time.month >= 3;
@@ -146,19 +150,16 @@ const isAfterThirdMonth = (time: PalaceTimeState): boolean => time.year > 1 || t
 const hasCompletedChenFirstMeet = (state: GameNumericsState): boolean =>
   hasFlag(state, YINGLUOYETING_STORY_FLAGS.chenFirstMeetPlayed);
 
-const buildChenFirstMeetEvent = (playerName: string): YingluoyetingMapEvent => ({
-  eventId: YINGLUOYETING_EVENT_IDS.chenFirstMeet,
-  locationId: '后宫',
-  speakerIdentity: '陈婉宁',
-  speakerName: '陈婉宁',
-  text: `你第一次踏进后宫宫道时，长春宫的宫人先停了步。
-陈婉宁立在廊下，衣色很浅，话也很轻。
-“你就是${resolvePlayerDisplayName(playerName, '沉璧')}？”
-她含笑看你，像只是寻常问候。
-“掖庭出来不易。往后若有什么难处，可以来长春宫递话。”
-话到这里，她的目光却轻轻一转。
-“只是宫里最忌讳旧事。人若总回头看，脚下的路便走不稳了。”`,
-  options: [
+const buildChenFirstMeetEvent = (playerName: string): YingluoyetingMapEvent => {
+  const entry = renderNarrativeEntry('route.yingluoyeting.harem-first-meet', {
+    playerDisplayName: resolvePlayerDisplayName(playerName, '沉璧'),
+  });
+  const eventFields = narrativeEntryToDialogueFields(entry);
+  return {
+    eventId: YINGLUOYETING_EVENT_IDS.chenFirstMeet,
+    locationId: resolveNarrativeLocationId(entry.locationId, '后宫'),
+    ...eventFields,
+    options: [
     {
       id: 'thank-chen',
       label: '谢她照拂，只字不提旧案',
@@ -174,27 +175,16 @@ const buildChenFirstMeetEvent = (playerName: string): YingluoyetingMapEvent => (
       label: '直问她是否知道旧案',
       effectHint: '记下你逼问过陈婉宁，压力上升。',
     },
-  ],
-});
+    ],
+  };
+};
 
+const coldPalaceNarrative = renderNarrativeEntry('route.yingluoyeting.cold-palace');
+const coldPalaceNarrativeFields = narrativeEntryToDialogueFields(coldPalaceNarrative);
 const coldPalaceEvent: YingluoyetingMapEvent = {
   eventId: YINGLUOYETING_EVENT_IDS.coldPalaceClue,
-  locationId: '冷宫',
-  speakerIdentity: '冷宫旧人',
-  speakerName: '老宫人',
-  text: `冷宫门前的铜锁早已生锈。
-这里没有人高声说话，连落叶被踩碎的声音都显得突兀。
-檐下有个老宫人正在扫灰。她看见你，并没有立刻行礼，只把扫帚往身后一收。
-“姑娘又来了。”
-她的声音很低，像怕惊动这地方多年积下的尘。
-你没有逼问，只把早备好的药膏和几枚碎银放在石阶上。
-老宫人沉默许久，终于从袖中摸出半页发脆的纸。
-“这不是给沈家留的。”她说，“这是给我自己留的。”
-“当年案发后，慎刑司问过我们这些夜里值守的人。我怕哪日被推出去顶罪，便偷藏了半页自己的口供残抄。”
-纸上墨迹已经淡了，只剩几处还能辨认：
-“三更后”“侧门”“外宫宫牌”。
-老宫人把纸压在你掌心，指尖发抖。
-“我没放人。我只听见门响，看见牌子从灯下晃过去。后来上头让我们闭嘴，我就再没敢提。”`,
+  locationId: resolveNarrativeLocationId(coldPalaceNarrative.locationId, '冷宫'),
+  ...coldPalaceNarrativeFields,
   options: [
     {
       id: 'shelter',
@@ -214,22 +204,12 @@ const coldPalaceEvent: YingluoyetingMapEvent = {
   ],
 };
 
+const taiyiOldPrescriptionNarrative = renderNarrativeEntry('route.yingluoyeting.tai-hospital');
+const taiyiOldPrescriptionNarrativeFields = narrativeEntryToDialogueFields(taiyiOldPrescriptionNarrative);
 const taiyiOldPrescriptionEvent: YingluoyetingMapEvent = {
   eventId: YINGLUOYETING_EVENT_IDS.taiyiOldPrescription,
-  locationId: '太医院',
-  speakerIdentity: '太医院医官',
-  speakerName: '值守医官',
-  text: `太医院旧档室里药气很沉。
-你没有直接问沈氏旧案，只借着学习药理，翻看旧年温补方的底簿。
-纸页边缘已经泛黄，墨迹却还清楚。
-案卷中的毒方写着乌头、砒霜与烈酒同用，可太医院留底的原方，却只是寻常调理寒症的温补方。
-两张方子只差数味药，意思却已天差地别。
-值守医官看了一眼，脸色微变。
-“太医院按方留底，是为日后复核药性，也为追责。”
-他把两页纸隔着案角一比，声音压得更低。
-“若这份底簿无误，刑案正卷里的那张，多半不是原方。”
-他把声音压低。
-“小主，这种旧档，最好不要让太多人知道您看过。”`,
+  locationId: resolveNarrativeLocationId(taiyiOldPrescriptionNarrative.locationId, '太医院'),
+  ...taiyiOldPrescriptionNarrativeFields,
   options: [
     {
       id: 'copy',
@@ -249,21 +229,12 @@ const taiyiOldPrescriptionEvent: YingluoyetingMapEvent = {
   ],
 };
 
+const storageTransferListNarrative = renderNarrativeEntry('route.yingluoyeting.storehouse');
+const storageTransferListNarrativeFields = narrativeEntryToDialogueFields(storageTransferListNarrative);
 const storageTransferListEvent: YingluoyetingMapEvent = {
   eventId: YINGLUOYETING_EVENT_IDS.storageTransferList,
-  locationId: '御膳房',
-  speakerIdentity: '管库宫人',
-  speakerName: '管库宫人',
-  text: `旧库的账册压在最底层，纸页被油烟和潮气熏得发黄。
-管库宫人起初不肯给你看，直到银两压在册角，她才低声道：“小主只看这一页，看完便当没来过。”
-账册上记着沈氏案后一只封存木匣的入库、调出和复入。
-入库时写的是“刑案封存物，一匣”。
-调出那日，批注却只有四个字：
-“奉命复核。”
-没有写奉谁的命，也没有写复核何物。
-更怪的是，木匣复入时，封蜡记号换过一次。
-管库宫人指着那一处，声音发紧。
-“库房只认封蜡。封蜡换了，里面有没有换，便不是我们这些人敢问的了。”`,
+  locationId: resolveNarrativeLocationId(storageTransferListNarrative.locationId, '御膳房'),
+  ...storageTransferListNarrativeFields,
   options: [
     {
       id: 'copy-date',
@@ -283,23 +254,16 @@ const storageTransferListEvent: YingluoyetingMapEvent = {
   ],
 };
 
-const buildEvidenceBoxEvent = (playerName: string): YingluoyetingMapEvent => ({
-  eventId: YINGLUOYETING_EVENT_IDS.evidenceBox,
-  locationId: '昭阳宫',
-  speakerIdentity: '陈婉宁',
-  speakerName: '陈婉宁',
-  text: `你终于见到了那只匣子。
-匣面没有花纹，封蜡已经旧得发暗。
-宫人说，这是昭阳宫旧年封存的杂物，原本该随废纸送出，后来不知为何一直压在侧库底下。
-你打开匣盖。
-里面是一页残缺供状副页，纸角有反复折过的痕迹。
-供状上的名字被墨涂去大半，可落款处的朱印还在。
-那不是你父亲的印。
-也就是说，当年的认罪供状，至少有一处朱印不对。
-门外忽然传来脚步声。
-陈婉宁的声音隔着门响起。
-“${resolvePlayerDisplayName(playerName, '沉璧')}，你不该碰这个。”`,
-  options: [
+const buildEvidenceBoxEvent = (playerName: string): YingluoyetingMapEvent => {
+  const entry = renderNarrativeEntry('route.yingluoyeting.box', {
+    playerDisplayName: resolvePlayerDisplayName(playerName, '沉璧'),
+  });
+  const eventFields = narrativeEntryToDialogueFields(entry);
+  return {
+    eventId: YINGLUOYETING_EVENT_IDS.evidenceBox,
+    locationId: resolveNarrativeLocationId(entry.locationId, '昭阳宫'),
+    ...eventFields,
+    options: [
     {
       id: 'take-evidence',
       label: '带走证物',
@@ -320,8 +284,9 @@ const buildEvidenceBoxEvent = (playerName: string): YingluoyetingMapEvent => ({
       label: '毁掉副本，只记内容',
       effectHint: '记录见过伪印供状副页，不获得硬证物，压力下降。',
     },
-  ],
-});
+    ],
+  };
+};
 
 export const resolveYingluoyetingMapEvent = (_input: {
   state: GameNumericsState;

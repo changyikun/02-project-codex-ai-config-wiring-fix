@@ -7,9 +7,18 @@ import {
   getConcubineRankWeightByLabel,
 } from '../../game/data/concubineRoster';
 import { clampToRange, createDialogueId, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
-import { requestConsortDialogueWithFallback } from '../../game/lib/consortDialogueRuntime';
+import { requestConsortLocalDialogue } from '../../game/lib/consortDialogueRuntime';
 import { traceDialogue } from '../../game/lib/dialogueTrace';
-import { CONSORT_AUDIENCE_FIXED_ACTIONS, isConsortGiftItem } from '../../game/lib/consortVisitRuntime';
+import {
+  CONSORT_AUDIENCE_FIXED_ACTIONS,
+  CONSORT_AUDIENCE_FOLLOW_UP_LIMIT_PER_TOPIC,
+  CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN,
+  CONSORT_INTERACTION_LIMIT_TEXT,
+  buildConsortAudienceSendOffNarrativeEntry,
+  buildConsortPublicEncounterSendOffNarrativeEntry,
+  type ConsortSendOffNarrative,
+  isConsortGiftItem,
+} from '../../game/lib/consortVisitRuntime';
 import {
   applyYingluoyetingStoryChoice,
   resolveYingluoyetingMapEvent,
@@ -32,6 +41,7 @@ interface ConsortAudiencePanelProps {
   backLabel?: string;
   initialActionResult?: string;
   initialActionLabel?: string;
+  encounterPlace?: 'palace' | 'public';
 }
 
 interface HistoryEntry {
@@ -47,6 +57,7 @@ interface NarrativeTurnOverrides {
   smearTargetName?: string;
   historyOverride?: HistoryEntry[];
   forceFinish?: boolean;
+  forcedText?: string;
 }
 
 const appendUnique = (items: string[], value: string): string[] => (items.includes(value) ? items : [...items, value]);
@@ -103,6 +114,7 @@ export function ConsortAudiencePanel({
   backLabel = '返回殿位',
   initialActionResult,
   initialActionLabel = '入殿相见',
+  encounterPlace = 'palace',
 }: ConsortAudiencePanelProps) {
   const {
     state,
@@ -111,7 +123,9 @@ export function ConsortAudiencePanel({
     hiddenStats,
     time,
     inventory,
+    consortInteractionMap,
     consumeInventoryItem,
+    recordConsortInteractionAction,
     patchState,
     patchConcubineById,
   } = useGameFlowStore();
@@ -122,6 +136,9 @@ export function ConsortAudiencePanel({
   const [actionLabel, setActionLabel] = useState('入殿相见');
   const [sceneHint, setSceneHint] = useState('');
   const [pickerMode, setPickerMode] = useState<'gift' | null>(null);
+  const [followUpCount, setFollowUpCount] = useState(0);
+  const [closeAfterDialogue, setCloseAfterDialogue] = useState(false);
+  const [sendOffAfterDialogue, setSendOffAfterDialogue] = useState<ConsortSendOffNarrative | null>(null);
   const [chenFirstMeetResultText, setChenFirstMeetResultText] = useState('');
   const [chenFirstMeetFinished, setChenFirstMeetFinished] = useState(false);
   const saveId = useMemo(() => `local:${state.routeId}:${encodeURIComponent(state.name)}`, [state.name, state.routeId]);
@@ -151,9 +168,21 @@ export function ConsortAudiencePanel({
   );
 
   const giftItems = useMemo(() => inventory.filter(isConsortGiftItem), [inventory]);
+  const currentXunKey = `${time.year}-${time.month}-${time.xun}`;
+  const interactionProgress =
+    consortInteractionMap[consort.id]?.xunKey === currentXunKey ? consortInteractionMap[consort.id] : undefined;
+  const interactionCountThisXun = Number(interactionProgress?.actionCountThisXun ?? 0);
+  const remainingInteractionCount = Math.max(0, CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN - interactionCountThisXun);
+  const interactionLimitReached = remainingInteractionCount <= 0;
+  const dialogueActive = Boolean(dialogueTurn) || busy;
   const currentStateLabel = getConcubineConditionLabel(consort);
   const relationLabel = buildRelationLabel(consort);
   const isChenWanningAudience = isChenWanningConsort(consort);
+  const consortTitle = `${displayRank} ${consort.name}`;
+  const buildSendOffEntry = () =>
+    encounterPlace === 'public'
+      ? buildConsortPublicEncounterSendOffNarrativeEntry(consortTitle, palaceLabel)
+      : buildConsortAudienceSendOffNarrativeEntry(consortTitle);
   const persistentConsortPortrait = (
     <div className="harem-palace-view__audience-portrait-stage" aria-label={`${consort.name}常驻立绘`}>
       <div className="harem-palace-view__audience-portrait-frame">
@@ -187,7 +216,7 @@ export function ConsortAudiencePanel({
     activeConsort: ConcubineProfile,
     topic: 'visit' | 'action' | 'follow-up',
     nextActionId: string,
-    nextActionLabel: string,
+    actionLabelText: string,
     overrides?: NarrativeTurnOverrides,
   ) => {
     const activeHistory = trimDialogueHistory(overrides?.historyOverride ?? history);
@@ -205,7 +234,7 @@ export function ConsortAudiencePanel({
       canPunish,
       topic,
       actionId: nextActionId,
-      actionLabel: nextActionLabel,
+      actionLabel: actionLabelText,
       actionResult: overrides?.actionResult,
       selectedOptionId: overrides?.selectedOptionId,
       selectedOptionLabel: overrides?.selectedOptionLabel,
@@ -245,18 +274,18 @@ export function ConsortAudiencePanel({
     activeConsort: ConcubineProfile,
     topic: 'visit' | 'action' | 'follow-up',
     nextActionId: ConsortPalaceActionId,
-    nextActionLabel: string,
+    actionLabelText: string,
     overrides?: NarrativeTurnOverrides,
   ) => {
-    const payload = buildPayload(activeConsort, topic, nextActionId, nextActionLabel, overrides);
-    const nextTurn = await requestConsortDialogueWithFallback(payload, activeConsort);
+    const payload = buildPayload(activeConsort, topic, nextActionId, actionLabelText, overrides);
+    const nextTurn = await requestConsortLocalDialogue(payload, activeConsort);
 
     const displayedTurn: ConsortDialogueTurn = overrides?.forceFinish
       ? {
           ...nextTurn,
           mode: 'line',
           phase: 'finish',
-          nextActionLabel: '收起',
+          text: overrides.forcedText ?? nextTurn.text,
           options: [],
         }
       : nextTurn;
@@ -274,7 +303,7 @@ export function ConsortAudiencePanel({
       relationPromotedCount: nextTurn.relationMemory?.promotedCount ?? 0,
       relationRejectedCount: nextTurn.relationMemory?.rejectedCount ?? 0,
       relationEntryCount: nextTurn.relationMemory?.totalEntryCount ?? 0,
-      usedFallback: Boolean(nextTurn.usedFallback),
+      source: 'local',
     });
     setDialogueTurn(displayedTurn);
     setSceneHint(displayedTurn.sceneHint ?? '');
@@ -295,6 +324,9 @@ export function ConsortAudiencePanel({
       setActionId('visit');
       setActionLabel(initialActionLabel);
       setPickerMode(null);
+      setFollowUpCount(0);
+      setCloseAfterDialogue(false);
+      setSendOffAfterDialogue(null);
       setHistory([]);
       try {
         await runNarrativeTurn(consort, 'visit', 'visit', initialActionLabel, {
@@ -362,7 +394,6 @@ export function ConsortAudiencePanel({
           content={chenFirstMeetResultText || chenFirstMeetEvent?.text || ''}
           options={chenFirstMeetResultText ? [] : chenFirstMeetEvent?.options}
           onSelectOption={handleChenFirstMeetChoice}
-          nextActionLabel={chenFirstMeetResultText ? '继续' : undefined}
           onNextAction={
             chenFirstMeetResultText
               ? () => {
@@ -379,6 +410,22 @@ export function ConsortAudiencePanel({
 
   const applyGift = async (item: InventoryItem) => {
     if (busy) {
+      return;
+    }
+    if (interactionLimitReached) {
+      setSceneHint(CONSORT_INTERACTION_LIMIT_TEXT);
+      setPickerMode(null);
+      return;
+    }
+    if (!inventory.some((currentItem) => currentItem.itemId === item.itemId && currentItem.quantity > 0)) {
+      setSceneHint(`${item.name}已不在当前背包中。`);
+      setPickerMode(null);
+      return;
+    }
+    const actionRecord = recordConsortInteractionAction(consort.id, 'gift');
+    if (!actionRecord.success) {
+      setSceneHint(CONSORT_INTERACTION_LIMIT_TEXT);
+      setPickerMode(null);
       return;
     }
     const consumed = consumeInventoryItem(item.itemId);
@@ -400,10 +447,14 @@ export function ConsortAudiencePanel({
     };
 
     patchConcubineById(consort.id, () => nextConsort);
+    const shouldSendOff = actionRecord.actionCountThisXun >= CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN;
     setBusy(true);
     setPickerMode(null);
     setActionId('gift');
     setActionLabel('送礼');
+    setFollowUpCount(0);
+    setCloseAfterDialogue(shouldSendOff);
+    setSendOffAfterDialogue(shouldSendOff ? buildSendOffEntry() : null);
 
     try {
       await runNarrativeTurn(nextConsort, 'action', 'gift', '送礼', {
@@ -415,8 +466,14 @@ export function ConsortAudiencePanel({
     }
   };
 
-  const handleFixedAction = async (nextActionId: ConsortPalaceActionId, nextActionLabel: string) => {
+  const handleFixedAction = async (nextActionId: ConsortPalaceActionId, actionLabelText: string) => {
     if (busy) {
+      return;
+    }
+
+    if (interactionLimitReached) {
+      setPickerMode(null);
+      setSceneHint(CONSORT_INTERACTION_LIMIT_TEXT);
       return;
     }
 
@@ -426,10 +483,21 @@ export function ConsortAudiencePanel({
       return;
     }
 
+    const actionRecord = recordConsortInteractionAction(consort.id, nextActionId);
+    if (!actionRecord.success) {
+      setPickerMode(null);
+      setSceneHint(CONSORT_INTERACTION_LIMIT_TEXT);
+      return;
+    }
+
+    const shouldSendOff = actionRecord.actionCountThisXun >= CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN;
     setBusy(true);
     setPickerMode(null);
     setActionId(nextActionId);
-    setActionLabel(nextActionLabel);
+    setActionLabel(actionLabelText);
+    setFollowUpCount(0);
+    setCloseAfterDialogue(shouldSendOff);
+    setSendOffAfterDialogue(shouldSendOff ? buildSendOffEntry() : null);
 
     let actionResult = '';
     let snapshot = consort;
@@ -451,11 +519,13 @@ export function ConsortAudiencePanel({
     } else if (nextActionId === 'greet') {
       actionResult = '你借日常寒暄试探她的态度，局面仍留有缓和余地。';
     } else {
-      actionResult = `你已选择${nextActionLabel}。`;
+      actionResult = `你已选择${actionLabelText}。`;
     }
 
     try {
-      await runNarrativeTurn(snapshot, 'action', nextActionId, nextActionLabel, { actionResult });
+      await runNarrativeTurn(snapshot, 'action', nextActionId, actionLabelText, {
+        actionResult,
+      });
     } finally {
       setBusy(false);
     }
@@ -466,8 +536,44 @@ export function ConsortAudiencePanel({
       return;
     }
 
-    if (dialogueTurn.phase === 'continue' && dialogueTurn.nextActionLabel === '下一句') {
+    if (closeAfterDialogue) {
+      if (sendOffAfterDialogue) {
+        setDialogueTurn({
+          ...dialogueTurn,
+          mode: 'line',
+          phase: 'finish',
+          options: [],
+          text: sendOffAfterDialogue.text,
+          sceneHint: sendOffAfterDialogue.sceneHint || '这一轮会面已经收束，宫人正在送客。',
+          speakerIdentity: sendOffAfterDialogue.speakerIdentity || '场景旁白',
+          speakerName: sendOffAfterDialogue.speakerName || sendOffAfterDialogue.narrationName || '送客',
+        });
+        setSceneHint(sendOffAfterDialogue.sceneHint || '这一轮会面已经收束，宫人正在送客。');
+        setSendOffAfterDialogue(null);
+        return;
+      }
+      setDialogueTurn(null);
+      setSceneHint('');
+      setCloseAfterDialogue(false);
+      onBack();
+      return;
+    }
+
+    if (dialogueTurn.phase === 'continue' && dialogueTurn.mode === 'line') {
+      if (followUpCount >= CONSORT_AUDIENCE_FOLLOW_UP_LIMIT_PER_TOPIC) {
+        setDialogueTurn({
+          ...dialogueTurn,
+          mode: 'line',
+          phase: 'finish',
+          options: [],
+          text: '话到此处，对方略一颔首，示意今日不再多留。',
+        });
+        setSceneHint('本轮话题已经收束。');
+        return;
+      }
+
       setBusy(true);
+      setFollowUpCount((current) => current + 1);
       try {
         await runNarrativeTurn(consort, 'follow-up', actionId, actionLabel, {
           actionResult: '你暂且没有改换话题，只顺着这一句等对方继续说下去。',
@@ -520,12 +626,15 @@ export function ConsortAudiencePanel({
       {persistentConsortPortrait}
 
       <aside className="harem-palace-view__audience-actions" aria-label="宫内互动操作">
+        <span className="harem-palace-view__audience-action-note">
+          {`本旬可互动 ${remainingInteractionCount}/${CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN}`}
+        </span>
         {CONSORT_AUDIENCE_FIXED_ACTIONS.map((action) => (
           <button
             key={action.actionId}
             type="button"
             onClick={() => void handleFixedAction(action.actionId, action.label)}
-            disabled={busy}
+            disabled={dialogueActive || interactionLimitReached}
           >
             {action.label}
           </button>
@@ -569,7 +678,6 @@ export function ConsortAudiencePanel({
           characterIdentity={dialogueTurn?.speakerIdentity ?? displayRank}
           characterName={dialogueTurn?.speakerName ?? consort.name}
           content={dialogueTurn?.text ?? '宫人正低声通传，对方还未开口。'}
-          nextActionLabel={dialogueTurn?.nextActionLabel ?? '收起'}
           onNextAction={dialogueTurn ? () => void handleAudienceDialogueNextAction() : undefined}
           options={[]}
           busy={busy}

@@ -101,6 +101,10 @@ const source: SaveGameV1Source = {
     dangYiFavor: 0,
     dangYiAffinity: 0,
   },
+  emperorInteraction: {
+    xunKey: '1-2-1',
+    triggeredEncounterIds: [],
+  },
   nightlyService: {
     playerNightFavorGauge: 6,
     emperorMood: 40,
@@ -184,6 +188,7 @@ describe('SaveGameV1', () => {
     expect(saveGame.inventory.items.length).toBeGreaterThan(0);
     expect(saveGame.progress.medical.jianNingMet).toBe(true);
     expect(saveGame.progress.palaceBanquet.submissionCount).toBe(0);
+    expect(saveGame.progress.emperorInteraction.triggeredEncounterIds).toEqual([]);
     expect(saveGame.progress.npcActivity.xunKey).toBe('1-2-1');
     expect(saveGame.relations.bondProfile.npcId).toBe(source.bondProfile.npcId);
     expect(saveGame.relations.npcRelationMatrix).toEqual({});
@@ -229,6 +234,21 @@ describe('SaveGameV1', () => {
       };
     };
     delete incompatibleSaveGame.cases.palaceStrifeCases[0].suspects;
+    localStorage.setItem(SAVE_GAME_STORAGE_KEY, JSON.stringify({ state: { saveGame: incompatibleSaveGame }, version: 0 }));
+
+    expect(readSaveGameV1FromStorage()).toBeUndefined();
+    expect(localStorage.getItem(SAVE_GAME_STORAGE_KEY)).toBeNull();
+  });
+
+  it('clears a consort interaction map without action counts instead of migrating it', () => {
+    const incompatibleSaveGame = buildSaveGameV1(source, '2026-05-22T05:00:00.000Z') as unknown as {
+      relations: {
+        consortInteractionMap: Record<string, { actionCountThisXun?: number }>;
+      };
+    };
+    incompatibleSaveGame.relations.consortInteractionMap = {
+      'consort-yao': {},
+    };
     localStorage.setItem(SAVE_GAME_STORAGE_KEY, JSON.stringify({ state: { saveGame: incompatibleSaveGame }, version: 0 }));
 
     expect(readSaveGameV1FromStorage()).toBeUndefined();

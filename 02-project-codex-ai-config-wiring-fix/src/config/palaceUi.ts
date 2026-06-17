@@ -69,11 +69,6 @@ export const GUIDE_TENDENCY_OPTIONS: readonly GuideTendencyOption[] = MONTHLY_EX
   openingTendency: strategy.label,
 }));
 
-export const MAP_GUIDE_LINES = [
-  '娘娘先记着，宫中大事多半都要从地图上走。御书房与宝华殿最常去，若有宫务、朝堂、祈福与偶遇，也多从这里起头。',
-  '左侧五个菱形是常驻入口，能随时查看妃嫔、自己、纪事与情缘。等娘娘认过这些地方，咱们便回寝殿安排行程。',
-] as const;
-
 export const MAP_SIDEBAR_BUTTONS: readonly PalaceSidebarButtonConfig[] = [
   { id: 'consorts', label: '嫔妃', top: '18%' },
   { id: 'stats', label: '查看', top: '32%' },

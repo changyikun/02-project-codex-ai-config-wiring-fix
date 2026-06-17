@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
 import { AutoCutoutPortrait } from '../visual/AutoCutoutPortrait';
 import { trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
-import { requestDowagerDialogueWithFallback } from '../../game/lib/dowagerDialogueRuntime';
+import { requestDowagerLocalDialogue } from '../../game/lib/dowagerDialogueRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type { ConsortDialogueOption, ConsortDialogueTurn } from '../../game/types';
 
@@ -110,7 +110,7 @@ export function DowagerAudiencePanel({ onLeave }: DowagerAudiencePanelProps) {
     },
   ) => {
     const payload = buildPayload(topic, actionId, actionLabel, overrides);
-    const nextTurn = await requestDowagerDialogueWithFallback(payload);
+    const nextTurn = await requestDowagerLocalDialogue(payload);
     const speakerLabel = nextTurn.speakerIdentity ? `${nextTurn.speakerIdentity} · ${nextTurn.speakerName}` : nextTurn.speakerName;
 
     setDialogueTurn(nextTurn);
@@ -139,7 +139,6 @@ export function DowagerAudiencePanel({ onLeave }: DowagerAudiencePanelProps) {
             ...currentTurn,
             mode: 'line',
             options: [],
-            nextActionLabel: '',
           }
         : currentTurn,
     );
@@ -274,7 +273,6 @@ export function DowagerAudiencePanel({ onLeave }: DowagerAudiencePanelProps) {
           onSelectOption={(optionId) => {
             void handleOptionSelect(optionId);
           }}
-          nextActionLabel={options.length === 0 ? dialogueTurn?.nextActionLabel : undefined}
           onNextAction={options.length === 0 ? () => void handleNextAction() : undefined}
           busy={busy}
         />

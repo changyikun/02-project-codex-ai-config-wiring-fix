@@ -9,13 +9,18 @@ import {
   getConcubinePortraitPath,
 } from '../../game/data/concubineRoster';
 import {
-  requestMiaoYinDialogueWithFallback,
+  requestMiaoYinLocalDialogue,
   type MiaoYinDialogueActor,
 } from '../../game/lib/miaoyinDialogueRuntime';
 import { buildLocationActionNarrative } from '../../game/lib/actionNarrativeRuntime';
 import { clampToRange, createDialogueId, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
 import { traceDialogue } from '../../game/lib/dialogueTrace';
-import { requestMiaoYinAmbientWithFallback } from '../../game/lib/miaoyinAmbientRuntime';
+import { requestMiaoYinAmbientLocal } from '../../game/lib/miaoyinAmbientRuntime';
+import {
+  CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN,
+  buildConsortPublicEncounterSendOffNarrativeEntry,
+  type ConsortSendOffNarrative,
+} from '../../game/lib/consortVisitRuntime';
 import {
   resolveMusicScoreMastery,
   resolveMusicScorePractice,
@@ -28,7 +33,7 @@ import {
   resolvePalaceBanquetSeasonKeyForTime,
   resolvePalaceBanquetYearForTime,
 } from '../../game/lib/palaceBanquetSchedule';
-import { requestRelationshipJudgementWithFallback } from '../../game/lib/relationshipJudgeRuntime';
+import { requestRelationshipJudgementLocal } from '../../game/lib/relationshipJudgeRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type {
   ConcubineProfile,
@@ -132,6 +137,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
   const [showPracticePicker, setShowPracticePicker] = useState(false);
   const [actionResultText, setActionResultText] = useState('');
   const [pendingTimedActionOutcome, setPendingTimedActionOutcome] = useState<TimedLocationActionOutcome | null>(null);
+  const [pendingEncounterSendOff, setPendingEncounterSendOff] = useState<ConsortSendOffNarrative | null>(null);
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const saveId = useMemo(() => `local:${state.routeId}:${encodeURIComponent(state.name)}`, [state.name, state.routeId]);
@@ -241,7 +247,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     },
   ) => {
     const payload = buildPayload(actor, topic, actionId, actionLabel, overrides);
-    const nextTurn = await requestMiaoYinDialogueWithFallback(payload, actor);
+    const nextTurn = await requestMiaoYinLocalDialogue(payload, actor);
     const speakerLabel = `${nextTurn.speakerIdentity} · ${nextTurn.speakerName}`;
     traceDialogue({
       npcId: actor.id,
@@ -256,7 +262,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
       relationPromotedCount: nextTurn.relationMemory?.promotedCount ?? 0,
       relationRejectedCount: nextTurn.relationMemory?.rejectedCount ?? 0,
       relationEntryCount: nextTurn.relationMemory?.totalEntryCount ?? 0,
-      usedFallback: Boolean(nextTurn.usedFallback),
+      source: 'local',
     });
 
     setDialogueTurn(nextTurn);
@@ -271,7 +277,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
       return;
     }
 
-    const rewardBundle = pendingUnlockReward.length > 0 ? pendingUnlockReward : buildMusicScoreRewardBundle(`${currentSeed}:fallback-reward`, 1);
+    const rewardBundle = pendingUnlockReward.length > 0 ? pendingUnlockReward : buildMusicScoreRewardBundle(`${currentSeed}:default-reward`, 1);
     for (const item of rewardBundle) {
       grantInventoryItem(item);
     }
@@ -297,6 +303,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     setSceneHint('');
     setActiveEncounterLabel(actionLabel);
     setActiveEncounterKind(encounterKind);
+    setPendingEncounterSendOff(null);
 
     try {
       await runNarrativeTurn(actor, 'visit', actionId, actionLabel, {
@@ -336,6 +343,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     setActiveEncounterKind('regular');
     setBusy(false);
     setPendingTimedActionOutcome(null);
+    setPendingEncounterSendOff(null);
     finishTimedLocationAction(outcome);
   };
 
@@ -388,7 +396,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     applyStoryEffects({ stress: -stressRelief });
 
     try {
-      const ambient = await requestMiaoYinAmbientWithFallback({
+      const ambient = await requestMiaoYinAmbientLocal({
         routeId: state.routeId,
         playerName: state.name,
         playerRank: playerRankLabel,
@@ -465,7 +473,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
 
     try {
       {
-        const ambient = await requestMiaoYinAmbientWithFallback({
+        const ambient = await requestMiaoYinAmbientLocal({
           routeId: state.routeId,
           playerName: state.name,
           playerRank: playerRankLabel,
@@ -625,7 +633,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     });
 
     try {
-      const ambient = await requestMiaoYinAmbientWithFallback({
+      const ambient = await requestMiaoYinAmbientLocal({
         routeId: state.routeId,
         playerName: state.name,
         playerRank: playerRankLabel,
@@ -668,7 +676,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     setBusy(true);
 
     try {
-      const judgement = await requestRelationshipJudgementWithFallback(
+      const judgement = await requestRelationshipJudgementLocal(
         {
           routeId: state.routeId,
           npcId: activeActor.id,
@@ -679,7 +687,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
           currentAffection: activeActor.currentAffection,
           recentContext: nextHistory.map((entry) => `${entry.speaker}：${entry.text}`),
         },
-        option.fallbackToneTag,
+        option.localToneTag,
       );
 
       if (activeActor.actorKind === 'consort') {
@@ -690,9 +698,18 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
           currentAffection: clampToRange(activeActor.currentAffection + summary.appliedAffectionDelta, 0, 100),
         };
         setActiveActor(nextActor);
+        if (summary.actionCountThisXun >= CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN) {
+          setPendingEncounterSendOff(
+            buildConsortPublicEncounterSendOffNarrativeEntry(`${nextActor.identity} ${nextActor.name}`, '妙音堂'),
+          );
+        }
+
+        const settlementNotice = summary.actionLimitHit
+          ? '本旬与她的互动回合已用尽，关系不再变化。'
+          : '本地关系结算已落地。';
 
         await runNarrativeTurn(nextActor, 'follow-up', 'miaoyin-follow-up', activeEncounterLabel, {
-          actionResult: `${judgement.reason} 本地关系结算已落地。`,
+          actionResult: `${judgement.reason} ${settlementNotice}`,
           selectedOptionId: option.id,
           selectedOptionLabel: option.label,
           historyOverride: nextHistory,
@@ -757,7 +774,22 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
       return;
     }
 
-    if (dialogueTurn.phase === 'finish' || dialogueTurn.nextActionLabel !== '下一句') {
+    if (dialogueTurn.phase !== 'continue' || dialogueTurn.mode !== 'line') {
+      if (pendingEncounterSendOff) {
+        setDialogueTurn({
+          ...dialogueTurn,
+          mode: 'line',
+          phase: 'finish',
+          speakerIdentity: pendingEncounterSendOff.speakerIdentity || '场景旁白',
+          speakerName: pendingEncounterSendOff.speakerName || pendingEncounterSendOff.narrationName || '妙音堂偶遇',
+          text: pendingEncounterSendOff.text,
+          options: [],
+          sceneHint: pendingEncounterSendOff.sceneHint || '偶遇已经收束，不宜在外景强留。',
+        });
+        setSceneHint(pendingEncounterSendOff.sceneHint || '偶遇已经收束，不宜在外景强留。');
+        setPendingEncounterSendOff(null);
+        return;
+      }
       closeEncounter();
       return;
     }
@@ -873,7 +905,6 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
             onSelectOption={(optionId) => {
               void handleOptionSelect(optionId);
             }}
-            nextActionLabel={dialogueOptions.length === 0 ? dialogueTurn?.nextActionLabel : undefined}
             onNextAction={
               dialogueOptions.length === 0
                 ? () => {
@@ -892,7 +923,6 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
           className="global-dialogue-stage--miaoyin"
           dialogueClassName="palace-dialogue-box--miaoyin-encounter"
           content={actionResultText}
-          nextActionLabel={pendingTimedActionOutcome?.shouldSleep ? '回宫歇下' : '收起'}
           onNextAction={closeActionResult}
           busy={busy}
         />

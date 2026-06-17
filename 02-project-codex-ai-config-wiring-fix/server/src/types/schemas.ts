@@ -155,7 +155,6 @@ export const openingDialogueResponseSchema = z.object({
   speakerIdentity: z.string().min(1),
   speakerName: z.string().min(1),
   text: z.string().min(1),
-  nextActionLabel: z.string().min(1),
   timeCost: z.number().min(0).max(1),
   dataEffects: dialogueDataEffectsSchema,
   options: z.array(
@@ -324,7 +323,7 @@ const consortDialogueOptionSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
   effectHint: z.string().min(1),
-  fallbackToneTag: relationshipToneTagSchema,
+  localToneTag: relationshipToneTagSchema,
   nextTopic: z.string().min(1).optional(),
 });
 
@@ -334,7 +333,6 @@ export const consortDialogueResponseSchema = z.object({
   speakerIdentity: z.string().min(1),
   speakerName: z.string().min(1),
   text: z.string().min(1),
-  nextActionLabel: z.string().min(1),
   sceneHint: z.string().min(1).optional(),
   options: z.array(consortDialogueOptionSchema).max(3),
   memoryCandidates: z.array(z.unknown()).max(5).optional(),

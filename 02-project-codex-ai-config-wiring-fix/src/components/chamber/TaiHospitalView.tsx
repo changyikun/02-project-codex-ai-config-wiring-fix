@@ -6,15 +6,20 @@ import {
   getConcubinePortraitPath,
 } from '../../game/data/concubineRoster';
 import {
-  requestTaiyiDialogueWithFallback,
+  requestTaiyiLocalDialogue,
   type TaiyiDialogueActor,
 } from '../../game/lib/taiyiDialogueRuntime';
 import { buildLocationActionNarrative } from '../../game/lib/actionNarrativeRuntime';
 import { clampToRange, createDialogueId, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
 import { traceDialogue } from '../../game/lib/dialogueTrace';
+import {
+  CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN,
+  buildConsortPublicEncounterSendOffNarrativeEntry,
+  type ConsortSendOffNarrative,
+} from '../../game/lib/consortVisitRuntime';
 import { getNpcActivitiesAtLocation } from '../../game/lib/npcActivityRuntime';
-import { requestRelationshipJudgementWithFallback } from '../../game/lib/relationshipJudgeRuntime';
-import { requestTaiyiAmbientWithFallback } from '../../game/lib/taiyiAmbientRuntime';
+import { requestRelationshipJudgementLocal } from '../../game/lib/relationshipJudgeRuntime';
+import { requestTaiyiAmbientLocal } from '../../game/lib/taiyiAmbientRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type {
   ConcubineProfile,
@@ -82,7 +87,6 @@ const buildPendingEncounterTurn = (actor: TaiyiSceneActor): ConsortDialogueTurn 
     speakerIdentity: actor.identity,
     speakerName: actor.name,
     text,
-    nextActionLabel: '回应中',
     sceneHint: '你已在药廊下把人拦住，对方正在接这句话。',
     options: [],
   };
@@ -111,6 +115,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
   const [pendingJianNingUnlock, setPendingJianNingUnlock] = useState(false);
   const [actionResultText, setActionResultText] = useState('');
   const [pendingTimedActionOutcome, setPendingTimedActionOutcome] = useState<TimedLocationActionOutcome | null>(null);
+  const [pendingEncounterSendOff, setPendingEncounterSendOff] = useState<ConsortSendOffNarrative | null>(null);
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const saveId = useMemo(() => `local:${state.routeId}:${encodeURIComponent(state.name)}`, [state.name, state.routeId]);
@@ -198,7 +203,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     },
   ) => {
     const payload = buildPayload(actor, topic, actionId, actionLabel, overrides);
-    const nextTurn = await requestTaiyiDialogueWithFallback(payload, actor);
+    const nextTurn = await requestTaiyiLocalDialogue(payload, actor);
     const speakerLabel = `${nextTurn.speakerIdentity} · ${nextTurn.speakerName}`;
     traceDialogue({
       npcId: actor.id,
@@ -213,7 +218,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
       relationPromotedCount: nextTurn.relationMemory?.promotedCount ?? 0,
       relationRejectedCount: nextTurn.relationMemory?.rejectedCount ?? 0,
       relationEntryCount: nextTurn.relationMemory?.totalEntryCount ?? 0,
-      usedFallback: Boolean(nextTurn.usedFallback),
+      source: 'local',
     });
 
     setDialogueTurn(nextTurn);
@@ -245,6 +250,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     setHistory([]);
     setSceneHint('你已在药廊下把人拦住，对方正在接这句话。');
     setActiveEncounterLabel(actionLabel);
+    setPendingEncounterSendOff(null);
 
     try {
       await runNarrativeTurn(actor, 'visit', actionId, actionLabel, {
@@ -283,6 +289,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     setSceneHint('');
     setBusy(false);
     setPendingTimedActionOutcome(null);
+    setPendingEncounterSendOff(null);
     finishTimedLocationAction(outcome);
   };
 
@@ -311,7 +318,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
         return;
       }
 
-      const ambient = await requestTaiyiAmbientWithFallback({
+      const ambient = await requestTaiyiAmbientLocal({
         routeId: state.routeId,
         playerName: state.name,
         playerRank: playerRankLabel,
@@ -369,7 +376,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     applyStoryEffects({ stats: { medicine: 1 } });
 
     try {
-      const ambient = await requestTaiyiAmbientWithFallback({
+      const ambient = await requestTaiyiAmbientLocal({
         routeId: state.routeId,
         playerName: state.name,
         playerRank: playerRankLabel,
@@ -413,7 +420,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     setBusy(true);
 
     try {
-      const judgement = await requestRelationshipJudgementWithFallback(
+      const judgement = await requestRelationshipJudgementLocal(
         {
           routeId: state.routeId,
           npcId: activeActor.id,
@@ -424,7 +431,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
           currentAffection: activeActor.currentAffection,
           recentContext: nextHistory.map((entry) => `${entry.speaker}：${entry.text}`),
         },
-        option.fallbackToneTag,
+        option.localToneTag,
       );
 
       if (activeActor.actorKind === 'consort' && activeActor.consortId) {
@@ -435,9 +442,18 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
           currentAffection: clampToRange(activeActor.currentAffection + summary.appliedAffectionDelta, 0, 100),
         };
         setActiveActor(nextActor);
+        if (summary.actionCountThisXun >= CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN) {
+          setPendingEncounterSendOff(
+            buildConsortPublicEncounterSendOffNarrativeEntry(`${nextActor.identity} ${nextActor.name}`, '太医院'),
+          );
+        }
+
+        const settlementNotice = summary.actionLimitHit
+          ? '本旬与她的互动回合已用尽，关系不再变化。'
+          : '本地关系结算已落地。';
 
         await runNarrativeTurn(nextActor, 'follow-up', 'taiyi-follow-up', activeEncounterLabel, {
-          actionResult: `${judgement.reason} 本地关系结算已落地。`,
+          actionResult: `${judgement.reason} ${settlementNotice}`,
           selectedOptionId: option.id,
           selectedOptionLabel: option.label,
           historyOverride: nextHistory,
@@ -486,7 +502,22 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
       return;
     }
 
-    if (dialogueTurn.phase === 'finish' || dialogueTurn.nextActionLabel !== '下一句') {
+    if (dialogueTurn.phase !== 'continue' || dialogueTurn.mode !== 'line') {
+      if (pendingEncounterSendOff) {
+        setDialogueTurn({
+          ...dialogueTurn,
+          mode: 'line',
+          phase: 'finish',
+          speakerIdentity: pendingEncounterSendOff.speakerIdentity || '场景旁白',
+          speakerName: pendingEncounterSendOff.speakerName || pendingEncounterSendOff.narrationName || '太医院偶遇',
+          text: pendingEncounterSendOff.text,
+          options: [],
+          sceneHint: pendingEncounterSendOff.sceneHint || '偶遇已经收束，不宜在外景强留。',
+        });
+        setSceneHint(pendingEncounterSendOff.sceneHint || '偶遇已经收束，不宜在外景强留。');
+        setPendingEncounterSendOff(null);
+        return;
+      }
       closeEncounter();
       return;
     }
@@ -582,7 +613,6 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
             onSelectOption={(optionId) => {
               void handleOptionSelect(optionId);
             }}
-            nextActionLabel={dialogueOptions.length === 0 ? dialogueTurn?.nextActionLabel : undefined}
             onNextAction={
               dialogueOptions.length === 0
                 ? () => {
@@ -601,7 +631,6 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
           className="global-dialogue-stage--taiyi"
           dialogueClassName="palace-dialogue-box--taiyi-encounter"
           content={actionResultText}
-          nextActionLabel={pendingTimedActionOutcome?.shouldSleep ? '回宫歇下' : '收起'}
           onNextAction={closeActionResult}
           busy={busy}
         />

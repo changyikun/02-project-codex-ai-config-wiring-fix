@@ -338,6 +338,24 @@ export interface NightlyServiceRolls {
 export type NightlyServiceInteractionActionId = 'music' | 'poetry' | 'shy' | 'curtain' | 'gentle';
 export type NightlyServiceGentleBranchId = 'comfort' | 'praise' | 'smear';
 
+export type EmperorInteractionSource = 'yangxin-request' | 'public-encounter';
+export type EmperorMainInteractionActionId =
+  | 'ink'
+  | 'massage'
+  | 'concern'
+  | 'music'
+  | 'chat'
+  | 'coquetry'
+  | 'embrace'
+  | 'chess';
+export type EmperorOptionalInteractionKind = 'gift' | 'praise' | 'complain';
+export type EmperorInteractionOutcomeTier = 'flat' | 'small' | 'big';
+
+export interface EmperorInteractionProgressState {
+  xunKey?: string;
+  triggeredEncounterIds: string[];
+}
+
 export interface NightlyServiceInteractionChoice {
   actionId: NightlyServiceInteractionActionId;
   gentleBranchId?: NightlyServiceGentleBranchId;
@@ -472,7 +490,6 @@ export interface DialogueTurn {
   text: string;
   options: DialogueOption[];
   mode?: 'line' | 'branch';
-  nextActionLabel?: string;
 }
 
 export type RelationshipToneTag = 'friendly' | 'flirt' | 'cold' | 'reject' | 'neutral';
@@ -483,7 +500,7 @@ export interface RelationshipJudgeOutcome {
   affectionDelta: number;
   reason: string;
   confidence: number;
-  source: 'ai' | 'fallback';
+  source: 'ai' | 'local';
   optionText: string;
 }
 
@@ -504,14 +521,14 @@ export interface BondProfileState {
   lastToneTag?: RelationshipToneTag;
   lastReason?: string;
   lastConfidence?: number;
-  lastSource?: 'ai' | 'fallback';
+  lastSource?: 'ai' | 'local';
 }
 
 export interface BondInteractionOption {
   id: string;
   label: string;
   summary: string;
-  fallbackToneTag: RelationshipToneTag;
+  localToneTag: RelationshipToneTag;
 }
 
 export type InventoryItemCategory = 'gift' | 'food' | 'medicine' | 'rare' | 'music-score';
@@ -542,7 +559,7 @@ export interface ConsortDialogueOption {
   id: string;
   label: string;
   effectHint: string;
-  fallbackToneTag: RelationshipToneTag;
+  localToneTag: RelationshipToneTag;
   nextTopic?: string;
 }
 
@@ -635,7 +652,6 @@ export interface ConsortDialogueTurn {
   speakerIdentity: string;
   speakerName: string;
   text: string;
-  nextActionLabel: string;
   sceneHint?: string;
   options: ConsortDialogueOption[];
   memoryCandidates?: DialogueMemoryCandidate[];
@@ -643,12 +659,12 @@ export interface ConsortDialogueTurn {
   affectHints?: DialogueAffectHint[];
   sessionMemory?: DialogueSessionMemoryInfo;
   relationMemory?: DialogueRelationMemoryInfo;
-  usedFallback?: boolean;
 }
 
 export interface ConsortInteractionProgress {
   consortId: string;
   xunKey: string;
+  actionCountThisXun: number;
   favorDeltaThisXun: number;
   affectionDeltaThisXun: number;
   lastActionId?: ConsortPalaceActionId;
@@ -656,7 +672,7 @@ export interface ConsortInteractionProgress {
   lastToneTag?: RelationshipToneTag;
   lastReason?: string;
   lastConfidence?: number;
-  lastSource?: 'ai' | 'fallback';
+  lastSource?: 'ai' | 'local';
 }
 
 export interface KitchenProgressState {

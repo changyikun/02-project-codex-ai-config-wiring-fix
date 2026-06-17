@@ -65,7 +65,7 @@ export interface ConsortDialogueOptionPayload {
   id: string;
   label: string;
   effectHint: string;
-  fallbackToneTag: RelationshipToneTag;
+  localToneTag: RelationshipToneTag;
   nextTopic?: string;
 }
 
@@ -158,7 +158,6 @@ export interface ConsortDialogueResponsePayload {
   speakerIdentity: string;
   speakerName: string;
   text: string;
-  nextActionLabel: string;
   sceneHint?: string;
   options: ConsortDialogueOptionPayload[];
   memoryCandidates?: DialogueMemoryCandidatePayload[];

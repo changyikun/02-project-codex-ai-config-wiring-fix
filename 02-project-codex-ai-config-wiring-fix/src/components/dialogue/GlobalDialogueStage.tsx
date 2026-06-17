@@ -233,7 +233,6 @@ interface GlobalDialogueStageProps {
   className?: string;
   dialogueClassName?: string;
   suppressPortrait?: boolean;
-  nextActionLabel?: string;
   onNextAction?: (() => void) | undefined;
   options?: GlobalDialogueOption[];
   onSelectOption?: ((optionId: string) => void) | undefined;
@@ -260,7 +259,6 @@ export function GlobalDialogueStage({
   className = '',
   dialogueClassName = '',
   suppressPortrait = false,
-  nextActionLabel,
   onNextAction,
   options = [],
   onSelectOption,
@@ -390,8 +388,6 @@ export function GlobalDialogueStage({
         characterName={currentSegment.characterName}
         content={currentContent}
         highlightText={!hasMorePages && !hasMoreSegments ? highlightText : undefined}
-        nextActionLabel={!hasMorePages && !hasMoreSegments ? nextActionLabel : undefined}
-        nextActionKind={undefined}
         onNextAction={!hasMorePages && !hasMoreSegments ? onNextAction : undefined}
         onAdvancePage={hasMorePages || hasMoreSegments ? handleAdvancePageOrSegment : undefined}
         options={[]}

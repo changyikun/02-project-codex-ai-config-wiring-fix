@@ -20,8 +20,6 @@ const DEFAULT_TYPEWRITER_ENABLED = !(import.meta.env?.MODE === 'test' || import.
  *   highlightText?: string
  *   ariaLabel?: string
  *   className?: string
- *   nextActionLabel?: string
- *   nextActionKind?: string
  *   onNextAction?: (() => void) | undefined
  *   onAdvancePage?: (() => void) | undefined
  *   options?: PalaceDialogueOption[]
@@ -39,8 +37,6 @@ export function GlobalDialogue({
   highlightText,
   ariaLabel = '宫廷对话框',
   className = '',
-  nextActionLabel,
-  nextActionKind,
   onNextAction,
   onAdvancePage,
   options = [],
@@ -63,7 +59,6 @@ export function GlobalDialogue({
   );
   const showOptions = hasOptions && isContentComplete;
   const contentInteractionDisabled = contentDisabled || showOptions;
-  const showNextAction = false;
   const canAdvancePage = Boolean(onAdvancePage) && isContentComplete && !contentInteractionDisabled;
   const speakerLabel =
     characterIdentity && characterName && characterIdentity !== characterName
@@ -172,17 +167,6 @@ export function GlobalDialogue({
             </div>
           </div>
         </div>
-        {showNextAction ? (
-          <button
-            type="button"
-            className="palace-dialogue-box__next"
-            data-next-action-kind={nextActionKind}
-            onClick={onNextAction}
-            disabled={controlsDisabled || !onNextAction}
-          >
-            {nextActionLabel}
-          </button>
-        ) : null}
       </div>
     </section>
   );

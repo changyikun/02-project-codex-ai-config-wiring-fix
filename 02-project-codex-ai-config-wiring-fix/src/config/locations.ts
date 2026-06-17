@@ -1,5 +1,5 @@
 import { TIME_SLOTS } from './constants';
-import { GameEventId, LocationOpenMode, type LocationOpenTimeConfig, type TimeSlotLabel } from './types';
+import { LocationOpenMode, type LocationOpenTimeConfig, type TimeSlotLabel } from './types';
 
 /* 本文件数据来源于《游戏架构目录》，版本号 v1.0.0，生成时间 2026-04-17 16:02 */
 
@@ -29,13 +29,9 @@ export const LOCATION_CHONGHUAGONG_OPEN: readonly TimeSlotLabel[] = ['清晨', '
 export const PALACE_COLD_PALACE_FULL_DAY = LOCATION_FULL_DAY_OPEN_SLOTS;
 
 /**
- * 养心殿：仅在玩家触发“侍寝”事件时开放（新增地点）。
+ * 养心殿：上午到深夜可进入。上午至傍晚可求见，夜晚 / 深夜只触发内侍劝归。
  */
-export const PALACE_YANGXINDIAN_EVENT_ONLY = {
-  mode: LocationOpenMode.EventOnly,
-  openSlots: LOCATION_FULL_DAY_OPEN_SLOTS,
-  requiredEvent: GameEventId.NightlyService,
-} as const satisfies LocationOpenTimeConfig;
+export const LOCATION_YANGXINDIAN_OPEN: readonly TimeSlotLabel[] = ['上午', '中午', '下午', '傍晚', '夜晚', '深夜'] as const;
 
 export const LOCATION_NAME_LIST = [
   '正阳门',
@@ -79,7 +75,7 @@ export const LOCATION_OPEN_TIME: Record<LocationName, LocationOpenTimeConfig> = 
   宫门: { mode: LocationOpenMode.Slots, openSlots: LOCATION_GONGMEN_OPEN },
   重华宫: { mode: LocationOpenMode.Slots, openSlots: LOCATION_CHONGHUAGONG_OPEN },
   冷宫: { mode: LocationOpenMode.AllDay, openSlots: PALACE_COLD_PALACE_FULL_DAY },
-  养心殿: PALACE_YANGXINDIAN_EVENT_ONLY,
+  养心殿: { mode: LocationOpenMode.Slots, openSlots: LOCATION_YANGXINDIAN_OPEN },
 
   御书房: { mode: LocationOpenMode.AllDay, openSlots: LOCATION_FULL_DAY_OPEN_SLOTS },
   御膳房: { mode: LocationOpenMode.AllDay, openSlots: LOCATION_FULL_DAY_OPEN_SLOTS },

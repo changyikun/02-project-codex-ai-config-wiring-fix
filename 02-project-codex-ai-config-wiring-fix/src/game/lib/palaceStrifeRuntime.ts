@@ -13,6 +13,8 @@ import type {
   YangxinVerdictRelationshipDeltaState,
   YangxinHearingStance,
 } from '../types';
+import { renderNarrativeEntry } from '../narrative/narrativeCatalog';
+import { narrativeEntryToDialogueFields } from '../narrative/narrativeDialogueAdapter';
 
 interface PalaceStrifeAttemptInput {
   playerState: GameNumericsState;
@@ -992,46 +994,72 @@ export const buildYangxinVerdictEvent = ({
   }
 
   const limitedAttendees = attendees.slice(0, attendeeLimit);
+  const emperorStatement = renderNarrativeEntry('yangxin.verdict.statement.emperor', {
+    caseTargetName,
+    suspectDisplayName,
+    severityLabel: severityLabel[caseState.severity],
+  });
+  const suspectStatement = renderNarrativeEntry(
+    pendingSuspect.subjectType === 'player'
+      ? 'yangxin.verdict.statement.suspect.player'
+      : 'yangxin.verdict.statement.suspect.consort',
+    { suspectName: pendingSuspect.name },
+  );
+  const emperorStatementFields = narrativeEntryToDialogueFields(emperorStatement, {
+    speakerIdentity: '裁断者',
+    speakerName: '皇帝',
+  });
+  const suspectStatementFields = narrativeEntryToDialogueFields(suspectStatement, {
+    speakerIdentity: '定罪候选人',
+    speakerName: suspectDisplayName,
+  });
   const statements: YangxinVerdictEventState['statements'] = [
     {
       id: 'emperor-open',
       speakerId: 'emperor',
-      speakerName: '皇帝',
-      speakerRole: '裁断者',
-      text: `${caseTargetName}一案，内廷已将${suspectDisplayName}推至定罪门槛。此案为${severityLabel[caseState.severity]}，今日只问该如何裁处，不再翻案。`,
+      speakerName: emperorStatementFields.speakerName,
+      speakerRole: emperorStatementFields.speakerIdentity,
+      text: emperorStatementFields.text,
       effectSummary: '确认进入裁断阶段。',
     },
     {
       id: 'suspect-statement',
       speakerId: pendingSuspect.subjectType === 'player' ? 'player' : `consort-${pendingSuspect.subjectId}`,
-      speakerName: suspectDisplayName,
-      speakerRole: '定罪候选人',
-      text:
-        pendingSuspect.subjectType === 'player'
-          ? '你垂首听裁，只求皇上看明案中轻重。'
-          : `${pendingSuspect.name}俯身回话，称自己并非全无分辨之处，只愿皇上酌情从轻。`,
+      speakerName: suspectStatementFields.speakerName,
+      speakerRole: suspectStatementFields.speakerIdentity,
+      text: suspectStatementFields.text,
       effectSummary: '定罪候选人陈情。',
     },
   ];
 
   if (caseState.framedTargetName) {
+    const framedStatement = renderNarrativeEntry('yangxin.verdict.statement.framed', { framedDisplayName });
+    const framedStatementFields = narrativeEntryToDialogueFields(framedStatement, {
+      speakerIdentity: '被嫁祸者',
+      speakerName: framedDisplayName,
+    });
     statements.push({
       id: 'framed-statement',
       speakerId: isPlayerFramed ? 'player' : `consort-${caseState.framedTargetConsortId}`,
-      speakerName: framedDisplayName,
-      speakerRole: '被嫁祸者',
-      text: `${framedDisplayName}提及案中嫁祸痕迹，请求养心殿不要只看表面线索。`,
+      speakerName: framedStatementFields.speakerName,
+      speakerRole: framedStatementFields.speakerIdentity,
+      text: framedStatementFields.text,
       effectSummary: '嫁祸线索会影响旁人关系。',
     });
   }
 
   if (caseState.severity !== 'light') {
+    const witnessStatement = renderNarrativeEntry('yangxin.verdict.statement.jiaojiao');
+    const witnessStatementFields = narrativeEntryToDialogueFields(witnessStatement, {
+      speakerIdentity: '贴身宫女',
+      speakerName: '娇娇',
+    });
     statements.push({
       id: 'witness-statement',
       speakerId: 'jiaojiao',
-      speakerName: '娇娇',
-      speakerRole: '贴身宫女',
-      text: '奴婢只敢照实回禀：娘娘近来行止，宫中已有多处传言。若皇上要重罚，也请容奴婢把可证之处说全。',
+      speakerName: witnessStatementFields.speakerName,
+      speakerRole: witnessStatementFields.speakerIdentity,
+      text: witnessStatementFields.text,
       effectSummary: '贴身宫女作证，允许玩家选择求情姿态。',
     });
   }
