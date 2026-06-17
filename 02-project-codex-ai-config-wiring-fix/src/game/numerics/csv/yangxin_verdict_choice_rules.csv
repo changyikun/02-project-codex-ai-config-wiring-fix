@@ -1,0 +1,14 @@
+choiceId,lightMultiplier,mediumMultiplier,heavyMultiplier,suspectRelationDelta,victimRelationDelta,notes
+argue,0.75,0.82,0.88,1,-2,旧流程据理力争
+plead,0.84,0.9,0.94,2,-1,旧流程委婉求情
+accept,1,1,1,0,0,旧流程沉默认罚
+self-defend,0.72,0.8,0.86,0,-3,玩家被定罪时据证自辩
+self-doubt,0.82,0.88,0.92,0,-1,玩家被定罪时陈明疑点
+self-plead,0.84,0.9,0.94,0,-1,玩家被定罪时伏身求宽
+self-shift,0.78,0.86,0.9,0,-2,玩家被定罪时攀指旁人
+self-accept,1,1,1,0,0,玩家被定罪时沉默领罪
+demand-punish,1.12,1.12,1.08,-2,2,玩家旁听时请皇上严断
+state-facts,1,1,1,0,0,玩家旁听时只陈案情
+raise-doubt,0.82,0.88,0.92,1,-1,玩家旁听时指出疑点
+plead-mercy,0.76,0.84,0.9,3,-2,玩家旁听时代为求情
+silent-observe,1,1,1,0,0,玩家旁听时沉默旁听

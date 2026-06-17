@@ -14,11 +14,9 @@ import { buildInitialBondProfile } from '../game/data/bondPresets';
 import { buildDuNiangShopCatalog, getInventoryRecyclePrice, type DuNiangShopEntry } from '../game/data/inventoryPresets';
 import { getConcubineDisplayRankText } from '../game/data/concubineRoster';
 import {
-  requestGongmenToolLocalDialogue,
   type GongmenToolDialogueHistoryEntry,
   type GongmenToolNpcProfile,
 } from '../game/lib/gongmenToolDialogueRuntime';
-import { traceDialogue } from '../game/lib/dialogueTrace';
 import { buildMapTransitionNarrative } from '../game/lib/actionNarrativeRuntime';
 import { isJiaojiaoSpokenText } from '../game/lib/dialoguePresentation';
 import { getNpcActivitiesAtLocation } from '../game/lib/npcActivityRuntime';
@@ -35,7 +33,6 @@ import type { AffairSourceLabel, PalaceTimeState } from '../game/types';
 import { renderNarrativeEntry } from '../game/narrative/narrativeCatalog';
 import { narrativeEntryToDialogueFields, narrativeEntryToPresentation } from '../game/narrative/narrativeDialogueAdapter';
 
-const MAP_ACTION_STAMINA_COST = 1;
 const MAP_GUIDE_LINE_IDS = ['map.guide.line1', 'map.guide.line2'] as const;
 const duNiangLine1 = renderNarrativeEntry('gongmen.duniang.line1');
 const duNiangLine2 = renderNarrativeEntry('gongmen.duniang.line2');
@@ -557,8 +554,7 @@ export function MapMainView() {
     }
 
     const previousTime = time;
-    const nextStamina = Math.max(0, state.stamina - MAP_ACTION_STAMINA_COST);
-    patchState({ stamina: nextStamina });
+    const nextStamina = state.stamina;
     if (previousTime.slot !== '深夜') {
       advanceTime(1);
     }
@@ -623,8 +619,7 @@ export function MapMainView() {
     }
 
     const previousTime = time;
-    const nextStamina = Math.max(0, state.stamina - MAP_ACTION_STAMINA_COST);
-    patchState({ stamina: nextStamina });
+    const nextStamina = state.stamina;
     if (previousTime.slot !== '深夜') {
       advanceTime(1);
     }
@@ -670,55 +665,12 @@ export function MapMainView() {
     const nextHistory = [...gongmenAiHistory, playerTurn].slice(-6);
     const localText = buildDuNiangLocalSmallTalkText(nextHistory.length);
     const localSpeaker = `${toolProfile.identity} · ${toolProfile.name}`;
-    const requestToken = ++gongmenAiRequestRef.current;
+    gongmenAiRequestRef.current += 1;
 
     setActiveTradeMode(null);
     setGongmenFeedback(localText);
     setGongmenAiHistory([...nextHistory, { speaker: localSpeaker, text: localText }].slice(-6));
-
-    if (gongmenAiBusy) {
-      setGongmenAiBusy(false);
-      return;
-    }
-
-    setGongmenAiBusy(true);
-    void requestGongmenToolLocalDialogue({
-        saveId: gongmenSaveId,
-        sessionId: gongmenSessionIds['du-niang'],
-        requestId: createDialogueId('request-gongmen-du-niang'),
-        profile: toolProfile,
-        state,
-        time,
-        history: nextHistory,
-      })
-      .then((turn) => {
-        if (gongmenAiRequestRef.current !== requestToken) {
-          return;
-        }
-
-      const speaker = `${turn.speakerIdentity} · ${turn.speakerName}`;
-      setGongmenFeedback(turn.text);
-      setGongmenAiHistory([...nextHistory, { speaker, text: turn.text }].slice(-6));
-      traceDialogue({
-        npcId: toolProfile.id,
-        sceneId: `gongmen:${toolProfile.id}`,
-        sessionId: gongmenSessionIds['du-niang'],
-        turnsRead: turn.sessionMemoryReadTurnCount,
-        candidatesRead: turn.sessionMemoryReadCandidateCount,
-        candidatesWritten: turn.sessionMemoryWrittenCandidateCount,
-        relationCandidatesRead: turn.sessionMemoryReadRelationCandidateCount,
-        relationCandidatesWritten: turn.sessionMemoryWrittenRelationCandidateCount,
-        relationPromotedCount: turn.relationMemoryPromotedCount,
-        relationRejectedCount: turn.relationMemoryRejectedCount,
-        relationEntryCount: turn.relationMemoryTotalEntryCount,
-        source: 'local',
-      });
-      })
-      .finally(() => {
-        if (gongmenAiRequestRef.current === requestToken) {
-          setGongmenAiBusy(false);
-        }
-      });
+    setGongmenAiBusy(false);
   };
 
   const handleBuyFromDuNiang = (entry: DuNiangShopEntry & { remainingStock: number | null }) => {

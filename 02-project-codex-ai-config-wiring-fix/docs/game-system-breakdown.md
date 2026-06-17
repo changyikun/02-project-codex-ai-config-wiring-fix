@@ -58,7 +58,7 @@ flowchart TB
 | UI 组件 | `src/components/*` | 对话框、状态栏、妃嫔列表、寝殿子面板等 |
 | 游戏状态 | `src/game/store/gameFlowStore.ts` | 当前存档真值、时间、资源、妃嫔、物品、关系进度、结算报告 |
 | 游戏类型 | `src/game/types.ts` | 路线、时间、属性、道具、妃嫔、关系 AI、存档结构类型 |
-| 规则配置 | `src/config/*` | 时间、体力、位分、路线、地点开放、颜色、系统事件等硬规则 |
+| 规则配置 | `src/config/*`、`src/game/numerics/*` | 时间、体力、位分、路线、地点开放、颜色、系统事件等硬规则；核心可调数值由 numerics CSV 和 catalog 提供 |
 | 剧情配置 | `src/game/narrative/csv/*`、`src/game/narrative/narrativeCatalog.ts`、`src/game/narrative/narrativeDialogueAdapter.ts` | 按系统域维护剧情正文、说话人、立绘键、立绘位置和场景提示；代码引用稳定剧情 ID，并通过 adapter 将完整 entry 转换为对应 UI 展示结构 |
 | 前端运行时 | `src/game/lib/*Runtime.ts` | 本地兜底对话、地点交互、关系判定调用、寝殿工具函数、玩家姓名称呼解析 |
 | 后端入口 | `server/src/app.ts` | 装配 AI、Foundation、Memory、路由、缓存、错误处理 |
@@ -307,6 +307,19 @@ classDiagram
 ```
 
 ### 6.1 核心数值表
+
+当前核心数值配置入口：
+
+- `src/game/numerics/csv/player_attribute_fields.csv`：属性 key、显示名、创建面板上下限、默认点数、运行时倍率和用途说明。
+- `src/game/numerics/csv/global_numeric_rules.csv`：全局范围、体力、属性倍率、熬夜惩罚、家族接济和新局基础参数。
+- `src/game/numerics/csv/route_initial_profiles.csv` / `route_initial_stats.csv`：路线初始范围、初始位分候选、家世候选和固定属性路线。
+- `src/game/numerics/csv/chamber_actions.csv`、`monthly_expense_strategies.csv`、`rank_prestige_table.csv`、`favor_tiers.csv`：寝殿行动、月用度、位分门槛和宠爱分层。
+- `src/game/numerics/csv/inventory_items.csv`、`fixed_consort_roster.csv`：初始背包、商店、毒药、曲谱和固定妃嫔种子数值。
+- `src/game/numerics/csv/palace_strife_*`、`yangxin_verdict_choice_rules.csv`：宫斗严重度、流言严重度、裁断处罚倍率和关系影响。主动宫斗检定、嫌疑人动机、初始定案率、银两干预等完整公式维护在 `src/game/numerics/formula-pages/palaceStrifeFormulaPage.ts`，由公式解析器求值。
+- `src/game/numerics/csv/nightly_*`：皇帝独寝率、侍寝池宠爱权重、兴致收益档位、第三方美言 / 抹黑与侍寝保底值。侍寝互动选项读取属性与分段加成的完整公式维护在 `src/game/numerics/formula-pages/nightlyServiceFormulaPage.ts`。
+- `src/game/numerics/csv/generated_consort_templates.csv`、`generated_consort_rules.csv`：随机补足妃嫔模板、开局目标人数、属性浮动和病中健康阈值。
+
+`numericCatalog` 是这些表的统一读取入口。公式逻辑、随机算法、状态流转和数值落地仍留在 runtime / store 中。
 
 | 类别 | 字段 | 范围 / 口径 | 主要来源 | 主要用途 |
 |---|---|---|---|---|
@@ -595,9 +608,9 @@ flowchart TB
 | 主动宫斗 | 造谣、下毒等会消耗福德并增加压力；对象从当前存活且非冷宫妃嫔 roster 动态完整读取，不得按旧 UI 容量固定截断前 6 人 |
 | 两次检定 | 先判行动是否成功，再判是否被发现 |
 | 合谋/嫁祸 | 可引入第三方，提高复杂度和案件对象 |
-| 嫌疑人 | 暴露案件生成最多 3 名嫌疑人，实际发起者、被嫁祸者、牵连玩家优先纳入；被嫁祸者初始定案率至少 70 |
-| 调查推进 | 每旬所有嫌疑人按轻/中/重 `+8/+14/+20` 增长，被嫁祸者额外 `+5`；三旬无人到 100 则疑案归档 |
-| 案件干预 | 入口在“宫斗事务”调查页；玩家可对调查中任一嫌疑人花 20 银两执行定案率 -5 或 +5；推到 100 进入待裁断，不直接定罪 |
+| 嫌疑人 | 暴露案件默认生成最多 3 名嫌疑人，实际发起者、被嫁祸者、牵连玩家优先纳入；被嫁祸者初始定案率默认至少 70。动机和初始嫌疑是完整公式，维护在 `palaceStrifeFormulas.ts` |
+| 调查推进 | 每旬所有嫌疑人按轻/中/重默认 `+8/+14/+20` 增长，被嫁祸者默认额外 `+5`；默认三旬无人到 100 则疑案归档。严重度表由 `palace_strife_severity_rules.csv` 维护，完整计算不拆成 CSV 公式碎片 |
+| 案件干预 | 入口在“宫斗事务”调查页；玩家默认可对调查中任一嫌疑人花 20 银两执行定案率 -5 或 +5；推到 100 进入待裁断，不直接定罪。银两干预折算公式维护在 `palaceStrifeFormulas.ts` |
 | 养心殿裁断 | 玩家相关待裁断案在下一旬清晨优先由内侍传旨，切到真实 `养心殿` 场景，使用对话舞台发言与求情；裁断后仍停留在养心殿，旧工具面板不再作为主动入口 |
 | 结案影响 | 裁断完成后才写入定罪者和惩罚；若确认陷害/下毒，关系走硬覆盖，不走普通好感增减 |
 | 冷宫联动 | 事件导致声望小于 0 可立即进入冷宫 |
@@ -628,7 +641,7 @@ flowchart TB
 | 夜晚选中 | 不是每个妃子独立百分比，而是互动池权重抽取 |
 | 皇帝心情 | 影响独寝、册封、养心殿裁断 |
 | 真心值 | 影响夜晚权重、御书房带回、求情宽判、处罚保底 |
-| 侍寝兴致 | 初始兴致与宠爱档位/历史表现有关，满 100 可额外声望 |
+| 侍寝兴致 | 初始兴致与宠爱档位/历史表现有关，满 100 默认可额外声望；兴致区间收益由 `nightly_interest_effects.csv` 维护，互动选项加成公式维护在 `nightlyServiceFormulas.ts` |
 | 怀孕前提 | 生产/流产后 3 个月生育冷却期内不能怀孕 |
 | 怀孕概率 | 与福德等硬规则相关，永久不孕为独立隐藏状态 |
 | 生产风险 | 按生产时健康值分层结算 |

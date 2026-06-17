@@ -761,62 +761,6 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     });
   });
 
-  it('resolves a required Yangxin hearing once and lowers conviction on successful argument', () => {
-    useGameFlowStore.setState((state) => ({
-      ...state,
-      state: {
-        ...state.state,
-        favor: 80,
-        trueHeart: 60,
-        stats: {
-          ...state.state.stats,
-          intrigue: 900,
-          appearance: 800,
-          temperament: 800,
-        },
-      },
-      palaceStrifeCases: [
-        {
-          id: 'palace-strife-yangxin',
-          xunKey: '2-3-2',
-          year: 2,
-          month: 3,
-          xun: 2,
-          actorId: 'player',
-          targetConsortId: 'consort-cui',
-          targetName: '崔令蓉',
-          actionKind: 'rumor',
-          methodLabel: '散布流言',
-          itemLabel: '与人偷情',
-          allyLabel: '无',
-          severity: 'medium',
-          actionSuccessRate: 52,
-          concealmentSuccessRate: 61,
-          actionRoll: 12,
-          concealmentRoll: 88,
-          actionSucceeded: true,
-          concealmentSucceeded: false,
-          status: 'investigating',
-          outcome: 'pending',
-          investigationXunsElapsed: 0,
-          convictionRate: 60,
-          yangxinHearingRequired: true,
-          summary: '内廷已开始追查源头。',
-        },
-      ],
-    }));
-
-    const result = useGameFlowStore.getState().resolveYangxinPalaceStrifeCase('palace-strife-yangxin', 'argue');
-
-    const flow = useGameFlowStore.getState();
-    expect(result.success).toBe(true);
-    expect(flow.palaceStrifeCases[0]).toMatchObject({
-      yangxinHearingResolved: true,
-      convictionRate: 30,
-    });
-    expect(result.message).toContain('据理力争');
-  });
-
   it('advances palace strife investigations on xun transition and records the report line', () => {
     useGameFlowStore.setState((state) => ({
       ...state,

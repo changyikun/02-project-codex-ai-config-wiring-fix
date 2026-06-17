@@ -1,5 +1,35 @@
 Original prompt: 添加存档系统，回溯可以读取上一次存档，开始游戏会清空存档并新建存档（有二级确认）；关于存档功能的维护，需要把这部分写到全局文档里，以便更好的同步，之前已经做出的修改也需要将之前的文档修改到一致
 
+## 2026-06-17 v0.5.2 宫斗 / 侍寝 / 随机妃嫔数值拆表扩展
+
+- 本轮目标：继续把宫斗、侍寝和随机补足妃嫔生成里的可调数值从 runtime 中抽到 CSV。
+- 已新增：`palace_strife_severity_rules.csv`、`palace_strife_rumor_items.csv`、`yangxin_verdict_choice_rules.csv`。
+- 已新增：`nightly_emperor_alone_rates.csv`、`nightly_favor_weights.csv`、`nightly_interest_effects.csv`、`nightly_runtime_rules.csv`。
+- 已新增：`generated_consort_templates.csv`、`generated_consort_rules.csv`，随机补足妃嫔的模板、目标人数、属性浮动和病中阈值不再维护在 `concubineRoster.ts` 的大段常量里。
+- 修订：公式不再拆进 CSV；主动宫斗检定、嫌疑人动机、初始定案率、银两干预和侍寝互动加成维护在独立 `src/game/numerics/formula-pages/*FormulaPage.ts`，由 `formulaRuntime.ts` 解析。
+- 修订：删除旧听审流程，移除 `resolveYangxinHearing`、`YangxinHearingPanelView`、`yangxinHearing*` 案件字段和对应测试；当前裁断只走待裁断案件的养心殿传唤对话流程。
+- 已接入：`palaceStrifeRuntime`、`nightlyServiceRuntime`、`concubineRoster` 改读 `numericCatalog`；公式、随机流程和状态落地仍留在 runtime。
+- 已同步：`CHANGELOG.md`、`src/game/numerics/csv/README.md`、`docs/game-system-breakdown.md`、`docs/system-hard-rules-integrated.md`、`docs/codex-dialogue-handoff.md`。
+- 验证：`npx tsc --noEmit` 通过；`npx vitest run src/game/numerics/formulas/formulaRuntime.test.ts src/game/lib/palaceStrifeRuntime.test.ts src/game/lib/nightlyServiceRuntime.test.ts` 通过，25 passed；上一轮 `gameFlowStore.save`、宫斗事务 / 养心殿裁断 app-flow 与 `npm run build:web` 已通过，仍有既有 Vite 大 chunk 警告；此前 in-app browser 刷新 `http://127.0.0.1:5173/` 后启动菜单可见，console error 为 0。
+
+## 2026-06-17 v0.5.2 数值系统配置化
+
+- 本轮目标：把核心数值、初始化数据和存档结构配置从分散代码常量中抽出，数值表用 CSV，真实存档不做 CSV。
+- 已新增 `src/game/numerics/csv/`、`csvNumericLoader.ts`、`numericCatalog.ts` 和 `numericCatalog.test.ts`。
+- 已迁移：玩家属性字段、全局范围 / 倍率 / 体力 / 熬夜惩罚 / 家族接济、新局时间、路线初始范围、路线固定属性、寝殿行动、月用度策略、宠爱分层、位分声望表、背包 / 商店 / 毒药 / 曲谱物品、固定妃嫔种子数值。
+- 已新增 `src/game/save/saveGameConfig.ts`，集中维护 `SaveGameV1` schema、storage key、必需 section / progress / relation 字段和默认进度块；`saveGameV1.ts` 继续负责构建、读取、清除和校验。
+- 已接入旧导出兼容层：`constants.ts`、`monthlyExpenseStrategy.ts`、`palaceUi.ts`、`routeProfiles.ts`、`inventoryPresets.ts`、`familyGovernanceRuntime.ts` 和属性创建页改从 catalog 取值。
+- 顺手修复：杜娘闲谈不再被后续本地请求覆盖回初始台词，符合当前版本“CSV 本地剧情唯一源、不接 AI 正文”的规则。
+- 验证：`npx tsc --noEmit`、`npx vitest run src/game/numerics`、`npx vitest run src/game/save src/game/store src/__tests__/app-flow.test.tsx`、`npm run build:web` 均通过；仍有既有 React act 测试警告和 Vite 大 chunk 警告。
+
+## 2026-06-17 v0.5.2 进出场景体力规则
+
+- 本轮目标：修改规则，使进出场景不再消耗体力。
+- 已处理：大地图进入地点和地点快捷面板不再扣体力，只保留既有时辰推进与深夜回宫睡觉判断。
+- 已处理：后宫殿位进入妃嫔会面不再扣体力，但体力为 `0` 时仍阻止开始拜访，避免绕过“体力归零需要睡觉”的全局规则。
+- 保留边界：地点内真实行动仍按各自 `beginTimedLocationAction` 或寝殿行动配置消耗 / 恢复体力。
+- 验证：`npx tsc --noEmit` 通过；相关 `app-flow` 测试通过；`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告。
+
 ## 2026-06-02
 
 - 读取现有 `SaveGameV1`、`gameFlowStore` persist 配置、启动页与主流程测试。

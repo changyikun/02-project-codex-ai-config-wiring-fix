@@ -12,6 +12,15 @@ import {
   type 毒药配置,
   type 皇帝心情区间配置,
 } from './types';
+import {
+  getNumericRuleRange,
+  getNumericRuleValue,
+  getRouteInitialProfileConfig,
+  numericFavorTiers,
+  numericPrestigeRankTable,
+  numericSpecialPrestigeRankTable,
+} from '../game/numerics/numericCatalog';
+import type { RouteId as GameRouteId } from '../game/types';
 
 /* 本文件数据来源于《游戏架构目录》，版本号 v1.0.0，生成时间 2026-04-17 16:02 */
 
@@ -37,47 +46,44 @@ export const TIME_SLOTS_PER_XUN = TIME_SLOTS.length;
 export const XUNS_PER_MONTH = 3 as const;
 export const MONTHS_PER_YEAR = 12 as const;
 
-export const AGE_RANGE: RangeTuple = [15, 23] as const;
-export const PRESTIGE_RANGE: RangeTuple = [-2000, 5000] as const;
-export const PLAYER_SILVER_RANGE: RangeTuple = [0, 999999] as const;
-export const PLAYER_FAVOR_RANGE: RangeTuple = [-100, 100] as const;
-export const PLAYER_FORTUNE_RANGE: RangeTuple = [-100, 100] as const;
-export const PLAYER_AMBITION_RANGE: RangeTuple = [-100, 100] as const;
-export const PLAYER_INTRIGUE_RANGE: RangeTuple = [0, 1000] as const;
-export const PLAYER_APPEARANCE_RANGE: RangeTuple = [0, 1000] as const;
-export const PLAYER_TEMPERAMENT_RANGE: RangeTuple = [0, 1000] as const;
-export const PLAYER_HEALTH_RANGE: RangeTuple = [0, 1000] as const;
-export const PLAYER_STRESS_RANGE: RangeTuple = [0, 100] as const;
+export const AGE_RANGE: RangeTuple = getNumericRuleRange('age_range');
+export const PRESTIGE_RANGE: RangeTuple = getNumericRuleRange('prestige_range');
+export const PLAYER_SILVER_RANGE: RangeTuple = getNumericRuleRange('player_silver_range');
+export const PLAYER_FAVOR_RANGE: RangeTuple = getNumericRuleRange('player_favor_range');
+export const PLAYER_FORTUNE_RANGE: RangeTuple = getNumericRuleRange('player_fortune_range');
+export const PLAYER_AMBITION_RANGE: RangeTuple = getNumericRuleRange('player_ambition_range');
+export const PLAYER_INTRIGUE_RANGE: RangeTuple = getNumericRuleRange('player_intrigue_range');
+export const PLAYER_APPEARANCE_RANGE: RangeTuple = getNumericRuleRange('player_appearance_range');
+export const PLAYER_TEMPERAMENT_RANGE: RangeTuple = getNumericRuleRange('player_temperament_range');
+export const PLAYER_HEALTH_RANGE: RangeTuple = getNumericRuleRange('player_health_range');
+export const PLAYER_STRESS_RANGE: RangeTuple = getNumericRuleRange('player_stress_range');
 
 export const EMPEROR_MOOD_RANGE: RangeTuple = [-100, 100] as const;
 
-export const MAIN_ATTRIBUTE_INITIAL_POINTS = 2 as const;
-export const MAIN_ATTRIBUTE_MAX_POINTS = 8 as const;
-export const SECONDARY_ATTRIBUTE_MIN_LEVEL = 0 as const;
-export const SECONDARY_ATTRIBUTE_MAX_LEVEL = 10 as const;
-export const MEDICINE_LEVEL_CAP = 5 as const;
-export const POLITICS_LEVEL_CAP = 2 as const;
-export const ADVANCED_ROUTE_POLITICS_LEVEL_CAP = 4 as const;
+export const MAIN_ATTRIBUTE_INITIAL_POINTS = getNumericRuleValue('main_attribute_initial_points');
+export const MAIN_ATTRIBUTE_MAX_POINTS = getNumericRuleValue('main_attribute_max_points');
+export const SECONDARY_ATTRIBUTE_MIN_LEVEL = getNumericRuleValue('secondary_attribute_min_level');
+export const SECONDARY_ATTRIBUTE_MAX_LEVEL = getNumericRuleValue('secondary_attribute_max_level');
+export const MEDICINE_LEVEL_CAP = getNumericRuleValue('medicine_level_cap');
+export const POLITICS_LEVEL_CAP = getNumericRuleValue('politics_level_cap');
+export const ADVANCED_ROUTE_POLITICS_LEVEL_CAP = getNumericRuleValue('advanced_route_politics_level_cap');
 
-export const MAIN_ATTRIBUTE_POINT_TO_VALUE_RATIO = 100 as const;
-export const FORTUNE_POINT_TO_VALUE_RATIO = 1 as const;
-export const FORTUNE_ATTRIBUTE_POINT_TO_VALUE_RATIO = 10 as const;
-export const SKILL_LEVEL_TO_VALUE_RATIO = 10 as const;
+export const MAIN_ATTRIBUTE_POINT_TO_VALUE_RATIO = getNumericRuleValue('main_attribute_point_to_value_ratio');
+export const FORTUNE_POINT_TO_VALUE_RATIO = getNumericRuleValue('fortune_point_to_value_ratio');
+export const FORTUNE_ATTRIBUTE_POINT_TO_VALUE_RATIO = getNumericRuleValue('fortune_attribute_point_to_value_ratio');
+export const SKILL_LEVEL_TO_VALUE_RATIO = getNumericRuleValue('skill_level_to_value_ratio');
 
-export const FAMILY_BACKGROUND_TOTAL_POINTS_MIN = 48 as const;
-export const FAMILY_BACKGROUND_TOTAL_POINTS_MAX = 56 as const;
+export const FAMILY_BACKGROUND_TOTAL_POINTS_MIN = getNumericRuleValue('family_background_total_points_min');
+export const FAMILY_BACKGROUND_TOTAL_POINTS_MAX = getNumericRuleValue('family_background_total_points_max');
 
 export const PLAYER_ACTIONS_PER_XUN = 7 as const;
 
-export const FAVOR_TIER_TABLE = [
-  { label: '憎恶', range: [-100, -50] as RangeTuple, color: RARITY_COLOR_NEUTRAL, maxCount: 0 },
-  { label: '厌恶', range: [-49, 0] as RangeTuple, color: RARITY_COLOR_NEUTRAL, maxCount: 0 },
-  { label: '无宠', range: [1, 20] as RangeTuple, color: RARITY_COLOR_NEUTRAL, maxCount: 0 },
-  { label: '小宠', range: [21, 40] as RangeTuple, color: RARITY_COLOR_COMMON, maxCount: 0 },
-  { label: '得宠', range: [41, 60] as RangeTuple, color: RARITY_COLOR_RARE, maxCount: 4 },
-  { label: '盛宠', range: [61, 80] as RangeTuple, color: RARITY_COLOR_EPIC, maxCount: 2 },
-  { label: '独宠', range: [81, 100] as RangeTuple, color: RARITY_COLOR_LEGENDARY, maxCount: 1 },
-] as const;
+export const FAVOR_TIER_TABLE = numericFavorTiers.map((tier) => ({
+  label: tier.label,
+  range: tier.range,
+  color: RARITY_COLOR_MAP[tier.colorId],
+  maxCount: tier.maxCount,
+}));
 
 export type FavorTierDefinition = (typeof FAVOR_TIER_TABLE)[number];
 
@@ -143,9 +149,9 @@ export const FOOD_STAMINA_GAIN_SNACK = 1 as const;
 export const STAMINA_RECOVER_NAP = 3 as const;
 export const STRESS_REDUCE_LISTEN_MUSIC = 4 as const;
 
-export const STAMINA_MAX = 15 as const;
-export const STAMINA_INITIAL_PER_XUN = 10 as const;
-export const STAMINA_MIN = 0 as const;
+export const STAMINA_MAX = getNumericRuleValue('stamina_max');
+export const STAMINA_INITIAL_PER_XUN = getNumericRuleValue('stamina_initial_per_xun');
+export const STAMINA_MIN = getNumericRuleValue('stamina_min');
 
 export const STRESS_THRESHOLD_LIFESPAN_LOSS = 80 as const;
 export const LIFESPAN_LOSS_PER_MONTH_WHEN_STRESS_GT_THRESHOLD = 0.2 as const;
@@ -240,12 +246,17 @@ export const MYSTERIOUS_MERCHANT_GIFT_TIERS = [
 
 export const LIFESPAN_INITIAL_RANGE: RangeTuple = [60, 80] as const;
 
-export const EMPEROR_TRUE_HEART_RANGE_BY_ROUTE: Record<RouteId, RangeTuple> = {
-  [RouteId.Lanyinxuguo]: [20, 50],
-  [RouteId.Fushengrumeng]: [0, 60],
-  [RouteId.Yingluoyeting]: [0, 40],
-  [RouteId.Chenyuansucuo]: [-20, 20],
-};
+const toGameRouteId = (routeId: RouteId): GameRouteId => routeId as unknown as GameRouteId;
+const buildRouteRangeRecord = (resolveRange: (routeId: GameRouteId) => RangeTuple): Record<RouteId, RangeTuple> => ({
+  [RouteId.Lanyinxuguo]: resolveRange(toGameRouteId(RouteId.Lanyinxuguo)),
+  [RouteId.Fushengrumeng]: resolveRange(toGameRouteId(RouteId.Fushengrumeng)),
+  [RouteId.Yingluoyeting]: resolveRange(toGameRouteId(RouteId.Yingluoyeting)),
+  [RouteId.Chenyuansucuo]: resolveRange(toGameRouteId(RouteId.Chenyuansucuo)),
+});
+
+export const EMPEROR_TRUE_HEART_RANGE_BY_ROUTE: Record<RouteId, RangeTuple> = buildRouteRangeRecord(
+  (routeId) => getRouteInitialProfileConfig(routeId).trueHeartRange,
+);
 
 export const NIGHTLY_SERVICE_PROBABILITY_GAIN_PER_XUN_PERCENT = 2 as const;
 export const NIGHTLY_SERVICE_PROBABILITY_MAX_PERCENT = 100 as const;
@@ -285,56 +296,26 @@ export const CHARACTER_STATUS_THRESHOLDS = {
 
 export const RANK_ICON_BASE_PATH = '/assets/icons/ranks' as const;
 
-export const PRESTIGE_RANK_TABLE: readonly 位分声望条目[] = [
-  { 等级: 1, 位分名称: '皇后', 所需声望值: 2500, 对应颜色标识: RarityColorId.Legendary, 图标路径: `${RANK_ICON_BASE_PATH}/huanghou.png` },
-  { 等级: 2, 位分名称: '贵妃', 所需声望值: 2100, 对应颜色标识: RarityColorId.Legendary, 图标路径: `${RANK_ICON_BASE_PATH}/guifei.png` },
-  { 等级: 3, 位分名称: '德妃 / 淑妃 / 贤妃', 所需声望值: 1800, 对应颜色标识: RarityColorId.Epic, 图标路径: `${RANK_ICON_BASE_PATH}/sifei.png` },
-  { 等级: 4, 位分名称: '妃', 所需声望值: 1500, 对应颜色标识: RarityColorId.Epic, 图标路径: `${RANK_ICON_BASE_PATH}/fei.png` },
-  { 等级: 5, 位分名称: '九嫔', 所需声望值: 1300, 对应颜色标识: RarityColorId.Epic, 图标路径: `${RANK_ICON_BASE_PATH}/jiupin.png` },
-  { 等级: 6, 位分名称: '贵嫔', 所需声望值: 1100, 对应颜色标识: RarityColorId.Epic, 图标路径: `${RANK_ICON_BASE_PATH}/guipin.png` },
-  { 等级: 7, 位分名称: '婕好', 所需声望值: 900, 对应颜色标识: RarityColorId.Rare, 图标路径: `${RANK_ICON_BASE_PATH}/jiehao.png` },
-  { 等级: 8, 位分名称: '容华', 所需声望值: 750, 对应颜色标识: RarityColorId.Rare, 图标路径: `${RANK_ICON_BASE_PATH}/ronghua.png` },
-  { 等级: 9, 位分名称: '嫔', 所需声望值: 600, 对应颜色标识: RarityColorId.Rare, 图标路径: `${RANK_ICON_BASE_PATH}/pin.png` },
-  { 等级: 10, 位分名称: '贵人', 所需声望值: 450, 对应颜色标识: RarityColorId.Rare, 图标路径: `${RANK_ICON_BASE_PATH}/guiren.png` },
-  { 等级: 11, 位分名称: '美人', 所需声望值: 350, 对应颜色标识: RarityColorId.Common, 图标路径: `${RANK_ICON_BASE_PATH}/meiren.png` },
-  { 等级: 12, 位分名称: '才人', 所需声望值: 250, 对应颜色标识: RarityColorId.Common, 图标路径: `${RANK_ICON_BASE_PATH}/cairen.png` },
-  { 等级: 13, 位分名称: '常在', 所需声望值: 200, 对应颜色标识: RarityColorId.Common, 图标路径: `${RANK_ICON_BASE_PATH}/changzai.png` },
-  { 等级: 14, 位分名称: '御女', 所需声望值: 150, 对应颜色标识: RarityColorId.Common, 图标路径: `${RANK_ICON_BASE_PATH}/yunv.png` },
-  { 等级: 15, 位分名称: '选侍', 所需声望值: 100, 对应颜色标识: RarityColorId.Common, 图标路径: `${RANK_ICON_BASE_PATH}/xuanshi.png` },
-  { 等级: 16, 位分名称: '答应', 所需声望值: 60, 对应颜色标识: RarityColorId.Neutral, 图标路径: `${RANK_ICON_BASE_PATH}/daying.png` },
-  { 等级: 17, 位分名称: '更衣', 所需声望值: 30, 对应颜色标识: RarityColorId.Neutral, 图标路径: `${RANK_ICON_BASE_PATH}/gengyi.png` },
-  { 等级: 18, 位分名称: '官女子', 所需声望值: 0, 对应颜色标识: RarityColorId.Neutral, 图标路径: `${RANK_ICON_BASE_PATH}/guannvzi.png` },
-] as const;
+export const PRESTIGE_RANK_TABLE: readonly 位分声望条目[] = numericPrestigeRankTable;
 
-export const SPECIAL_PRESTIGE_RANK_TABLE: readonly 位分声望条目[] = [
-  { 等级: 0, 位分名称: '皇贵妃', 所需声望值: 2400, 对应颜色标识: RarityColorId.Legendary, 图标路径: `${RANK_ICON_BASE_PATH}/huangguifei.png` },
-] as const;
+export const SPECIAL_PRESTIGE_RANK_TABLE: readonly 位分声望条目[] = numericSpecialPrestigeRankTable;
 
 export const PRESTIGE_RANK_BY_NAME = Object.fromEntries([...PRESTIGE_RANK_TABLE, ...SPECIAL_PRESTIGE_RANK_TABLE].map((entry) => [entry.位分名称, entry])) as Record<
   string,
   位分声望条目
 >;
 
-export const ROUTE_INITIAL_SILVER_RANGE: Record<RouteId, RangeTuple> = {
-  [RouteId.Lanyinxuguo]: [1000, 1000],
-  [RouteId.Fushengrumeng]: [300, 800],
-  [RouteId.Yingluoyeting]: [50, 50],
-  [RouteId.Chenyuansucuo]: [1000, 1000],
-};
+export const ROUTE_INITIAL_SILVER_RANGE: Record<RouteId, RangeTuple> = buildRouteRangeRecord(
+  (routeId) => getRouteInitialProfileConfig(routeId).silverRange,
+);
 
-export const ROUTE_INITIAL_STRESS_RANGE: Record<RouteId, RangeTuple> = {
-  [RouteId.Lanyinxuguo]: [30, 30],
-  [RouteId.Fushengrumeng]: [0, 0],
-  [RouteId.Yingluoyeting]: [30, 30],
-  [RouteId.Chenyuansucuo]: [40, 40],
-};
+export const ROUTE_INITIAL_STRESS_RANGE: Record<RouteId, RangeTuple> = buildRouteRangeRecord(
+  (routeId) => getRouteInitialProfileConfig(routeId).stressRange,
+);
 
-export const ROUTE_INITIAL_FAVOR_RANGE: Record<RouteId, RangeTuple> = {
-  [RouteId.Lanyinxuguo]: [40, 60],
-  [RouteId.Fushengrumeng]: [0, 40],
-  [RouteId.Yingluoyeting]: [0, 30],
-  [RouteId.Chenyuansucuo]: [20, 60],
-};
+export const ROUTE_INITIAL_FAVOR_RANGE: Record<RouteId, RangeTuple> = buildRouteRangeRecord(
+  (routeId) => getRouteInitialProfileConfig(routeId).favorRange,
+);
 
 export const ROUTE_CLEAR_REQUIRED_PRESTIGE: Record<RouteId, number> = {
   [RouteId.Lanyinxuguo]: 0,

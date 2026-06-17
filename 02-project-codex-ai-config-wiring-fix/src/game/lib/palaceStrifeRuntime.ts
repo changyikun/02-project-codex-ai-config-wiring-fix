@@ -11,10 +11,16 @@ import type {
   YangxinVerdictEventState,
   YangxinVerdictPenaltyState,
   YangxinVerdictRelationshipDeltaState,
-  YangxinHearingStance,
 } from '../types';
 import { renderNarrativeEntry } from '../narrative/narrativeCatalog';
 import { narrativeEntryToDialogueFields } from '../narrative/narrativeDialogueAdapter';
+import {
+  getPalaceStrifeRumorSeverity,
+  getPalaceStrifeSeverityRule,
+  getYangxinVerdictChoiceRule,
+  numericPalaceStrifeSeverityRules,
+} from '../numerics/numericCatalog';
+import { evaluatePalaceStrifeFormula } from '../numerics/formulas/palaceStrifeFormulas';
 
 interface PalaceStrifeAttemptInput {
   playerState: GameNumericsState;
@@ -60,25 +66,20 @@ interface YangxinVerdictEventInput {
 
 export const PLAYER_PALACE_STRIFE_TARGET_ID = 'player';
 
-const severityModifiers: Record<PalaceStrifeSeverity, { action: number; concealment: number; conviction: number }> = {
-  light: { action: 0, concealment: 5, conviction: 0 },
-  medium: { action: 5, concealment: 10, conviction: 10 },
-  heavy: { action: 10, concealment: 15, conviction: 20 },
-};
+const severityModifiers: Record<PalaceStrifeSeverity, { action: number; concealment: number; conviction: number }> = Object.fromEntries(
+  numericPalaceStrifeSeverityRules.map((rule) => [
+    rule.severity,
+    {
+      action: rule.actionModifier,
+      concealment: rule.concealmentModifier,
+      conviction: rule.convictionModifier,
+    },
+  ]),
+) as Record<PalaceStrifeSeverity, { action: number; concealment: number; conviction: number }>;
 
-const investigationGrowthBySeverity: Record<PalaceStrifeSeverity, number> = {
-  light: 8,
-  medium: 14,
-  heavy: 20,
-};
-
-const rumorSeverityByLabel: Record<string, PalaceStrifeSeverity> = {
-  欺凌宫人: 'light',
-  奢侈浪费: 'light',
-  与人偷情: 'medium',
-  意图谋逆: 'heavy',
-  不敬先祖: 'heavy',
-};
+const investigationGrowthBySeverity: Record<PalaceStrifeSeverity, number> = Object.fromEntries(
+  numericPalaceStrifeSeverityRules.map((rule) => [rule.severity, rule.investigationGrowth]),
+) as Record<PalaceStrifeSeverity, number>;
 
 const frameModifiers = {
   action: 12,
@@ -87,11 +88,31 @@ const frameModifiers = {
   investigationGrowth: 5,
 };
 
-const convictionPenaltyBySeverity: Record<PalaceStrifeSeverity, { prestigeDelta: number; favorDelta: number; stressDelta: number }> = {
-  light: { prestigeDelta: -150, favorDelta: -3, stressDelta: 0 },
-  medium: { prestigeDelta: -350, favorDelta: -6, stressDelta: 5 },
-  heavy: { prestigeDelta: -750, favorDelta: -10, stressDelta: 10 },
-};
+const investigationConvictionThreshold = 100;
+const investigationColdCaseXuns = 3;
+const suspectMaxCount = 3;
+const suspectCandidateMaximumRate = 65;
+const npcMotiveThreshold = 150;
+const npcPlayerTargetRelationThreshold = -35;
+const npcFramePlayerRelationThreshold = -45;
+const npcFramePlayerRollChance = 35;
+const npcFrameOtherRollChance = 12;
+const npcPoisonMedicineThreshold = 70;
+const npcHeavyPoisonMedicineThreshold = 90;
+const npcHeavyRumorAmbitionThreshold = 90;
+const allyActionModifier = 5;
+const allyConvictionRateModifier = 10;
+
+const convictionPenaltyBySeverity: Record<PalaceStrifeSeverity, { prestigeDelta: number; favorDelta: number; stressDelta: number }> = Object.fromEntries(
+  numericPalaceStrifeSeverityRules.map((rule) => [
+    rule.severity,
+    {
+      prestigeDelta: rule.prestigePenalty,
+      favorDelta: rule.favorPenalty,
+      stressDelta: rule.stressPenalty,
+    },
+  ]),
+) as Record<PalaceStrifeSeverity, { prestigeDelta: number; favorDelta: number; stressDelta: number }>;
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 const round = (value: number): number => Math.round(value);
@@ -168,7 +189,7 @@ const normalizeSuspectRate = (value: number): number => clamp(Math.round(value),
 
 const getPendingVerdictSuspect = (caseState: PalaceStrifeCaseState): PalaceStrifeSuspectState | undefined =>
   (caseState.suspects ?? []).find((suspect) => suspect.id === caseState.pendingVerdictSuspectId) ??
-  (caseState.suspects ?? []).find((suspect) => suspect.suspicionRate >= 100);
+  (caseState.suspects ?? []).find((suspect) => suspect.suspicionRate >= investigationConvictionThreshold);
 
 const formatYangxinCaseTargetName = (caseState: PalaceStrifeCaseState): string =>
   isPlayerPalaceStrifeTargetId(caseState.targetConsortId) ? '娘娘' : caseState.targetName;
@@ -246,14 +267,22 @@ const buildPalaceStrifeSuspects = (input: {
   concealmentRoll: number;
   concealmentSuccessRate: number;
 }): PalaceStrifeSuspectState[] => {
-  const severityBonus = input.severity === 'heavy' ? 15 : input.severity === 'medium' ? 8 : 0;
-  const exposureBonus = Math.max(0, input.concealmentRoll - input.concealmentSuccessRate) / 3;
+  const severityBonus = getPalaceStrifeSeverityRule(input.severity).suspectBonus;
+  const exposureBonus = evaluatePalaceStrifeFormula('suspectExposureBonus', {
+    concealmentRoll: input.concealmentRoll,
+    concealmentSuccessRate: input.concealmentSuccessRate,
+  });
   let suspects: PalaceStrifeSuspectState[] = [];
 
   suspects = upsertSuspect(
     suspects,
     input.actualActor,
-    input.baseConvictionRate + severityBonus + exposureBonus + (input.actionSucceeded ? 6 : 0),
+    evaluatePalaceStrifeFormula('actualActorSuspicion', {
+      baseConvictionRate: input.baseConvictionRate,
+      severitySuspectBonus: severityBonus,
+      exposureBonus,
+      actionSuccessBonus: input.actionSucceeded ? 6 : 0,
+    }),
     '行动痕迹与动机最重，内廷优先追查。',
     { isActualActor: true },
   );
@@ -261,7 +290,9 @@ const buildPalaceStrifeSuspects = (input: {
   suspects = upsertSuspect(
     suspects,
     input.framedTarget,
-    Math.max(70, input.baseConvictionRate + 25),
+    evaluatePalaceStrifeFormula('framedSuspectSuspicion', {
+      baseConvictionRate: input.baseConvictionRate,
+    }),
     '现场线索被刻意引向此人，嫌疑骤然升高。',
     { isFramed: true },
   );
@@ -270,7 +301,9 @@ const buildPalaceStrifeSuspects = (input: {
     suspects = upsertSuspect(
       suspects,
       input.target,
-      Math.max(25, input.baseConvictionRate - 15),
+      evaluatePalaceStrifeFormula('playerTargetSuspicion', {
+        baseConvictionRate: input.baseConvictionRate,
+      }),
       '娘娘被卷入案中，仍需在调查册上留名。',
     );
   }
@@ -282,26 +315,31 @@ const buildPalaceStrifeSuspects = (input: {
       const stress = normalizeTargetScore(Number(candidate.stats.stress ?? 0));
       const relationRisk = Math.max(0, -normalizeTargetScore(Number(candidate.stats.relationToPlayer ?? 0)));
       const intrigue = normalizeTargetScore(Number(candidate.stats.intrigue ?? 0));
-      const motive = 18 + ambition / 4 + stress / 5 + relationRisk / 3 + intrigue / 30;
+      const motive = evaluatePalaceStrifeFormula('suspectCandidateMotive', {
+        ambition,
+        stress,
+        relationRisk,
+        intrigue,
+      });
       return { candidate, motive };
     })
     .sort((left, right) => right.motive - left.motive);
 
   for (const row of candidateRows) {
-    if (suspects.length >= 3) {
+    if (suspects.length >= suspectMaxCount) {
       break;
     }
     suspects = upsertSuspect(
       suspects,
       row.candidate,
-      Math.min(65, row.motive),
+      Math.min(suspectCandidateMaximumRate, row.motive),
       '与受害者有利益牵连或宫中动机，被列入次要嫌疑。',
     );
   }
 
   return suspects
     .sort((left, right) => right.suspicionRate - left.suspicionRate)
-    .slice(0, 3);
+    .slice(0, suspectMaxCount);
 };
 
 const syncCaseConvictionFromSuspects = (caseState: PalaceStrifeCaseState): PalaceStrifeCaseState => {
@@ -328,7 +366,7 @@ export const resolvePalaceStrifeSeverity = (
   itemLabel: string,
 ): PalaceStrifeSeverity => {
   if (actionKind === 'rumor') {
-    return rumorSeverityByLabel[itemLabel] ?? 'light';
+    return getPalaceStrifeRumorSeverity(itemLabel) ?? 'light';
   }
   if (itemLabel === '鹤顶红') {
     return 'heavy';
@@ -349,28 +387,34 @@ export const resolvePalaceStrifeAttempt = (input: PalaceStrifeAttemptInput): Pal
   const targetMedicine = normalizeTargetScore(Number(input.target.stats.medicine ?? 0));
   const hasAlly = input.allyLabel.trim().length > 0 && input.allyLabel !== '无';
   const isFramed = Boolean(input.framedTargetName?.trim());
-  const allyModifier = hasAlly ? 5 : 0;
-  const allyConvictionModifier = hasAlly ? 10 : 0;
+  const allyModifier = hasAlly ? allyActionModifier : 0;
+  const allyConvictionModifier = hasAlly ? allyConvictionRateModifier : 0;
   const frameActionModifier = isFramed ? frameModifiers.action : 0;
   const frameConcealmentModifier = isFramed ? frameModifiers.concealment : 0;
   const frameConvictionModifier = isFramed ? frameModifiers.conviction : 0;
-  const attack = input.actionKind === 'poison' ? playerMedicine : playerIntrigue / 10;
-  const defense =
-    targetIntrigue / 10 + targetFavor / 20 + (input.actionKind === 'poison' ? targetMedicine / 4 : 0);
-  const actionSuccessRate = round(clamp(50 + attack - defense - modifiers.action - frameActionModifier, 10, 90));
-  const concealmentSuccessRate = round(
-    clamp(
-      50 +
-        playerIntrigue / 12 -
-        targetIntrigue / 15 +
-        input.playerState.favor / 8 +
-        allyModifier -
-        modifiers.concealment -
-        frameConcealmentModifier,
-      5,
-      85,
-    ),
-  );
+  const attack =
+    input.actionKind === 'poison'
+      ? playerMedicine
+      : evaluatePalaceStrifeFormula('rumorAttack', { playerIntrigue });
+  const defense = evaluatePalaceStrifeFormula(input.actionKind === 'poison' ? 'poisonDefense' : 'rumorDefense', {
+    targetIntrigue,
+    targetFavor,
+    targetMedicine,
+  });
+  const actionSuccessRate = evaluatePalaceStrifeFormula('actionSuccessRate', {
+    attack,
+    defense,
+    severityActionModifier: modifiers.action,
+    frameActionModifier,
+  });
+  const concealmentSuccessRate = evaluatePalaceStrifeFormula('concealmentSuccessRate', {
+    playerIntrigue,
+    targetIntrigue,
+    playerFavor: input.playerState.favor,
+    allyModifier,
+    severityConcealmentModifier: modifiers.concealment,
+    frameConcealmentModifier,
+  });
   const actionRoll = normalizeRoll(input.rolls?.action);
   const concealmentRoll = normalizeRoll(input.rolls?.concealment);
   const actionSucceeded = actionRoll <= actionSuccessRate;
@@ -379,16 +423,14 @@ export const resolvePalaceStrifeAttempt = (input: PalaceStrifeAttemptInput): Pal
   const convictionRate = concealmentSucceeded
     ? 0
     : round(
-        clamp(
-          25 +
-            modifiers.conviction +
-            Math.max(0, concealmentRoll - concealmentSuccessRate) / 2 +
-            (actionSucceeded ? 10 : 0) +
-            allyConvictionModifier +
-            frameConvictionModifier,
-          5,
-          95,
-        ),
+        evaluatePalaceStrifeFormula('initialConvictionRate', {
+          severityConvictionModifier: modifiers.conviction,
+          concealmentRoll,
+          concealmentSuccessRate,
+          actionSuccessBonus: actionSucceeded ? 10 : 0,
+          allyConvictionModifier,
+          frameConvictionModifier,
+        }),
       );
   const actualActor = input.actualActor ?? buildPlayerPalaceStrifeTarget(input.playerState);
   const suspects = concealmentSucceeded
@@ -436,7 +478,6 @@ export const resolvePalaceStrifeAttempt = (input: PalaceStrifeAttemptInput): Pal
     investigationXunsElapsed: 0,
     convictionRate: suspects.length > 0 ? getHighestSuspicionRate(suspects) : convictionRate,
     suspects,
-    yangxinHearingRequired: !concealmentSucceeded,
     summary,
   };
 
@@ -459,9 +500,13 @@ export const generateNpcPalaceStrifeCase = (
     .filter((concubine) => concubine.status === 'live' && !concubine.residence.includes('冷宫'))
     .map((concubine) => ({
       concubine,
-      motive: Number(concubine.stats.ambition ?? 0) + Number(concubine.stats.stress ?? 0) + Math.max(0, -Number(concubine.stats.relationToPlayer ?? 0)) / 2,
+      motive: evaluatePalaceStrifeFormula('npcMotive', {
+        ambition: Number(concubine.stats.ambition ?? 0),
+        stress: Number(concubine.stats.stress ?? 0),
+        relationRisk: Math.max(0, -Number(concubine.stats.relationToPlayer ?? 0)),
+      }),
     }))
-    .filter((entry) => entry.motive >= 150)
+    .filter((entry) => entry.motive >= npcMotiveThreshold)
     .sort((left, right) => right.motive - left.motive);
   const actor =
     (input.preferredActorConsortId
@@ -492,25 +537,34 @@ export const generateNpcPalaceStrifeCase = (
       ? targetPool.find((candidate) => candidate.id === input.preferredTargetConsortId)
       : undefined) ??
     liveConsortTargets.find((concubine) => actor.rivals.includes(concubine.id)) ??
-    (playerTarget && Number(actor.stats.relationToPlayer ?? 0) <= -35 ? playerTarget : undefined) ??
+    (playerTarget && Number(actor.stats.relationToPlayer ?? 0) <= npcPlayerTargetRelationThreshold
+      ? playerTarget
+      : undefined) ??
     targetPool.slice().sort((left, right) => Number(right.stats.favor ?? 0) - Number(left.stats.favor ?? 0))[0];
   const frameTarget =
     playerTarget &&
     target.id !== PLAYER_PALACE_STRIFE_TARGET_ID &&
-    (Number(actor.stats.relationToPlayer ?? 0) <= -45 || buildSeededRoll(`${xunKey}:${actor.id}:frame-player`, 29) <= 35)
+    (Number(actor.stats.relationToPlayer ?? 0) <= npcFramePlayerRelationThreshold ||
+      buildSeededRoll(`${xunKey}:${actor.id}:frame-player`, 29) <= npcFramePlayerRollChance)
       ? playerTarget
       : undefined;
   const fallbackFrameTarget = frameTarget
     ? undefined
-    : framePool.find((candidate) => candidate.id !== target.id && candidate.id !== actor.id && buildSeededRoll(`${xunKey}:${actor.id}:${candidate.id}:frame`, 41) <= 12);
+    : framePool.find(
+        (candidate) =>
+          candidate.id !== target.id &&
+          candidate.id !== actor.id &&
+          buildSeededRoll(`${xunKey}:${actor.id}:${candidate.id}:frame`, 41) <= npcFrameOtherRollChance,
+      );
   const resolvedFrameTarget = frameTarget ?? fallbackFrameTarget;
-  const actionKind: PalaceStrifeActionKind = Number(actor.stats.medicine ?? 0) >= 70 ? 'poison' : 'rumor';
+  const actionKind: PalaceStrifeActionKind =
+    Number(actor.stats.medicine ?? 0) >= npcPoisonMedicineThreshold ? 'poison' : 'rumor';
   const itemLabel =
     actionKind === 'poison'
-      ? Number(actor.stats.medicine ?? 0) >= 90
+      ? Number(actor.stats.medicine ?? 0) >= npcHeavyPoisonMedicineThreshold
         ? '鹤顶红'
         : '麝香'
-      : Number(actor.stats.ambition ?? 0) >= 90
+      : Number(actor.stats.ambition ?? 0) >= npcHeavyRumorAmbitionThreshold
         ? '与人偷情'
         : '奢侈浪费';
   const severity = resolvePalaceStrifeSeverity(actionKind, itemLabel);
@@ -555,69 +609,6 @@ export const generateNpcPalaceStrifeCase = (
   };
 };
 
-export const resolveYangxinHearing = (
-  caseState: PalaceStrifeCaseState,
-  playerState: GameNumericsState,
-  stance: YangxinHearingStance,
-): PalaceStrifeCaseState => {
-  if (!caseState.yangxinHearingRequired || caseState.yangxinHearingResolved || caseState.status !== 'investigating') {
-    return caseState;
-  }
-
-  const severityPenalty = caseState.severity === 'heavy' ? 15 : caseState.severity === 'medium' ? 10 : 5;
-  const intrigue = normalizePlayerScore(Number(playerState.stats.intrigue ?? 0));
-  const appearance = normalizePlayerScore(Number(playerState.stats.appearance ?? 0));
-  const temperament = normalizePlayerScore(Number(playerState.stats.temperament ?? 0));
-  const stanceModifier =
-    stance === 'argue'
-      ? intrigue / 30 + 8
-      : stance === 'plead'
-        ? (appearance + temperament) / 120 + 6
-        : 3;
-  const persuasion = round(
-    clamp(20 + playerState.favor / 2 + (appearance + temperament) / 60 + Math.max(0, playerState.trueHeart) / 8 + stanceModifier - severityPenalty, 0, 100),
-  );
-  const success = persuasion >= 70;
-  const successReduction = caseState.severity === 'light' ? caseState.convictionRate : caseState.severity === 'medium' ? 20 : 15;
-  const extraArgueReduction = stance === 'argue' && success ? 10 : 0;
-  const failureIncrease = !success && stance !== 'confess' && caseState.severity === 'heavy' ? 10 : 0;
-  const convictionRate = clamp(
-    caseState.convictionRate - (success ? successReduction + extraArgueReduction : 0) + failureIncrease,
-    0,
-    100,
-  );
-  const stanceLabel = stance === 'argue' ? '据理力争' : stance === 'plead' ? '委婉求情' : '沉默认错';
-  const currentSuspects = caseState.suspects ?? [];
-  const targetSuspect =
-    currentSuspects.find((suspect) => suspect.subjectType === 'player') ??
-    currentSuspects.slice().sort((left, right) => right.suspicionRate - left.suspicionRate)[0];
-  const nextSuspects =
-    targetSuspect && currentSuspects.length > 0
-      ? currentSuspects
-          .map((suspect) =>
-            suspect.id === targetSuspect.id
-              ? {
-                  ...suspect,
-                  suspicionRate: convictionRate,
-                }
-              : suspect,
-          )
-          .sort((left, right) => right.suspicionRate - left.suspicionRate)
-      : currentSuspects;
-  const nextConvictionRate = nextSuspects.length > 0 ? getHighestSuspicionRate(nextSuspects) : convictionRate;
-
-  return {
-    ...caseState,
-    convictionRate: nextConvictionRate,
-    suspects: nextSuspects,
-    status: nextConvictionRate <= 0 ? 'resolved' : caseState.status,
-    outcome: nextConvictionRate <= 0 ? 'cold_case' : caseState.outcome,
-    yangxinHearingResolved: true,
-    yangxinHearingSummary: `${stanceLabel}后${success ? '自证有力' : '未能打动皇帝'}，最高定案率调整为${nextConvictionRate}%。`,
-    summary: `${caseState.summary} ${stanceLabel}后最高定案率调整为${nextConvictionRate}%。`,
-  };
-};
-
 const advanceSingleInvestigation = (caseState: PalaceStrifeCaseState): PalaceStrifeCaseState => {
   if (caseState.status !== 'investigating') {
     return caseState;
@@ -632,16 +623,24 @@ const advanceSingleInvestigation = (caseState: PalaceStrifeCaseState): PalaceStr
       ? currentSuspects
           .map((suspect) => ({
             ...suspect,
-            suspicionRate: Math.min(100, Math.round(suspect.suspicionRate + baseGrowth + (suspect.isFramed ? frameGrowth : 0))),
+            suspicionRate: Math.min(
+              investigationConvictionThreshold,
+              Math.round(suspect.suspicionRate + baseGrowth + (suspect.isFramed ? frameGrowth : 0)),
+            ),
           }))
           .sort((left, right) => right.suspicionRate - left.suspicionRate)
       : [];
   const nextConvictionRate =
     nextSuspects.length > 0
       ? getHighestSuspicionRate(nextSuspects)
-      : Math.min(100, Math.round(caseState.convictionRate + baseGrowth + frameGrowth));
-  const convictedSuspect = nextSuspects.find((suspect) => suspect.suspicionRate >= 100);
-  const reachesVerdictThreshold = Boolean(convictedSuspect) || nextConvictionRate >= 100;
+      : Math.min(
+          investigationConvictionThreshold,
+          Math.round(caseState.convictionRate + baseGrowth + frameGrowth),
+        );
+  const convictedSuspect = nextSuspects.find(
+    (suspect) => suspect.suspicionRate >= investigationConvictionThreshold,
+  );
+  const reachesVerdictThreshold = Boolean(convictedSuspect) || nextConvictionRate >= investigationConvictionThreshold;
   if (reachesVerdictThreshold) {
     const summary = `${caseState.targetName}一案中${convictedSuspect?.name ?? '首要嫌疑人'}定案率已至${nextConvictionRate}%，待养心殿裁断。`;
     return markCasePendingVerdict(
@@ -656,7 +655,7 @@ const advanceSingleInvestigation = (caseState: PalaceStrifeCaseState): PalaceStr
     );
   }
 
-  const isColdCase = nextElapsed >= 3;
+  const isColdCase = nextElapsed >= investigationColdCaseXuns;
   const summary = isColdCase
     ? `${caseState.targetName}一案三旬未定，暂作疑案封存。`
     : `${caseState.targetName}一案仍在追查，当前定案率${nextConvictionRate}%。`;
@@ -708,7 +707,7 @@ export const describePalaceStrifeInvestigationChanges = (
 };
 
 export const applyPalaceStrifeBribe = (caseState: PalaceStrifeCaseState, silverSpent: number): PalaceStrifeCaseState => {
-  const reduction = Math.floor(Math.max(0, silverSpent) / 20) * 5;
+  const reduction = evaluatePalaceStrifeFormula('palaceStrifeBribeReduction', { silverSpent });
   const primarySuspect = (caseState.suspects ?? []).slice().sort((left, right) => right.suspicionRate - left.suspicionRate)[0];
   if (primarySuspect) {
     return applyPalaceStrifeSuspectIntervention(caseState, primarySuspect.id, -reduction);
@@ -741,7 +740,9 @@ export const applyPalaceStrifeSuspectIntervention = (
         : suspect,
     )
     .sort((left, right) => right.suspicionRate - left.suspicionRate);
-  const convictedSuspect = nextSuspects.find((suspect) => suspect.suspicionRate >= 100);
+  const convictedSuspect = nextSuspects.find(
+    (suspect) => suspect.suspicionRate >= investigationConvictionThreshold,
+  );
   const nextCase: PalaceStrifeCaseState = convictedSuspect
     ? markCasePendingVerdict(
         {
@@ -835,60 +836,15 @@ const resolveYangxinVerdictPenaltyMultiplier = (
   severity: PalaceStrifeSeverity,
   choiceId: YangxinVerdictChoiceId,
 ): number => {
-  if (choiceId === 'demand-punish') {
-    return severity === 'heavy' ? 1.08 : 1.12;
-  }
-  if (choiceId === 'accept' || choiceId === 'self-accept' || choiceId === 'silent-observe' || choiceId === 'state-facts') {
-    return 1;
-  }
-  if (choiceId === 'self-plead' || choiceId === 'plead') {
-    return severity === 'light' ? 0.84 : severity === 'medium' ? 0.9 : 0.94;
-  }
-  if (choiceId === 'self-doubt' || choiceId === 'raise-doubt') {
-    return severity === 'light' ? 0.82 : severity === 'medium' ? 0.88 : 0.92;
-  }
-  if (choiceId === 'self-shift') {
-    return severity === 'light' ? 0.78 : severity === 'medium' ? 0.86 : 0.9;
-  }
-  if (choiceId === 'plead-mercy') {
-    return severity === 'light' ? 0.76 : severity === 'medium' ? 0.84 : 0.9;
-  }
-  if (choiceId === 'self-defend') {
-    return severity === 'light' ? 0.72 : severity === 'medium' ? 0.8 : 0.86;
-  }
-  return severity === 'light' ? 0.75 : severity === 'medium' ? 0.82 : 0.88;
+  return getYangxinVerdictChoiceRule(choiceId).multipliers[severity];
 };
 
 const getSuspectRelationDeltaForYangxinChoice = (choiceId: YangxinVerdictChoiceId): number => {
-  if (choiceId === 'demand-punish') {
-    return -2;
-  }
-  if (choiceId === 'plead-mercy') {
-    return 3;
-  }
-  if (choiceId === 'raise-doubt' || choiceId === 'argue') {
-    return 1;
-  }
-  if (choiceId === 'plead') {
-    return 2;
-  }
-  return 0;
+  return getYangxinVerdictChoiceRule(choiceId).suspectRelationDelta;
 };
 
 const getVictimRelationDeltaForYangxinChoice = (choiceId: YangxinVerdictChoiceId): number => {
-  if (choiceId === 'demand-punish') {
-    return 2;
-  }
-  if (choiceId === 'plead-mercy' || choiceId === 'argue' || choiceId === 'self-shift') {
-    return -2;
-  }
-  if (choiceId === 'raise-doubt' || choiceId === 'plead' || choiceId === 'self-doubt' || choiceId === 'self-plead') {
-    return -1;
-  }
-  if (choiceId === 'self-defend') {
-    return -3;
-  }
-  return 0;
+  return getYangxinVerdictChoiceRule(choiceId).victimRelationDelta;
 };
 
 const getConsortById = (concubines: ConcubineProfile[], consortId: string | undefined): ConcubineProfile | undefined =>
@@ -946,7 +902,7 @@ export const buildYangxinVerdictEvent = ({
   const caseTargetName = formatYangxinCaseTargetName(caseState);
   const suspectDisplayName = formatYangxinSuspectName(pendingSuspect);
   const framedDisplayName = formatYangxinFramedTargetName(caseState);
-  const attendeeLimit = caseState.severity === 'light' ? 4 : caseState.severity === 'medium' ? 6 : 8;
+  const attendeeLimit = getPalaceStrifeSeverityRule(caseState.severity).verdictAttendeeLimit;
   let attendees: YangxinVerdictEventState['attendees'] = [
     {
       id: 'emperor',

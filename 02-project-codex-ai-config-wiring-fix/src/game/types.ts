@@ -110,7 +110,6 @@ export type PalaceStrifeCaseStatus = 'pending_resolution' | 'investigating' | 'p
 export type PalaceStrifeCaseOutcome = 'pending' | 'cold_case' | 'convicted';
 export type PalaceStrifeActorId = 'player' | 'npc';
 export type PalaceStrifeSuspectSubjectType = 'player' | 'consort';
-export type YangxinHearingStance = 'argue' | 'plead' | 'confess';
 export type YangxinVerdictEventStage = 'summon' | 'statements' | 'player-choice' | 'verdict' | 'done';
 export type YangxinVerdictEventSourceType = 'palace-strife' | 'npc-event';
 export type YangxinVerdictChoiceId =
@@ -241,9 +240,6 @@ export interface PalaceStrifeCaseState {
   penaltyApplied?: boolean;
   archivedXunKey?: string;
   resolutionSummary?: string;
-  yangxinHearingRequired?: boolean;
-  yangxinHearingResolved?: boolean;
-  yangxinHearingSummary?: string;
   summary: string;
 }
 

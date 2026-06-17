@@ -1,0 +1,4 @@
+id,label,expenseRate,prestigeDelta,healthDelta,isDefault,summary
+frugal,节衣缩食,0.25,-5,-1,false,用度从省，省下银两，但体面与起居都会受损。
+balanced,量入为出,0.5,0,0,true,按月俸正常维持体面，不额外增减声望与健康。
+luxury,锦衣玉食,0.75,10,1,false,高调维持体面，银两消耗较高，声望与起居更稳。

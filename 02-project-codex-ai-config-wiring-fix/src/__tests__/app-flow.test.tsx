@@ -1867,6 +1867,7 @@ describe('App 主流程切换', () => {
       expect(flow.currentView).toBe('bedchamber');
       expect(flow.activeChamberPanel).toBe('main');
       expect(flow.activeMapLocation).toBe('御花园');
+      expect(flow.state.stamina).toBe(STAMINA_INITIAL_PER_XUN);
       expect(flow.time).toMatchObject({
         year: 1,
         month: 1,
@@ -4894,7 +4895,7 @@ describe('App 主流程切换', () => {
       '/assets/routes/backgrounds/zhudian_daytime.png',
     );
     expect(screen.getByLabelText('姚铃儿常驻立绘')).toBeInTheDocument();
-    expect(useGameFlowStore.getState().state.stamina).toBe(STAMINA_INITIAL_PER_XUN - 1);
+    expect(useGameFlowStore.getState().state.stamina).toBe(STAMINA_INITIAL_PER_XUN);
     expect(useGameFlowStore.getState().time.slotIndex).toBe(2);
     expect(screen.getByRole('button', { name: '送礼' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '试探' })).toBeInTheDocument();
@@ -5882,7 +5883,7 @@ describe('App 主流程切换', () => {
     fireEvent.click(await screen.findByRole('button', { name: /主殿[\s\S]*姚铃儿/ }));
 
     expect(await screen.findByLabelText('贵妃 姚铃儿 日常对话')).toBeInTheDocument();
-    expect(useGameFlowStore.getState().state.stamina).toBe(STAMINA_INITIAL_PER_XUN - 1);
+    expect(useGameFlowStore.getState().state.stamina).toBe(STAMINA_INITIAL_PER_XUN);
     expect(useGameFlowStore.getState().time.slotIndex).toBe(2);
 
     const actionPanel = screen.getByLabelText('宫内互动操作');
@@ -5891,7 +5892,7 @@ describe('App 主流程切换', () => {
       .map((button) => button.textContent);
 
     expect(actionLabels).toEqual(['送礼', '试探', '拉拢', '返回']);
-    expect(useGameFlowStore.getState().state.stamina).toBe(STAMINA_INITIAL_PER_XUN - 1);
+    expect(useGameFlowStore.getState().state.stamina).toBe(STAMINA_INITIAL_PER_XUN);
     expect(useGameFlowStore.getState().time.slotIndex).toBe(2);
   });
 

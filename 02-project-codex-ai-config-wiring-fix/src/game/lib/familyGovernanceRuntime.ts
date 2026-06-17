@@ -1,8 +1,9 @@
 import type { PalaceTimeState } from '../types';
+import { getNumericRuleValue } from '../numerics/numericCatalog';
 
-export const FAMILY_AID_COST = 120;
-export const FAMILY_AID_BONUS = 10;
-export const FAMILY_AID_QUARTERLY_PRESTIGE = 12;
+export const FAMILY_AID_COST = getNumericRuleValue('family_aid_cost');
+export const FAMILY_AID_BONUS = getNumericRuleValue('family_aid_bonus');
+export const FAMILY_AID_QUARTERLY_PRESTIGE = getNumericRuleValue('family_aid_quarterly_prestige');
 
 const toAbsoluteMonth = (year: number, month: number): number => (Math.max(1, year) - 1) * 12 + Math.max(1, month);
 

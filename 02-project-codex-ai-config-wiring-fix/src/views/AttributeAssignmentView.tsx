@@ -2,27 +2,12 @@ import { useMemo } from 'react';
 import { AGE_RANGE } from '../config/constants';
 import { convertFortuneAttributePoints } from '../config/formulas';
 import { attributeFields } from '../game/data/config';
+import { resolveRouteInitialPointsTotal } from '../game/numerics/numericCatalog';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
 
 const ATTRIBUTE_STATS_FINALIZED_FLAG = 'attributeStatsFinalized';
 
 const randomInt = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min;
-
-const resolveBudgetByFamily = (routeId: string, family: string): number => {
-  const normalized = family.replace(/\s+/g, '');
-  const base =
-    normalized.includes('商贾') ? 56 : normalized.includes('九品') ? 56 : normalized.includes('八品') ? 55 : normalized.includes('七品') ? 54 : normalized.includes('六品') ? 53 : normalized.includes('五品') ? 52 : normalized.includes('四品') ? 51 : normalized.includes('三品') ? 50 : normalized.includes('二品') ? 49 : normalized.includes('一品') ? 48 : normalized.includes('镇国公') ? 48 : normalized.includes('和亲公主') ? 48 : normalized.includes('异国贡女') ? 52 : normalized.includes('罪臣') ? 54 : 50;
-  if (routeId === 'lanyinxuguo') {
-    return Math.min(51, Math.max(48, base));
-  }
-  if (routeId === 'yingluoyeting') {
-    return 54;
-  }
-  if (routeId === 'chenyuansucuo') {
-    return 0;
-  }
-  return Math.min(54, Math.max(48, base));
-};
 
 const formatDisplayedValue = (key: string, value: number, routeLocked: boolean, finalized: boolean): number => {
   if (finalized) {
@@ -96,7 +81,7 @@ export function AttributeAssignmentView() {
   const randomizeFamily = () => {
     const options = selectedRoute?.familyOptions ?? [state.family];
     const family = options[randomInt(0, options.length - 1)];
-    const pointsTotal = resolveBudgetByFamily(selectedRoute?.id ?? state.routeId, family);
+    const pointsTotal = resolveRouteInitialPointsTotal(selectedRoute?.id ?? state.routeId, family);
     const baseStats = Object.fromEntries(attributeFields.map((field) => [field.key, field.min]));
     patchState({
       family,

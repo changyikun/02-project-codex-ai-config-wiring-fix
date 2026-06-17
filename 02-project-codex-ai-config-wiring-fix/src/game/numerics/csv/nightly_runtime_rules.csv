@@ -1,0 +1,15 @@
+id,value,notes
+third_party_favor_min,3,第三方美言/抹黑影响玩家宠爱的最小值
+third_party_favor_max,5,第三方美言/抹黑影响玩家宠爱的最大值
+other_consort_praise_relation_min_exclusive,0,其他妃嫔会替玩家美言的关系下限
+other_consort_praise_roll_chance,80,其他妃嫔替玩家美言的百分比机会
+other_consort_smear_relation_max_exclusive,0,其他妃嫔会抹黑玩家的关系上限
+other_consort_smear_roll_chance,20,其他妃嫔抹黑玩家的百分比机会
+player_night_favor_gauge_increment,2,玩家本旬未被召幸或皇帝独寝时侍寝保底值增量
+player_night_favor_gauge_min,0,侍寝保底值下限
+player_night_favor_gauge_max,100,侍寝保底值上限
+pending_player_max_interactions,3,玩家侍寝互动最大轮数
+final_interest_min,20,玩家侍寝互动后兴致下限
+final_interest_max,100,玩家侍寝互动后兴致上限
+emperor_mood_min,-100,皇帝心情下限
+emperor_mood_max,100,皇帝心情上限

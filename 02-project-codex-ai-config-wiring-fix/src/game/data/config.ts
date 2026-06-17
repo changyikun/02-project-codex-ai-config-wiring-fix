@@ -1,5 +1,6 @@
 import type { AttributeField, ResourceMappingEntry } from '../types';
 import { LOCATION_NAME_LIST } from '../../config/locations';
+import { numericAttributeFields } from '../numerics/numericCatalog';
 
 export const resourceMappings: ResourceMappingEntry[] = [
   {
@@ -42,19 +43,10 @@ export const routeOptions = [
   { id: 'coming-soon', label: '未完待续', enabled: false },
 ] as const;
 
-export const attributeFields: AttributeField[] = [
-  { key: 'health', label: '健康', min: 2, max: 8, value: 4 },
-  { key: 'fortune', label: '福德', min: 2, max: 8, value: 3 },
-  { key: 'intrigue', label: '心计', min: 2, max: 8, value: 4 },
-  { key: 'appearance', label: '容貌', min: 2, max: 8, value: 4 },
-  { key: 'temperament', label: '气质', min: 2, max: 8, value: 4 },
-  { key: 'poetry', label: '诗词', min: 0, max: 10, value: 0 },
-  { key: 'talent', label: '乐理', min: 0, max: 10, value: 2 },
-  { key: 'painting', label: '丹青', min: 0, max: 10, value: 2 },
-  { key: 'embroidery', label: '女红', min: 0, max: 10, value: 1 },
-  { key: 'medicine', label: '药理', min: 0, max: 5, value: 0 },
-  { key: 'politics', label: '政治', min: 0, max: 2, value: 0 },
-];
+export const attributeFields: AttributeField[] = numericAttributeFields.map(({ runtimeMultiplier: _runtimeMultiplier, category: _category, ...field }) => ({
+  ...field,
+  note: field.note,
+}));
 
 export const mapAreas = LOCATION_NAME_LIST;
 

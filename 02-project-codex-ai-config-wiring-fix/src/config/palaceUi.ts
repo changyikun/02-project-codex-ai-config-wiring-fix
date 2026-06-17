@@ -1,5 +1,6 @@
 import type { MapAreaId, PlayerResidenceName, TimeSlot } from '../game/types';
 import { MONTHLY_EXPENSE_STRATEGIES } from './monthlyExpenseStrategy';
+import { numericChamberActions } from '../game/numerics/numericCatalog';
 
 export interface GuideTendencyOption {
   id: 'frugal' | 'balanced' | 'luxury';
@@ -105,17 +106,7 @@ export const MAP_HOTSPOTS: readonly MapHotspotConfig[] = [
 
 export const buildMapHotspots = (_residenceName: PlayerResidenceName): readonly MapHotspotConfig[] => MAP_HOTSPOTS;
 
-export const CHAMBER_ACTION_BUTTONS: readonly ChamberActionButtonConfig[] = [
-  { id: 'study', label: '诵读经典', summary: '静心温书', timeCost: 1, staminaCost: 1, statDeltas: { poetry: 2 } },
-  { id: 'painting', label: '泼墨作画', summary: '铺纸试墨', timeCost: 1, staminaCost: 1, statDeltas: { painting: 2 } },
-  { id: 'music', label: '习舞奏乐', summary: '校音习舞', timeCost: 1, staminaCost: 2, statDeltas: { talent: 2, temperament: 3, appearance: 3 } },
-  { id: 'embroidery', label: '镂月裁云', summary: '理线补绣', timeCost: 1, staminaCost: 1, statDeltas: { embroidery: 2 } },
-  { id: 'incense', label: '调制香薰', summary: '辨香调方', timeCost: 1, staminaCost: 1, statDeltas: { medicine: 2 } },
-  { id: 'pulse', label: '请平安脉', summary: '请医问诊', timeCost: 1, staminaCost: 0, statDeltas: { health: 3 }, stressDelta: -1 },
-  { id: 'nap', label: '殿内小酣', summary: '闭目养神', timeCost: 1, staminaCost: -3 },
-  { id: 'explore', label: '外出探索', summary: '前往宫廷地图', timeCost: 0, staminaCost: 0 },
-  { id: 'end-xun', label: '结束本旬', summary: '推进至下一旬', timeCost: 0, staminaCost: 0 },
-] as const;
+export const CHAMBER_ACTION_BUTTONS: readonly ChamberActionButtonConfig[] = numericChamberActions;
 
 export const CHAMBER_BOTTOM_TOOLS = [
   '举办宴席',

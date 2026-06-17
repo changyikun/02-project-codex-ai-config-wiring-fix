@@ -124,6 +124,7 @@
 - CSV 文本变量使用 `{{playerName}}` 这类模板；显式分页继续使用 `<<PAGE_BREAK>>`。缺变量会原样保留并由测试发现，不能在运行时悄悄吞掉。
 - 下一步按钮文案不属于剧情 CSV，也不应进入剧情 turn 或 AI response；线性推进由对话框点击和流程状态决定，明确选择必须走 `options`。
 - 当前玩法链路暂不接 AI 生成剧情正文；正常剧情正文和基础演出元数据只来自 CSV。AI 客户端 / 服务端代码可保留为遗留 helper，但不得被当前 React 组件或 runtime 作为正文第二来源导入。
+- 核心数值调参统一走 `src/game/numerics/csv/` 与 `numericCatalog`。当前除属性、路线、库存、位分和固定妃嫔外，宫斗严重度 / 裁断档位、夜晚侍寝池 / 兴致结果档位 / 第三方影响、随机补足妃嫔模板和生成浮动也已经拆表。完整公式统一维护在 `src/game/numerics/formula-pages/*FormulaPage.ts`，由 `formulaRuntime.ts` 解析；公式页只能放公式和说明，不混入解析器、状态写入或业务分支。不得把公式拆成半截 CSV 行，也不应在业务 runtime 继续维护第二份同名公式。
 - 对话框位置、大小、边距、文本区域、说话人区域、按钮区域、选项区域的共享布局已稳定。
 - 长文本不再硬截断，对话框固定，文本区域滚动。
 - 点击对话内容区会立刻补全文字机当前句。
@@ -1342,7 +1343,7 @@ npm run build
 - 玩家相关待裁断案会生成 `pendingYangxinVerdict`，下一旬清晨优先展示内侍传旨，强制切入寝殿全局对话舞台；裁断阶段包含相关人发言、玩家选择“据理力争 / 委婉求情 / 沉默认罚”、皇帝裁断结果。
 - 裁断完成后才调用 `finalizeYangxinVerdictCase()` 写入 `convictedSuspectId`、`verdictSummary`、`penaltyApplied`、`archivedXunKey` 与 `resolutionSummary`，并应用玩家或 NPC 惩罚。NPC-only 待裁断案不打断玩家，由内廷静默裁断后进入普通结算。
 - 宫斗事务调查页新增“待裁断案件”展示；待裁断案不能继续银两干预。
-- 地图养心殿不再提供旧“养心殿裁断”工具面板入口；旧 `resolveYangxinHearing` / `yangxinHearingRequired` 仅保留兼容测试期间，不作为新流程入口。
+- 地图养心殿不再提供旧“养心殿裁断”工具面板入口；旧 `resolveYangxinHearing` / `yangxinHearingRequired` 已删除，裁断只走待裁断案件的养心殿传唤对话流程。
 - `SaveGameV1` schema 提升到 `2`，`cases.pendingYangxinVerdict` 成为必需字段，可为 `null`；旧 schema 或缺字段存档直接清除。
 
 涉及文件：

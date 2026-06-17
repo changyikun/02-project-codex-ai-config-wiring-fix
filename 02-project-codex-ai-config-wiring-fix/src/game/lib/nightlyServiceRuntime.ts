@@ -11,6 +11,17 @@ import type {
   RouteId,
 } from '../types';
 import { convertFortunePoints } from '../../config/formulas';
+import {
+  getNightlyRuleValue,
+  numericNightlyEmperorAloneRateBands,
+  numericNightlyFavorWeightBands,
+  numericNightlyInterestEffects,
+} from '../numerics/numericCatalog';
+import {
+  evaluateNightlyServiceFormula,
+  resolveGentleBranchFormulaVariables,
+  resolveNightlyFormulaIdForAction,
+} from '../numerics/formulas/nightlyServiceFormulas';
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, Math.round(value)));
 
@@ -23,37 +34,22 @@ const normalizeRoll = (value: number | undefined, seed: string, salt: string): n
   clamp(Number.isFinite(value) ? Number(value) : seededRoll(seed, salt), 1, 100);
 
 const getEmperorAloneRate = (mood: number): number => {
-  if (mood <= -50) return 50;
-  if (mood <= 0) return 35;
-  if (mood <= 20) return 25;
-  if (mood <= 50) return 15;
-  if (mood <= 70) return 10;
-  return 5;
+  return numericNightlyEmperorAloneRateBands.find((band) => mood <= band.max)?.value ?? 5;
 };
 
 const getFavorWeight = (favor: number): number => {
-  if (favor <= 0) return 0;
-  if (favor <= 20) return 10;
-  if (favor <= 40) return 20;
-  if (favor <= 60) return 35;
-  if (favor <= 80) return 50;
-  return 65;
+  return numericNightlyFavorWeightBands.find((band) => favor <= band.max)?.value ?? 0;
 };
 
 const getInterestEffects = (interest: number) => {
-  if (interest < 40) {
-    return { emperorMoodDelta: -3, favorDelta: -2, trueHeartDelta: -1, prestigeDelta: 0 };
-  }
-  if (interest < 70) {
-    return { emperorMoodDelta: 3, favorDelta: 2, trueHeartDelta: 1, prestigeDelta: 0 };
-  }
-  if (interest < 90) {
-    return { emperorMoodDelta: 5, favorDelta: 4, trueHeartDelta: 2, prestigeDelta: 0 };
-  }
-  if (interest < 100) {
-    return { emperorMoodDelta: 7, favorDelta: 6, trueHeartDelta: 4, prestigeDelta: 0 };
-  }
-  return { emperorMoodDelta: 10, favorDelta: 8, trueHeartDelta: 6, prestigeDelta: 10 };
+  return (
+    numericNightlyInterestEffects.find((effect) => interest >= effect.minInterest && interest <= effect.maxInterest) ?? {
+      emperorMoodDelta: 0,
+      favorDelta: 0,
+      trueHeartDelta: 0,
+      prestigeDelta: 0,
+    }
+  );
 };
 
 export const NIGHTLY_SERVICE_INTERACTION_ACTIONS: {
@@ -102,34 +98,14 @@ export const resolveNightlyServiceActionDelta = (
   actionId: NightlyServiceInteractionActionId,
   stats: Record<string, number>,
 ): number => {
-  switch (actionId) {
-    case 'music': {
-      const music = getSkillLevel(stats, 'talent');
-      if (music > 8) return 15;
-      if (music > 5) return 5;
-      return 0;
-    }
-    case 'poetry':
-      return getSkillLevel(stats, 'poetry') > 8 ? 15 : -10;
-    case 'shy': {
-      const temperament = getScaledStat(stats, 'temperament');
-      if (temperament > 900) return 25;
-      if (temperament > 800) return 20;
-      if (temperament > 600) return 10;
-      return -10;
-    }
-    case 'curtain': {
-      const appearance = getScaledStat(stats, 'appearance');
-      if (appearance > 900) return 25;
-      if (appearance > 800) return 20;
-      if (appearance > 600) return 10;
-      return -10;
-    }
-    case 'gentle':
-      return 20;
-    default:
-      return 0;
-  }
+  const formulaId = resolveNightlyFormulaIdForAction(actionId);
+  return evaluateNightlyServiceFormula(formulaId, {
+    music: getSkillLevel(stats, 'talent'),
+    poetry: getSkillLevel(stats, 'poetry'),
+    temperament: getScaledStat(stats, 'temperament'),
+    appearance: getScaledStat(stats, 'appearance'),
+    branchIsComfort: 1,
+  });
 };
 
 const normalizeNightlyServiceChoice = (choice: NightlyServiceInteractionActionId | NightlyServiceInteractionChoice): NightlyServiceInteractionChoice =>
@@ -144,10 +120,17 @@ export const resolveNightlyServiceChoiceDelta = (
     return resolveNightlyServiceActionDelta(normalized.actionId, stats);
   }
 
-  return !normalized.gentleBranchId || normalized.gentleBranchId === 'comfort' ? 20 : 0;
+  return evaluateNightlyServiceFormula('gentleDelta', resolveGentleBranchFormulaVariables(normalized.gentleBranchId));
 };
 
-const getThirdPartyFavorMagnitude = (seed: string): number => 3 + (hashSeed(seed) % 3);
+const getThirdPartyFavorMagnitude = (seed: string): number => {
+  const min = getNightlyRuleValue('third_party_favor_min');
+  const max = getNightlyRuleValue('third_party_favor_max');
+  return evaluateNightlyServiceFormula('thirdPartyFavorMagnitude', {
+    thirdPartyFavorMin: min,
+    hashRemainder: hashSeed(seed) % (max - min + 1),
+  });
+};
 
 const resolveOtherConsortPlayerFavorEffect = (
   consort: ConcubineProfile,
@@ -157,7 +140,10 @@ const resolveOtherConsortPlayerFavorEffect = (
   const relationToPlayer = Number(consort.stats.relationToPlayer ?? 0);
   const consortLabel = `${consort.rankLabel}${consort.name}`;
 
-  if (relationToPlayer > 0 && roll <= 80) {
+  if (
+    relationToPlayer > getNightlyRuleValue('other_consort_praise_relation_min_exclusive') &&
+    roll <= getNightlyRuleValue('other_consort_praise_roll_chance')
+  ) {
     const playerFavorDelta = getThirdPartyFavorMagnitude(`${seed}:other-consort-praise:${consort.id}`);
     return {
       playerFavorDelta,
@@ -165,7 +151,10 @@ const resolveOtherConsortPlayerFavorEffect = (
     };
   }
 
-  if (relationToPlayer < 0 && roll <= 20) {
+  if (
+    relationToPlayer < getNightlyRuleValue('other_consort_smear_relation_max_exclusive') &&
+    roll <= getNightlyRuleValue('other_consort_smear_roll_chance')
+  ) {
     const playerFavorDelta = -getThirdPartyFavorMagnitude(`${seed}:other-consort-smear:${consort.id}`);
     return {
       playerFavorDelta,
@@ -384,9 +373,15 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
   const aloneRate = getEmperorAloneRate(input.emperorMood);
   const aloneRoll = normalizeRoll(input.rolls?.alone, seed, 'alone');
   const interest = normalizeRoll(input.rolls?.interest, seed, 'interest');
+  const gaugeIncrement = getNightlyRuleValue('player_night_favor_gauge_increment');
+  const gaugeMin = getNightlyRuleValue('player_night_favor_gauge_min');
+  const gaugeMax = getNightlyRuleValue('player_night_favor_gauge_max');
+  const moodMin = getNightlyRuleValue('emperor_mood_min');
+  const moodMax = getNightlyRuleValue('emperor_mood_max');
 
   if (aloneRoll <= aloneRate) {
-    const lines = [`夜里太监来报：皇帝心绪不展，本旬夜间皇帝独寝。玩家侍寝保底值+2，当前为${clamp(input.playerNightFavorGauge + 2, 0, 100)}。`];
+    const nextGauge = clamp(input.playerNightFavorGauge + gaugeIncrement, gaugeMin, gaugeMax);
+    const lines = [`夜里太监来报：皇帝心绪不展，本旬夜间皇帝独寝。玩家侍寝保底值+${gaugeIncrement}，当前为${nextGauge}。`];
     const report = buildReport({
       routeId: input.routeId,
       timeKey: input.timeKey,
@@ -400,7 +395,7 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
     });
     return {
       outcome: 'emperor-alone',
-      nextPlayerNightFavorGauge: clamp(input.playerNightFavorGauge + 2, 0, 100),
+      nextPlayerNightFavorGauge: nextGauge,
       nextEmperorMood: input.emperorMood,
       targetConsortFavorDelta: 0,
       effects: { playerFavorDelta: 0, playerTrueHeartDelta: 0, playerPrestigeDelta: 0, emperorMoodDelta: 0 },
@@ -415,7 +410,7 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
   const candidates = input.concubines.filter(isAvailableConsort);
   const totalWeight = playerWeight + candidates.reduce((sum, consort) => sum + getFavorWeight(consort.stats.favor), 0);
   const playerBaseChance = totalWeight > 0 ? Math.round((playerWeight / totalWeight) * (100 - aloneRate)) : 0;
-  const playerChance = clamp(playerBaseChance + input.playerNightFavorGauge, 0, 100 - aloneRate);
+  const playerChance = clamp(playerBaseChance + input.playerNightFavorGauge, gaugeMin, gaugeMax - aloneRate);
   const playerRoll = normalizeRoll(input.rolls?.player, seed, 'player');
 
   if (playerWeight > 0 && playerRoll <= playerChance) {
@@ -452,7 +447,7 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
         initialInterest: interest,
         currentInterest: interest,
         interactionCount: 0,
-        maxInteractions: 3,
+        maxInteractions: getNightlyRuleValue('pending_player_max_interactions'),
         selectedActionIds: [],
         stage: 'notice',
         pregnancyRoll: normalizeRoll(input.rolls?.pregnancy, seed, 'pregnancy'),
@@ -492,7 +487,7 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
     return {
       outcome: report.outcome,
       nextPlayerNightFavorGauge: 0,
-      nextEmperorMood: clamp(input.emperorMood + effects.emperorMoodDelta, -100, 100),
+      nextEmperorMood: clamp(input.emperorMood + effects.emperorMoodDelta, moodMin, moodMax),
       targetConsortFavorDelta: 0,
       effects: {
         playerFavorDelta: effects.favorDelta,
@@ -514,8 +509,8 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
   }
 
   if (candidates.length === 0) {
-    const nextGauge = clamp(input.playerNightFavorGauge + 2, 0, 100);
-    const lines = [`夜里太监来报：后宫无人入选，本旬皇帝独寝。玩家侍寝保底值+2，当前为${nextGauge}。`];
+    const nextGauge = clamp(input.playerNightFavorGauge + gaugeIncrement, gaugeMin, gaugeMax);
+    const lines = [`夜里太监来报：后宫无人入选，本旬皇帝独寝。玩家侍寝保底值+${gaugeIncrement}，当前为${nextGauge}。`];
     const report = buildReport({
       routeId: input.routeId,
       timeKey: input.timeKey,
@@ -549,7 +544,7 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
       return poolRoll <= cursor;
     }) ?? candidates[candidates.length - 1];
   const effects = getInterestEffects(interest);
-  const nextGauge = clamp(input.playerNightFavorGauge + 2, 0, 100);
+  const nextGauge = clamp(input.playerNightFavorGauge + gaugeIncrement, gaugeMin, gaugeMax);
   const playerFavorEffect = resolveOtherConsortPlayerFavorEffect(
     target,
     normalizeRoll(input.rolls?.thirdParty, seed, 'third-party-player-favor'),
@@ -558,7 +553,7 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
   const lines = [
     `夜里太监来报：本旬由${target.rankLabel}${target.name}侍寝。本次兴致${interest}。`,
     ...(playerFavorEffect.line ? [playerFavorEffect.line] : []),
-    `玩家本旬未被召幸，侍寝保底值+2，当前为${nextGauge}。`,
+    `玩家本旬未被召幸，侍寝保底值+${gaugeIncrement}，当前为${nextGauge}。`,
   ];
   const report = buildReport({
     routeId: input.routeId,
@@ -576,7 +571,7 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
   return {
     outcome: 'other-consort-service',
     nextPlayerNightFavorGauge: nextGauge,
-    nextEmperorMood: clamp(input.emperorMood + effects.emperorMoodDelta, -100, 100),
+    nextEmperorMood: clamp(input.emperorMood + effects.emperorMoodDelta, moodMin, moodMax),
     targetConsortId: target.id,
     targetConsortFavorDelta: effects.favorDelta,
     effects: {
@@ -609,8 +604,8 @@ export const resolvePlayerNightlyServiceEvent = (
       (interest, choice) => interest + resolveNightlyServiceChoiceDelta(choice, input.player.stats),
       input.pendingEvent.initialInterest,
     ),
-    20,
-    100,
+    getNightlyRuleValue('final_interest_min'),
+    getNightlyRuleValue('final_interest_max'),
   );
   const effects = getInterestEffects(finalInterest);
   const thirdPartyEffect = resolveGentleThirdPartyEffect(choices, input.concubines, input.pendingEvent);
@@ -643,7 +638,11 @@ export const resolvePlayerNightlyServiceEvent = (
 
   return {
     finalInterest,
-    nextEmperorMood: clamp(input.emperorMood + effects.emperorMoodDelta, -100, 100),
+    nextEmperorMood: clamp(
+      input.emperorMood + effects.emperorMoodDelta,
+      getNightlyRuleValue('emperor_mood_min'),
+      getNightlyRuleValue('emperor_mood_max'),
+    ),
     nextPlayerNightFavorGauge: 0,
     effects: {
       playerFavorDelta: effects.favorDelta,

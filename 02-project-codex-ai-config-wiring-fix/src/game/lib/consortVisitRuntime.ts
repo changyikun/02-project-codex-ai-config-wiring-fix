@@ -3,7 +3,7 @@ import { renderNarrativeEntry } from '../narrative/narrativeCatalog';
 import { narrativeEntryToPresentation, type NarrativePresentationFields } from '../narrative/narrativeDialogueAdapter';
 
 export const CONSORT_VISIT_TIME_COST = 1;
-export const CONSORT_VISIT_STAMINA_COST = 1;
+export const CONSORT_VISIT_STAMINA_COST = 0;
 export const CONSORT_VISIT_STAMINA_BLOCK_TEXT = '眼下体力不足，还是先歇一歇，再去拜访妃嫔。';
 export const CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN = 3;
 export const CONSORT_AUDIENCE_FOLLOW_UP_LIMIT_PER_TOPIC = 2;
@@ -38,7 +38,7 @@ export const CONSORT_AUDIENCE_FIXED_ACTIONS: Array<{ actionId: ConsortPalaceActi
   { actionId: 'win-over', label: '拉拢' },
 ];
 
-export const canStartConsortVisit = (stamina: number): boolean => stamina >= CONSORT_VISIT_STAMINA_COST;
+export const canStartConsortVisit = (stamina: number): boolean => stamina > 0;
 
 export const isConsortGiftItem = (item: InventoryItem): boolean =>
   item.quantity > 0 &&

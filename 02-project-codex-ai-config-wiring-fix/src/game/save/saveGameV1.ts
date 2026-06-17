@@ -21,9 +21,15 @@ import type {
   SettlementReport,
   TempleProgressState,
 } from '../types';
+import {
+  hasRequiredSaveProgress,
+  hasRequiredSaveRelations,
+  hasRequiredSaveSections,
+  SAVE_GAME_SCHEMA_VERSION,
+  SAVE_GAME_STORAGE_KEY,
+} from './saveGameConfig';
 
-export const SAVE_GAME_SCHEMA_VERSION = 3;
-export const SAVE_GAME_STORAGE_KEY = 'palace-galgame-flow';
+export { SAVE_GAME_SCHEMA_VERSION, SAVE_GAME_STORAGE_KEY } from './saveGameConfig';
 
 export interface SaveGameV1Source {
   routeId: RouteId;
@@ -124,12 +130,9 @@ export const isSaveGameV1 = (value: unknown): value is SaveGameV1 =>
       typeof value === 'object' &&
       (value as SaveGameV1).schemaVersion === SAVE_GAME_SCHEMA_VERSION &&
       typeof (value as SaveGameV1).savedAt === 'string' &&
-      (value as SaveGameV1).player &&
-      (value as SaveGameV1).world &&
-      (value as SaveGameV1).route &&
-      (value as SaveGameV1).relations?.npcRelationMatrix &&
-      (value as SaveGameV1).progress?.palaceBanquet &&
-      (value as SaveGameV1).progress?.npcActivity &&
+      hasRequiredSaveSections(value) &&
+      hasRequiredSaveRelations((value as SaveGameV1).relations) &&
+      hasRequiredSaveProgress((value as SaveGameV1).progress) &&
       Array.isArray((value as SaveGameV1).progress?.emperorInteraction?.triggeredEncounterIds) &&
       hasConsortInteractionActionCounts(value as SaveGameV1) &&
       hasV051PalaceStrifeCases(value as SaveGameV1),

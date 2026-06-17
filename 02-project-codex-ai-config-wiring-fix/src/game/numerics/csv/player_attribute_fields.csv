@@ -1,0 +1,12 @@
+key,label,min,max,defaultValue,runtimeMultiplier,category,description
+health,健康,2,8,4,100,main,体质与病弱相关的主属性；创建面板按点数显示，入局后乘以倍率成为真值。
+fortune,福德,2,8,3,10,main,福缘与因果消耗相关的主属性；创建面板 1 点等于 10 真值。
+intrigue,心计,2,8,4,100,main,宫斗、试探、对弈等判定使用的主属性。
+appearance,容貌,2,8,4,100,main,容貌、侍寝表现和部分社交判定使用的主属性。
+temperament,气质,2,8,4,100,main,气质、才艺演出和部分社交判定使用的主属性。
+poetry,诗词,0,10,0,10,skill,诗词技艺等级；入局后乘以倍率成为真值。
+talent,乐理,0,10,2,10,skill,乐理技艺等级；练谱、听曲、宫宴曲谱表现主要读取该字段。
+painting,丹青,0,10,2,10,skill,丹青技艺等级。
+embroidery,女红,0,10,1,10,skill,女红技艺等级。
+medicine,药理,0,5,0,10,skill,药理技艺等级，上限低于普通技艺。
+politics,政治,0,2,0,10,skill,政治技艺等级；部分高阶路线可临时放宽上限。

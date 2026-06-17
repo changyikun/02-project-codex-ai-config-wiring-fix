@@ -59,7 +59,6 @@ import {
   resolvePalaceStrifeConvictionPenalty,
   resolvePalaceStrifeSeverity,
   resolveYangxinVerdictResult,
-  resolveYangxinHearing,
 } from '../lib/palaceStrifeRuntime';
 import {
   buildInitialNpcActivityState,
@@ -90,6 +89,21 @@ import {
   SAVE_GAME_STORAGE_KEY,
   type SaveGameV1,
 } from '../save/saveGameV1';
+import {
+  createInitialEmperorInteractionProgress,
+  createInitialKitchenProgress,
+  createInitialMedicalProgress,
+  createInitialMusicHallProgress,
+  createInitialNightlyService,
+  createInitialPalaceBanquetProgress,
+  createInitialTempleProgress,
+} from '../save/saveGameConfig';
+import {
+  getNumericRuleValue,
+  getRouteInitialProfileConfig,
+  getRouteInitialStatDefaults,
+  resolveRouteInitialPointsTotal,
+} from '../numerics/numericCatalog';
 import type {
   AffairSourceLabel,
   BondProfileState,
@@ -120,7 +134,6 @@ import type {
   PalaceStrifeStartInput,
   YangxinVerdictChoiceId,
   YangxinVerdictEventState,
-  YangxinHearingStance,
   TempleProgressState,
   RelationshipJudgeOutcome,
   RouteSelectionProfile,
@@ -306,7 +319,6 @@ export interface GameFlowStore {
     suspectId: string,
     direction: 'increase' | 'decrease',
   ) => { success: boolean; message: string };
-  resolveYangxinPalaceStrifeCase: (caseId: string, stance: YangxinHearingStance) => { success: boolean; message: string };
   beginPendingYangxinVerdict: (caseId: string) => { success: boolean; message: string };
   advanceYangxinVerdict: (choiceId?: YangxinVerdictChoiceId) => { success: boolean; message: string };
   finalizeYangxinVerdict: (eventId: string) => { success: boolean; message: string };
@@ -319,7 +331,13 @@ export interface GameFlowStore {
   markNumericFeedbackEvent: (bucket: NumericFeedbackBucket) => void;
 }
 
-const initialStats = Object.fromEntries(attributeFields.map((field) => [field.key, field.value]));
+const initialRouteConfig = getRouteInitialProfileConfig('lanyinxuguo');
+const initialStats = {
+  ...Object.fromEntries(attributeFields.map((field) => [field.key, field.value])),
+  ...getRouteInitialStatDefaults('lanyinxuguo'),
+};
+const rangeStart = (range: readonly [number, number]): number => range[0];
+const rangeMidpoint = (range: readonly [number, number]): number => Math.floor((range[0] + range[1]) / 2);
 
 const getFieldMinMap = (): Record<string, number> => Object.fromEntries(attributeFields.map((field) => [field.key, field.min]));
 
@@ -339,9 +357,9 @@ const parseDebugSilverAmount = (amount: number | string): number => {
 const timeSlots: PalaceTimeState['slot'][] = ['清晨', '上午', '中午', '下午', '傍晚', '夜晚', '深夜'];
 const DEFAULT_AFFAIRS_SOURCE = '????' as AffairSourceLabel;
 const LATE_NIGHT_PENALTY = {
-  stress: 2,
-  health: -10,
-  temperament: -10,
+  stress: getNumericRuleValue('late_night_penalty_stress'),
+  health: getNumericRuleValue('late_night_penalty_health'),
+  temperament: getNumericRuleValue('late_night_penalty_temperament'),
 } as const;
 const getCurrentXunKey = (time: PalaceTimeState): string => `${time.year}-${time.month}-${time.xun}`;
 const getNextXunMorning = (time: PalaceTimeState): PalaceTimeState => {
@@ -472,11 +490,6 @@ const resolvePendingPalaceStrifeCasesForTransition = (
       framedTargetConsortId: caseState.framedTargetConsortId,
       framedTargetName: caseState.framedTargetName,
       queuedRolls: undefined,
-      yangxinHearingRequired:
-        resolved.status === 'investigating' &&
-        (caseState.actorId === 'player' ||
-          isPlayerPalaceStrifeTargetId(caseState.targetConsortId) ||
-          isPlayerPalaceStrifeTargetId(caseState.framedTargetConsortId)),
     };
     resolvedIds.add(caseState.id);
     lines.push(
@@ -979,43 +992,6 @@ const buildRouteConcubines = (
   playerFavor: number,
 ): ConcubineProfile[] => buildInitialConcubineRoster(routeId, customConsorts, [playerFavor]);
 
-const resolvePointsTotalByFamily = (family: string): number => {
-  const normalized = String(family ?? '').replace(/\s+/g, '');
-  if (normalized.includes('镇国公') || normalized.includes('和亲公主')) {
-    return 48;
-  }
-  if (normalized.includes('异国贡女')) {
-    return 52;
-  }
-  if (normalized.includes('罪臣')) {
-    return 54;
-  }
-  if (normalized.includes('商贾')) {
-    return 56;
-  }
-
-  const gradeMatch = normalized.match(/[一二三四五六七八九]品/);
-  if (gradeMatch) {
-    const gradeMap: Record<string, number> = {
-      一: 1,
-      二: 2,
-      三: 3,
-      四: 4,
-      五: 5,
-      六: 6,
-      七: 7,
-      八: 8,
-      九: 9,
-    };
-    const n = gradeMap[gradeMatch[0][0]];
-    if (n) {
-      return clampInt(47 + n, 48, 56);
-    }
-  }
-
-  return 50;
-};
-
 const rebalanceStatsToFitBudget = (
   stats: Record<string, number>,
   mins: Record<string, number>,
@@ -1081,7 +1057,7 @@ const rebalanceStatsToFitBudget = (
 
 const validatePointsState = (state: GameNumericsState): GameNumericsState => {
   const mins = getFieldMinMap();
-  const pointsTotal = resolvePointsTotalByFamily(state.family);
+  const pointsTotal = resolveRouteInitialPointsTotal(state.routeId, state.family);
   const normalizedStats = { ...mins, ...(state.stats ?? {}) };
   const balancedStats = rebalanceStatsToFitBudget(normalizedStats, mins, pointsTotal);
   const allocated = sumExcessPoints(balancedStats, mins);
@@ -1127,44 +1103,44 @@ const finalizeAttributeStats = (state: GameNumericsState): GameNumericsState => 
 };
 
 const initialState: GameNumericsState = validatePointsState({
-  name: '沈容儿',
-  age: 15,
-  family: '四品文官义女',
-  residenceName: '储秀宫',
+  name: initialRouteConfig.defaultName,
+  age: rangeStart(initialRouteConfig.ageRange),
+  family: initialRouteConfig.familyDisplay,
+  residenceName: initialRouteConfig.residenceDisplay,
   openingTendency: undefined,
   monthlyExpenseStrategy: DEFAULT_MONTHLY_EXPENSE_STRATEGY,
   nextMonthlyExpenseStrategy: undefined,
   familyAidBonus: 0,
   familyAidPrestigePending: 0,
-  pointsTotal: 48,
-  pointsLeft: 24,
+  pointsTotal: rangeStart(initialRouteConfig.pointsRange),
+  pointsLeft: rangeStart(initialRouteConfig.pointsRange),
   routeId: 'lanyinxuguo',
   stamina: STAMINA_INITIAL_PER_XUN,
-  silver: 1000,
-  prestige: 2500,
-  stress: 30,
-  favor: 50,
-  trueHeart: 35,
+  silver: rangeStart(initialRouteConfig.silverRange),
+  prestige: rangeStart(initialRouteConfig.prestigeRange),
+  stress: rangeStart(initialRouteConfig.stressRange),
+  favor: rangeMidpoint(initialRouteConfig.favorRange),
+  trueHeart: rangeMidpoint(initialRouteConfig.trueHeartRange),
   stats: initialStats,
   flags: {},
 });
 
 const initialHiddenStats: HiddenStatsState = {
-  silver: 1000,
-  prestige: 2500,
-  stress: 30,
-  favor: 50,
-  trueHeart: 35,
+  silver: initialState.silver,
+  prestige: initialState.prestige,
+  stress: initialState.stress,
+  favor: initialState.favor,
+  trueHeart: initialState.trueHeart,
   ...resolveFavorPresentation(initialState.favor),
 };
 
 const initialTime: PalaceTimeState = {
-  year: 1,
-  month: 1,
-  xun: 1,
-  slotIndex: 0,
+  year: getNumericRuleValue('initial_year'),
+  month: getNumericRuleValue('initial_month'),
+  xun: getNumericRuleValue('initial_xun'),
+  slotIndex: getNumericRuleValue('initial_slot_index'),
   slot: timeSlots[0],
-  slotProgress: 0,
+  slotProgress: getNumericRuleValue('initial_slot_progress'),
 };
 
 const initialBondProfile = buildInitialBondProfile('lanyinxuguo', getCurrentXunKey(initialTime));
@@ -1179,54 +1155,6 @@ const initialNpcActivity = generateNpcActivities({
 });
 const initialInventory = cloneInitialInventory();
 const initialMerchantLedger: Record<string, number> = {};
-const createInitialKitchenProgress = (): KitchenProgressState => ({
-  strollCount: 0,
-  buZiyouUnlocked: false,
-  buZiyouMet: false,
-  buZiyouFavor: 0,
-  buZiyouAffinity: 0,
-});
-
-const createInitialTempleProgress = (): TempleProgressState => ({
-  worshipCount: 0,
-  prayerCount: 0,
-  strollCount: 0,
-  dangYiFavor: 0,
-  dangYiAffinity: 0,
-});
-
-const createInitialMedicalProgress = (): MedicalProgressState => ({
-  strollCount: 0,
-  consultationCount: 0,
-  jianNingMet: false,
-  jianNingFavor: 0,
-  jianNingAffinity: 0,
-});
-
-const createInitialMusicHallProgress = (): MusicHallProgressState => ({
-  listenCount: 0,
-  strollCount: 0,
-  signUpCount: 0,
-  lianQiaoFirstMet: false,
-  lianQiaoMet: false,
-  lianQiaoFavor: 0,
-  lianQiaoAffection: 0,
-  musicScoreMastery: {},
-});
-
-const createInitialPalaceBanquetProgress = (): PalaceBanquetProgressState => ({
-  submissionCount: 0,
-});
-
-const createInitialEmperorInteractionProgress = (): EmperorInteractionProgressState => ({
-  triggeredEncounterIds: [],
-});
-
-const createInitialNightlyService = (): NightlyServiceState => ({
-  playerNightFavorGauge: 0,
-  emperorMood: 40,
-  reports: [],
-});
 
 const resolveSceneForView = (currentView: CurrentView): SceneId => {
   if (currentView === 'start') {
@@ -3135,33 +3063,6 @@ export const useGameFlowStore = create<GameFlowStore>()(
               sequence: current.numericFeedbackSignal.sequence + 1,
               bucket: current.currentView === 'map-main' ? 'map-event' : 'chamber-action',
             },
-          };
-        });
-        return result;
-      },
-      resolveYangxinPalaceStrifeCase: (caseId, stance) => {
-        let result = { success: false, message: '未找到需要养心殿裁断的案件。' };
-        set((current) => {
-          const targetCase = current.palaceStrifeCases.find((caseState) => caseState.id === caseId);
-          if (
-            !targetCase ||
-            targetCase.status !== 'investigating' ||
-            !targetCase.yangxinHearingRequired ||
-            targetCase.yangxinHearingResolved
-          ) {
-            return current;
-          }
-
-          const nextCase = resolveYangxinHearing(targetCase, current.state, stance);
-          result = {
-            success: true,
-            message: nextCase.yangxinHearingSummary ?? '养心殿裁断已记录。',
-          };
-
-          return {
-            palaceStrifeCases: current.palaceStrifeCases.map((caseState) =>
-              caseState.id === caseId ? nextCase : caseState,
-            ),
           };
         });
         return result;

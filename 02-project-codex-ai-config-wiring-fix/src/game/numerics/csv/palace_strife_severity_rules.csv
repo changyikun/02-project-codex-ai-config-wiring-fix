@@ -1,0 +1,4 @@
+severity,actionModifier,concealmentModifier,convictionModifier,investigationGrowth,prestigePenalty,favorPenalty,stressPenalty,suspectBonus,verdictAttendeeLimit,notes
+light,0,5,0,8,-150,-3,0,0,4,轻案：低行动惩罚，调查与处罚较轻
+medium,5,10,10,14,-350,-6,5,8,6,中案：调查推进和惩罚居中
+heavy,10,15,20,20,-750,-10,10,15,8,重案：高调查推进，高处罚，裁断参与者更多

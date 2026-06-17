@@ -6,7 +6,8 @@
 
 - 存储 key：`SAVE_GAME_STORAGE_KEY = 'palace-galgame-flow'`
 - envelope 结构：`{ state: { saveGame: SaveGameV1 }, version: number }`
-- schema 文件：`src/game/save/saveGameV1.ts`
+- schema 构建 / 读写文件：`src/game/save/saveGameV1.ts`
+- schema 版本、storage key、必需字段清单和默认进度块配置：`src/game/save/saveGameConfig.ts`
 - store 接入：`src/game/store/gameFlowStore.ts`
 - 启动页入口：`src/views/StartScene.tsx` 与 `src/App.tsx`
 - 当前仍处开发阶段，存档不做跨结构迁移。只要 `SaveGameV1` 字段结构与当前代码不匹配，就直接删除旧 envelope，回溯显示无可用存档；不要写旧字段到新字段的 fallback。
@@ -70,6 +71,7 @@
 以后凡是新增会影响长期玩法的字段，都必须同步处理：
 
 - 加入 `SaveGameV1Source` 与 `SaveGameV1`。
+- 如果新增长期进度块或必需 section，需要同步更新 `saveGameConfig.ts` 的必需字段清单和默认进度块。
 - 如果字段结构变化会影响旧存档正确性，提升 `SAVE_GAME_SCHEMA_VERSION` 或收紧 `isSaveGameV1()` 校验，使旧 envelope 自动失效并被删除。
 - 在 `buildSaveGameV1()` 写入。
 - 在 `restoreSaveGameV1Fields()` 读取。

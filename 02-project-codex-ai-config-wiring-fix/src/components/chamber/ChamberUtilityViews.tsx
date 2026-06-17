@@ -5,7 +5,7 @@ import { resolveUnlockedBondCharacters } from '../../game/data/bondPresets';
 import { getInventoryRecyclePrice, getPoisonInventoryItemIdByName } from '../../game/data/inventoryPresets';
 import { FAMILY_AID_BONUS, FAMILY_AID_COST, FAMILY_AID_QUARTERLY_PRESTIGE } from '../../game/lib/familyGovernanceRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
-import type { BondProfileState, ConcubineProfile, GameNumericsState, HiddenStatsState, RouteId, SettlementReport, YangxinHearingStance } from '../../game/types';
+import type { BondProfileState, ConcubineProfile, GameNumericsState, HiddenStatsState, RouteId, SettlementReport } from '../../game/types';
 
 type ChronicleTabId = 'edict' | 'secret' | 'quarrel' | 'event' | 'rumor';
 type MiscInfoCardId = 'emperor' | 'officials' | 'dowager' | 'father' | 'court';
@@ -13,12 +13,6 @@ type InventoryTabId = 'tonic' | 'gift' | 'pill' | 'key-item';
 type AffairStepId = 'target' | 'method' | 'ally' | 'item' | 'investigation' | 'finish';
 type AffairSourceLabel = '宫斗事务' | '家族事务' | '朝堂事务';
 type PoisonQteOutcome = 'success' | 'failure';
-
-const yangxinStanceLabels: Record<YangxinHearingStance, string> = {
-  argue: '据理力争',
-  plead: '委婉求情',
-  confess: '沉默认错',
-};
 
 const utilityPanelFrameStyle = (backgroundImage: string): CSSProperties => ({
   backgroundImage: `linear-gradient(180deg, rgba(255, 248, 244, 0.9), rgba(248, 235, 229, 0.88)), url("${backgroundImage}")`,
@@ -368,64 +362,6 @@ export function ChroniclePanelView({ time, state, hiddenStats, settlementReports
             )}
           </article>
         ))}
-      </div>
-    </UtilityPanelShell>
-  );
-}
-
-interface YangxinHearingPanelViewProps {
-  onClose: () => void;
-}
-
-export function YangxinHearingPanelView({ onClose }: YangxinHearingPanelViewProps) {
-  const palaceStrifeCases = useGameFlowStore((store) => store.palaceStrifeCases);
-  const resolveYangxinPalaceStrifeCase = useGameFlowStore((store) => store.resolveYangxinPalaceStrifeCase);
-  const [hearingText, setHearingText] = useState('');
-  const hearingCases = useMemo(
-    () =>
-      palaceStrifeCases.filter(
-        (caseState) =>
-          caseState.status === 'investigating' &&
-          caseState.yangxinHearingRequired &&
-          !caseState.yangxinHearingResolved,
-      ),
-    [palaceStrifeCases],
-  );
-
-  const handleHearing = (caseId: string, stance: YangxinHearingStance) => {
-    const result = resolveYangxinPalaceStrifeCase(caseId, stance);
-    setHearingText(result.message);
-  };
-
-  return (
-    <UtilityPanelShell ariaLabel="养心殿裁断面板" backgroundImage={MISC_INFO_UI_BACKGROUND} onClose={onClose}>
-      <div className="chamber-utility-view__body chamber-utility-view__body--chronicle">
-        <article className="chamber-utility-view__entry-card">
-          <h3>养心殿裁断</h3>
-          <p>{hearingText || '容安只过问牵连到娘娘本人的案件。此处只修正定案率，不重算行动与隐匿。'}</p>
-        </article>
-
-        {hearingCases.length > 0 ? (
-          hearingCases.map((caseState) => (
-            <article key={caseState.id} className="chamber-utility-view__entry-card">
-              <h3>{caseState.targetName}</h3>
-              <p>{`${caseState.methodLabel}：${caseState.summary} 当前定案率${caseState.convictionRate}%。`}</p>
-              <div className="chamber-utility-view__option-grid">
-                {(Object.keys(yangxinStanceLabels) as YangxinHearingStance[]).map((stance) => (
-                  <button key={stance} type="button" onClick={() => handleHearing(caseState.id, stance)}>
-                    <strong>{yangxinStanceLabels[stance]}</strong>
-                    <span>点击后进行一次养心殿裁断</span>
-                  </button>
-                ))}
-              </div>
-            </article>
-          ))
-        ) : (
-          <article className="chamber-utility-view__entry-card">
-            <h3>暂无需裁断案件</h3>
-            <p>当前没有牵连娘娘且尚未处理的调查案。若玩家被查、被诬陷或成为被害目标，才会进入这里。</p>
-          </article>
-        )}
       </div>
     </UtilityPanelShell>
   );
