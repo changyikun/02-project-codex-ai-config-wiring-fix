@@ -2476,6 +2476,7 @@ describe('App 主流程切换', () => {
     expect(await screen.findByLabelText('杜娘 宫门对话')).toBeInTheDocument();
     expect(screen.getByLabelText('杜娘常驻立绘')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '杜娘' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '离开' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '购买' })).not.toBeInTheDocument();
     expect(screen.queryByText(/交易即时结算/)).not.toBeInTheDocument();
 
@@ -2483,6 +2484,9 @@ describe('App 主流程切换', () => {
     await clickDialogueAdvance();
     expect(await screen.findByLabelText('杜娘 宫门对话')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '购买' })).toBeInTheDocument();
+    expect(screen.getByLabelText('杜娘 宫门对话')).toBeInTheDocument();
+    expect(screen.getByLabelText('杜娘常驻立绘')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '杜娘' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '购买' }));
     expect(await screen.findByRole('dialog', { name: '杜娘购买弹窗' })).toBeInTheDocument();
@@ -2509,6 +2513,10 @@ describe('App 主流程切换', () => {
       expect(useGameFlowStore.getState().inventory.find((item) => item.itemId === 'embroidered-sachet')?.quantity).toBe(2);
       expect(screen.getByText('当前银两：986')).toBeInTheDocument();
     });
+
+    fireEvent.click(screen.getByRole('button', { name: '离开' }));
+    expect(await screen.findByRole('button', { name: '杜娘' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('杜娘 宫门对话')).not.toBeInTheDocument();
   });
 
   it('杜娘闲谈先显示本地回应，不被后台 AI 请求锁住', async () => {

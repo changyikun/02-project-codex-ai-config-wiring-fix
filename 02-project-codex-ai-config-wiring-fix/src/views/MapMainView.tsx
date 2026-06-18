@@ -1005,9 +1005,9 @@ export function MapMainView() {
               />
             </section>
 
-            {showGongmenNpcActions ? (
-              <aside className="map-main__gongmen-actions" aria-label={`${activeNpcProfile.name} 操作栏`}>
-                {activeGongmenNpc === 'du-niang' ? (
+            <aside className="map-main__gongmen-actions" aria-label={`${activeNpcProfile.name} 操作栏`}>
+              {showGongmenNpcActions ? (
+                activeGongmenNpc === 'du-niang' ? (
                   <>
                     <button type="button" onClick={handleDuNiangSmallTalk} aria-busy={gongmenAiBusy}>
                       闲谈
@@ -1026,6 +1026,7 @@ export function MapMainView() {
                     >
                       售卖
                     </button>
+                    <p>杜娘负责宫门商店与旧物回收，交易即时结算，不额外消耗时辰与体力。</p>
                   </>
                 ) : (
                   <>
@@ -1035,13 +1036,14 @@ export function MapMainView() {
                     >
                       叙旧
                     </button>
+                    <p>阿翎仅在尘缘夙错线出现，当前先保留宫门见面入口与立绘展示。</p>
                   </>
-                )}
-                <button type="button" onClick={handleCloseGongmenNpc}>
-                  返回宫门
-                </button>
-              </aside>
-            ) : null}
+                )
+              ) : null}
+              <button type="button" className="map-main__gongmen-leave" onClick={handleCloseGongmenNpc}>
+                离开
+              </button>
+            </aside>
 
             {activeGongmenNpc === 'du-niang' && activeTradeMode ? (
               <section className="map-main__trade-modal" role="dialog" aria-label={activeTradeMode === 'buy' ? '杜娘购买弹窗' : '杜娘售卖弹窗'}>

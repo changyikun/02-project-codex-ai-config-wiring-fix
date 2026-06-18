@@ -3987,6 +3987,12 @@ button {
   transform: translateY(-2px);
 }
 
+.map-main__gongmen-actions .map-main__gongmen-leave {
+  margin-top: 4px;
+  background: linear-gradient(180deg, rgba(236, 224, 212, 0.94), rgba(220, 202, 188, 0.92));
+  color: rgba(92, 37, 39, 0.86);
+}
+
 .map-main__gongmen-actions p {
   margin: 2px 0 0;
   color: #6a3f3f;
