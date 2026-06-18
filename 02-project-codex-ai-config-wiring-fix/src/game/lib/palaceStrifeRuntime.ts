@@ -800,9 +800,6 @@ const severityLabel: Record<PalaceStrifeSeverity, string> = {
 };
 
 const yangxinChoiceLabels: Record<YangxinVerdictChoiceId, string> = {
-  argue: '据理力争',
-  plead: '委婉求情',
-  accept: '沉默认罚',
   'self-defend': '据证自辩',
   'self-doubt': '陈明疑点',
   'self-plead': '伏身求宽',

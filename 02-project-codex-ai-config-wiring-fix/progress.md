@@ -1,5 +1,68 @@
 Original prompt: 添加存档系统，回溯可以读取上一次存档，开始游戏会清空存档并新建存档（有二级确认）；关于存档功能的维护，需要把这部分写到全局文档里，以便更好的同步，之前已经做出的修改也需要将之前的文档修改到一致
 
+## 2026-06-18 v0.5.2 版本归档
+
+- 本轮目标：归档 `v0.5.2`，并为后续修改开启 `v0.5.3` 当前开发版本。
+- 已处理：`CHANGELOG.md` 新增 `v0.5.3 - 后续系统迭代（进行中）` 空段，后续新增内容将写入 v0.5.3。
+- 已处理：`v0.5.2` 标记为“已归档”，并补充版本总结：本版本主要完成数值配置化 / 公式页拆分、作品制作闭环、进出场景时间规则收口、宫门工具 NPC 交互修订和文档维护边界收口。
+
+## 2026-06-18 v0.5.2 正阳门等待与宫门工具 NPC 修订
+
+- 本轮目标：修复“等待下朝”不推进时辰、杜娘入场后操作项和对白同时显示，以及工具 NPC 面板存在解释性 UI 文本的问题。
+- 已处理：正阳门“等待下朝”改为地点内真实行动，点击后推进一格时辰，并清理本次入场时辰上下文。
+- 已处理：杜娘等宫门工具 NPC 先播放入场对白，买卖 / 闲谈操作栏只在对白读完或操作反馈出现后显示。
+- 已处理：移除宫门工具 NPC 操作栏里的解释性说明文本，保留必要的动作按钮和显式“返回宫门”。
+- 已同步：`CHANGELOG.md` v0.5.2 第 18 条。
+- 已处理：阿翎“叙旧”不再使用开发占位说明文本，改为 `npc_tools_dialogues.csv` 中的正式本地对白。
+- 验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "宫门中的杜娘可购买与回收道具|正阳门等待下朝会推进时辰|杜娘闲谈先显示本地回应" --reporter=verbose` 通过，`3 passed`；`npx vitest run src/__tests__/app-flow.test.tsx --reporter=dot` 通过，`139 passed`，仍有既有 React `act(...)` 警告；`npx tsc --noEmit` 通过；`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告。
+
+## 2026-06-18 v0.5.2 宫门杜娘交互修复
+
+- 本轮目标：修复杜娘入场对白读完后直接退出，导致无法继续买卖 / 闲谈的问题。
+- 已处理：宫门工具 NPC 的线性对白推进到末页后不再清空 `activeGongmenNpc`；杜娘人物面板会保留，买卖 / 闲谈入口继续可用。
+- 已新增：工具 NPC 面板内的显式“返回宫门”按钮，退出人物面板不再依赖继续点击剧情框。
+- 已同步：`CHANGELOG.md` v0.5.2 第 17 条。
+- 验证：新增回归断言覆盖“读完杜娘入场对白后仍可购买”；`npx vitest run src/__tests__/app-flow.test.tsx -t "宫门中的杜娘可购买与回收道具" --reporter=verbose` 通过；`npx vitest run src/__tests__/app-flow.test.tsx -t "杜娘闲谈先显示本地回应" --reporter=verbose` 通过；`npx tsc --noEmit` 通过。
+
+## 2026-06-18 v0.5.2 文档归档与维护边界
+
+- 本轮目标：减少同一规则在多份文档中重复维护，归档当前不再使用的旧文档。
+- 已新增 `docs/README.md`，明确当前维护文档、各文档用途和写入规则。
+- 已新增 `docs/archive/README.md`，明确归档文档只作历史追溯，不再作为当前规则源维护。
+- 已归档：旧 V1 规则稿、自然语言说明稿、旧 B 版宫斗规则、旧 AI / Foundation / 自定义剧情妃接口说明、persona / 世界记忆 proposal。
+- 已更新：`docs/new-chat-start.md`、`docs/codex-dialogue-handoff.md` 和路线文档引用，避免继续把归档文档当作接手必读或当前维护源。
+- 追加归档：`codex-dialogue-handoff.md` 与 `system-hard-rules-integrated.md` 已移入 `docs/archive/retired-overviews/`，后续不再维护；新对话入口改为直接读取文档索引、最新 changelog 和任务相关专项文档。
+- 已同步：`CHANGELOG.md` v0.5.2 第 15 条。
+
+## 2026-06-18 v0.5.2 绣花 / 字画 / 调香作品制作
+
+- 本轮目标：给绣花、字画、调香补齐作品制作闭环，玩家通过对应寝殿行动进入对应类别面板，添加作品并推进作品；当前不保留“只练习技艺”分支。
+- 已新增 `craft_works.csv`，维护作品类别、题材、主 / 辅能力、难度、基础售价和基础送礼好感。
+- 已新增 `craftWorkFormulaPage.ts` 与 `craftWorkFormulas.ts`，单次进度、成色评分、售价和送礼好感走完整公式页，不把公式拆进 CSV。
+- 已新增 `craftWorkRuntime`，生成进行中作品、计算推进结果、完成时生成 `crafted:` 开头的 `gift` 背包物品。
+- 已接入 `gameFlowStore` 与 `SaveGameV1`：作品进度保存到 `progress.craftWorks.activeWorks`，schema 提升到 `4`，旧结构缺字段直接清档。
+- 已接入寝殿 UI：`泼墨作画 / 镂月裁云 / 调制香薰` 点击后进入对应类别制作面板；没有独立“作品管理”总入口。面板只展示可添加作品和进行中作品，完成品直接进入背包，可作为普通礼物送礼或通过背包变卖。
+- 同步修正：清掉旧裁断选择 ID `argue / plead / accept`，NPC-only 静默裁断默认用 `state-facts`，避免代码默认规则和裁断 CSV 不一致。
+- 已同步：`CHANGELOG.md`、`src/game/numerics/csv/README.md`、`docs/game-state-model.md`、`docs/game-system-breakdown.md`、`docs/system-hard-rules-integrated.md`、`docs/codex-dialogue-handoff.md`、`codex-workdocs/2026-06-18-v052-craft-works.md`。
+- 验证：`npx tsc --noEmit` 通过；`npx vitest run src/game/lib/palaceStrifeRuntime.test.ts src/game/store/gameFlowStore.save.test.ts` 通过。初轮广口径测试中 `src/__tests__/app-flow.test.tsx` 已通过，失败仅来自旧裁断测试 ID，已修正并单独复测通过。
+
+## 2026-06-18 v0.5.2 寝殿行动与作品入口修订
+
+- 已处理：作品制作面板移除“只练习技艺”和“已完成库存”；完成品只进入背包，制作面板不再承担库存展示。
+- 已处理：`调制香薰 / 镂月裁云 / 泼墨作画` 必须选择作品推进才结算行动；体力不足时不会推进作品进度。
+- 已处理：寝殿行动数值改为调香 `体力 -3 / 容貌 +1`、诵读 `体力 -2 / 诗词 +1 / 政治 +1`、刺绣 `体力 -3 / 刺绣 +1`、奏乐 `体力 -2 / 气质 +1 / 乐理 +1`、作画 `体力 -3 / 丹青 +1`、平安脉 `健康 +5` 且每旬一次、殿内小憩 `体力 +3 / 压力 -1`。
+- 已处理：作品进度公式移除 `averageActionCount`，单次进度只按玩家主能力、辅助能力、作品难度和稳定浮动计算；制作面板的预计剩余次数也改用同一公式估算。
+- 已同步：`CHANGELOG.md`、`docs/game-system-breakdown.md`、`docs/system-hard-rules-integrated.md`、`docs/game-hard-rules.md`、`docs/game-state-model.md`、`docs/codex-dialogue-handoff.md`、`codex-workdocs/2026-06-18-v052-craft-works.md`。
+- 验证：`npx tsc --noEmit` 通过。
+- 验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "请平安脉|字画作品|寝殿日常行动|回宫反馈|数值变化|寝殿剧情对白" --reporter=verbose` 通过，`7 passed`；仍有既有 React `act(...)` 警告。
+- 验证：`npx vitest run src/__tests__/app-flow.test.tsx --reporter=dot` 通过，`137 passed`；仍有既有 React `act(...)` 警告。
+- 验证：`npx vitest run src/game/numerics/numericCatalog.test.ts src/game/lib/craftWorkRuntime.test.ts src/game/save/saveGameV1.test.ts src/game/store/gameFlowStore.save.test.ts --reporter=dot` 通过，`48 passed`。
+- 验证：`npm run build:web` 通过；仍有既有 Vite 大 chunk 警告。
+- 验证：`web_game_playwright_client` 打开 `http://127.0.0.1:5173/`，截图 `output/web-game-v052-chamber-rebalance/shot-0.png` 可见启动页，未见空白渲染。
+- 追加验证：`npx tsc --noEmit` 通过；`npx vitest run src/game/numerics/numericCatalog.test.ts src/game/lib/craftWorkRuntime.test.ts --reporter=verbose` 通过，`9 passed`。
+- 追加验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "字画作品|寝殿日常行动|回宫反馈" --reporter=verbose` 通过，`3 passed`；仍有既有 React `act(...)` 警告。
+- 追加验证：`npm run build:web` 通过；仍有既有 Vite 大 chunk 警告。`web_game_playwright_client` 打开 `http://127.0.0.1:5173/`，截图 `output/web-game-v052-craft-progress-formula/shot-0.png` 可见启动页。
+
 ## 2026-06-17 v0.5.2 宫斗 / 侍寝 / 随机妃嫔数值拆表扩展
 
 - 本轮目标：继续把宫斗、侍寝和随机补足妃嫔生成里的可调数值从 runtime 中抽到 CSV。
@@ -26,9 +89,11 @@ Original prompt: 添加存档系统，回溯可以读取上一次存档，开始
 
 - 本轮目标：修改规则，使进出场景不再消耗体力。
 - 已处理：大地图进入地点和地点快捷面板不再扣体力，只保留既有时辰推进与深夜回宫睡觉判断。
+- 2026-06-18 修订：进出场景不应被算作行动，已进一步移除大地图进入普通地点、地点快捷面板和影落掖庭地图事件入口的时辰推进；只有地点内听曲、问诊、拜访、礼佛等真实行动才推进时间。
 - 已处理：后宫殿位进入妃嫔会面不再扣体力，但体力为 `0` 时仍阻止开始拜访，避免绕过“体力归零需要睡觉”的全局规则。
 - 保留边界：地点内真实行动仍按各自 `beginTimedLocationAction` 或寝殿行动配置消耗 / 恢复体力。
 - 验证：`npx tsc --noEmit` 通过；相关 `app-flow` 测试通过；`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告。
+- 2026-06-18 追加验证：`npx tsc --noEmit` 通过；`npx vitest run src/__tests__/app-flow.test.tsx --reporter=dot` 通过，`138 passed`，仍有既有 React `act(...)` 警告；`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告；`web_game_playwright_client` 打开本地页并截图 `output/web-game-v052-map-entry-no-time/shot-0.png`，启动页可见。
 
 ## 2026-06-02
 
@@ -418,7 +483,7 @@ Original prompt: 添加存档系统，回溯可以读取上一次存档，开始
 
 - 本轮目标：新增皇帝旬内日间动向、养心殿求见、正阳门等待下朝、御花园 / 建章宫公共偶遇与完整皇帝互动页。
 - 已处理：新增 `emperorActivityRuntime`，按路线、旬、入场时辰和地点 deterministic 计算皇帝位置、养心殿求见成功率、正阳门偶遇和主行动结果。
-- 已处理：地图进入公共地点时记录 `activeMapLocationEntryTime` 临时上下文；地点进入本身消耗时间和体力，求见成功 / 失败、公共偶遇互动结束不再额外推进第二格。
+- 已处理：地图进入公共地点时记录 `activeMapLocationEntryTime` 临时上下文；当前 v0.5.2 规则下，地点进入本身不消耗时间和体力，求见成功 / 失败、公共偶遇互动结束也不额外推进第二格。
 - 已处理：`SaveGameV1` schema 提升到 `3`，新增 `progress.emperorInteraction` 保存皇帝互动触发记录；开发期旧结构继续直接清档，不做 fallback。
 - 已处理：养心殿上午到傍晚可求见，夜晚 / 深夜由内侍劝归；正阳门清晨可等待下朝；御花园 / 建章宫中午到傍晚若皇帝在场可进入完整互动页。
 - 已处理：皇帝交互页支持一次主行动和一次附加话题。主行动包括研墨、按摩、关心、抚琴、闲聊、撒娇、入怀、对弈；附加话题在送礼、美言、诉苦中三选一。
@@ -461,3 +526,17 @@ Original prompt: 添加存档系统，回溯可以读取上一次存档，开始
 - 追加验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "开场用度解释|寝殿调整用度说明|养心殿裁断通过对话事件|户外偶遇皇帝|结束本旬触发主角侍寝" --reporter=verbose` 通过，5 passed；仍有既有 React `act(...)` 测试警告。
 - 追加验证：`npx vitest run src/game/narrative/csvNarrativeLoader.test.ts src/game/lib/localGameplayMode.test.ts --reporter=verbose` 通过，9 passed；`npx vitest run server/tests/integration/aiRoutes.test.ts --reporter=verbose` 通过，6 passed。
 - 追加验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "开场|用度|影落掖庭" --reporter=verbose` 通过；仍有既有 React `act(...)` 测试警告。
+
+## 2026-06-18 v0.5.2 作品制作闭环
+
+- 本轮目标：给绣花、字画、调香补齐“添加作品 -> 多次推进 -> 完成品入包 -> 送礼或变卖”闭环。
+- 已处理：新增 `craft_works.csv`，维护作品类别、题材、主 / 辅能力、难度、基础售价和基础送礼好感。
+- 已处理：新增 `craftWorkFormulaPage.ts` 和 `craftWorkFormulas.ts`，进度、成色、售价和送礼好感使用独立公式页，不把公式碎片写进 CSV。
+- 已处理：新增 `progress.craftWorks.activeWorks`，`SaveGameV1` schema 提升到 `4`；旧存档缺少该进度块时按开发期规则清除。
+- 已处理：寝殿没有独立“作品管理”入口；只能点击 `镂月裁云 / 泼墨作画 / 调制香薰` 进入对应类别面板。面板内可添加该类作品、推进进行中作品；当前不提供“只练习技艺”分支。
+- 已处理：完成品生成 `crafted:{type}:{workId}:{quality}` 的 `gift` 背包物品，可送礼，也可按公式折算售价变卖；调香第一版只作为礼物 / 商品，不接毒药、药效或特殊状态。
+- 已处理：清理旧裁断选择 ID `argue / plead / accept` 的残留默认值，NPC-only 静默裁断改用 `state-facts` 中性规则。
+- 验证：`npx tsc --noEmit` 通过。
+- 验证：`npx vitest run src/game/numerics/numericCatalog.test.ts src/game/lib/craftWorkRuntime.test.ts src/game/lib/palaceStrifeRuntime.test.ts src/game/save/saveGameV1.test.ts src/game/store/gameFlowStore.save.test.ts src/__tests__/app-flow.test.tsx --reporter=dot` 通过，`199 passed`；仍有既有 React `act(...)` 测试警告。
+- 验证：`npm run build:web` 通过；仍有既有 Vite 大 chunk 警告。
+- 验证：`web_game_playwright_client` 打开 `http://127.0.0.1:5173/`，截图 `output/web-game-v052-craft-works/shot-0.png` 可见启动页，未见空白渲染。

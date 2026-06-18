@@ -7,6 +7,7 @@ import monthlyExpenseStrategiesCsv from './csv/monthly_expense_strategies.csv?ra
 import rankPrestigeTableCsv from './csv/rank_prestige_table.csv?raw';
 import favorTiersCsv from './csv/favor_tiers.csv?raw';
 import inventoryItemsCsv from './csv/inventory_items.csv?raw';
+import craftWorksCsv from './csv/craft_works.csv?raw';
 import fixedConsortRosterCsv from './csv/fixed_consort_roster.csv?raw';
 import palaceStrifeSeverityRulesCsv from './csv/palace_strife_severity_rules.csv?raw';
 import palaceStrifeRumorItemsCsv from './csv/palace_strife_rumor_items.csv?raw';
@@ -21,6 +22,7 @@ import { RarityColorId, type RangeTuple, type 位分声望条目 } from '../../c
 import type {
   ConcubineStats,
   ConcubineStatus,
+  CraftWorkType,
   InventoryItem,
   MonthlyExpenseStrategyId,
   PalaceStrifeSeverity,
@@ -108,6 +110,19 @@ export interface NumericInventoryItem extends InventoryItem {
   pools: string[];
 }
 
+export interface NumericCraftWorkConfig {
+  workId: string;
+  type: CraftWorkType;
+  name: string;
+  rarity: InventoryItem['rarity'];
+  requiredStatKey: string;
+  supportStatKey: string;
+  difficulty: number;
+  basePrice: number;
+  baseFavorDelta: number;
+  description: string;
+}
+
 export interface NumericConsortSeed {
   routeScope: RouteId | 'all';
   portraitId: string;
@@ -179,12 +194,10 @@ const routeIds = new Set<RouteId>(['lanyinxuguo', 'fushengrumeng', 'yingluoyetin
 const colorIds = new Set<string>(Object.values(RarityColorId));
 const inventoryCategories = new Set<InventoryItem['category']>(['gift', 'food', 'medicine', 'rare', 'music-score']);
 const inventoryRarities = new Set<InventoryItem['rarity']>(['green', 'blue', 'purple', 'red']);
+const craftWorkTypes = new Set<CraftWorkType>(['embroidery', 'painting', 'incense']);
 const consortStatuses = new Set<ConcubineStatus>(['live', 'limbo', 'deceased']);
 const palaceStrifeSeverities = new Set<PalaceStrifeSeverity>(['light', 'medium', 'heavy']);
 const yangxinVerdictChoiceIds = new Set<YangxinVerdictChoiceId>([
-  'argue',
-  'plead',
-  'accept',
   'self-defend',
   'self-doubt',
   'self-plead',
@@ -523,6 +536,44 @@ export const getInventoryItemsByPool = (pool: string): InventoryItem[] =>
   numericInventoryItems
     .filter((item) => item.pools.includes(pool))
     .map(({ pools: _pools, ...item }) => ({ ...item }));
+
+export const numericCraftWorks: readonly NumericCraftWorkConfig[] = parseNumericCsv(
+  craftWorksCsv,
+  'craft_works.csv',
+  ['workId', 'type', 'name', 'rarity', 'requiredStatKey', 'supportStatKey', 'difficulty', 'basePrice', 'baseFavorDelta'],
+).map((row) => {
+  if (!craftWorkTypes.has(row.type as CraftWorkType)) {
+    throw new Error(`craft_works.csv has invalid type "${row.type}".`);
+  }
+  if (!inventoryRarities.has(row.rarity as InventoryItem['rarity'])) {
+    throw new Error(`craft_works.csv has invalid rarity "${row.rarity}".`);
+  }
+  return {
+    workId: row.workId,
+    type: row.type as CraftWorkType,
+    name: row.name,
+    rarity: row.rarity as InventoryItem['rarity'],
+    requiredStatKey: row.requiredStatKey,
+    supportStatKey: row.supportStatKey,
+    difficulty: parseRequiredNumber(row.difficulty, `${row.workId}.difficulty`),
+    basePrice: parseRequiredNumber(row.basePrice, `${row.workId}.basePrice`),
+    baseFavorDelta: parseRequiredNumber(row.baseFavorDelta, `${row.workId}.baseFavorDelta`),
+    description: row.description,
+  };
+});
+
+assertUniqueIds(numericCraftWorks, (work) => work.workId, 'craft work');
+
+export const getCraftWorksByType = (type: CraftWorkType): NumericCraftWorkConfig[] =>
+  numericCraftWorks.filter((work) => work.type === type).map((work) => ({ ...work }));
+
+export const getCraftWorkConfig = (workId: string): NumericCraftWorkConfig => {
+  const work = numericCraftWorks.find((entry) => entry.workId === workId);
+  if (!work) {
+    throw new Error(`Unknown craft work "${workId}".`);
+  }
+  return work;
+};
 
 export const numericFixedConsortSeeds: readonly NumericConsortSeed[] = parseNumericCsv(
   fixedConsortRosterCsv,

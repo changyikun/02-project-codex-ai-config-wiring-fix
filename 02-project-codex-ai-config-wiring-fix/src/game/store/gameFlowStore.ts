@@ -69,6 +69,11 @@ import { CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN } from '../lib/consortVisitRun
 import { resolveNpcRelationMatrixForActivities } from '../lib/npcRelationRuntime';
 import { resolveNightlyService, resolvePlayerNightlyServiceEvent } from '../lib/nightlyServiceRuntime';
 import {
+  buildCraftWorkInstance,
+  resolveCraftWorkAdvance,
+  type CraftWorkAdvanceResolution,
+} from '../lib/craftWorkRuntime';
+import {
   resolveEmperorAudienceRequest,
   resolveEmperorGiftEffects,
   resolveEmperorMainInteraction,
@@ -90,6 +95,7 @@ import {
   type SaveGameV1,
 } from '../save/saveGameV1';
 import {
+  createInitialCraftWorksProgress,
   createInitialEmperorInteractionProgress,
   createInitialKitchenProgress,
   createInitialMedicalProgress,
@@ -110,6 +116,8 @@ import type {
   ConcubineProfile,
   ConsortInteractionProgress,
   ConsortPalaceActionId,
+  CraftWorkInstanceState,
+  CraftWorksProgressState,
   CurrentView,
   DialogueTurn,
   EmperorInteractionProgressState,
@@ -223,6 +231,7 @@ export interface GameFlowStore {
   medicalProgress: MedicalProgressState;
   musicHallProgress: MusicHallProgressState;
   palaceBanquetProgress: PalaceBanquetProgressState;
+  craftWorksProgress: CraftWorksProgressState;
   templeProgress: TempleProgressState;
   emperorInteraction: EmperorInteractionProgressState;
   nightlyService: NightlyServiceState;
@@ -267,6 +276,8 @@ export interface GameFlowStore {
   patchMedicalProgress: (patch: Partial<MedicalProgressState>) => void;
   patchMusicHallProgress: (patch: Partial<MusicHallProgressState>) => void;
   patchPalaceBanquetProgress: (patch: Partial<PalaceBanquetProgressState>) => void;
+  startCraftWork: (workId: string) => { success: boolean; message: string; instance?: CraftWorkInstanceState };
+  advanceCraftWork: (instanceId: string) => { success: boolean; message: string; resolution?: CraftWorkAdvanceResolution };
   patchTempleProgress: (patch: Partial<TempleProgressState>) => void;
   requestEmperorAudience: (location: MapAreaId, source: EmperorInteractionSource) => EmperorAudienceRequestStoreResult;
   completeEmperorMainInteraction: (
@@ -523,11 +534,11 @@ const finalizeNpcOnlyPendingVerdictForSettlement = (caseState: PalaceStrifeCaseS
     attendees: [],
     statements: [],
     playerChoices: [],
-    selectedChoiceId: 'accept',
+    selectedChoiceId: 'state-facts',
   };
   return finalizeYangxinVerdictCase(caseState, {
     ...event,
-    result: resolveYangxinVerdictResult(event, caseState, 'accept'),
+    result: resolveYangxinVerdictResult(event, caseState, 'state-facts'),
   });
 };
 
@@ -1209,6 +1220,7 @@ const createInitialGameFlowFields = (currentView: CurrentView): Partial<GameFlow
   medicalProgress: createInitialMedicalProgress(),
   musicHallProgress: createInitialMusicHallProgress(),
   palaceBanquetProgress: createInitialPalaceBanquetProgress(),
+  craftWorksProgress: createInitialCraftWorksProgress(),
   templeProgress: createInitialTempleProgress(),
   emperorInteraction: createInitialEmperorInteractionProgress(),
   nightlyService: createInitialNightlyService(),
@@ -1260,6 +1272,7 @@ const restoreSaveGameV1Fields = (saveGame: SaveGameV1): Partial<GameFlowStore> =
   medicalProgress: saveGame.progress.medical,
   musicHallProgress: saveGame.progress.musicHall,
   palaceBanquetProgress: saveGame.progress.palaceBanquet,
+  craftWorksProgress: saveGame.progress.craftWorks,
   templeProgress: saveGame.progress.temple,
   emperorInteraction: saveGame.progress.emperorInteraction,
   nightlyService: saveGame.progress.nightlyService,
@@ -1303,6 +1316,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
       medicalProgress: createInitialMedicalProgress(),
       musicHallProgress: createInitialMusicHallProgress(),
       palaceBanquetProgress: createInitialPalaceBanquetProgress(),
+      craftWorksProgress: createInitialCraftWorksProgress(),
       templeProgress: createInitialTempleProgress(),
       emperorInteraction: createInitialEmperorInteractionProgress(),
       nightlyService: createInitialNightlyService(),
@@ -1673,6 +1687,105 @@ export const useGameFlowStore = create<GameFlowStore>()(
             ...patch,
           },
         })),
+      startCraftWork: (workId) => {
+        let result: { success: boolean; message: string; instance?: CraftWorkInstanceState } = {
+          success: false,
+          message: '这件作品暂时无法开始。',
+        };
+        set((current) => {
+          try {
+            const existingCount = Object.keys(current.craftWorksProgress.activeWorks).length;
+            const instance = buildCraftWorkInstance({
+              workId,
+              instanceId: `craft:${workId}:${getCurrentXunKey(current.time)}:${current.time.slotIndex}:${existingCount + 1}`,
+              time: current.time,
+            });
+            result = {
+              success: true,
+              message: `已添入作品：${instance.name}。`,
+              instance,
+            };
+            return {
+              craftWorksProgress: {
+                activeWorks: {
+                  ...current.craftWorksProgress.activeWorks,
+                  [instance.instanceId]: instance,
+                },
+              },
+            };
+          } catch (error) {
+            result = {
+              success: false,
+              message: error instanceof Error ? error.message : '这件作品暂时无法开始。',
+            };
+            return current;
+          }
+        });
+        return result;
+      },
+      advanceCraftWork: (instanceId) => {
+        let result: { success: boolean; message: string; resolution?: CraftWorkAdvanceResolution } = {
+          success: false,
+          message: '这件作品已经不在进行中。',
+        };
+        set((current) => {
+          const instance = current.craftWorksProgress.activeWorks[instanceId];
+          if (!instance) {
+            return current;
+          }
+          const resolution = resolveCraftWorkAdvance({
+            instance,
+            state: current.state,
+            time: current.time,
+            seed: `${current.state.routeId}:${getCurrentXunKey(current.time)}:${current.time.slotIndex}`,
+          });
+          const nextActiveWorks = { ...current.craftWorksProgress.activeWorks };
+          if (resolution.completed) {
+            delete nextActiveWorks[instanceId];
+          } else if (resolution.next) {
+            nextActiveWorks[instanceId] = resolution.next;
+          }
+
+          let nextInventory = current.inventory;
+          const completedItem = resolution.completedItem;
+          if (completedItem) {
+            const existingIndex = current.inventory.findIndex((entry) => entry.itemId === completedItem.itemId);
+            nextInventory =
+              existingIndex === -1
+                ? [...current.inventory, completedItem]
+                : current.inventory.map((entry, index) =>
+                    index === existingIndex
+                      ? {
+                          ...entry,
+                          quantity: entry.quantity + 1,
+                        }
+                      : entry,
+                  );
+          }
+
+          result = {
+            success: true,
+            message: resolution.completed
+              ? `${resolution.previous.name}已经完成，收入背包。`
+              : `${resolution.previous.name}进度提升到${resolution.next?.progressPercent ?? resolution.previous.progressPercent}%。`,
+            resolution,
+          };
+
+          return {
+            craftWorksProgress: {
+              activeWorks: nextActiveWorks,
+            },
+            inventory: nextInventory,
+            numericFeedbackSignal: resolution.completedItem
+              ? {
+                  sequence: current.numericFeedbackSignal.sequence + 1,
+                  bucket: 'chamber-action',
+                }
+              : current.numericFeedbackSignal,
+          };
+        });
+        return result;
+      },
       patchTempleProgress: (patch) =>
         set((current) => ({
           templeProgress: {
@@ -1912,6 +2025,8 @@ export const useGameFlowStore = create<GameFlowStore>()(
             },
           };
         });
+        get().advanceTime(1);
+        set({ activeMapLocationEntryTime: undefined });
         return result;
       },
       resolveNpcActivityEntry: (entryId) =>
@@ -3175,7 +3290,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
           }
 
           const resolvedResult =
-            event.result ?? resolveYangxinVerdictResult(event, targetCase, event.selectedChoiceId ?? 'accept');
+            event.result ?? resolveYangxinVerdictResult(event, targetCase, event.selectedChoiceId ?? 'state-facts');
           const resolvedEvent: YangxinVerdictEventState = {
             ...event,
             stage: 'done',

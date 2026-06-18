@@ -8,7 +8,7 @@ export type ActivityId =
   | '练习音律'
   | '训练舞技'
   | '研读诗书'
-  | '女红刺绣'
+  | '刺绣'
   | '请平安脉'
   | '殿内休息'
   | '离开寝居';
@@ -113,9 +113,6 @@ export type PalaceStrifeSuspectSubjectType = 'player' | 'consort';
 export type YangxinVerdictEventStage = 'summon' | 'statements' | 'player-choice' | 'verdict' | 'done';
 export type YangxinVerdictEventSourceType = 'palace-strife' | 'npc-event';
 export type YangxinVerdictChoiceId =
-  | 'argue'
-  | 'plead'
-  | 'accept'
   | 'self-defend'
   | 'self-doubt'
   | 'self-plead'
@@ -529,6 +526,8 @@ export interface BondInteractionOption {
 
 export type InventoryItemCategory = 'gift' | 'food' | 'medicine' | 'rare' | 'music-score';
 export type InventoryItemRarity = 'green' | 'blue' | 'purple' | 'red';
+export type CraftWorkType = 'embroidery' | 'painting' | 'incense';
+export type CraftWorkQuality = 'rough' | 'steady' | 'fine';
 
 export interface InventoryItem {
   id?: string;
@@ -762,6 +761,24 @@ export interface PalaceBanquetProgressState {
   lastRegistrationNoticeSeasonKey?: string;
   lastResolvedSeasonKey?: string;
   lastResult?: PalaceBanquetResultState;
+}
+
+export interface CraftWorkInstanceState {
+  instanceId: string;
+  workId: string;
+  type: CraftWorkType;
+  name: string;
+  rarity: InventoryItemRarity;
+  progressPercent: number;
+  actionCount: number;
+  qualityScore: number;
+  quality?: CraftWorkQuality;
+  startedAt: PalaceTimeState;
+  lastWorkedAt?: PalaceTimeState;
+}
+
+export interface CraftWorksProgressState {
+  activeWorks: Record<string, CraftWorkInstanceState>;
 }
 
 export interface ResourceMappingEntry {

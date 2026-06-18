@@ -1,6 +1,6 @@
 minInterest,maxInterest,emperorMoodDelta,favorDelta,trueHeartDelta,prestigeDelta,notes
 0,39,-3,-2,-1,0,兴致低落
-40,69,3,2,1,0,小成
-70,89,5,4,2,0,中成
-90,99,7,6,4,0,大成
+40,69,3,2,1,1,小成
+70,89,5,4,2,2,中成
+90,99,7,6,4,5,大成
 100,100,10,8,6,10,极佳

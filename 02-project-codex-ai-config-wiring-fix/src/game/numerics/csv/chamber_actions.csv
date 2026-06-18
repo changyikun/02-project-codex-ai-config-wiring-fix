@@ -1,10 +1,10 @@
 id,label,summary,timeCost,staminaCost,statDeltas,stressDelta,favorDelta,description
-study,诵读经典,静心温书,1,1,poetry:2,,,寝殿读书行动
-painting,泼墨作画,铺纸试墨,1,1,painting:2,,,寝殿作画行动
-music,习舞奏乐,校音习舞,1,2,talent:2|temperament:3|appearance:3,,,寝殿乐理行动
-embroidery,镂月裁云,理线补绣,1,1,embroidery:2,,,寝殿女红行动
-incense,调制香薰,辨香调方,1,1,medicine:2,,,寝殿药理行动
-pulse,请平安脉,请医问诊,1,0,health:3,-1,,寝殿请脉行动
-nap,殿内小酣,闭目养神,1,-3,,,,寝殿恢复体力行动
+study,诵读经典,静心温书,1,2,poetry:1|politics:1,,,寝殿读书行动
+painting,泼墨作画,铺纸试墨,1,3,painting:1,,,寝殿作画行动
+music,习舞奏乐,校音习舞,1,2,talent:1|temperament:1,,,寝殿乐理行动
+embroidery,镂月裁云,理线补绣,1,3,embroidery:1,,,寝殿刺绣行动
+incense,调制香薰,辨香调方,1,3,appearance:1,,,寝殿调香行动
+pulse,请平安脉,请医问诊,1,0,health:5,,,寝殿请脉行动
+nap,殿内小憩,闭目养神,1,-3,,-1,,寝殿恢复体力行动
 explore,外出探索,前往宫廷地图,0,0,,,,进入地图不消耗体力
 end-xun,结束本旬,推进至下一旬,0,0,,,,手动结束本旬

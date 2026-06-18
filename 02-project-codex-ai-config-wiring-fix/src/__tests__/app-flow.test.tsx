@@ -104,6 +104,9 @@ const resetFlowStore = () => {
       submissionCount: 0,
       lastRegistrationNoticeSeasonKey: '1-3-1-palace-banquet',
     },
+    craftWorksProgress: {
+      activeWorks: {},
+    },
     templeProgress: {
       worshipCount: 0,
       prayerCount: 0,
@@ -158,6 +161,16 @@ const clickDialogueOnce = async () => {
   expect(dialogueContent).toBeInTheDocument();
   fireEvent.click(dialogueContent!);
   await Promise.resolve();
+};
+
+const advanceFirstPaintingWork = async () => {
+  const craftPanel = await screen.findByLabelText('字画制作面板');
+  fireEvent.click(within(craftPanel).getByRole('button', { name: /添加作品/ }));
+  fireEvent.click(await within(craftPanel).findByRole('button', { name: /寒梅小轴/ }));
+  await waitFor(() => {
+    expect(within(craftPanel).getByText(/完成度 0%/)).toBeInTheDocument();
+  });
+  fireEvent.click(within(craftPanel).getByRole('button', { name: /本次推进这件作品/ }));
 };
 
 const dismissPalaceBanquetRegistrationNoticeIfPresent = async () => {
@@ -1444,6 +1457,52 @@ describe('App 主流程切换', () => {
     expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined();
   });
 
+  it('进出普通地点只切换场景，不推进时辰', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'map-main',
+      scene: 'map',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      state: {
+        ...state.state,
+        residenceName: '椒房殿',
+        flags: {
+          ...state.state.flags,
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 0,
+        slot: '清晨',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '御膳房' }));
+    fireEvent.click(await screen.findByRole('button', { name: '进入此处' }));
+
+    await waitFor(() => {
+      expect(useGameFlowStore.getState().activeMapLocation).toBe('御膳房');
+      expect(useGameFlowStore.getState().currentView).toBe('bedchamber');
+    });
+    expect(useGameFlowStore.getState().time.slot).toBe('清晨');
+    expect(screen.getByText('1年1月1旬（清晨）')).toBeInTheDocument();
+
+    const sidebar = await screen.findByRole('navigation', { name: '寝殿左侧功能栏' });
+    fireEvent.click(within(sidebar).getByRole('button', { name: '外出' }));
+
+    expect(useGameFlowStore.getState().currentView).toBe('map-main');
+    await waitFor(() => expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined());
+    expect(useGameFlowStore.getState().time.slot).toBe('清晨');
+  });
+
   it('后宫侧栏外出返回地图，回宫才返回寝殿', async () => {
     const defaultFavorTier = getFavorTierByValue(50);
     useGameFlowStore.setState((state) => ({
@@ -1732,10 +1791,10 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '泼墨作画' }));
+    fireEvent.click(screen.getByRole('button', { name: '诵读经典' }));
 
     const actionDialogue = await screen.findByLabelText('寝殿对白');
-    expect(within(actionDialogue).getByText(/泼墨作画告一段落/)).toBeInTheDocument();
+    expect(within(actionDialogue).getByText(/诵读经典告一段落/)).toBeInTheDocument();
     const flowAfterFirstAction = useGameFlowStore.getState();
 
     fireEvent.click(screen.getByRole('button', { name: '诵读经典' }));
@@ -1745,7 +1804,7 @@ describe('App 主流程切换', () => {
     expect(flowAfterBlockedClicks.time.slotIndex).toBe(flowAfterFirstAction.time.slotIndex);
     expect(flowAfterBlockedClicks.state.stamina).toBe(flowAfterFirstAction.state.stamina);
     expect(flowAfterBlockedClicks.activeChamberPanel).toBe('main');
-    expect(within(actionDialogue).getByText(/泼墨作画告一段落/)).toBeInTheDocument();
+    expect(within(actionDialogue).getByText(/诵读经典告一段落/)).toBeInTheDocument();
   });
 
   it('地图剧情对白未收起时会屏蔽地图侧栏和热点点击', async () => {
@@ -1830,7 +1889,7 @@ describe('App 主流程切换', () => {
     expect(useGameFlowStore.getState().lastSeenSettlementReportId).toBe('settlement-map-1');
   });
 
-  it('普通外出行动推进到深夜时仍允许进入最后一个行动时段', async () => {
+  it('普通地点内行动推进到深夜时仍允许进入最后一个行动时段', async () => {
     useGameFlowStore.setState((state) => ({
       ...state,
       currentView: 'map-main',
@@ -1859,15 +1918,28 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: '御花园' }));
+    fireEvent.click(await screen.findByRole('button', { name: '妙音堂' }));
     fireEvent.click(await screen.findByRole('button', { name: '进入此处' }));
 
     await waitFor(() => {
       const flow = useGameFlowStore.getState();
       expect(flow.currentView).toBe('bedchamber');
       expect(flow.activeChamberPanel).toBe('main');
-      expect(flow.activeMapLocation).toBe('御花园');
+      expect(flow.activeMapLocation).toBe('妙音堂');
       expect(flow.state.stamina).toBe(STAMINA_INITIAL_PER_XUN);
+      expect(flow.time).toMatchObject({
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 5,
+        slot: '夜晚',
+      });
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: '听曲' }));
+
+    await waitFor(() => {
+      const flow = useGameFlowStore.getState();
       expect(flow.time).toMatchObject({
         year: 1,
         month: 1,
@@ -1923,8 +1995,18 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: '御花园' }));
+    fireEvent.click(await screen.findByRole('button', { name: '妙音堂' }));
     fireEvent.click(await screen.findByRole('button', { name: '进入此处' }));
+
+    await waitFor(() => {
+      expect(useGameFlowStore.getState().activeMapLocation).toBe('妙音堂');
+      expect(useGameFlowStore.getState().time.slot).toBe('深夜');
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: '听曲' }));
+
+    expect(await screen.findByLabelText('妙音堂行动结果')).toBeInTheDocument();
+    await clickDialogueAdvance();
 
     const reminder = await screen.findByLabelText('寝殿对白');
     expect(within(reminder).getByText(/夜已经深了/)).toBeInTheDocument();
@@ -1962,7 +2044,7 @@ describe('App 主流程切换', () => {
       },
       state: {
         ...state.state,
-        stamina: 1,
+        stamina: 2,
         flags: {
           ...state.state.flags,
           bedchamberIntroShown: true,
@@ -2075,12 +2157,13 @@ describe('App 主流程切换', () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: '泼墨作画' }));
+    await advanceFirstPaintingWork();
 
     const toastLayer = await screen.findByLabelText('数值变化提示');
-    expect(within(toastLayer).queryByText('体力 -1')).not.toBeInTheDocument();
-    expect(within(toastLayer).getByText('丹青 +2')).toBeInTheDocument();
+    expect(within(toastLayer).queryByText('体力 -3')).not.toBeInTheDocument();
+    expect(within(toastLayer).getByText('丹青 +1')).toBeInTheDocument();
     expect(within(toastLayer).getAllByRole('status').map((toast) => toast.textContent?.trim())).toEqual(
-      expect.arrayContaining(['丹青 +2']),
+      expect.arrayContaining(['丹青 +1']),
     );
 
     const targetConsort = useGameFlowStore.getState().concubines[0];
@@ -2393,6 +2476,13 @@ describe('App 主流程切换', () => {
     expect(await screen.findByLabelText('杜娘 宫门对话')).toBeInTheDocument();
     expect(screen.getByLabelText('杜娘常驻立绘')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '杜娘' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '购买' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/交易即时结算/)).not.toBeInTheDocument();
+
+    await clickDialogueAdvance();
+    await clickDialogueAdvance();
+    expect(await screen.findByLabelText('杜娘 宫门对话')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '购买' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '购买' }));
     expect(await screen.findByRole('dialog', { name: '杜娘购买弹窗' })).toBeInTheDocument();
@@ -2477,6 +2567,8 @@ describe('App 主流程切换', () => {
     fireEvent.click(await screen.findByRole('button', { name: '进入此处' }));
     fireEvent.click(await screen.findByRole('button', { name: '杜娘' }));
 
+    await clickDialogueAdvance();
+    await clickDialogueAdvance();
     const smallTalkButton = await screen.findByRole('button', { name: '闲谈' });
     fireEvent.click(smallTalkButton);
 
@@ -2860,6 +2952,9 @@ describe('App 主流程切换', () => {
     fireEvent.click(screen.getByRole('button', { name: '阿翎' }));
 
     expect(await screen.findByLabelText('阿翎 宫门对话')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '叙旧' })).not.toBeInTheDocument();
+    await clickDialogueAdvance();
+    await clickDialogueAdvance();
     expect(screen.getByRole('button', { name: '叙旧' })).toBeInTheDocument();
   });
 
@@ -5460,6 +5555,64 @@ describe('App 主流程切换', () => {
     expect(onLeave).not.toHaveBeenCalled();
   });
 
+  it('正阳门等待下朝会推进时辰', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'map-main',
+      scene: 'map',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      routeId: 'lanyinxuguo',
+      mapEventText: '',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        stamina: STAMINA_INITIAL_PER_XUN,
+        prestige: 2500,
+        favor: 50,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 0,
+        slot: '清晨',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '正阳门' }));
+    fireEvent.click(await screen.findByRole('button', { name: '进入此处' }));
+    expect(await screen.findByLabelText('寝殿对白')).toHaveTextContent(/正阳门/);
+    await clickDialogueAdvance();
+
+    fireEvent.click(await screen.findByRole('button', { name: '等待下朝' }));
+    expect(await screen.findByLabelText('皇帝外景事件通报')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(useGameFlowStore.getState().time.slot).toBe('上午');
+      expect(useGameFlowStore.getState().activeMapLocationEntryTime).toBeUndefined();
+    });
+  });
+
   it('大地图地点弹窗不展示妃嫔信息，进入宫门后才显示可交互妃嫔', async () => {
     const defaultFavorTier = getFavorTierByValue(50);
     const concubines = buildInitialConcubineRoster('lanyinxuguo');
@@ -6501,7 +6654,7 @@ describe('App 主流程切换', () => {
 
     await waitFor(() => {
       expect(screen.getByText('1年1月1旬（上午）')).toBeInTheDocument();
-      expect(screen.getByText(`体力：${STAMINA_INITIAL_PER_XUN - 1}`)).toBeInTheDocument();
+      expect(screen.getByText(`体力：${STAMINA_INITIAL_PER_XUN - 2}`)).toBeInTheDocument();
     });
     await clickDialogueAdvance();
 
@@ -6598,10 +6751,10 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '殿内小酣' }));
+    fireEvent.click(screen.getByRole('button', { name: '殿内小憩' }));
 
     const actionDialogue = await screen.findByLabelText('寝殿对白');
-    expect(within(actionDialogue).getByText(/殿内小酣告一段落/)).toBeInTheDocument();
+    expect(within(actionDialogue).getByText(/殿内小憩告一段落/)).toBeInTheDocument();
     expect(screen.queryByLabelText('夜晚侍寝通报')).not.toBeInTheDocument();
 
     await clickDialogueAdvance();
@@ -6616,7 +6769,7 @@ describe('App 主流程切换', () => {
     await waitFor(() => {
       expect(screen.getByText('1年1月1旬（夜晚）')).toBeInTheDocument();
       expect(screen.queryByLabelText('一夜过去')).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: '殿内小酣' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '殿内小憩' })).toBeInTheDocument();
     });
   }, 10000);
 
@@ -6675,7 +6828,7 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '殿内小酣' }));
+    fireEvent.click(screen.getByRole('button', { name: '殿内小憩' }));
     await screen.findByLabelText('寝殿对白');
     await clickDialogueAdvance();
 
@@ -7422,7 +7575,7 @@ describe('App 主流程切换', () => {
     expect(within(reportList).getByText('宫斗案件：本月暂无结案或新调查。')).toBeInTheDocument();
   });
 
-  it('请平安脉不消耗体力，殿内小酣可恢复体力', async () => {
+  it('请平安脉不消耗体力且每旬限一次，殿内小憩可恢复体力', async () => {
     const defaultFavorTier = getFavorTierByValue(50);
     useGameFlowStore.setState((state) => ({
       ...state,
@@ -7473,13 +7626,20 @@ describe('App 主流程切换', () => {
     render(<App />);
 
     expect(await screen.findByRole('button', { name: '诵读经典' })).toBeInTheDocument();
+    const healthBeforePulse = Number(useGameFlowStore.getState().state.stats.health ?? 0);
 
     fireEvent.click(screen.getByRole('button', { name: '请平安脉' }));
 
     await waitFor(() => {
       expect(useGameFlowStore.getState().state.stamina).toBe(STAMINA_INITIAL_PER_XUN);
+      expect(useGameFlowStore.getState().state.stats.health).toBe(healthBeforePulse + 5);
       expect(screen.getByText('1年1月1旬（上午）')).toBeInTheDocument();
     });
+    await clickDialogueAdvance();
+
+    fireEvent.click(screen.getByRole('button', { name: '请平安脉' }));
+    expect(await screen.findByText(/今日已经请过平安脉/)).toBeInTheDocument();
+    expect(useGameFlowStore.getState().time.slot).toBe('上午');
     await clickDialogueAdvance();
 
     fireEvent.click(screen.getByRole('button', { name: '习舞奏乐' }));
@@ -7489,7 +7649,7 @@ describe('App 主流程切换', () => {
     });
     await clickDialogueAdvance();
 
-    fireEvent.click(screen.getByRole('button', { name: '殿内小酣' }));
+    fireEvent.click(screen.getByRole('button', { name: '殿内小憩' }));
 
     await waitFor(() => {
       expect(useGameFlowStore.getState().state.stamina).toBe(STAMINA_INITIAL_PER_XUN + 1);
@@ -7506,13 +7666,66 @@ describe('App 主流程切换', () => {
     await finishOpeningGuide();
 
     fireEvent.click(await screen.findByRole('button', { name: '泼墨作画' }));
+    await advanceFirstPaintingWork();
 
     const chamberDialogue = await screen.findByLabelText('寝殿对白');
     expect(within(chamberDialogue).getByText(/砚/)).toBeInTheDocument();
     expect(within(chamberDialogue).getByText(/泼墨作画/)).toBeInTheDocument();
-    expect(within(chamberDialogue).queryByText(/丹青 \+2/)).not.toBeInTheDocument();
+    expect(within(chamberDialogue).queryByText(/丹青 \+1/)).not.toBeInTheDocument();
     expect(screen.queryByAltText('娇娇')).not.toBeInTheDocument();
     expect(screen.getByText('场景旁白 · 椒房殿')).toBeInTheDocument();
+  });
+
+  it('字画作品只能通过泼墨作画进入对应制作面板', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      state: {
+        ...state.state,
+        stamina: STAMINA_INITIAL_PER_XUN,
+        stats: {
+          ...state.state.stats,
+          painting: 80,
+          poetry: 70,
+        },
+        flags: {
+          ...state.state.flags,
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+          attributeStatsFinalized: true,
+        },
+      },
+      craftWorksProgress: {
+        activeWorks: {},
+      },
+    }));
+
+    render(<App />);
+
+    expect(screen.queryByRole('button', { name: '作品管理' })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: '泼墨作画' }));
+
+    const craftPanel = await screen.findByLabelText('字画制作面板');
+    expect(within(craftPanel).getByRole('heading', { name: '字画制作' })).toBeInTheDocument();
+    expect(within(craftPanel).queryByRole('button', { name: /绣花/ })).not.toBeInTheDocument();
+    expect(within(craftPanel).queryByRole('button', { name: /只练习技艺/ })).not.toBeInTheDocument();
+    expect(within(craftPanel).queryByRole('heading', { name: '已完成库存' })).not.toBeInTheDocument();
+
+    fireEvent.click(within(craftPanel).getByRole('button', { name: /添加作品/ }));
+    fireEvent.click(await within(craftPanel).findByRole('button', { name: /寒梅小轴/ }));
+    expect(useGameFlowStore.getState().craftWorksProgress.activeWorks).not.toEqual({});
+
+    await waitFor(() => {
+      expect(within(craftPanel).getByText(/完成度 0%/)).toBeInTheDocument();
+    });
+    fireEvent.click(within(craftPanel).getByRole('button', { name: /本次推进这件作品/ }));
+    expect(Object.values(useGameFlowStore.getState().craftWorksProgress.activeWorks)[0]?.actionCount).toBe(1);
+    const chamberDialogue = await screen.findByLabelText('寝殿对白');
+    fireEvent.click(within(chamberDialogue).getByLabelText('对话正文，点击翻页'));
+    expect(within(chamberDialogue).getByText(/寒梅小轴完成度/)).toBeInTheDocument();
   });
 
   it('回宫反馈收起后不会覆盖后续寝殿行动剧情', async () => {
@@ -7542,6 +7755,7 @@ describe('App 主流程切换', () => {
     expect(screen.getByText('场景旁白 · 椒房殿')).toBeInTheDocument();
     await clickDialogueAdvance();
     fireEvent.click(await screen.findByRole('button', { name: '泼墨作画' }));
+    await advanceFirstPaintingWork();
 
     const chamberDialogue = await screen.findByLabelText('寝殿对白');
     expect(within(chamberDialogue).getByText(/砚/)).toBeInTheDocument();

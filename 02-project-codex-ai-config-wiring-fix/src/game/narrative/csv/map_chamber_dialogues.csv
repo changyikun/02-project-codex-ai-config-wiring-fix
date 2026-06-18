@@ -16,6 +16,7 @@ id,group,routeId,locationId,actorKey,actionId,variant,order,speakerIdentity,spea
 "xun.transition.end","xun-transition","","","eunuch","end-xun","","1","场景旁白","旬末","","","寝殿","{{currentMonth}}月{{currentXun}}旬将尽，宫门落钥，内侍沿廊传更。旧账合上，新一旬的风声也在夜里慢慢铺开。","","结束本旬"
 "chamber.notice.stamina-block","chamber-notice","","","jiaojiao","stamina-block","","1","贴身宫女","娇娇","jiaojiao","stage","{{residenceName}}","娘娘眼下体力不足，还是先歇一歇，再做这些事。","","体力不足拦截"
 "chamber.notice.reserved-tool","chamber-notice","","","jiaojiao","reserved-tool","","2","贴身宫女","娇娇","jiaojiao","stage","{{residenceName}}","{{toolLabel}}入口已预留，后续会补全对应功能。","","预留入口提示"
+"chamber.notice.pulse-used","chamber-notice","","","jiaojiao","pulse-used","","3","贴身宫女","娇娇","jiaojiao","stage","{{residenceName}}","娘娘今日已经请过平安脉了。太医嘱咐脉象不宜频看，若再劳师动众，反叫人疑心。","","平安脉一日一次拦截"
 "overnight.reminder.map.stamina","overnight-reminder","","","jiaojiao","sleep","map-stamina","1","贴身宫女","娇娇","jiaojiao","stage","{{residenceName}}","娘娘，今日体力已经尽了。奴婢陪您回宫歇下，余下的事明儿清晨再听回禀。","","地图体力归零就寝提醒"
 "overnight.reminder.map.deep-night","overnight-reminder","","","jiaojiao","sleep","map-deep-night","2","贴身宫女","娇娇","jiaojiao","stage","{{residenceName}}","娘娘，夜已经深了。奴婢陪您回宫歇下，等明儿清晨再听各处回禀。","","地图深夜就寝提醒"
 "overnight.reminder.chamber.stamina","overnight-reminder","","","jiaojiao","sleep","chamber-stamina","3","贴身宫女","娇娇","jiaojiao","stage","{{residenceName}}","娘娘，今日体力已经尽了。奴婢替您收拾灯烛，先歇下吧。","","寝殿体力归零就寝提醒"

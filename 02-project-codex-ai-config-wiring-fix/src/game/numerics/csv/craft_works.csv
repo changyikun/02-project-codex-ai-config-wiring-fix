@@ -1,0 +1,10 @@
+workId,type,name,rarity,requiredStatKey,supportStatKey,difficulty,basePrice,baseFavorDelta,description
+embroidered-sachet,embroidery,缠枝香囊,green,embroidery,temperament,35,60,4,纹样素净的随身香囊，胜在针脚干净，适合作日常人情。
+brocade-handkerchief,embroidery,霁月绣帕,blue,embroidery,temperament,52,110,7,帕角以银线压出月影，若绣得稳，最显心思细密。
+hundred-butterfly-fan,embroidery,百蝶团扇,purple,embroidery,temperament,72,220,11,团扇上百蝶错落，针脚繁复，成品最适合送给讲究排场的人。
+plum-blossom-scroll,painting,寒梅小轴,green,painting,poetry,38,70,4,寒梅一枝，重在留白与骨气，题赠时不显俗气。
+pine-wind-scroll,painting,松风小幅,blue,painting,poetry,55,135,8,松下风声入纸，若笔势稳，便有清雅之气。
+running-script-copybook,painting,行草小帖,purple,painting,poetry,78,260,12,行草最见心气与腕力，写得好时极易让懂字的人多看一眼。
+clear-heart-incense,incense,清心香饼,green,medicine,temperament,32,55,3,气味清浅，适合日常赠礼，也不容易出错。
+aloeswood-incense-pill,incense,沉水香丸,blue,medicine,temperament,58,150,8,沉水香气厚重，调和得当时最显稳妥。
+chanmeng-incense,incense,缠梦香,purple,medicine,temperament,82,310,13,香气幽深难驯，若制得精妙，足以成为一件稀罕礼物。

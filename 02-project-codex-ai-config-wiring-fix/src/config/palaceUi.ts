@@ -126,7 +126,7 @@ export const CHAMBER_HOME_ACTION_LAYOUTS: readonly ChamberSceneButtonLayout[] = 
   { id: 'incense', label: '调制香薰', top: '50.0%', left: '37.8%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
   { id: 'study', label: '诵读经典', top: '36.8%', left: '47.1%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
   { id: 'embroidery', label: '镂月裁云', top: '50.0%', left: '58.4%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
-  { id: 'nap', label: '殿内小酣', top: '24.6%', left: '65.1%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
+  { id: 'nap', label: '殿内小憩', top: '24.6%', left: '65.1%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
   { id: 'music', label: '习舞奏乐', top: '41.8%', left: '73.8%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
   { id: 'painting', label: '泼墨作画', top: '51.2%', left: '83.3%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
   { id: 'pulse', label: '请平安脉', top: '67.6%', left: '92.7%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
@@ -144,5 +144,5 @@ export const JIAOJIAO_COMMAND_LAYOUTS: readonly ChamberSceneButtonLayout[] = [
   { id: '调整用度', label: '调整用度', top: '54.0%', left: '58.9%', width: '13.0%', height: '7.4%', orientation: 'horizontal' },
   { id: '皇嗣管理', label: '皇嗣管理', top: '62.7%', left: '44.3%', width: '13.0%', height: '7.4%', orientation: 'horizontal' },
   { id: '其他信息', label: '其他信息', top: '62.7%', left: '58.9%', width: '13.0%', height: '7.4%', orientation: 'horizontal' },
-  { id: 'dismiss', label: '无事，且先退下吧', top: '64.2%', left: '74.5%', width: '17.0%', height: '7.0%', orientation: 'horizontal' },
+  { id: 'dismiss', label: '无事，且先退下吧', top: '72.0%', left: '72.0%', width: '17.0%', height: '7.0%', orientation: 'horizontal' },
 ] as const;

@@ -2,6 +2,7 @@ import type {
   BondProfileState,
   ConcubineProfile,
   ConsortInteractionProgress,
+  CraftWorksProgressState,
   GameNumericsState,
   HiddenStatsState,
   EmperorInteractionProgressState,
@@ -48,6 +49,7 @@ export interface SaveGameV1Source {
   medicalProgress: MedicalProgressState;
   musicHallProgress: MusicHallProgressState;
   palaceBanquetProgress: PalaceBanquetProgressState;
+  craftWorksProgress: CraftWorksProgressState;
   templeProgress: TempleProgressState;
   emperorInteraction: EmperorInteractionProgressState;
   nightlyService: NightlyServiceState;
@@ -100,6 +102,7 @@ export interface SaveGameV1 {
     medical: MedicalProgressState;
     musicHall: MusicHallProgressState;
     palaceBanquet: PalaceBanquetProgressState;
+    craftWorks: CraftWorksProgressState;
     temple: TempleProgressState;
     emperorInteraction: EmperorInteractionProgressState;
     nightlyService: NightlyServiceState;
@@ -217,6 +220,7 @@ export const buildSaveGameV1 = (source: SaveGameV1Source, savedAt = new Date().t
     medical: source.medicalProgress,
     musicHall: source.musicHallProgress,
     palaceBanquet: source.palaceBanquetProgress,
+    craftWorks: source.craftWorksProgress,
     temple: source.templeProgress,
     emperorInteraction: source.emperorInteraction,
     nightlyService: source.nightlyService,

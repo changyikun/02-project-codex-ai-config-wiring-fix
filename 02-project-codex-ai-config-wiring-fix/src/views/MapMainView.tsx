@@ -29,7 +29,7 @@ import {
   type YingluoyetingMapEvent,
 } from '../game/lib/yingluoyetingStoryRuntime';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
-import type { AffairSourceLabel, PalaceTimeState } from '../game/types';
+import type { AffairSourceLabel } from '../game/types';
 import { renderNarrativeEntry } from '../game/narrative/narrativeCatalog';
 import { narrativeEntryToDialogueFields, narrativeEntryToPresentation } from '../game/narrative/narrativeDialogueAdapter';
 
@@ -38,10 +38,12 @@ const duNiangLine1 = renderNarrativeEntry('gongmen.duniang.line1');
 const duNiangLine2 = renderNarrativeEntry('gongmen.duniang.line2');
 const alingLine1 = renderNarrativeEntry('gongmen.aling.line1');
 const alingLine2 = renderNarrativeEntry('gongmen.aling.line2');
+const alingIdleLine = renderNarrativeEntry('gongmen.aling.idle');
 const duNiangLine1Fields = narrativeEntryToDialogueFields(duNiangLine1);
 const duNiangLine2Fields = narrativeEntryToDialogueFields(duNiangLine2);
 const alingLine1Fields = narrativeEntryToDialogueFields(alingLine1);
 const alingLine2Fields = narrativeEntryToDialogueFields(alingLine2);
+const alingIdleFields = narrativeEntryToDialogueFields(alingIdleLine);
 const duNiangSmallTalkEntries = [
   renderNarrativeEntry('gongmen.duniang.line2'),
   renderNarrativeEntry('gongmen.duniang.line3'),
@@ -166,9 +168,7 @@ export function MapMainView() {
     setMapEventText,
     setActiveAffairsSource,
     patchState,
-    advanceTime,
     enterMainChamber,
-    requestOvernightReturn,
     buyInventoryItem,
     grantInventoryItem,
     sellInventoryItem,
@@ -298,6 +298,9 @@ export function MapMainView() {
     [activeGongmenConsortAudience, allConsorts],
   );
   const showGongmenSelector = gongmenSceneActive && !activeNpcProfile && !activeGongmenConsortAudience;
+  const showGongmenNpcActions = Boolean(
+    activeNpcProfile && (gongmenFeedback || gongmenDialogueStep >= activeNpcProfile.dialogueLines.length),
+  );
   const gongmenDialogue = useMemo(() => {
     if (gongmenFeedback) {
       return gongmenFeedback;
@@ -444,31 +447,6 @@ export function MapMainView() {
     yingluoyetingResultText,
   ]);
 
-  const shouldReturnHomeAfterMapAction = (
-    previousTime: PalaceTimeState,
-    nextStamina: number,
-  ) => {
-    const actionUsedDeepNight = previousTime.slot === '深夜';
-    const staminaDepleted = nextStamina <= 0;
-
-    if (!actionUsedDeepNight && !staminaDepleted) {
-      return false;
-    }
-
-    setSelectedHotspotId(null);
-    setMapEventText('');
-    resetYingluoyetingEvent();
-    resetGongmenScene();
-    setActiveMapUtilityPanel(null);
-
-    requestOvernightReturn({
-      origin: 'map',
-      reason: staminaDepleted ? 'stamina' : 'deep-night',
-    });
-    enterMainChamber();
-    return true;
-  };
-
   const finishGuide = () => {
     const shouldEnterOpeningHaremFirstMeet = Boolean(
       state.routeId === 'yingluoyeting' && state.flags[YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending],
@@ -570,7 +548,6 @@ export function MapMainView() {
             })
           : undefined;
 
-      advanceTime(1);
       setSelectedHotspotId(null);
       setMapEventText('');
       setActiveYingluoyetingEvent(chenFirstMeetEvent ?? yingluoyetingEvent);
@@ -582,13 +559,6 @@ export function MapMainView() {
     }
 
     const previousTime = time;
-    const nextStamina = state.stamina;
-    if (previousTime.slot !== '深夜') {
-      advanceTime(1);
-    }
-    if (shouldReturnHomeAfterMapAction(previousTime, nextStamina)) {
-      return;
-    }
     setMapEventText('');
 
     if (selectedHotspot.id === '宫门') {
@@ -624,6 +594,16 @@ export function MapMainView() {
     setActiveGongmenConsortAudience(null);
   };
 
+  const handleCloseGongmenNpc = () => {
+    gongmenAiRequestRef.current += 1;
+    setActiveGongmenNpc(null);
+    setActiveTradeMode(null);
+    setGongmenFeedback('');
+    setGongmenDialogueStep(0);
+    setGongmenAiBusy(false);
+    setGongmenAiHistory([]);
+  };
+
   const handleStartGongmenConsortAudience = (entryId: string) => {
     const activity = gongmenNpcActivities.find((item) => item.entry.id === entryId);
     if (!activity || activity.entry.resolved) {
@@ -646,14 +626,6 @@ export function MapMainView() {
       return;
     }
 
-    const previousTime = time;
-    const nextStamina = state.stamina;
-    if (previousTime.slot !== '深夜') {
-      advanceTime(1);
-    }
-    if (shouldReturnHomeAfterMapAction(previousTime, nextStamina)) {
-      return;
-    }
     setSelectedHotspotId(null);
     setMapEventText('');
     resetYingluoyetingEvent();
@@ -1028,42 +1000,48 @@ export function MapMainView() {
                     setGongmenDialogueStep((current) => current + 1);
                     return;
                   }
-                  setActiveGongmenNpc(null);
-                  setActiveTradeMode(null);
-                  setGongmenFeedback('');
-                  setGongmenDialogueStep(0);
+                  setGongmenDialogueStep(activeNpcProfile.dialogueLines.length);
                 }}
               />
             </section>
 
-            <aside className="map-main__gongmen-actions" aria-label={`${activeNpcProfile.name} 操作栏`}>
-	              {activeGongmenNpc === 'du-niang' ? (
-	                <>
-	                  <button type="button" onClick={handleDuNiangSmallTalk} aria-busy={gongmenAiBusy}>
-	                    闲谈
-	                  </button>
-	                  <button type="button" className={activeTradeMode === 'buy' ? 'is-active' : ''} onClick={() => handleTradeModeChange('buy')}>
-	                    购买
-	                  </button>
-	                  <button type="button" className={activeTradeMode === 'sell' ? 'is-active' : ''} onClick={() => handleTradeModeChange('sell')}>
-                    售卖
-                  </button>
-                  <p>杜娘负责宫门商店与旧物回收，交易即时结算，不额外消耗时辰与体力。</p>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setGongmenFeedback('阿翎的宫门支线已挂上入口，后续具体对话与长期推进会继续接在这里。')
-                    }
-                  >
-                    叙旧
-                  </button>
-                  <p>阿翎仅在尘缘夙错线出现，当前先保留宫门见面入口与立绘展示。</p>
-                </>
-              )}
-            </aside>
+            {showGongmenNpcActions ? (
+              <aside className="map-main__gongmen-actions" aria-label={`${activeNpcProfile.name} 操作栏`}>
+                {activeGongmenNpc === 'du-niang' ? (
+                  <>
+                    <button type="button" onClick={handleDuNiangSmallTalk} aria-busy={gongmenAiBusy}>
+                      闲谈
+                    </button>
+                    <button
+                      type="button"
+                      className={activeTradeMode === 'buy' ? 'is-active' : ''}
+                      onClick={() => handleTradeModeChange('buy')}
+                    >
+                      购买
+                    </button>
+                    <button
+                      type="button"
+                      className={activeTradeMode === 'sell' ? 'is-active' : ''}
+                      onClick={() => handleTradeModeChange('sell')}
+                    >
+                      售卖
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setGongmenFeedback(alingIdleFields.text)}
+                    >
+                      叙旧
+                    </button>
+                  </>
+                )}
+                <button type="button" onClick={handleCloseGongmenNpc}>
+                  返回宫门
+                </button>
+              </aside>
+            ) : null}
 
             {activeGongmenNpc === 'du-niang' && activeTradeMode ? (
               <section className="map-main__trade-modal" role="dialog" aria-label={activeTradeMode === 'buy' ? '杜娘购买弹窗' : '杜娘售卖弹窗'}>

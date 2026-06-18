@@ -22,6 +22,7 @@ import {
   resolveGentleBranchFormulaVariables,
   resolveNightlyFormulaIdForAction,
 } from '../numerics/formulas/nightlyServiceFormulas';
+import { getConcubineDisplayRankText, getConcubineRankWeightByLabel } from '../data/concubineRoster';
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, Math.round(value)));
 
@@ -132,11 +133,23 @@ const getThirdPartyFavorMagnitude = (seed: string): number => {
   });
 };
 
+const getOtherConsortPraisePrestigeDelta = (consort: ConcubineProfile): number => {
+  const rankWeight = getConcubineRankWeightByLabel(getConcubineDisplayRankText(consort));
+  const base = getNightlyRuleValue('other_consort_praise_prestige_base');
+  const baselineWeight = getNightlyRuleValue('other_consort_praise_prestige_baseline_weight');
+  const weightStep = Math.max(1, getNightlyRuleValue('other_consort_praise_prestige_rank_weight_step'));
+  return clamp(
+    base + Math.floor(Math.max(0, rankWeight - baselineWeight) / weightStep),
+    getNightlyRuleValue('other_consort_praise_prestige_min'),
+    getNightlyRuleValue('other_consort_praise_prestige_max'),
+  );
+};
+
 const resolveOtherConsortPlayerFavorEffect = (
   consort: ConcubineProfile,
   roll: number,
   seed: string,
-): { playerFavorDelta: number; line?: string } => {
+): { playerFavorDelta: number; playerPrestigeDelta: number; line?: string } => {
   const relationToPlayer = Number(consort.stats.relationToPlayer ?? 0);
   const consortLabel = `${consort.rankLabel}${consort.name}`;
 
@@ -145,8 +158,10 @@ const resolveOtherConsortPlayerFavorEffect = (
     roll <= getNightlyRuleValue('other_consort_praise_roll_chance')
   ) {
     const playerFavorDelta = getThirdPartyFavorMagnitude(`${seed}:other-consort-praise:${consort.id}`);
+    const playerPrestigeDelta = getOtherConsortPraisePrestigeDelta(consort);
     return {
       playerFavorDelta,
+      playerPrestigeDelta,
       line: `${consortLabel}侍寝后替玩家美言，皇帝对娘娘的态度略有松动。`,
     };
   }
@@ -158,12 +173,16 @@ const resolveOtherConsortPlayerFavorEffect = (
     const playerFavorDelta = -getThirdPartyFavorMagnitude(`${seed}:other-consort-smear:${consort.id}`);
     return {
       playerFavorDelta,
+      playerPrestigeDelta: 0,
       line: `${consortLabel}侍寝后向皇帝抹黑玩家，娘娘在御前的处境多了几分阴影。`,
     };
   }
 
-  return { playerFavorDelta: 0 };
+  return { playerFavorDelta: 0, playerPrestigeDelta: 0 };
 };
+
+const getPlayerServiceSummonPrestigeDelta = (outcome: NightlyServiceOutcome): number =>
+  outcome === 'player-service' ? getNightlyRuleValue('player_service_summon_prestige_delta') : 0;
 
 const resolveGentleThirdPartyEffect = (
   choices: NightlyServiceInteractionChoice[],
@@ -466,21 +485,24 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
       };
     }
 
+    const outcome = input.player.pregnant ? 'player-companion' : 'player-service';
     const effects = getInterestEffects(interest);
+    const playerServiceSummonPrestigeDelta = getPlayerServiceSummonPrestigeDelta(outcome);
     const lines = [
       `夜里太监来报：养心殿召娘娘侍寝。本次兴致${interest}。`,
+      ...(playerServiceSummonPrestigeDelta > 0 ? ['本次召幸已足够让宫中记上一笔。'] : []),
       '本旬玩家已承宠，侍寝保底值归零。',
     ];
     const report = buildReport({
       routeId: input.routeId,
       timeKey: input.timeKey,
-      outcome: input.player.pregnant ? 'player-companion' : 'player-service',
+      outcome,
       targetId: 'player',
       targetName: input.player.name,
       interest,
       playerFavorDelta: effects.favorDelta,
       playerTrueHeartDelta: effects.trueHeartDelta,
-      playerPrestigeDelta: effects.prestigeDelta,
+      playerPrestigeDelta: effects.prestigeDelta + playerServiceSummonPrestigeDelta,
       emperorMoodDelta: effects.emperorMoodDelta,
       lines,
     });
@@ -492,7 +514,7 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
       effects: {
         playerFavorDelta: effects.favorDelta,
         playerTrueHeartDelta: effects.trueHeartDelta,
-        playerPrestigeDelta: effects.prestigeDelta,
+        playerPrestigeDelta: effects.prestigeDelta + playerServiceSummonPrestigeDelta,
         emperorMoodDelta: effects.emperorMoodDelta,
       },
       report,
@@ -564,7 +586,7 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
     interest,
     playerFavorDelta: playerFavorEffect.playerFavorDelta,
     playerTrueHeartDelta: 0,
-    playerPrestigeDelta: 0,
+    playerPrestigeDelta: playerFavorEffect.playerPrestigeDelta,
     emperorMoodDelta: effects.emperorMoodDelta,
     lines,
   });
@@ -577,7 +599,7 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
     effects: {
       playerFavorDelta: playerFavorEffect.playerFavorDelta,
       playerTrueHeartDelta: 0,
-      playerPrestigeDelta: 0,
+      playerPrestigeDelta: playerFavorEffect.playerPrestigeDelta,
       emperorMoodDelta: effects.emperorMoodDelta,
     },
     report,
@@ -608,10 +630,12 @@ export const resolvePlayerNightlyServiceEvent = (
     getNightlyRuleValue('final_interest_max'),
   );
   const effects = getInterestEffects(finalInterest);
+  const playerServiceSummonPrestigeDelta = getPlayerServiceSummonPrestigeDelta(input.pendingEvent.outcome);
   const thirdPartyEffect = resolveGentleThirdPartyEffect(choices, input.concubines, input.pendingEvent);
   const pregnancy = resolvePlayerServicePregnancy(input.pendingEvent, input.player.stats);
   const lines = [
     `养心殿侍寝已毕。本次兴致${finalInterest}。`,
+    ...(playerServiceSummonPrestigeDelta > 0 ? ['本次召幸已足够让宫中记上一笔。'] : []),
     ...(pregnancy?.succeeded ? ['太医请脉后低声回禀：娘娘脉象有喜，已按例记入内廷医案。'] : []),
     ...(thirdPartyEffect
       ? [
@@ -631,7 +655,7 @@ export const resolvePlayerNightlyServiceEvent = (
     interest: finalInterest,
     playerFavorDelta: effects.favorDelta,
     playerTrueHeartDelta: effects.trueHeartDelta,
-    playerPrestigeDelta: effects.prestigeDelta,
+    playerPrestigeDelta: effects.prestigeDelta + playerServiceSummonPrestigeDelta,
     emperorMoodDelta: effects.emperorMoodDelta,
     lines,
   });
@@ -647,7 +671,7 @@ export const resolvePlayerNightlyServiceEvent = (
     effects: {
       playerFavorDelta: effects.favorDelta,
       playerTrueHeartDelta: effects.trueHeartDelta,
-      playerPrestigeDelta: effects.prestigeDelta,
+      playerPrestigeDelta: effects.prestigeDelta + playerServiceSummonPrestigeDelta,
       emperorMoodDelta: effects.emperorMoodDelta,
     },
     thirdPartyEffect,

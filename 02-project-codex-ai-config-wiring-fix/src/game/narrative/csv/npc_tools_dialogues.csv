@@ -8,3 +8,4 @@ id,group,routeId,locationId,actorKey,actionId,variant,order,speakerIdentity,spea
 "gongmen.duniang.sell","npc-tools","","宫门","du-niang","sell","","7","宫门商贩","杜娘","du-niang","stage","宫门","杜娘垂眼扫过你的背包，等着你开口回收。","","宫门回收"
 "gongmen.aling.line1","npc-tools","chenyuansucuo","宫门","aling","talk","line1","7","异邦旧识","阿翎","aling","stage","宫门","阿翎在宫门旁停了片刻，隔着人声向你低低一笑：“公主还认得我，便说明这宫墙也没有把旧路全堵死。”","","和亲线宫门 NPC"
 "gongmen.aling.line2","npc-tools","chenyuansucuo","宫门","aling","talk","line2","8","异邦旧识","阿翎","aling","stage","宫门","她把袖中短笺往里一收，声音压得更轻：“这里不是故国，话不能说满。公主若要听消息，先得想好听完之后还能不能装作不知道。”","","和亲线宫门 NPC"
+"gongmen.aling.idle","npc-tools","chenyuansucuo","宫门","aling","idle","","9","异邦旧识","阿翎","aling","stage","宫门","阿翎抬眼看向宫门外的长街，语气轻得像风：“公主若还记得旧日的路，便先别急着问出口。这里人多，连沉默也会被人拿去称斤论两。”","","和亲线宫门 NPC"

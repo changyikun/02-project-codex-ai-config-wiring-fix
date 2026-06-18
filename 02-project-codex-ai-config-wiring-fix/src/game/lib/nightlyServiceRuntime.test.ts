@@ -31,6 +31,7 @@ describe('nightly service runtime', () => {
     expect(result.nextPlayerNightFavorGauge).toBe(0);
     expect(result.effects.playerFavorDelta).toBeGreaterThan(0);
     expect(result.effects.playerTrueHeartDelta).toBeGreaterThan(0);
+    expect(result.effects.playerPrestigeDelta).toBe(12);
     expect(result.lines.join(' ')).toContain('养心殿召娘娘侍寝');
     expect(result.lines.join(' ')).not.toContain('宠爱+');
     expect(result.lines.join(' ')).not.toContain('真心+');
@@ -139,6 +140,7 @@ describe('nightly service runtime', () => {
     expect(result.finalInterest).toBe(70);
     expect(result.effects.playerFavorDelta).toBe(4);
     expect(result.effects.playerTrueHeartDelta).toBe(2);
+    expect(result.effects.playerPrestigeDelta).toBe(12);
     expect(result.report.outcome).toBe('player-service');
     expect(result.lines.join(' ')).toContain('侍寝保底值归零');
     expect(result.lines.join(' ')).not.toContain('宠爱+');
@@ -286,8 +288,69 @@ describe('nightly service runtime', () => {
     expect(result.outcome).toBe('other-consort-service');
     expect(result.effects.playerFavorDelta).toBeGreaterThanOrEqual(3);
     expect(result.effects.playerFavorDelta).toBeLessThanOrEqual(5);
+    expect(result.effects.playerPrestigeDelta).toBeGreaterThanOrEqual(3);
+    expect(result.effects.playerPrestigeDelta).toBeLessThanOrEqual(8);
     expect(result.lines.join(' ')).toContain('替玩家美言');
     expect(result.lines.join(' ')).not.toContain('玩家宠爱');
+    expect(result.lines.join(' ')).not.toContain('声望+');
+  });
+
+  it('scales player prestige from consort praise by the praising consort rank', () => {
+    const ally = buildInitialConcubineRoster('lanyinxuguo').find((consort) => consort.stats.relationToPlayer > 0)!;
+    const baseInput = {
+      routeId: 'lanyinxuguo' as const,
+      player: {
+        name: '谢令仪',
+        favor: 1,
+        trueHeart: 35,
+        rankLabel: '嫔',
+        pregnant: false,
+      },
+      emperorMood: 40,
+      playerNightFavorGauge: 0,
+      rolls: {
+        alone: 100,
+        player: 100,
+        pool: 1,
+        interest: 60,
+        thirdParty: 80,
+      },
+    };
+    const lowRankResult = resolveNightlyService({
+      ...baseInput,
+      timeKey: '1-1-1',
+      concubines: [
+        {
+          ...ally,
+          rankLabel: '官女子',
+          stats: {
+            ...ally.stats,
+            prestige: 0,
+            favor: 90,
+            relationToPlayer: 60,
+          },
+        },
+      ],
+    });
+    const highRankResult = resolveNightlyService({
+      ...baseInput,
+      timeKey: '1-1-2',
+      concubines: [
+        {
+          ...ally,
+          rankLabel: '皇后',
+          stats: {
+            ...ally.stats,
+            prestige: 2500,
+            favor: 90,
+            relationToPlayer: 60,
+          },
+        },
+      ],
+    });
+
+    expect(lowRankResult.effects.playerPrestigeDelta).toBe(3);
+    expect(highRankResult.effects.playerPrestigeDelta).toBe(8);
   });
 
   it('lets a hostile consort smear the player after her own service', () => {
@@ -326,6 +389,7 @@ describe('nightly service runtime', () => {
     expect(result.outcome).toBe('other-consort-service');
     expect(result.effects.playerFavorDelta).toBeLessThanOrEqual(-3);
     expect(result.effects.playerFavorDelta).toBeGreaterThanOrEqual(-5);
+    expect(result.effects.playerPrestigeDelta).toBe(0);
     expect(result.lines.join(' ')).toContain('向皇帝抹黑玩家');
     expect(result.lines.join(' ')).not.toContain('玩家宠爱');
   });

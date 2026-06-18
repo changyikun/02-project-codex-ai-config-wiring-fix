@@ -7,6 +7,7 @@ export type ChamberPanelId =
   | 'bond'
   | 'chronicle'
   | 'inventory'
+  | 'craft-works'
   | 'affairs'
   | 'yangxin'
   | 'misc'

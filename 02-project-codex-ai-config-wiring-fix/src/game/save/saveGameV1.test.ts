@@ -94,6 +94,9 @@ const source: SaveGameV1Source = {
   palaceBanquetProgress: {
     submissionCount: 0,
   },
+  craftWorksProgress: {
+    activeWorks: {},
+  },
   templeProgress: {
     worshipCount: 0,
     prayerCount: 1,
@@ -188,6 +191,7 @@ describe('SaveGameV1', () => {
     expect(saveGame.inventory.items.length).toBeGreaterThan(0);
     expect(saveGame.progress.medical.jianNingMet).toBe(true);
     expect(saveGame.progress.palaceBanquet.submissionCount).toBe(0);
+    expect(saveGame.progress.craftWorks.activeWorks).toEqual({});
     expect(saveGame.progress.emperorInteraction.triggeredEncounterIds).toEqual([]);
     expect(saveGame.progress.npcActivity.xunKey).toBe('1-2-1');
     expect(saveGame.relations.bondProfile.npcId).toBe(source.bondProfile.npcId);

@@ -40,6 +40,16 @@
   - `rarity` / `color`：品质颜色，当前可用 `green`、`blue`、`purple`、`red`。
   - `favorDelta` / `healthDelta` / `appearanceDelta` / `temperamentDelta`：道具效果数值。
 
+- `craft_works.csv`
+  - `workId`：作品内部 ID，完成品背包 ID 会以 `crafted:{type}:{workId}:{quality}` 生成。
+  - `type`：作品类别，只能是 `embroidery` 绣花、`painting` 字画、`incense` 调香；玩家只能通过对应寝殿行动进入该类别面板。
+  - `requiredStatKey`：主能力字段。绣花读 `embroidery`，字画读 `painting`，调香当前读 `medicine`。
+  - `supportStatKey`：辅助能力字段，用于小幅影响进度和成色。
+  - `difficulty`：作品难度，影响单次进度、完成成色和售价。
+  - `basePrice`：基础售价，最终售价还会受难度和成色公式影响。
+  - `baseFavorDelta`：作为赠礼时的基础好感收益，最终好感受成色公式影响。
+  - `description`：作品说明，可由文案策划直接改。
+
 - `palace_strife_severity_rules.csv`
   - `severity`：宫斗严重度，当前为 `light`、`medium`、`heavy`。
   - `actionModifier` / `concealmentModifier` / `convictionModifier`：行动、隐匿、暴露后定案率修正。
@@ -58,7 +68,7 @@
   - `nightly_favor_weights.csv`：宠爱值对应的侍寝池权重。
   - `nightly_interest_effects.csv`：侍寝兴致区间对应的心情、宠爱、真心、声望变化。
   - 侍寝互动选项如何读取属性、如何分段加成不写 CSV，维护在 `src/game/numerics/formula-pages/nightlyServiceFormulaPage.ts`。
-  - `nightly_runtime_rules.csv`：侍寝保底值、第三方美言 / 抹黑概率、互动轮数和兴致上下限。
+  - `nightly_runtime_rules.csv`：侍寝保底值、第三方美言 / 抹黑概率、第三方美言声望、玩家被传召侍寝基础声望、互动轮数和兴致上下限。
 
 - `generated_consort_templates.csv` / `generated_consort_rules.csv`
   - `generated_consort_templates.csv`：随机补足妃嫔的模板池，包含年龄范围、候选位分 / 住处、基础属性、人设摘要。
@@ -71,6 +81,7 @@
 - `favor_tiers.csv`：宠爱分层。
 - `rank_prestige_table.csv`：位分声望门槛与图标。
 - `fixed_consort_roster.csv`：固定妃嫔种子数据中的数值字段。
+- `craft_works.csv`：绣花、字画、调香可制作作品的题材、主 / 辅能力、难度、基础售价和基础送礼好感；完整进度 / 成色 / 售价 / 送礼公式在 `src/game/numerics/formula-pages/craftWorkFormulaPage.ts`。
 - `palace_strife_*` / `yangxin_verdict_choice_rules.csv`：宫斗严重度、流言严重度、裁断选项倍率和处罚参数；完整公式在 `src/game/numerics/formula-pages/palaceStrifeFormulaPage.ts`。
 - `nightly_*`：夜晚侍寝池、兴致结果档位和第三方影响参数；互动选项完整公式在 `src/game/numerics/formula-pages/nightlyServiceFormulaPage.ts`。
 - `generated_consort_*`：随机补足妃嫔模板与生成数量 / 浮动参数。

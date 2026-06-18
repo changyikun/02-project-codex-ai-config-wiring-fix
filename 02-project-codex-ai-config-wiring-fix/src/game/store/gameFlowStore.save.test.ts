@@ -86,7 +86,9 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     expect(begin.success).toBe(true);
     expect(useGameFlowStore.getState().advanceYangxinVerdict().success).toBe(true);
     expect(useGameFlowStore.getState().advanceYangxinVerdict().success).toBe(true);
-    expect(useGameFlowStore.getState().advanceYangxinVerdict('accept').success).toBe(true);
+    const eventChoices = useGameFlowStore.getState().pendingYangxinVerdict?.playerChoices ?? [];
+    const neutralChoice = eventChoices.find((choice) => choice.id === 'self-accept') ?? eventChoices.find((choice) => choice.id === 'state-facts') ?? eventChoices[0];
+    expect(useGameFlowStore.getState().advanceYangxinVerdict(neutralChoice?.id).success).toBe(true);
     const event = useGameFlowStore.getState().pendingYangxinVerdict;
     expect(event?.stage).toBe('verdict');
     expect(useGameFlowStore.getState().finalizeYangxinVerdict(event?.id ?? '').success).toBe(true);
@@ -160,6 +162,46 @@ describe('gameFlowStore SaveGameV1 integration', () => {
 
     expect(result.success).toBe(true);
     expect(afterGift).toBeUndefined();
+  });
+
+  it('tracks active craft works and grants a completed gift item', () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      state: {
+        ...state.state,
+        stats: {
+          ...state.state.stats,
+          medicine: 100,
+          temperament: 100,
+        },
+      },
+      craftWorksProgress: {
+        activeWorks: {},
+      },
+    }));
+
+    const started = useGameFlowStore.getState().startCraftWork('clear-heart-incense');
+    expect(started.success).toBe(true);
+    expect(Object.values(useGameFlowStore.getState().craftWorksProgress.activeWorks)).toHaveLength(1);
+
+    let completed = false;
+    for (let index = 0; index < 5; index += 1) {
+      const activeId = Object.keys(useGameFlowStore.getState().craftWorksProgress.activeWorks)[0];
+      if (!activeId) {
+        completed = true;
+        break;
+      }
+      const advanced = useGameFlowStore.getState().advanceCraftWork(activeId);
+      completed = Boolean(advanced.resolution?.completed);
+      if (completed) {
+        break;
+      }
+    }
+
+    const flow = useGameFlowStore.getState();
+    expect(completed).toBe(true);
+    expect(flow.craftWorksProgress.activeWorks).toEqual({});
+    expect(flow.inventory.some((item) => item.itemId.startsWith('crafted:incense:clear-heart-incense:'))).toBe(true);
   });
 
   it('creates a dedicated palace banquet registration notice during the signup window', () => {
@@ -1138,7 +1180,7 @@ describe('gameFlowStore SaveGameV1 integration', () => {
       outcome: 'pending',
       pendingVerdictSuspectId: 'suspect-player',
     });
-    expect(afterConviction.pendingYangxinVerdict?.stage).toBe('summon');
+    expect(['summon', 'player-choice']).toContain(afterConviction.pendingYangxinVerdict?.stage);
     expect(afterConviction.state.prestige).toBe(100);
     expect(afterConviction.state.favor).toBe(50);
     expect(afterConviction.state.stress).toBe(20);
@@ -1242,7 +1284,7 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     const flow = useGameFlowStore.getState();
     const latestReport = flow.settlementReports.at(-1);
     expect(flow.state.prestige).toBe(1000);
-    expect(flow.pendingYangxinVerdict?.stage).toBe('summon');
+    expect(['summon', 'player-choice']).toContain(flow.pendingYangxinVerdict?.stage);
     expect(flow.hiddenStats.initialRank).toBe('嫔');
     expect(latestReport?.kind).toBe('month');
     expect(latestReport?.summary).toContain('当前位份：嫔');

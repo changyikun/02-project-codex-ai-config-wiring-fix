@@ -12,6 +12,7 @@ import {
   getYangxinVerdictChoiceRule,
   numericAttributeFields,
   numericChamberActions,
+  numericCraftWorks,
   numericFavorTiers,
   numericFixedConsortSeeds,
   numericGeneratedConsortTemplates,
@@ -54,6 +55,7 @@ describe('numericCatalog', () => {
     expect(numericSpecialPrestigeRankTable[0]?.位分名称).toBe('皇贵妃');
     expect(getInventoryItemsByPool('yeting-poison').map((item) => item.itemId)).toContain('hedandinghong');
     expect(getInventoryItemsByPool('music-score').length).toBeGreaterThanOrEqual(1);
+    expect(numericCraftWorks.find((work) => work.workId === 'chanmeng-incense')?.type).toBe('incense');
     expect(numericFixedConsortSeeds.find((seed) => seed.name === '姚铃儿')?.stats.prestige).toBe(2180);
   });
 

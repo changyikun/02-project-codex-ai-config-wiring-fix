@@ -11,19 +11,21 @@
 建议按这个顺序读取：
 
 1. `docs/new-chat-start.md`
-2. `.codex/skills/palace-game-frontend/SKILL.md`
-3. `.codex/skills/palace-game-frontend/references/current-frontend-state.md`
-4. `docs/codex-dialogue-handoff.md`
-5. 如涉及系统规则，再读：
+2. `docs/README.md`
+3. `.codex/skills/palace-game-frontend/SKILL.md`
+4. `.codex/skills/palace-game-frontend/references/current-frontend-state.md`
+5. `docs/codex-dialogue-handoff.md`
+6. 如涉及系统规则，再读：
    - `docs/system-hard-rules-integrated.md`
    - `docs/rank-governance-architecture.md`
-   - `docs/game-design-natural-language.md`
-6. 如涉及剧情文本、系统提示词、角色对白或场景生成，再读：
-   - `docs/character-dialogue-system-patch.md`
+   - 对应专项 `*-architecture.md`
+7. 如涉及剧情文本、系统提示词、角色对白或场景生成，再读：
    - `src/game/narrative/csv/README.md`
    - `src/game/narrative/narrativeCatalog.ts`
    - `src/game/narrative/narrativeDialogueAdapter.ts`
    - `src/game/narrative/csv/`
+
+`docs/archive/` 下的文件只用于追溯历史设计，不再作为当前开发规则源维护。
 
 ## 2. 当前必须保持的主流程
 
@@ -124,7 +126,8 @@
 - CSV 文本变量使用 `{{playerName}}` 这类模板；显式分页继续使用 `<<PAGE_BREAK>>`。缺变量会原样保留并由测试发现，不能在运行时悄悄吞掉。
 - 下一步按钮文案不属于剧情 CSV，也不应进入剧情 turn 或 AI response；线性推进由对话框点击和流程状态决定，明确选择必须走 `options`。
 - 当前玩法链路暂不接 AI 生成剧情正文；正常剧情正文和基础演出元数据只来自 CSV。AI 客户端 / 服务端代码可保留为遗留 helper，但不得被当前 React 组件或 runtime 作为正文第二来源导入。
-- 核心数值调参统一走 `src/game/numerics/csv/` 与 `numericCatalog`。当前除属性、路线、库存、位分和固定妃嫔外，宫斗严重度 / 裁断档位、夜晚侍寝池 / 兴致结果档位 / 第三方影响、随机补足妃嫔模板和生成浮动也已经拆表。完整公式统一维护在 `src/game/numerics/formula-pages/*FormulaPage.ts`，由 `formulaRuntime.ts` 解析；公式页只能放公式和说明，不混入解析器、状态写入或业务分支。不得把公式拆成半截 CSV 行，也不应在业务 runtime 继续维护第二份同名公式。
+- 核心数值调参统一走 `src/game/numerics/csv/` 与 `numericCatalog`。当前除属性、路线、库存、位分和固定妃嫔外，绣花 / 字画 / 调香作品、宫斗严重度 / 裁断档位、夜晚侍寝池 / 兴致结果档位 / 第三方影响、随机补足妃嫔模板和生成浮动也已经拆表。完整公式统一维护在 `src/game/numerics/formula-pages/*FormulaPage.ts`，由 `formulaRuntime.ts` 解析；公式页只能放公式和说明，不混入解析器、状态写入或业务分支。不得把公式拆成半截 CSV 行，也不应在业务 runtime 继续维护第二份同名公式。
+- 绣花、字画、调香没有独立“作品管理”总入口；只能通过对应寝殿行动进入对应类别制作面板，且没有“只练习技艺”分支。面板只展示可添加作品和进行中作品，不展示已完成库存；完成后直接生成 `crafted:` 开头的 `gift` 背包物品，可送礼或变卖。作品进度保存于 `progress.craftWorks.activeWorks`。作品基础参数在 `craft_works.csv`，进度 / 成色 / 售价 / 送礼好感公式在 `craftWorkFormulaPage.ts`。
 - 对话框位置、大小、边距、文本区域、说话人区域、按钮区域、选项区域的共享布局已稳定。
 - 长文本不再硬截断，对话框固定，文本区域滚动。
 - 点击对话内容区会立刻补全文字机当前句。
@@ -1000,7 +1003,8 @@ npm run build
 - 月结用度：`锦衣玉食` 每月声望 `+10`，`量入为出` 为 `0`，`节衣缩食` 为 `-5`
 - 家世月补贴：国公 / 一品 / 二三品 / 四品 / 六品等家世会在月结给不同声望补贴；商贾、罪臣会扣声望
 - 家族事务接济：花费 `120` 银两登记家族接济，季度结算额外声望 `+12`
-- 主角侍寝：侍寝兴致达到 `100` 时，规则层给玩家声望 `+10`
+- 主角侍寝：被传召侍寝固定给玩家声望 `+10`，侍寝表现再按兴致档位额外结算声望
+- 妃嫔美言：交好妃嫔侍寝后若为玩家美言，除宠爱变化外也会按美言者位格增加玩家声望
 - 宫斗案件：玩家作为作案方定罪时会扣声望，轻 / 中 / 重分别按规则扣除
 
 关键文件：
@@ -1183,9 +1187,9 @@ npm run build
 
 已经成立的规则：
 
-- `MapMainView` 的普通热点进入和热点快捷入口会消耗 1 点体力；若当前不是深夜，才立即 `advanceTime(1)`。
-- 若地图普通行动只是从夜晚推进到深夜，玩家会进入对应地点，保留最后一次深夜行动。
-- 若行动发生在深夜，或本次行动后体力归零，地图会清理热点、宫门、掖庭等局部状态，请求寝殿过夜提醒，并调用 `enterMainChamber()` 回到玩家当前寝宫。
+- `MapMainView` 的普通热点进入和热点快捷入口只切换场景或打开面板，不消耗体力，也不调用 `advanceTime(1)`。
+- 若地点内真实行动只是从夜晚推进到深夜，玩家会留在对应地点，保留最后一次深夜行动。
+- 若真实行动发生在深夜，或本次行动后体力归零，流程会清理外景局部状态，请求寝殿过夜提醒，并调用 `enterMainChamber()` 回到玩家当前寝宫。
 - 地点子场景的耗时行动必须走 `useLocationActionFlow()`，不要在各地点组件里直接 `advanceTime(1)`；普通结果用 `LocationActionResultStage` 展示，NPC 对话则在 `closeEncounter()` 后完成待定归寝。
 - `ChamberMainView` 会先展示本次行动结果，再展示娇娇回宫 / 睡觉提醒；玩家确认后复用原有 `beginOvernightTransition()` 黑屏转场。
 - 黑屏转场内部仍由 `advanceTime(Math.max(1, 7 - currentSlotIndex))` 推进到下一旬清晨，因此夜晚侍寝后续和娇娇旬月通报仍归时间主循环生成。
@@ -1561,7 +1565,7 @@ npm run build
 已经成立的规则：
 
 - 皇帝行为由 `emperorActivityRuntime` 计算，按 `routeId + xunKey + entrySlot + location` 保持可复现；AI 不参与真实判定。
-- 地图进入地点本身消耗本次行动时间与体力；`activeMapLocationEntryTime` 保存本次入场时辰，求见 / 偶遇结束不再额外推进第二格。
+- 地图进入地点本身不消耗时间与体力；`activeMapLocationEntryTime` 只保存本次入场时辰，用于皇帝动向、求见和公共偶遇的时段判定。求见 / 偶遇结束不额外推进第二格，真正耗时只来自地点内明确行动。
 - 养心殿上午到傍晚可求见，上午成功率较低但不是固定拒绝；夜晚 / 深夜只触发内侍劝归。
 - 正阳门清晨可等待下朝，成功偶遇宠爱 `+1`；宠爱不进入 toast。
 - 御花园 / 建章宫中午到傍晚若皇帝在场，玩家进入地点后可点击皇帝入口并进入完整交互页。

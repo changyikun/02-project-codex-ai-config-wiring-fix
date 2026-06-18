@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { AffairsPanelView, BondPanelView, ChroniclePanelView, InventoryPanelView, MiscInfoPanelView } from '../components/chamber/ChamberUtilityViews';
+import {
+  AffairsPanelView,
+  BondPanelView,
+  ChroniclePanelView,
+  CraftWorksPanelView,
+  InventoryPanelView,
+  MiscInfoPanelView,
+} from '../components/chamber/ChamberUtilityViews';
 import { BaohuaHallView } from '../components/chamber/BaohuaHallView';
 import { DowagerAudiencePanel } from '../components/chamber/DowagerAudiencePanel';
 import { EmperorAudiencePanel } from '../components/chamber/EmperorAudiencePanel';
@@ -45,6 +52,7 @@ import {
   buildMapTransitionNarrativeEntry,
 } from '../game/lib/actionNarrativeRuntime';
 import { getRarityColor } from '../game/lib/bedchamberRuntime';
+import { craftWorkQualityLabels } from '../game/lib/craftWorkRuntime';
 import { isJiaojiaoSpokenText } from '../game/lib/dialoguePresentation';
 import { getNpcActivitiesAtLocation, getPendingNpcPlayerVisit } from '../game/lib/npcActivityRuntime';
 import {
@@ -58,7 +66,7 @@ import {
   type NarrativePresentationFields,
 } from '../game/narrative/narrativeDialogueAdapter';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
-import type { EmperorInteractionSource, MapAreaId } from '../game/types';
+import type { CraftWorkType, EmperorInteractionSource, MapAreaId } from '../game/types';
 
 const skillLabelMap: Record<string, string> = {
   poetry: '诗词',
@@ -90,6 +98,11 @@ const JIAOJIAO_COMMAND_PROMPT = '娘娘，有何吩咐？';
 const LIANQIAO_PORTRAIT_SRC = '/assets/characters/women/yueshi.png';
 const EXPENSE_EXPLANATION_OPTION_ID = 'expense-explanation';
 const CHAMBER_BACKGROUND_CROSSFADE_MS = 680;
+const chamberCraftWorkTypes: Partial<Record<string, CraftWorkType>> = {
+  embroidery: 'embroidery',
+  painting: 'painting',
+  incense: 'incense',
+};
 
 const getCurrentXunKey = (year: number, month: number, xun: number): string => `${year}-${month}-${xun}`;
 const toXunIndex = (year: number, month: number, xun: number): number => year * 36 + (month - 1) * 3 + xun;
@@ -201,6 +214,7 @@ export function ChamberMainView() {
     advanceYangxinVerdict,
     finalizeYangxinVerdict,
     resolveZhengyangEmperorWait,
+    advanceCraftWork,
   } = useGameFlowStore();
   const [dialogueText, setDialogueText] = useState('');
   const [dialoguePresentation, setDialoguePresentation] = useState<ChamberDialoguePresentation | null>(null);
@@ -223,6 +237,7 @@ export function ChamberMainView() {
   } | null>(null);
   const [emperorNoticeText, setEmperorNoticeText] = useState('');
   const [jianzhangAudienceMode, setJianzhangAudienceMode] = useState<'dowager' | null>(null);
+  const [activeCraftWorkActionId, setActiveCraftWorkActionId] = useState<string | null>(null);
   const [pendingChamberDialogueAction, setPendingChamberDialogueAction] =
     useState<PendingChamberDialogueAction>(null);
   const overnightTransitionRunKeyRef = useRef<string | null>(null);
@@ -852,6 +867,59 @@ export function ChamberMainView() {
     advanceYangxinVerdict(choiceId as Parameters<typeof advanceYangxinVerdict>[0]);
   };
 
+  const completeChamberAction = (actionId: string, extraSummary?: string) => {
+    const action = CHAMBER_ACTION_BUTTONS.find((item) => item.id === actionId);
+    if (!action) return;
+    const pulseUsedFlag = `chamber:pulse:${currentXunKey}`;
+
+    if (action.id === 'pulse' && state.flags[pulseUsedFlag]) {
+      setPendingChamberDialogueAction(null);
+      setDialogueFromEntry(renderNarrativeEntry('chamber.notice.pulse-used', { residenceName: state.residenceName }));
+      return;
+    }
+
+    if ((action.staminaCost ?? 0) > state.stamina) {
+      setPendingChamberDialogueAction(null);
+      setDialogueFromEntry(renderNarrativeEntry('chamber.notice.stamina-block', { residenceName: state.residenceName }));
+      return;
+    }
+
+    applyStoryEffects({
+      stamina: -(action.staminaCost ?? 0),
+      favor: action.favorDelta ?? 0,
+      stress: action.stressDelta ?? 0,
+      stats: action.statDeltas ?? {},
+    });
+    if (action.id === 'pulse') {
+      patchState({
+        flags: {
+          ...state.flags,
+          [pulseUsedFlag]: true,
+        },
+      });
+    }
+    const hasTimeCost = Boolean(action.timeCost && action.timeCost > 0);
+    const nextStamina = Math.max(0, state.stamina - (action.staminaCost ?? 0));
+    const shouldSleepAfterAction = hasTimeCost && (time.slot === '深夜' || nextStamina <= 0);
+    if (time.slot !== '深夜') {
+      advanceTime(action.timeCost ?? 1);
+    }
+    setPendingChamberDialogueAction(null);
+    const actionSummary = extraSummary ? `${action.summary}。${extraSummary.trim()}` : action.summary;
+    const actionNarrativeEntry = buildChamberActionNarrativeEntry({
+      actionId: action.id,
+      actionLabel: action.label,
+      actionSummary,
+      playerName: state.name,
+      residenceName: state.residenceName,
+      timeLabel: `${time.year}年${time.month}月${time.xun}旬${time.slot}`,
+    });
+    setDialogueFromEntry(actionNarrativeEntry);
+    if (shouldSleepAfterAction) {
+      setPendingChamberDialogueAction('overnight-reminder');
+    }
+  };
+
   const handleTrainingAction = (actionId: string) => {
     if (isChamberUiInteractionLocked) {
       return;
@@ -880,38 +948,53 @@ export function ChamberMainView() {
       return;
     }
 
-    if ((action.staminaCost ?? 0) > state.stamina) {
+    if (chamberCraftWorkTypes[action.id]) {
+      setActiveCraftWorkActionId(action.id);
+      setUtilityReturnPanel(null);
+      setPendingChamberDialogueAction(null);
+      setDialogueText('');
+      openChamberPanel('craft-works');
+      return;
+    }
+
+    completeChamberAction(actionId);
+  };
+
+  const handleAdvanceCraftWork = (instanceId: string) => {
+    if (!activeCraftWorkActionId) {
+      return;
+    }
+    const action = CHAMBER_ACTION_BUTTONS.find((item) => item.id === activeCraftWorkActionId);
+    if (action && (action.staminaCost ?? 0) > state.stamina) {
+      closeChamberPanel();
+      setActiveCraftWorkActionId(null);
       setPendingChamberDialogueAction(null);
       setDialogueFromEntry(renderNarrativeEntry('chamber.notice.stamina-block', { residenceName: state.residenceName }));
       return;
     }
 
-    applyStoryEffects({
-      stamina: -(action.staminaCost ?? 0),
-      favor: action.favorDelta ?? 0,
-      stress: action.stressDelta ?? 0,
-      stats: action.statDeltas ?? {},
-    });
-    const hasTimeCost = Boolean(action.timeCost && action.timeCost > 0);
-    const nextStamina = Math.max(0, state.stamina - (action.staminaCost ?? 0));
-    const shouldSleepAfterAction = hasTimeCost && (time.slot === '深夜' || nextStamina <= 0);
-    if (time.slot !== '深夜') {
-      advanceTime(action.timeCost ?? 1);
+    const previousWork = useGameFlowStore.getState().craftWorksProgress.activeWorks[instanceId];
+    const result = advanceCraftWork(instanceId);
+    if (!result.success) {
+      return;
     }
-    setPendingChamberDialogueAction(null);
-    setDialogueFromEntry(
-      buildChamberActionNarrativeEntry({
-        actionId: action.id,
-        actionLabel: action.label,
-        actionSummary: action.summary,
-        playerName: state.name,
-        residenceName: state.residenceName,
-        timeLabel: `${time.year}年${time.month}月${time.xun}旬${time.slot}`,
-      }),
-    );
-    if (shouldSleepAfterAction) {
-      setPendingChamberDialogueAction('overnight-reminder');
+    const resolution = result.resolution;
+    let extraSummary = '';
+    if (resolution) {
+      extraSummary = resolution.completed
+        ? ` ${resolution.previous.name}终于收尾，成色为${resolution.qualityLabel}，已收入背包。`
+        : ` ${resolution.previous.name}完成度由${resolution.previous.progressPercent}%升至${resolution.next?.progressPercent ?? resolution.previous.progressPercent}%，当前成色约为${resolution.qualityLabel}。`;
+    } else if (previousWork) {
+      const nextWork = useGameFlowStore.getState().craftWorksProgress.activeWorks[instanceId];
+      extraSummary = nextWork
+        ? ` ${previousWork.name}完成度由${previousWork.progressPercent}%升至${nextWork.progressPercent}%，当前成色约为${nextWork.quality ? craftWorkQualityLabels[nextWork.quality] : '未定'}。`
+        : ` ${previousWork.name}终于收尾，已收入背包。`;
     }
+
+    closeChamberPanel();
+    const actionId = activeCraftWorkActionId;
+    setActiveCraftWorkActionId(null);
+    completeChamberAction(actionId, extraSummary);
   };
 
   const handleBottomTool = (toolLabel: string) => {
@@ -927,11 +1010,13 @@ export function ChamberMainView() {
     };
 
     if (toolLabel === '道具管理') {
+      setActiveCraftWorkActionId(null);
       openUtilityPanel('inventory');
       return;
     }
 
     if (toolLabel === '查看属性') {
+      setActiveCraftWorkActionId(null);
       openUtilityPanel('stats');
       return;
     }
@@ -989,6 +1074,7 @@ export function ChamberMainView() {
   };
 
   const handleUtilityPanelClose = () => {
+    setActiveCraftWorkActionId(null);
     if (utilityReturnPanel) {
       openChamberPanel(utilityReturnPanel);
       setUtilityReturnPanel(null);
@@ -1460,6 +1546,12 @@ export function ChamberMainView() {
           />
         ) : activeChamberPanel === 'inventory' ? (
           <InventoryPanelView onClose={handleUtilityPanelClose} />
+        ) : activeChamberPanel === 'craft-works' ? (
+          <CraftWorksPanelView
+            workType={activeCraftWorkActionId ? chamberCraftWorkTypes[activeCraftWorkActionId] ?? 'embroidery' : 'embroidery'}
+            onAdvanceWork={handleAdvanceCraftWork}
+            onClose={handleUtilityPanelClose}
+          />
         ) : activeChamberPanel === 'affairs' ? (
           <AffairsPanelView entrySource={activeAffairsSource} concubines={concubines} onClose={handleUtilityPanelClose} />
         ) : activeChamberPanel === 'misc' ? (

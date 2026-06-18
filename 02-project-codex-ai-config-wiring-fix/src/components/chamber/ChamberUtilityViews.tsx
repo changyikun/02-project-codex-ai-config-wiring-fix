@@ -3,9 +3,24 @@ import { AFFAIRS_UI_BACKGROUND, BOND_UI_BACKGROUND, CHRONICLE_UI_BACKGROUND, INV
 import { getMonthlyExpenseStrategyConfig } from '../../config/monthlyExpenseStrategy';
 import { resolveUnlockedBondCharacters } from '../../game/data/bondPresets';
 import { getInventoryRecyclePrice, getPoisonInventoryItemIdByName } from '../../game/data/inventoryPresets';
+import {
+  craftWorkQualityLabels,
+  craftWorkTypeLabels,
+  estimateCraftWorkProgressGain,
+  getActiveCraftWorksByType,
+  listCraftWorkConfigsByType,
+} from '../../game/lib/craftWorkRuntime';
 import { FAMILY_AID_BONUS, FAMILY_AID_COST, FAMILY_AID_QUARTERLY_PRESTIGE } from '../../game/lib/familyGovernanceRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
-import type { BondProfileState, ConcubineProfile, GameNumericsState, HiddenStatsState, RouteId, SettlementReport } from '../../game/types';
+import type {
+  BondProfileState,
+  ConcubineProfile,
+  CraftWorkType,
+  GameNumericsState,
+  HiddenStatsState,
+  RouteId,
+  SettlementReport,
+} from '../../game/types';
 
 type ChronicleTabId = 'edict' | 'secret' | 'quarrel' | 'event' | 'rumor';
 type MiscInfoCardId = 'emperor' | 'officials' | 'dowager' | 'father' | 'court';
@@ -1190,6 +1205,103 @@ export function AffairsPanelView({ entrySource, concubines, onClose }: AffairsPa
 
 interface InventoryPanelViewProps {
   onClose: () => void;
+}
+
+interface CraftWorksPanelViewProps {
+  workType: CraftWorkType;
+  onAdvanceWork?: (instanceId: string) => void;
+  onClose: () => void;
+}
+
+export function CraftWorksPanelView({
+  workType,
+  onAdvanceWork,
+  onClose,
+}: CraftWorksPanelViewProps) {
+  const [addingType, setAddingType] = useState<CraftWorkType | null>(null);
+  const [resultText, setResultText] = useState('选择作品后，就能在寝殿行动中逐次推进。');
+  const craftWorksProgress = useGameFlowStore((store) => store.craftWorksProgress);
+  const state = useGameFlowStore((store) => store.state);
+  const startCraftWork = useGameFlowStore((store) => store.startCraftWork);
+
+  useEffect(() => {
+    setAddingType(null);
+  }, [workType]);
+
+  const activeWorks = useMemo(() => getActiveCraftWorksByType(craftWorksProgress, workType), [craftWorksProgress, workType]);
+  const craftConfigs = useMemo(() => listCraftWorkConfigsByType(workType), [workType]);
+
+  const handleStartWork = (workId: string) => {
+    const result = startCraftWork(workId);
+    setResultText(result.message);
+    setAddingType(null);
+  };
+
+  return (
+    <UtilityPanelShell ariaLabel={`${craftWorkTypeLabels[workType]}制作面板`} backgroundImage={INVENTORY_UI_BACKGROUND} onClose={onClose}>
+      <div className="chamber-utility-view__toolbar chamber-utility-view__toolbar--inventory">
+        <h2>{`${craftWorkTypeLabels[workType]}制作`}</h2>
+      </div>
+
+      <div className="chamber-utility-view__body chamber-utility-view__body--inventory">
+        <section className="chamber-utility-view__detail-card">
+          <h3>{craftWorkTypeLabels[workType]}</h3>
+          <p>{resultText}</p>
+          <div className="chamber-utility-view__option-grid">
+            <button type="button" onClick={() => setAddingType(workType)}>
+              <strong>添加作品</strong>
+              <span>从可制作清单中选一件开始做</span>
+            </button>
+          </div>
+        </section>
+
+        {addingType ? (
+          <section className="chamber-utility-view__detail-card">
+            <h3>{`可制作${craftWorkTypeLabels[addingType]}`}</h3>
+            <div className="chamber-utility-view__option-grid">
+              {listCraftWorkConfigsByType(addingType).map((work) => (
+                <button key={work.workId} type="button" onClick={() => handleStartWork(work.workId)}>
+                  <strong>{work.name}</strong>
+                  <span>{`难度 ${work.difficulty}｜基础售价 ${work.basePrice} 两`}</span>
+                  <span>{work.description}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="chamber-utility-view__detail-card">
+          <h3>进行中</h3>
+          {activeWorks.length > 0 ? (
+            <div className="chamber-utility-view__option-grid">
+              {activeWorks.map((work) => {
+                const config = craftConfigs.find((item) => item.workId === work.workId);
+                const estimatedGain = config
+                  ? estimateCraftWorkProgressGain({
+                      workId: config.workId,
+                      state,
+                      actionCount: work.actionCount + 1,
+                    })
+                  : 20;
+                const remaining = Math.max(1, Math.ceil((100 - work.progressPercent) / Math.max(1, estimatedGain)));
+                return (
+                  <button key={work.instanceId} type="button" onClick={() => onAdvanceWork?.(work.instanceId)}>
+                    <strong>{work.name}</strong>
+                    <span>{`完成度 ${work.progressPercent}%｜已做 ${work.actionCount} 次｜预计还需 ${remaining} 次`}</span>
+                    <span>{`质量预估 ${work.quality ? craftWorkQualityLabels[work.quality] : '未定'}｜评分 ${work.qualityScore}`}</span>
+                    <span>本次推进这件作品</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="chamber-utility-view__empty-state">当前没有进行中的作品。</div>
+          )}
+        </section>
+
+      </div>
+    </UtilityPanelShell>
+  );
 }
 
 export function InventoryPanelView({ onClose }: InventoryPanelViewProps) {

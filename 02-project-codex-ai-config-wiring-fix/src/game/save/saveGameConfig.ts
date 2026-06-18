@@ -1,4 +1,5 @@
 import type {
+  CraftWorksProgressState,
   EmperorInteractionProgressState,
   KitchenProgressState,
   MedicalProgressState,
@@ -9,7 +10,7 @@ import type {
 } from '../types';
 import { getNumericRuleValue } from '../numerics/numericCatalog';
 
-export const SAVE_GAME_SCHEMA_VERSION = 3;
+export const SAVE_GAME_SCHEMA_VERSION = 4;
 export const SAVE_GAME_STORAGE_KEY = 'palace-galgame-flow';
 
 export const SAVE_GAME_REQUIRED_SECTIONS = ['route', 'player', 'world', 'roster', 'inventory', 'relations', 'cases', 'progress'] as const;
@@ -23,6 +24,7 @@ export const SAVE_GAME_REQUIRED_PROGRESS_KEYS = [
   'emperorInteraction',
   'nightlyService',
   'npcActivity',
+  'craftWorks',
 ] as const;
 
 export const SAVE_GAME_REQUIRED_RELATION_KEYS = ['bondProfile', 'consortInteractionMap', 'npcRelationMatrix'] as const;
@@ -64,6 +66,10 @@ export const createInitialMusicHallProgress = (): MusicHallProgressState => ({
 
 export const createInitialPalaceBanquetProgress = (): PalaceBanquetProgressState => ({
   submissionCount: 0,
+});
+
+export const createInitialCraftWorksProgress = (): CraftWorksProgressState => ({
+  activeWorks: {},
 });
 
 export const createInitialEmperorInteractionProgress = (): EmperorInteractionProgressState => ({

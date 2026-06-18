@@ -9,7 +9,7 @@ jitter_favor,10,宠爱浮动范围
 jitter_family_influence,6,家世影响浮动范围
 jitter_health,55,健康浮动范围
 jitter_appearance,55,容貌浮动范围
-jitter_relation_to_player,10,与玩家关系浮动范围
+jitter_relation_to_player,0,与玩家关系浮动范围
 jitter_ambition,10,野心浮动范围
 jitter_stress,12,压力浮动范围
 jitter_intrigue,55,心计浮动范围
