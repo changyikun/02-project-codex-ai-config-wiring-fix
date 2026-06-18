@@ -97,42 +97,47 @@ type GeneratedConcubineTemplate = {
 
 const WOMEN_ASSET_BASE_PATH = '/assets/characters/women/';
 const CONSORT_PORTRAIT_FALLBACK_FILENAME = 'feizi2.png';
-const quietConsortFallbackFilename = 'feizi1.png';
-const lyricalConsortFallbackFilename = 'yueshi.png';
+const girlishConsortFilename = 'feizi1.png';
+const gentleConsortFilename = 'feizi2.png';
+const proudConsortFilename = 'feizi3.png';
+const nobleConsortFilename = 'feizi4.png';
+const northernConsortFilename = 'feizi5.png';
+const matureGentleConsortFilename = 'feizi6.png';
+const paleSorrowfulConsortFilename = 'feizi7.png';
 
 const WOMEN_ASSET_FILENAME_BY_ID: Partial<Record<WomenPortraitId | '阿翎' | '太后' | '杜娘' | '娇娇' | '方瑶', string>> = {
-  花棠: 'feizi2.png',
-  姜芷: 'feizi1.png',
-  方瑶: '鏂圭憲.png',
-  连翘: 'yueshi.png',
-  阿翎: 'aling.jpg',
+  花棠: nobleConsortFilename,
+  姜芷: gentleConsortFilename,
+  方瑶: nobleConsortFilename,
+  连翘: girlishConsortFilename,
+  阿翎: girlishConsortFilename,
   太后: 'taihou.png',
-  杜娘: 'du-niang.jpg',
+  杜娘: 'duniang.png',
   娇娇: 'jiaojiao.png',
 
-  陈妙仪: quietConsortFallbackFilename,
+  陈妙仪: gentleConsortFilename,
   陈婉宁: 'chenwanning.png',
-  崔令蓉: CONSORT_PORTRAIT_FALLBACK_FILENAME,
-  崔莺莺: CONSORT_PORTRAIT_FALLBACK_FILENAME,
-  杜若蘅: quietConsortFallbackFilename,
-  冯妙莲: quietConsortFallbackFilename,
-  顾雨杏: lyricalConsortFallbackFilename,
-  江晚晚: quietConsortFallbackFilename,
-  李若瑶: quietConsortFallbackFilename,
-  柳仪芳: lyricalConsortFallbackFilename,
-  年欣兰: CONSORT_PORTRAIT_FALLBACK_FILENAME,
-  裴静姝: quietConsortFallbackFilename,
-  容可儿: lyricalConsortFallbackFilename,
-  沈妙清: quietConsortFallbackFilename,
-  水兰婷: CONSORT_PORTRAIT_FALLBACK_FILENAME,
-  孙玉娥: quietConsortFallbackFilename,
-  姚铃儿: CONSORT_PORTRAIT_FALLBACK_FILENAME,
-  叶琳珊: CONSORT_PORTRAIT_FALLBACK_FILENAME,
-  虞秋池: quietConsortFallbackFilename,
-  程雪砚: quietConsortFallbackFilename,
-  阿史那明珠: CONSORT_PORTRAIT_FALLBACK_FILENAME,
-  闻人照月: lyricalConsortFallbackFilename,
-  周怜星: quietConsortFallbackFilename,
+  崔令蓉: nobleConsortFilename,
+  崔莺莺: proudConsortFilename,
+  杜若蘅: matureGentleConsortFilename,
+  冯妙莲: paleSorrowfulConsortFilename,
+  顾雨杏: nobleConsortFilename,
+  江晚晚: matureGentleConsortFilename,
+  李若瑶: nobleConsortFilename,
+  柳仪芳: gentleConsortFilename,
+  年欣兰: proudConsortFilename,
+  裴静姝: paleSorrowfulConsortFilename,
+  容可儿: girlishConsortFilename,
+  沈妙清: gentleConsortFilename,
+  水兰婷: northernConsortFilename,
+  孙玉娥: matureGentleConsortFilename,
+  姚铃儿: proudConsortFilename,
+  叶琳珊: proudConsortFilename,
+  虞秋池: nobleConsortFilename,
+  程雪砚: gentleConsortFilename,
+  阿史那明珠: northernConsortFilename,
+  闻人照月: gentleConsortFilename,
+  周怜星: gentleConsortFilename,
 };
 
 const officialRankPaletteMap = {

@@ -177,9 +177,9 @@ export function EmperorAudiencePanel({ source, location, concubines, onLeave }: 
         <GlobalDialogueStage
           {...commonDialogueProps}
           sceneLabel="皇帝日间互动开场"
-          portraitLabel="容安立绘"
-          portrait={<img src={EMPEROR_PORTRAIT_SRC} alt="容安" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--emperor" />}
+          portraitLabel="容安常驻立绘"
           ariaLabel="皇帝日间互动开场"
+          suppressPortrait
           characterIdentity={introEntry.speakerIdentity}
           characterName={introEntry.speakerName}
           content={introEntry.text}
@@ -200,6 +200,7 @@ export function EmperorAudiencePanel({ source, location, concubines, onLeave }: 
           sceneLabel="皇帝互动反馈"
           portraitLabel="旁白无立绘"
           ariaLabel="皇帝互动反馈"
+          suppressPortrait
           characterIdentity={feedbackEntry.speakerIdentity}
           characterName={feedbackEntry.speakerName}
           content={feedbackText || feedbackEntry.text}
@@ -223,6 +224,7 @@ export function EmperorAudiencePanel({ source, location, concubines, onLeave }: 
           sceneLabel={source === 'public-encounter' ? '皇帝公共偶遇收束' : '养心殿告退'}
           portraitLabel="旁白无立绘"
           ariaLabel="皇帝互动告退"
+          suppressPortrait
           characterIdentity={farewellEntry.speakerIdentity}
           characterName={farewellEntry.speakerName}
           content={farewellText || farewellEntry.text}

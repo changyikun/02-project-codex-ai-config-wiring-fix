@@ -12,7 +12,7 @@ import { HAREM_OUTSIDE_BACKGROUND, LOCATION_SCENE_BACKGROUNDS } from '../config/
 import { buildMapHotspots, MAP_SIDEBAR_BUTTONS, resolveMapBackgroundImage, type MapHotspotConfig } from '../config/palaceUi';
 import { buildInitialBondProfile } from '../game/data/bondPresets';
 import { buildDuNiangShopCatalog, getInventoryRecyclePrice, type DuNiangShopEntry } from '../game/data/inventoryPresets';
-import { getConcubineDisplayRankText } from '../game/data/concubineRoster';
+import { getConcubineDisplayRankText, getConcubinePortraitPath } from '../game/data/concubineRoster';
 import {
   type GongmenToolDialogueHistoryEntry,
   type GongmenToolNpcProfile,
@@ -84,7 +84,7 @@ const gongmenNpcProfiles: Record<
   'du-niang': {
     identity: duNiangLine1Fields.speakerIdentity,
     name: duNiangLine1Fields.speakerName,
-    portrait: '/assets/characters/women/du-niang.jpg',
+    portrait: '/assets/characters/women/duniang.png',
 	    dialogueLines: [
 	      duNiangLine1Fields.text,
 	      duNiangLine2Fields.text,
@@ -97,7 +97,7 @@ const gongmenNpcProfiles: Record<
   aling: {
     identity: alingLine1Fields.speakerIdentity,
     name: alingLine1Fields.speakerName,
-    portrait: '/assets/characters/women/aling.jpg',
+    portrait: '/assets/characters/women/feizi1.png',
     dialogueLines: [
       alingLine1Fields.text,
       alingLine2Fields.text,
@@ -106,6 +106,34 @@ const gongmenNpcProfiles: Record<
   },
 };
 const ASSISTANT_PORTRAIT_SRC = '/assets/characters/women/jiaojiao.png';
+const CHEN_WANNING_PORTRAIT_SRC = getConcubinePortraitPath('陈婉宁');
+
+const resolveYingluoyetingEventPortrait = (event: YingluoyetingMapEvent, isResult: boolean) => {
+  if (isResult) {
+    return undefined;
+  }
+
+  if (event.speakerName === '陈婉宁') {
+    return (
+      <img
+        src={CHEN_WANNING_PORTRAIT_SRC}
+        alt="陈婉宁"
+        className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--consort"
+      />
+    );
+  }
+
+  return <div className="global-dialogue-stage__portrait-placeholder">{event.speakerName}</div>;
+};
+
+const resolveYingluoyetingEventPortraitLabel = (event: YingluoyetingMapEvent, isResult: boolean): string => {
+  if (isResult) {
+    return `${event.speakerName}剪影`;
+  }
+
+  return event.speakerName === '陈婉宁' ? '陈婉宁立绘' : `${event.speakerName}剪影`;
+};
+
 const createDialogueId = (prefix: string): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return `${prefix}-${crypto.randomUUID()}`;
@@ -879,12 +907,8 @@ export function MapMainView() {
         {activeYingluoyetingEvent ? (
           <GlobalDialogueStage
             sceneLabel={`${activeYingluoyetingEvent.locationId}主线剧情舞台`}
-            portraitLabel={`${activeYingluoyetingEvent.speakerName}剪影`}
-            portrait={
-              activeYingluoyetingDialogueIsResult ? undefined : (
-                <div className="global-dialogue-stage__portrait-placeholder">{activeYingluoyetingEvent.speakerName}</div>
-              )
-            }
+            portraitLabel={resolveYingluoyetingEventPortraitLabel(activeYingluoyetingEvent, activeYingluoyetingDialogueIsResult)}
+            portrait={resolveYingluoyetingEventPortrait(activeYingluoyetingEvent, activeYingluoyetingDialogueIsResult)}
             narrationName={activeYingluoyetingEvent.locationId}
             quotedSpeakerIdentity={activeYingluoyetingEvent.speakerIdentity}
             quotedSpeakerName={activeYingluoyetingEvent.speakerName}
@@ -964,29 +988,32 @@ export function MapMainView() {
         {gongmenSceneActive && activeNpcProfile ? (
           <>
             <section className="map-main__gongmen-scene" aria-label={`${activeNpcProfile.name} 宫门场景`}>
-              <GlobalDialogueStage
-                sceneLabel={`${activeNpcProfile.name} 宫门对话场景`}
-                portraitLabel={`${activeNpcProfile.name} 立绘`}
-                portrait={
-                  activeNpcProfile.alreadyCutout ? (
+              <div className="map-main__gongmen-portrait-stage" aria-label={`${activeNpcProfile.name}常驻立绘`}>
+                <div className="map-main__gongmen-portrait-frame">
+                  {activeNpcProfile.alreadyCutout ? (
                     <img
                       src={activeNpcProfile.portrait}
                       alt={activeNpcProfile.name}
-                      className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--gongmen"
+                      className="map-main__gongmen-portrait-media global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--gongmen"
                     />
                   ) : (
                     <AutoCutoutPortrait
                       src={activeNpcProfile.portrait}
                       alt={activeNpcProfile.name}
-                      className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--gongmen"
+                      className="map-main__gongmen-portrait-media global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--gongmen"
                       threshold={activeNpcProfile.portraitThreshold}
                       sampleInset={activeNpcProfile.portraitSampleInset ?? 10}
                     />
-                  )
-                }
+                  )}
+                </div>
+              </div>
+              <GlobalDialogueStage
+                sceneLabel={`${activeNpcProfile.name} 宫门对话场景`}
+                portraitLabel={`${activeNpcProfile.name}常驻立绘`}
                 ariaLabel={`${activeNpcProfile.name} 宫门对话`}
                 className="global-dialogue-stage--gongmen global-dialogue-stage--with-side-panel"
                 dialogueClassName="palace-dialogue-box--gongmen-npc"
+                suppressPortrait
                 characterIdentity={activeNpcProfile.identity}
                 characterName={activeNpcProfile.name}
                 content={gongmenDialogue}

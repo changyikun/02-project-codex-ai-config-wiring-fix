@@ -220,19 +220,17 @@ export function DowagerAudiencePanel({ onLeave }: DowagerAudiencePanelProps) {
         </div>
       </header>
 
-      {!dialogueActive ? (
-        <div className="harem-palace-view__audience-portrait-stage" aria-label="太后常驻立绘">
-          <div className="harem-palace-view__audience-portrait-frame">
-            <AutoCutoutPortrait
-              src={DOWAGER_PORTRAIT_SRC}
-              alt="太后"
-              threshold={34}
-              sampleInset={8}
-              className="harem-palace-view__audience-portrait dowager-audience-view__portrait"
-            />
-          </div>
+      <div className="harem-palace-view__audience-portrait-stage" aria-label="太后常驻立绘">
+        <div className="harem-palace-view__audience-portrait-frame">
+          <AutoCutoutPortrait
+            src={DOWAGER_PORTRAIT_SRC}
+            alt="太后"
+            threshold={34}
+            sampleInset={8}
+            className="harem-palace-view__audience-portrait dowager-audience-view__portrait"
+          />
         </div>
-      ) : null}
+      </div>
 
       {!dialogueActive ? (
         <section className="dowager-audience-view__briefing" aria-label="建章宫场景说明">
@@ -253,19 +251,11 @@ export function DowagerAudiencePanel({ onLeave }: DowagerAudiencePanelProps) {
       {dialogueActive ? (
         <GlobalDialogueStage
           sceneLabel="建章宫太后对话场景"
-          portraitLabel="太后立绘"
-          portrait={
-            <AutoCutoutPortrait
-              src={DOWAGER_PORTRAIT_SRC}
-              alt="太后"
-              threshold={34}
-              sampleInset={8}
-              className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--dowager"
-            />
-          }
+          portraitLabel="太后常驻立绘"
           ariaLabel="建章宫太后对话框"
           className="global-dialogue-stage--dowager global-dialogue-stage--with-side-panel"
           dialogueClassName="palace-dialogue-box--consort-audience palace-dialogue-box--dowager-audience"
+          suppressPortrait
           characterIdentity={dialogueTurn?.speakerIdentity ?? '建章宫宫人'}
           characterName={dialogueTurn?.speakerName ?? '通传'}
           content={dialogueTurn?.text ?? '宫人正往殿内通传，你暂且候在阶前。'}

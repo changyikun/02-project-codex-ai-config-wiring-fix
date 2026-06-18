@@ -2391,6 +2391,7 @@ describe('App 主流程切换', () => {
     fireEvent.click(await screen.findByRole('button', { name: '杜娘' }));
 
     expect(await screen.findByLabelText('杜娘 宫门对话')).toBeInTheDocument();
+    expect(screen.getByLabelText('杜娘常驻立绘')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '杜娘' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '购买' }));
@@ -5445,6 +5446,7 @@ describe('App 主流程切换', () => {
     render(<EmperorAudiencePanel source="public-encounter" location="御花园" concubines={concubines} onLeave={onLeave} />);
 
     expect(await screen.findByText(/你在御花园见到容安/)).toBeInTheDocument();
+    expect(screen.getByLabelText('容安立绘')).toBeInTheDocument();
     await clickDialogueAdvance();
     fireEvent.click(await screen.findByRole('button', { name: '闲聊' }));
 
@@ -5454,6 +5456,7 @@ describe('App 主流程切换', () => {
 
     expect(await screen.findByText(/不能强留圣驾/)).toBeInTheDocument();
     expect(screen.getAllByLabelText('皇帝互动告退').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('容安立绘')).toBeInTheDocument();
     expect(onLeave).not.toHaveBeenCalled();
   });
 
@@ -7583,6 +7586,7 @@ describe('App 主流程切换', () => {
     );
     expect(screen.getByRole('button', { name: '送礼问安' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '起身告辞' })).toBeInTheDocument();
+    expect(screen.getByLabelText('太后常驻立绘')).toBeInTheDocument();
     expect(screen.getByText(/你需先依礼问安/)).toBeInTheDocument();
     expect(screen.queryByLabelText('建章宫太后对话框')).not.toBeInTheDocument();
 
@@ -7590,6 +7594,7 @@ describe('App 主流程切换', () => {
 
     const dowagerDialogue = await screen.findByLabelText('建章宫太后对话框');
     expect(dowagerDialogue).toBeInTheDocument();
+    expect(screen.getByLabelText('太后常驻立绘')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '送礼问安' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '起身告辞' })).toBeDisabled();
     await screen.findByText(/你上前奉礼问安后/);

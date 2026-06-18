@@ -266,6 +266,7 @@ describe('影落掖庭地图主线体验', () => {
 
     expect(await screen.findByText(/你第一次踏进后宫宫道时/)).toBeInTheDocument();
     advanceDialoguePages();
+    expect(screen.getByAltText('陈婉宁')).toHaveAttribute('src', '/assets/characters/women/chenwanning.png');
     fireEvent.click(screen.getByRole('button', { name: '谢她照拂，只字不提旧案' }));
     expect(await screen.findByText(/陈婉宁笑意未改/)).toBeInTheDocument();
   });
