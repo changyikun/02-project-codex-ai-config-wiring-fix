@@ -948,6 +948,42 @@ const buildPalaceBanquetRegistrationReport = ({
   ],
 });
 
+const buildRankPromotionReport = ({
+  nextTime,
+  previousRankName,
+  nextRankName,
+  previousResidenceName,
+  nextResidenceName,
+  reportIndex,
+}: {
+  nextTime: PalaceTimeState;
+  previousRankName: string;
+  nextRankName: string;
+  previousResidenceName: string;
+  nextResidenceName: string;
+  reportIndex: number;
+}): SettlementReport => {
+  const residenceLine =
+    previousResidenceName !== nextResidenceName
+      ? `另迁居${nextResidenceName}，原${previousResidenceName}诸事由内务府交割。`
+      : `仍居${nextResidenceName}，宫中用度按新位分重定。`;
+  const lines = [
+    `内侍奉旨来报：皇上有旨，念娘娘入宫以来谨慎持身、声望渐著，由${previousRankName}晋为${nextRankName}。`,
+    residenceLine,
+  ];
+
+  return {
+    id: `rank-promotion-${nextTime.year}-${nextTime.month}-${nextTime.xun}-${reportIndex}`,
+    kind: 'promotion',
+    year: nextTime.year,
+    month: nextTime.month,
+    xun: nextTime.xun,
+    title: '晋封旨意',
+    summary: lines.join(' '),
+    lines,
+  };
+};
+
 const buildPalaceBanquetResultReport = ({
   seasonKey,
   completedAt,
@@ -2688,6 +2724,18 @@ export const useGameFlowStore = create<GameFlowStore>()(
                   nextResidenceName,
                 }
               : null;
+          const rankPromotionReport =
+            monthGovernance && getRankWeight(monthGovernance.nextRankName) < getRankWeight(monthGovernance.previousRankName)
+              ? buildRankPromotionReport({
+                  nextTime,
+                  previousRankName: monthGovernance.previousRankName,
+                  nextRankName: monthGovernance.nextRankName,
+                  previousResidenceName: monthGovernance.previousResidenceName,
+                  nextResidenceName: monthGovernance.nextResidenceName,
+                  reportIndex: current.settlementReports.length + 1,
+                })
+              : null;
+          const reportIndexOffset = rankPromotionReport ? 1 : 0;
           const shouldUpdatePlayerStats = monthTransitions > 0 || shouldApplyLateNightPenalty;
           const nextState = xunTransitions > 0 || nightlyServiceSettlement || palaceBanquetSettlement
             ? {
@@ -2801,13 +2849,13 @@ export const useGameFlowStore = create<GameFlowStore>()(
                 nightlyServiceLines,
                 lateNightPenaltyLines,
                 palaceStrifeLines,
-                reportIndex: current.settlementReports.length + 1,
+                reportIndex: current.settlementReports.length + reportIndexOffset + 1,
               });
           const registrationReport = registrationNotice.shouldShow
             ? buildPalaceBanquetRegistrationReport({
                 seasonKey: registrationNotice.seasonKey,
                 eventTime: registrationNotice.eventTime,
-                reportIndex: current.settlementReports.length + 2,
+                reportIndex: current.settlementReports.length + reportIndexOffset + 2,
               })
             : null;
           const palaceBanquetReport = palaceBanquetSettlement
@@ -2815,12 +2863,12 @@ export const useGameFlowStore = create<GameFlowStore>()(
                 seasonKey: palaceBanquetCrossing.seasonKey,
                 completedAt: palaceBanquetEventTime,
                 lines: palaceBanquetSettlement.lines,
-                reportIndex: current.settlementReports.length + 3,
+                reportIndex: current.settlementReports.length + reportIndexOffset + 3,
               })
             : null;
           let settlementReports = current.settlementReports;
           let latestSettlementReportId = current.latestSettlementReportId;
-          [settlementReport, registrationReport, palaceBanquetReport].forEach((report) => {
+          [rankPromotionReport, settlementReport, registrationReport, palaceBanquetReport].forEach((report) => {
             if (!report || isDuplicateSettlementReport(settlementReports.at(-1), report)) {
               return;
             }

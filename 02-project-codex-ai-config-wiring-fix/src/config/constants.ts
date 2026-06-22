@@ -294,8 +294,6 @@ export const CHARACTER_STATUS_THRESHOLDS = {
   },
 } as const;
 
-export const RANK_ICON_BASE_PATH = '/assets/icons/ranks' as const;
-
 export const PRESTIGE_RANK_TABLE: readonly 位分声望条目[] = numericPrestigeRankTable;
 
 export const SPECIAL_PRESTIGE_RANK_TABLE: readonly 位分声望条目[] = numericSpecialPrestigeRankTable;

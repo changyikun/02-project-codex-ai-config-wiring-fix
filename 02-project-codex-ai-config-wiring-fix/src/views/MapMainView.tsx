@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { AutoCutoutPortrait } from '../components/visual/AutoCutoutPortrait';
+import { useEffect, useMemo, useState } from 'react';
 import { AffairsPanelView, BondPanelView, ChroniclePanelView } from '../components/chamber/ChamberUtilityViews';
 import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
-import { ConsortAudiencePanel } from '../components/consorts/ConsortAudiencePanel';
 import { ConcubineListView } from '../components/consorts/ConcubineListView';
 import { HaremPalaceView } from '../components/consorts/HaremPalaceView';
 import { PlayerStatsView } from '../components/status/PlayerStatsView';
@@ -11,15 +9,9 @@ import type { ChamberPanelId } from '../config/bedchamber';
 import { HAREM_OUTSIDE_BACKGROUND, LOCATION_SCENE_BACKGROUNDS } from '../config/locationSceneBackgrounds';
 import { buildMapHotspots, MAP_SIDEBAR_BUTTONS, resolveMapBackgroundImage, type MapHotspotConfig } from '../config/palaceUi';
 import { buildInitialBondProfile } from '../game/data/bondPresets';
-import { buildDuNiangShopCatalog, getInventoryRecyclePrice, type DuNiangShopEntry } from '../game/data/inventoryPresets';
-import { getConcubineDisplayRankText, getConcubinePortraitPath } from '../game/data/concubineRoster';
-import {
-  type GongmenToolDialogueHistoryEntry,
-  type GongmenToolNpcProfile,
-} from '../game/lib/gongmenToolDialogueRuntime';
+import { getConcubinePortraitPath } from '../game/data/concubineRoster';
 import { buildMapTransitionNarrative } from '../game/lib/actionNarrativeRuntime';
 import { isJiaojiaoSpokenText } from '../game/lib/dialoguePresentation';
-import { getNpcActivitiesAtLocation } from '../game/lib/npcActivityRuntime';
 import { canAccessHotSpringByPrestige } from '../game/lib/rankRuntime';
 import {
   applyYingluoyetingStoryChoice,
@@ -29,84 +21,12 @@ import {
   type YingluoyetingMapEvent,
 } from '../game/lib/yingluoyetingStoryRuntime';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
-import type { AffairSourceLabel } from '../game/types';
 import { renderNarrativeEntry } from '../game/narrative/narrativeCatalog';
-import { narrativeEntryToDialogueFields, narrativeEntryToPresentation } from '../game/narrative/narrativeDialogueAdapter';
+import { narrativeEntryToPresentation } from '../game/narrative/narrativeDialogueAdapter';
 
 const MAP_GUIDE_LINE_IDS = ['map.guide.line1', 'map.guide.line2'] as const;
-const duNiangLine1 = renderNarrativeEntry('gongmen.duniang.line1');
-const duNiangLine2 = renderNarrativeEntry('gongmen.duniang.line2');
-const alingLine1 = renderNarrativeEntry('gongmen.aling.line1');
-const alingLine2 = renderNarrativeEntry('gongmen.aling.line2');
-const alingIdleLine = renderNarrativeEntry('gongmen.aling.idle');
-const duNiangLine1Fields = narrativeEntryToDialogueFields(duNiangLine1);
-const duNiangLine2Fields = narrativeEntryToDialogueFields(duNiangLine2);
-const alingLine1Fields = narrativeEntryToDialogueFields(alingLine1);
-const alingLine2Fields = narrativeEntryToDialogueFields(alingLine2);
-const alingIdleFields = narrativeEntryToDialogueFields(alingIdleLine);
-const duNiangSmallTalkEntries = [
-  renderNarrativeEntry('gongmen.duniang.line2'),
-  renderNarrativeEntry('gongmen.duniang.line3'),
-  renderNarrativeEntry('gongmen.duniang.line4'),
-] as const;
-
-type GongmenNpcId = 'du-niang' | 'aling';
-type GongmenTradeMode = 'buy' | 'sell';
+const EUNUCH_PORTRAIT_SRC = '/assets/characters/men/taijian.png';
 type MapUtilityPanelId = Extract<ChamberPanelId, 'consorts' | 'stats' | 'chronicle' | 'bond' | 'harem' | 'affairs'>;
-type HotspotQuickAction =
-  | {
-      id: string;
-      label: string;
-      summary: string;
-      kind: 'panel';
-      panelId: MapUtilityPanelId;
-    }
-  | {
-      id: string;
-      label: string;
-      summary: string;
-      kind: 'affairs';
-      affairsSource: AffairSourceLabel;
-    };
-
-const gongmenNpcProfiles: Record<
-  GongmenNpcId,
-  {
-    identity: string;
-    name: string;
-	    portrait: string;
-	    dialogueLines: string[];
-	    personality?: string;
-	    summary?: string;
-	    alreadyCutout?: boolean;
-	    portraitThreshold?: number;
-	    portraitSampleInset?: number;
-  }
-> = {
-  'du-niang': {
-    identity: duNiangLine1Fields.speakerIdentity,
-    name: duNiangLine1Fields.speakerName,
-    portrait: '/assets/characters/women/duniang.png',
-	    dialogueLines: [
-	      duNiangLine1Fields.text,
-	      duNiangLine2Fields.text,
-	    ],
-	    personality: '中立、精明、市井、守口如瓶、买卖分明、不入情缘',
-	    summary:
-	      '杜娘是宫门处固定商贩 NPC，负责物品售卖与旧物回收。她消息灵通但不轻易交底，闲谈只能补足口吻与氛围，不得改动交易、库存、银两、时辰或关系硬规则。',
-	    alreadyCutout: true,
-  },
-  aling: {
-    identity: alingLine1Fields.speakerIdentity,
-    name: alingLine1Fields.speakerName,
-    portrait: '/assets/characters/women/feizi1.png',
-    dialogueLines: [
-      alingLine1Fields.text,
-      alingLine2Fields.text,
-    ],
-    portraitThreshold: 42,
-  },
-};
 const ASSISTANT_PORTRAIT_SRC = '/assets/characters/women/jiaojiao.png';
 const CHEN_WANNING_PORTRAIT_SRC = getConcubinePortraitPath('陈婉宁');
 
@@ -136,18 +56,6 @@ const resolveYingluoyetingEventPortraitLabel = (event: YingluoyetingMapEvent, is
   return event.speakerName === '陈婉宁' ? '陈婉宁立绘' : `${event.speakerName}剪影`;
 };
 
-const createDialogueId = (prefix: string): string => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return `${prefix}-${crypto.randomUUID()}`;
-  }
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-};
-
-const buildDuNiangLocalSmallTalkText = (historyLength: number): string => {
-  const entry = duNiangSmallTalkEntries[Math.max(0, historyLength - 1) % duNiangSmallTalkEntries.length];
-  return narrativeEntryToDialogueFields(entry).text;
-};
-
 export function MapMainView() {
   const {
     state,
@@ -156,9 +64,7 @@ export function MapMainView() {
     selectedRoute,
     inventory,
     concubines,
-    customConsorts,
     bondProfile,
-    merchantLedger,
     mapEventText,
     activeAffairsSource,
     settlementReports,
@@ -166,26 +72,14 @@ export function MapMainView() {
     lastSeenSettlementReportId,
     openChamberPanel,
     setMapEventText,
-    setActiveAffairsSource,
     patchState,
     enterMainChamber,
-    buyInventoryItem,
     grantInventoryItem,
-    sellInventoryItem,
     patchConcubineById,
     acknowledgeSettlementReport,
-    resolveNpcActivityEntry,
-    npcActivity,
   } = useGameFlowStore();
   const [guideStep, setGuideStep] = useState(0);
   const [selectedHotspotId, setSelectedHotspotId] = useState<MapHotspotConfig['id'] | null>(null);
-  const [gongmenSceneActive, setGongmenSceneActive] = useState(false);
-  const [activeGongmenNpc, setActiveGongmenNpc] = useState<GongmenNpcId | null>(null);
-  const [activeTradeMode, setActiveTradeMode] = useState<GongmenTradeMode | null>(null);
-  const [gongmenFeedback, setGongmenFeedback] = useState('');
-  const [gongmenDialogueStep, setGongmenDialogueStep] = useState(0);
-  const [gongmenAiBusy, setGongmenAiBusy] = useState(false);
-  const [gongmenAiHistory, setGongmenAiHistory] = useState<GongmenToolDialogueHistoryEntry[]>([]);
   const [activeYingluoyetingEvent, setActiveYingluoyetingEvent] = useState<YingluoyetingMapEvent | null>(null);
   const [activeYingluoyetingEventReturnMode, setActiveYingluoyetingEventReturnMode] =
     useState<'return-residence' | null>(null);
@@ -193,131 +87,28 @@ export function MapMainView() {
     useState<YingluoyetingMapEvent | null>(null);
   const [yingluoyetingResultText, setYingluoyetingResultText] = useState('');
   const [yingluoyetingResultHint, setYingluoyetingResultHint] = useState('');
-  const [activeGongmenConsortAudience, setActiveGongmenConsortAudience] = useState<{
-    entryId: string;
-    consortId: string;
-    summary: string;
-  } | null>(null);
   const [activeMapUtilityPanel, setActiveMapUtilityPanel] = useState<MapUtilityPanelId | null>(null);
-  const gongmenAiRequestRef = useRef(0);
   const guideActive = !state.flags.mapGuideFinished;
   const openingHaremFirstMeetPending = Boolean(
     state.routeId === 'yingluoyeting' && state.flags[YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending],
   );
   const mapHotspots = useMemo(() => buildMapHotspots(state.residenceName), [state.residenceName]);
-  const allConsorts = useMemo(() => [...concubines, ...customConsorts], [concubines, customConsorts]);
 
   const selectedHotspot = useMemo(
     () => mapHotspots.find((hotspot) => hotspot.id === selectedHotspotId) ?? null,
     [mapHotspots, selectedHotspotId],
   );
-  const selectedHotspotQuickActions = useMemo<HotspotQuickAction[]>(() => {
-    if (!selectedHotspot) {
-      return [];
-    }
-
-    switch (selectedHotspot.id) {
-      case '御书房':
-        return [
-          { id: 'open-court-affairs', label: '朝堂事务', summary: '直接进入现有朝堂事务面板。', kind: 'affairs', affairsSource: '朝堂事务' },
-        ];
-      case '养心殿':
-        return [
-          { id: 'open-bond', label: '情缘管理', summary: '直接进入现有情缘面板。', kind: 'panel', panelId: 'bond' },
-        ];
-      case '冷宫':
-        return [
-          { id: 'open-chronicle', label: '旧案纪事', summary: '直接进入现有纪事面板。', kind: 'panel', panelId: 'chronicle' },
-        ];
-      default:
-        return [];
-    }
-  }, [selectedHotspot]);
   const currentXunKey = `${time.year}-${time.month}-${time.xun}`;
   const activeBondProfile =
     bondProfile.routeId === state.routeId ? bondProfile : buildInitialBondProfile(state.routeId, currentXunKey);
   const closeMapUtilityPanel = () => setActiveMapUtilityPanel(null);
-  const gongmenNpcActivities = useMemo(
-    () =>
-      getNpcActivitiesAtLocation(npcActivity, '宫门', { includeResolved: true })
-        .map((entry) => {
-          const consort = allConsorts.find((candidate) => candidate.id === entry.actorConsortId);
-          return consort ? { entry, consort } : null;
-        })
-        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
-    [allConsorts, npcActivity],
-  );
-  const gongmenSeed = useMemo(
-    () => `${state.routeId}:${time.year}-${time.month}-${time.xun}`,
-    [state.routeId, time.month, time.xun, time.year],
-  );
-  const gongmenSaveId = useMemo(() => `local:${state.routeId}:${encodeURIComponent(state.name)}`, [state.name, state.routeId]);
-  const gongmenSessionIds = useMemo(
-    () => ({
-      'du-niang': createDialogueId('session-gongmen-du-niang'),
-      aling: createDialogueId('session-gongmen-aling'),
-    }),
-    [state.name, state.routeId],
-  );
-  const duNiangCatalog = useMemo(() => buildDuNiangShopCatalog(gongmenSeed), [gongmenSeed]);
-  const gongmenNpcButtons = useMemo(
-    () =>
-      state.routeId === 'chenyuansucuo'
-        ? [
-            { id: 'du-niang' as const, label: '杜娘' },
-            { id: 'aling' as const, label: '阿翎' },
-          ]
-        : [{ id: 'du-niang' as const, label: '杜娘' }],
-    [state.routeId],
-  );
-  const sellableInventory = useMemo(
-    () =>
-      inventory
-        .filter((item) => item.quantity > 0 && item.canRecycle !== false)
-        .sort((left, right) => left.price - right.price),
-    [inventory],
-  );
-  const resolvedTradeCatalog = useMemo(
-    () =>
-      duNiangCatalog
-        .map((entry) => {
-          const ledgerKey = `${time.year}-${time.month}-${time.xun}:${entry.itemId}`;
-          const boughtCount = merchantLedger[ledgerKey] ?? 0;
-          const remainingStock = entry.stock == null ? null : Math.max(0, entry.stock - boughtCount);
-          return {
-            ...entry,
-            remainingStock,
-          };
-        })
-        .filter((entry) => entry.remainingStock == null || entry.remainingStock > 0),
-    [duNiangCatalog, merchantLedger, time.month, time.xun, time.year],
-  );
-  const activeNpcProfile = activeGongmenNpc ? gongmenNpcProfiles[activeGongmenNpc] : null;
-  const activeGongmenAudienceConsort = useMemo(
-    () => allConsorts.find((consort) => consort.id === activeGongmenConsortAudience?.consortId) ?? null,
-    [activeGongmenConsortAudience, allConsorts],
-  );
-  const showGongmenSelector = gongmenSceneActive && !activeNpcProfile && !activeGongmenConsortAudience;
-  const showGongmenNpcActions = Boolean(
-    activeNpcProfile && (gongmenFeedback || gongmenDialogueStep >= activeNpcProfile.dialogueLines.length),
-  );
-  const gongmenDialogue = useMemo(() => {
-    if (gongmenFeedback) {
-      return gongmenFeedback;
-    }
-    if (!activeNpcProfile) {
-      return '';
-    }
-    return activeNpcProfile.dialogueLines[Math.min(gongmenDialogueStep, activeNpcProfile.dialogueLines.length - 1)] ?? '';
-  }, [activeNpcProfile, gongmenDialogueStep, gongmenFeedback]);
   const activeYingluoyetingBackground = activeYingluoyetingEvent
     ? activeYingluoyetingEvent.locationId === '后宫'
       ? HAREM_OUTSIDE_BACKGROUND
       : LOCATION_SCENE_BACKGROUNDS[activeYingluoyetingEvent.locationId]
     : undefined;
-  const activeMapBackground = gongmenSceneActive ? LOCATION_SCENE_BACKGROUNDS['宫门'] : activeYingluoyetingBackground;
-  const mapBackgroundImage = activeMapBackground ?? resolveMapBackgroundImage(time.slot);
-  const locationSceneActive = gongmenSceneActive || Boolean(activeYingluoyetingEvent);
+  const mapBackgroundImage = activeYingluoyetingBackground ?? resolveMapBackgroundImage(time.slot);
+  const locationSceneActive = Boolean(activeYingluoyetingEvent);
   const activeYingluoyetingDialogueIsResult = Boolean(yingluoyetingResultText);
   const activeYingluoyetingDialogueIdentity = activeYingluoyetingDialogueIsResult
     ? '场景旁白'
@@ -357,37 +148,25 @@ export function MapMainView() {
       : -1;
     return settlementReports.slice(Math.max(0, lastSeenIndex + 1), latestIndex + 1)[0];
   }, [latestSettlementReportId, lastSeenSettlementReportId, settlementReports]);
+  const latestSettlementReportIsPromotion = latestSettlementReport?.kind === 'promotion';
   const showSettlementReport = Boolean(
     latestSettlementReport &&
       latestSettlementReport.id !== lastSeenSettlementReportId &&
-      !dialogueText &&
-      !selectedHotspot &&
-      !activeYingluoyetingEvent &&
-      !activeNpcProfile &&
-      !activeGongmenConsortAudience &&
-      !activeMapUtilityPanel &&
-      !gongmenSceneActive,
+      (latestSettlementReportIsPromotion ||
+        (!dialogueText &&
+          !selectedHotspot &&
+          !activeYingluoyetingEvent &&
+          !activeMapUtilityPanel &&
+          !locationSceneActive)),
   );
   const isJiaojiaoMapDialogue = activeGuidePresentation?.actorKey === 'jiaojiao' || isJiaojiaoSpokenText(dialogueText);
   const mapDialogueClassName = `global-dialogue-stage--map ${
     isJiaojiaoMapDialogue ? 'global-dialogue-stage--assistant' : 'global-dialogue-stage--narration'
   }`;
   const isMapDialogueBlocking = Boolean(
-    (dialogueText && !selectedHotspot) || showSettlementReport || activeYingluoyetingEvent || activeNpcProfile || activeGongmenConsortAudience,
+    (dialogueText && !selectedHotspot) || showSettlementReport || activeYingluoyetingEvent,
   );
   const isMapInteractionBlocked = Boolean(isMapDialogueBlocking || activeMapUtilityPanel);
-
-  const resetGongmenScene = () => {
-    gongmenAiRequestRef.current += 1;
-    setGongmenSceneActive(false);
-    setActiveGongmenNpc(null);
-    setActiveTradeMode(null);
-    setGongmenFeedback('');
-    setGongmenDialogueStep(0);
-    setGongmenAiBusy(false);
-    setGongmenAiHistory([]);
-    setActiveGongmenConsortAudience(null);
-  };
 
   const resetYingluoyetingEvent = () => {
     setActiveYingluoyetingEvent(null);
@@ -418,7 +197,6 @@ export function MapMainView() {
     setSelectedHotspotId(null);
     setMapEventText('');
     setActiveMapUtilityPanel(null);
-    resetGongmenScene();
 
     if (!openingHaremEvent) {
       patchState({
@@ -478,7 +256,6 @@ export function MapMainView() {
     if (buttonId === 'return') {
       setActiveMapUtilityPanel(null);
       setMapEventText(buildMapTransitionNarrative({ kind: 'return-chamber', residenceName: state.residenceName }));
-      resetGongmenScene();
       enterMainChamber();
       return;
     }
@@ -500,7 +277,6 @@ export function MapMainView() {
       return;
     }
     resetYingluoyetingEvent();
-    resetGongmenScene();
     if (hotspotId === state.residenceName) {
       setSelectedHotspotId(null);
       setMapEventText(buildMapTransitionNarrative({ kind: 'return-chamber', residenceName: state.residenceName }));
@@ -561,12 +337,6 @@ export function MapMainView() {
     const previousTime = time;
     setMapEventText('');
 
-    if (selectedHotspot.id === '宫门') {
-      setSelectedHotspotId(null);
-      setGongmenSceneActive(true);
-      return;
-    }
-
     setSelectedHotspotId(null);
 
     if (selectedHotspot.id === '后宫') {
@@ -581,106 +351,6 @@ export function MapMainView() {
     }
 
     enterMainChamber(selectedHotspot.id, previousTime);
-  };
-
-  const handleOpenGongmenNpc = (npcId: GongmenNpcId) => {
-    gongmenAiRequestRef.current += 1;
-    setActiveGongmenNpc(npcId);
-    setActiveTradeMode(null);
-    setGongmenFeedback('');
-    setGongmenDialogueStep(0);
-    setGongmenAiBusy(false);
-    setGongmenAiHistory([]);
-    setActiveGongmenConsortAudience(null);
-  };
-
-  const handleCloseGongmenNpc = () => {
-    gongmenAiRequestRef.current += 1;
-    setActiveGongmenNpc(null);
-    setActiveTradeMode(null);
-    setGongmenFeedback('');
-    setGongmenDialogueStep(0);
-    setGongmenAiBusy(false);
-    setGongmenAiHistory([]);
-  };
-
-  const handleStartGongmenConsortAudience = (entryId: string) => {
-    const activity = gongmenNpcActivities.find((item) => item.entry.id === entryId);
-    if (!activity || activity.entry.resolved) {
-      return;
-    }
-    setActiveGongmenNpc(null);
-    setActiveTradeMode(null);
-    setGongmenFeedback('');
-    setGongmenDialogueStep(0);
-    setActiveGongmenConsortAudience({
-      entryId,
-      consortId: activity.consort.id,
-      summary: activity.entry.summary,
-    });
-    resolveNpcActivityEntry(entryId);
-  };
-
-  const handleHotspotQuickAction = (action: HotspotQuickAction) => {
-    if (isMapInteractionBlocked) {
-      return;
-    }
-
-    setSelectedHotspotId(null);
-    setMapEventText('');
-    resetYingluoyetingEvent();
-    resetGongmenScene();
-
-    if (action.kind === 'affairs') {
-      setActiveAffairsSource(action.affairsSource);
-      setActiveMapUtilityPanel('affairs');
-      return;
-    }
-
-    setActiveMapUtilityPanel(action.panelId);
-  };
-
-  const handleTradeModeChange = (mode: GongmenTradeMode) => {
-    gongmenAiRequestRef.current += 1;
-    setGongmenAiBusy(false);
-    setActiveTradeMode(mode);
-    setGongmenFeedback(narrativeEntryToDialogueFields(renderNarrativeEntry(mode === 'buy' ? 'gongmen.duniang.buy' : 'gongmen.duniang.sell')).text);
-  };
-
-  const handleDuNiangSmallTalk = () => {
-    const profile = gongmenNpcProfiles['du-niang'];
-
-    const toolProfile: GongmenToolNpcProfile = {
-      id: 'tool_du_niang',
-      identity: profile.identity,
-      name: profile.name,
-      personality: profile.personality ?? '中立、精明、守口如瓶',
-      summary: profile.summary ?? '杜娘是宫门处固定商贩 NPC。',
-    };
-
-    const playerTurn: GongmenToolDialogueHistoryEntry = {
-      speaker: `${state.family || '宫中人'} · ${state.name}`,
-      text: narrativeEntryToDialogueFields(renderNarrativeEntry('gongmen.duniang.idle')).text,
-    };
-    const nextHistory = [...gongmenAiHistory, playerTurn].slice(-6);
-    const localText = buildDuNiangLocalSmallTalkText(nextHistory.length);
-    const localSpeaker = `${toolProfile.identity} · ${toolProfile.name}`;
-    gongmenAiRequestRef.current += 1;
-
-    setActiveTradeMode(null);
-    setGongmenFeedback(localText);
-    setGongmenAiHistory([...nextHistory, { speaker: localSpeaker, text: localText }].slice(-6));
-    setGongmenAiBusy(false);
-  };
-
-  const handleBuyFromDuNiang = (entry: DuNiangShopEntry & { remainingStock: number | null }) => {
-    const result = buyInventoryItem(entry, entry.remainingStock);
-    setGongmenFeedback(result.message);
-  };
-
-  const handleSellToDuNiang = (itemId: string) => {
-    const result = sellInventoryItem(itemId);
-    setGongmenFeedback(result.message);
   };
 
   const applyConcubineRelationDeltas = (
@@ -864,11 +534,6 @@ export function MapMainView() {
               <button type="button" onClick={handleEnterHotspot}>
                 {selectedHotspot.id === state.residenceName ? '回宫' : '进入此处'}
               </button>
-              {selectedHotspotQuickActions.map((action) => (
-                <button key={action.id} type="button" onClick={() => handleHotspotQuickAction(action)} title={action.summary}>
-                  {action.label}
-                </button>
-              ))}
               <button type="button" className="is-secondary" onClick={() => setSelectedHotspotId(null)}>
                 留在地图
               </button>
@@ -897,236 +562,59 @@ export function MapMainView() {
           />
         ) : null}
 
-        {showGongmenSelector ? (
-          <section className="map-main__gongmen-selector" aria-label="宫门人物入口">
-            <div className="map-main__gongmen-entry-buttons">
-              {gongmenNpcButtons.map((npc) => (
-                <button
-                  key={npc.id}
-                  type="button"
-                  className={activeGongmenNpc === npc.id ? 'is-active' : ''}
-                  onClick={() => handleOpenGongmenNpc(npc.id)}
-                >
-                  {npc.label}
-                </button>
-              ))}
-            </div>
-            {gongmenNpcActivities.length > 0 ? (
-              <div className="map-main__gongmen-entry-buttons" aria-label="宫门可交互妃嫔">
-                {gongmenNpcActivities.map(({ entry, consort }) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    disabled={entry.resolved}
-                    onClick={() => handleStartGongmenConsortAudience(entry.id)}
-                  >
-                    {entry.resolved
-                      ? `${getConcubineDisplayRankText(consort)} ${consort.name}仍在此处（已交谈）`
-                      : `与${getConcubineDisplayRankText(consort)} ${consort.name}交谈`}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            <button
-              type="button"
-              className="map-main__gongmen-return"
-              onClick={() => {
-                resetGongmenScene();
-                setMapEventText('');
-              }}
-            >
-              回到地图
-            </button>
-          </section>
-        ) : null}
-
-        {gongmenSceneActive && activeGongmenConsortAudience && activeGongmenAudienceConsort ? (
-          <section className="map-main__gongmen-scene" aria-label={`${activeGongmenAudienceConsort.name} 宫门偶遇场景`}>
-            <ConsortAudiencePanel
-              consort={activeGongmenAudienceConsort}
-              palaceLabel="宫门"
-              hallLabel="偶遇"
-              concubines={concubines}
-              backLabel="返回宫门"
-              initialActionLabel="宫门偶遇"
-              initialActionResult={`宫门处风声嘈杂，内外消息都在此地转手。${activeGongmenConsortAudience.summary}你看见${getConcubineDisplayRankText(
-                activeGongmenAudienceConsort,
-              )} ${activeGongmenAudienceConsort.name}正在此处，便主动上前搭话。`}
-              onBack={() => setActiveGongmenConsortAudience(null)}
-            />
-          </section>
-        ) : null}
-
-        {gongmenSceneActive && activeNpcProfile ? (
-          <>
-            <section className="map-main__gongmen-scene" aria-label={`${activeNpcProfile.name} 宫门场景`}>
-              <div className="map-main__gongmen-portrait-stage" aria-label={`${activeNpcProfile.name}常驻立绘`}>
-                <div className="map-main__gongmen-portrait-frame">
-                  {activeNpcProfile.alreadyCutout ? (
-                    <img
-                      src={activeNpcProfile.portrait}
-                      alt={activeNpcProfile.name}
-                      className="map-main__gongmen-portrait-media global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--gongmen"
-                    />
-                  ) : (
-                    <AutoCutoutPortrait
-                      src={activeNpcProfile.portrait}
-                      alt={activeNpcProfile.name}
-                      className="map-main__gongmen-portrait-media global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--gongmen"
-                      threshold={activeNpcProfile.portraitThreshold}
-                      sampleInset={activeNpcProfile.portraitSampleInset ?? 10}
-                    />
-                  )}
-                </div>
-              </div>
-              <GlobalDialogueStage
-                sceneLabel={`${activeNpcProfile.name} 宫门对话场景`}
-                portraitLabel={`${activeNpcProfile.name}常驻立绘`}
-                ariaLabel={`${activeNpcProfile.name} 宫门对话`}
-                className="global-dialogue-stage--gongmen global-dialogue-stage--with-side-panel"
-                dialogueClassName="palace-dialogue-box--gongmen-npc"
-                suppressPortrait
-                characterIdentity={activeNpcProfile.identity}
-                characterName={activeNpcProfile.name}
-                content={gongmenDialogue}
-                onNextAction={() => {
-                  if (gongmenFeedback) {
-                    gongmenAiRequestRef.current += 1;
-                    setGongmenAiBusy(false);
-                    setGongmenFeedback('');
-                    return;
-                  }
-                  if (gongmenDialogueStep < activeNpcProfile.dialogueLines.length - 1) {
-                    setGongmenDialogueStep((current) => current + 1);
-                    return;
-                  }
-                  setGongmenDialogueStep(activeNpcProfile.dialogueLines.length);
-                }}
-              />
-            </section>
-
-            <aside className="map-main__gongmen-actions" aria-label={`${activeNpcProfile.name} 操作栏`}>
-              {showGongmenNpcActions ? (
-                activeGongmenNpc === 'du-niang' ? (
-                  <>
-                    <button type="button" onClick={handleDuNiangSmallTalk} aria-busy={gongmenAiBusy}>
-                      闲谈
-                    </button>
-                    <button
-                      type="button"
-                      className={activeTradeMode === 'buy' ? 'is-active' : ''}
-                      onClick={() => handleTradeModeChange('buy')}
-                    >
-                      购买
-                    </button>
-                    <button
-                      type="button"
-                      className={activeTradeMode === 'sell' ? 'is-active' : ''}
-                      onClick={() => handleTradeModeChange('sell')}
-                    >
-                      售卖
-                    </button>
-                    <p>杜娘负责宫门商店与旧物回收，交易即时结算，不额外消耗时辰与体力。</p>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setGongmenFeedback(alingIdleFields.text)}
-                    >
-                      叙旧
-                    </button>
-                    <p>阿翎仅在尘缘夙错线出现，当前先保留宫门见面入口与立绘展示。</p>
-                  </>
-                )
-              ) : null}
-              <button type="button" className="map-main__gongmen-leave" onClick={handleCloseGongmenNpc}>
-                离开
-              </button>
-            </aside>
-
-            {activeGongmenNpc === 'du-niang' && activeTradeMode ? (
-              <section className="map-main__trade-modal" role="dialog" aria-label={activeTradeMode === 'buy' ? '杜娘购买弹窗' : '杜娘售卖弹窗'}>
-                <header className="map-main__trade-header">
-                  <div>
-                    <strong>{activeTradeMode === 'buy' ? '杜娘货单' : '背包回收'}</strong>
-                    <span>{`当前银两：${state.silver}`}</span>
-                  </div>
-                  <button type="button" onClick={() => setActiveTradeMode(null)}>
-                    收起
-                  </button>
-                </header>
-
-                <div className="map-main__trade-list">
-                  {activeTradeMode === 'buy' ? (
-                    resolvedTradeCatalog.length > 0 ? (
-                      resolvedTradeCatalog.map((entry) => (
-                        <article key={entry.itemId} className="map-main__trade-card">
-                          <div>
-                            <h3>{entry.name}</h3>
-                            <p>{entry.description}</p>
-                            <span>{`售价：${entry.price}两`}</span>
-                            <span>{entry.remainingStock == null ? '常备货' : `本旬余量：${entry.remainingStock}`}</span>
-                          </div>
-                          <button
-                            type="button"
-                            aria-label={`购买 ${entry.name}`}
-                            disabled={state.silver < entry.price || entry.remainingStock === 0}
-                            onClick={() => handleBuyFromDuNiang(entry)}
-                          >
-                            购买
-                          </button>
-                        </article>
-                      ))
-                    ) : (
-                      <div className="map-main__trade-empty-state">杜娘这一旬没带出新的稀有货色，剩下的常备物件你已经看过了。</div>
-                    )
-                  ) : sellableInventory.length > 0 ? (
-                    sellableInventory.map((item) => (
-                      <article key={item.itemId} className="map-main__trade-card">
-                        <div>
-                          <h3>{item.name}</h3>
-                          <p>{item.description}</p>
-                          <span>{`持有：${item.quantity}`}</span>
-                          <span>{`回收价：${getInventoryRecyclePrice(item)}两 / 份`}</span>
-                        </div>
-                        <button type="button" aria-label={`售卖 ${item.name}`} onClick={() => handleSellToDuNiang(item.itemId)}>
-                          售卖
-                        </button>
-                      </article>
-                    ))
-                  ) : (
-                    <div className="map-main__trade-empty-state">背包里暂时没有可回收的物件。</div>
-                  )}
-                </div>
-              </section>
-            ) : null}
-          </>
-        ) : null}
-
         {showSettlementReport && latestSettlementReport ? (
           <GlobalDialogueStage
-            sceneLabel={latestSettlementReport.kind === 'event' ? '地图事件通报场景' : '地图时间通报场景'}
-            portraitLabel="娇娇立绘"
-            portrait={
-              <img
-                src={ASSISTANT_PORTRAIT_SRC}
-                alt="娇娇"
-                className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant"
-              />
+            sceneLabel={
+              latestSettlementReport.kind === 'promotion'
+                ? '地图晋升通报场景'
+                : latestSettlementReport.kind === 'event'
+                  ? '地图事件通报场景'
+                  : '地图时间通报场景'
             }
-            ariaLabel={latestSettlementReport.kind === 'event' ? '地图事件通报' : '娇娇时间通报'}
-            className="global-dialogue-stage--map global-dialogue-stage--assistant"
+            portraitLabel={latestSettlementReport.kind === 'promotion' ? '传旨太监立绘' : '娇娇立绘'}
+            portrait={
+              latestSettlementReport.kind === 'promotion' ? (
+                <img
+                  src={EUNUCH_PORTRAIT_SRC}
+                  alt="传旨太监"
+                  className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--eunuch"
+                />
+              ) : (
+                <img
+                  src={ASSISTANT_PORTRAIT_SRC}
+                  alt="娇娇"
+                  className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant"
+                />
+              )
+            }
+            ariaLabel={
+              latestSettlementReport.kind === 'promotion'
+                ? '晋升太监通报'
+                : latestSettlementReport.kind === 'event'
+                  ? '地图事件通报'
+                  : '娇娇时间通报'
+            }
+            className={`global-dialogue-stage--map ${
+              latestSettlementReport.kind === 'promotion' ? 'global-dialogue-stage--nightly-service' : 'global-dialogue-stage--assistant'
+            }`}
             dialogueClassName="palace-dialogue-box--map"
-            characterIdentity={latestSettlementReport.kind === 'event' ? '司乐女官' : '贴身宫女'}
-            characterName={latestSettlementReport.kind === 'event' ? '掌册宫人' : '娇娇'}
+            characterIdentity={
+              latestSettlementReport.kind === 'promotion'
+                ? '传旨内侍'
+                : latestSettlementReport.kind === 'event'
+                  ? '司乐女官'
+                  : '贴身宫女'
+            }
+            characterName={
+              latestSettlementReport.kind === 'promotion' ? '内侍' : latestSettlementReport.kind === 'event' ? '掌册宫人' : '娇娇'
+            }
             content={`${latestSettlementReport.title}。${latestSettlementReport.lines.join(' ')}`}
             onNextAction={() => acknowledgeSettlementReport(latestSettlementReport.id)}
             numericFeedbackBucket="settlement"
           />
         ) : null}
 
-        {(dialogueText || guideActive) && !selectedHotspot ? (
+        {(dialogueText || guideActive) && !selectedHotspot && !showSettlementReport ? (
           <GlobalDialogueStage
             sceneLabel="地图引导场景"
             portraitLabel={isJiaojiaoMapDialogue ? '娇娇立绘' : '旁白无立绘'}

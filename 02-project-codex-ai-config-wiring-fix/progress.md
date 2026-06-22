@@ -1,5 +1,49 @@
 Original prompt: 添加存档系统，回溯可以读取上一次存档，开始游戏会清空存档并新建存档（有二级确认）；关于存档功能的维护，需要把这部分写到全局文档里，以便更好的同步，之前已经做出的修改也需要将之前的文档修改到一致
 
+## 2026-06-22 v0.5.3 泛用地点行动结果对白层级修复
+
+- 本轮目标：修复新加的泛用地点场景内互动对白尺寸不对、正文看不到的问题。
+- 诊断结论：`GenericMapLocationView` 将 `LocationActionResultStage` 直接渲染在 `chamber-main__location-choice` 小操作卡片内部；全局对白舞台的 absolute 定位因此以小卡片为参照，导致对白框被压缩和错位。
+- 已处理：泛用地点的行动结果对白从地点操作卡片内移出，作为卡片兄弟节点挂在地点场景层级，复用全局对白框尺寸。
+- 已新增回归：御书房 `抄读` 后 `御书房行动结果舞台` 不得成为 `御书房行动` 卡片的子元素。
+- 已同步：`CHANGELOG.md` v0.5.3 第 5 条；`docs/game-system-breakdown.md` 对话交互锁规范；`codex-workdocs/2026-06-22-v053-location-dialogue-layout-fix.md`。
+
+## 2026-06-22 v0.5.3 地点入场对白重复触发修复
+
+- 本轮目标：修复玩家进入地点后，在地点内执行常规互动时反复触发入场对白，导致正常行动结果对白被覆盖的问题。
+- 诊断结论：`ChamberMainView` 的泛用地点入场 effect 只判断 `activeMapLocation`，没有记录本次地点入场对白是否已播；地点内行动修改数值或推进时辰后 effect 重新运行，再次塞入“行至某地前”的入场对白。
+- 已处理：新增本次地点入场对白 key，只有从地图新进入地点时播放一次；同一地点内的行动结算、面板切换和时辰变化不再重播入场对白。
+- 已新增回归：御书房“抄读”后必须显示 `御书房行动结果`，且不再出现 `寝殿对白 / 行至御书房前`。
+- 已同步：`CHANGELOG.md` v0.5.3 第 4 条；`docs/game-system-breakdown.md` 对话交互锁规范。
+
+## 2026-06-22 v0.5.3 地点入口与常规行动收口
+
+- 本轮目标：解决地图地点入口不统一、空地点进入后缺少寻常互动、公共地点 NPC / 偶遇入口粗糙且分散的问题。
+- 已处理：大地图热点卡统一只显示地点描述和 `进入此处 / 留在地图`，不再在地图弹窗里提供朝堂事务、旧案纪事、宫门人物等快捷入口。
+- 已处理：新增 `GenericMapLocationView` 与 `mapLocationActions.ts`，为御花园、正阳门、重华宫、御书房、冷宫、养心殿提供统一的地点内常规行动；行动正文读取 `location_encounters.csv`，真实行动才推进时辰并接入过夜流程。
+- 已处理：宫门从 `MapMainView` 的旧假场景迁入 `GongmenView` 地点子场景，杜娘 / 阿翎、交易和宫门妃嫔偶遇都在进入宫门后出现。
+- 已处理：新增 `LocationConsortVisitorsPanel` 复用公共地点和宫门的妃嫔偶遇入口。
+- 已同步：`CHANGELOG.md` v0.5.3 第 3 条；`docs/game-system-breakdown.md` 地图与场景系统；`codex-workdocs/2026-06-22-v053-location-entry-hub.md`。
+- 合并处理：解决 `src/views/MapMainView.tsx` 的 stash/merge 冲突，保留地点入口统一方向，删除旧宫门假场景和旧解释性 UI 文本。
+
+## 2026-06-22 v0.5.3 冷宫 NPC 与位分图标字段检查
+
+- 本轮目标：检查冷宫 NPC 是否已拆表，并确认 `rank_prestige_table.csv` 的 `iconPath` 是否真实被使用。
+- 结论：冷宫妃嫔已在 `fixed_consort_roster.csv` 中维护，`杜若蘅 / 崔莺莺` 为 `status=limbo` 且住处为冷宫；这些会通过 `numericFixedConsortSeeds` 进入初始妃嫔 roster。
+- 结论：影落掖庭冷宫线索里的 `老宫人` 不是妃嫔 roster 成员，目前是 `route_mainline_dialogues.csv` 中的剧情说话人，并由 `yingluoyetingStoryRuntime` 组装事件选项和证物结果。
+- 已处理：`rank_prestige_table.csv` 的 `iconPath` 没有 `public/assets/icons/ranks` 资产目录，也没有 UI 消费；已移除该字段、`位分声望条目.图标路径` 和未使用的 `RANK_ICON_BASE_PATH`。
+- 已同步：`CHANGELOG.md` v0.5.3 第 2 条；`src/game/numerics/csv/README.md`；`codex-workdocs/2026-06-22-v053-cold-palace-npc-rank-icon-audit.md`。
+
+## 2026-06-18 v0.5.3 晋升清晨通报检查
+
+- 本轮目标：检查玩家自然晋升机制是否正常，并补齐“晋升时清晨由太监最高优先级通报”的演出链路。
+- 结论：声望驱动位分、月结算推进实际位分和迁宫逻辑仍正常；缺口在清晨反馈，原先只把新位分写入普通月初通报，且由娇娇播报。
+- 已处理：跨月实际晋升时新增 `promotion` settlement report，内容为“晋封旨意”，包含旧位分、新位分和迁宫信息。
+- 已处理：寝殿和地图通报渲染支持传旨内侍立绘；晋升通报优先于普通月报、侍寝通报、养心殿裁断和地图对白展示。
+- 已处理：确认晋升通报后不提前收束清晨结算转场，通报队列会继续播放普通月初通报。
+- 已同步：`CHANGELOG.md` v0.5.3 第 1 条；`docs/rank-governance-architecture.md` 晋升通报规则；`codex-workdocs/2026-06-18-v053-rank-promotion-notice.md`。
+- 验证：新增 app-flow 回归覆盖“跨月晋升先显示太监晋升通报，再显示普通月初通报”；相关跨月、位分、纪事测试已通过。
+
 ## 2026-06-18 v0.5.2 版本归档
 
 - 本轮目标：归档 `v0.5.2`，并为后续修改开启 `v0.5.3` 当前开发版本。

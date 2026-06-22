@@ -72,7 +72,6 @@ export type 位分声望条目 = {
   位分名称: string;
   所需声望值: number;
   对应颜色标识: RarityColorId;
-  图标路径: string;
 };
 
 export type 通关条件配置 = {

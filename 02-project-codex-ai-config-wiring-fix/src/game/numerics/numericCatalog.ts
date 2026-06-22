@@ -470,7 +470,7 @@ assertUniqueIds(numericFavorTiers, (tier) => tier.id, 'favor tier');
 export const numericPrestigeRankTable: readonly 位分声望条目[] = parseNumericCsv(
   rankPrestigeTableCsv,
   'rank_prestige_table.csv',
-  ['tableType', 'level', 'rankName', 'requiredPrestige', 'colorId', 'iconPath'],
+  ['tableType', 'level', 'rankName', 'requiredPrestige', 'colorId'],
 )
   .filter((row) => row.tableType === 'normal')
   .map((row) => ({
@@ -478,13 +478,12 @@ export const numericPrestigeRankTable: readonly 位分声望条目[] = parseNume
     位分名称: row.rankName,
     所需声望值: parseRequiredNumber(row.requiredPrestige, `${row.rankName}.requiredPrestige`),
     对应颜色标识: parseColorId(row.colorId, `${row.rankName}.colorId`),
-    图标路径: row.iconPath,
   }));
 
 export const numericSpecialPrestigeRankTable: readonly 位分声望条目[] = parseNumericCsv(
   rankPrestigeTableCsv,
   'rank_prestige_table.csv',
-  ['tableType', 'level', 'rankName', 'requiredPrestige', 'colorId', 'iconPath'],
+  ['tableType', 'level', 'rankName', 'requiredPrestige', 'colorId'],
 )
   .filter((row) => row.tableType === 'special')
   .map((row) => ({
@@ -492,7 +491,6 @@ export const numericSpecialPrestigeRankTable: readonly 位分声望条目[] = pa
     位分名称: row.rankName,
     所需声望值: parseRequiredNumber(row.requiredPrestige, `${row.rankName}.requiredPrestige`),
     对应颜色标识: parseColorId(row.colorId, `${row.rankName}.colorId`),
-    图标路径: row.iconPath,
   }));
 
 export const numericInventoryItems: readonly NumericInventoryItem[] = parseNumericCsv(

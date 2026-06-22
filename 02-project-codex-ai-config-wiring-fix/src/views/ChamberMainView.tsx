@@ -10,8 +10,11 @@ import {
 import { BaohuaHallView } from '../components/chamber/BaohuaHallView';
 import { DowagerAudiencePanel } from '../components/chamber/DowagerAudiencePanel';
 import { EmperorAudiencePanel } from '../components/chamber/EmperorAudiencePanel';
+import { GenericMapLocationView } from '../components/chamber/GenericMapLocationView';
+import { GongmenView } from '../components/chamber/GongmenView';
 import { HuaQingPoolView } from '../components/chamber/HuaQingPoolView';
 import { KitchenView } from '../components/chamber/KitchenView';
+import { LocationConsortVisitorsPanel } from '../components/chamber/LocationConsortVisitorsPanel';
 import { MiaoYinHallView } from '../components/chamber/MiaoYinHallView';
 import { NightlyServiceEventView, OVERNIGHT_TRANSITION_MS } from '../components/chamber/NightlyServiceEventView';
 import { TaiHospitalView } from '../components/chamber/TaiHospitalView';
@@ -242,6 +245,7 @@ export function ChamberMainView() {
     useState<PendingChamberDialogueAction>(null);
   const overnightTransitionRunKeyRef = useRef<string | null>(null);
   const suppressNextYangxinEntryNarrativeRef = useRef(false);
+  const lastLocationIntroKeyRef = useRef<string | null>(null);
   const isResidenceLocation = activeMapLocation === state.residenceName;
   const isOutsideScene = Boolean(activeMapLocation && !isResidenceLocation);
   const isJianzhangAudience = activeChamberPanel === 'main' && activeMapLocation === '建章宫' && jianzhangAudienceMode === 'dowager';
@@ -251,6 +255,7 @@ export function ChamberMainView() {
   const isTaiHospitalScene = activeChamberPanel === 'main' && activeMapLocation === '太医院';
   const isMiaoYinHallScene = activeChamberPanel === 'main' && activeMapLocation === '妙音堂';
   const isYetingYardScene = activeChamberPanel === 'main' && activeMapLocation === '掖庭院';
+  const isGongmenScene = activeChamberPanel === 'main' && activeMapLocation === '宫门';
   const isHaremPanelActive = activeChamberPanel === 'harem';
   const setDialogueFromEntry = (entry: NarrativeEntry) => {
     const presentation = narrativeEntryToPresentation(entry);
@@ -336,6 +341,9 @@ export function ChamberMainView() {
     setActiveEmperorAudience(null);
     setEmperorNoticeText('');
     setJianzhangAudienceMode(null);
+    if (!activeMapLocation) {
+      lastLocationIntroKeyRef.current = null;
+    }
   }, [activeMapLocation]);
 
   useEffect(() => {
@@ -398,7 +406,8 @@ export function ChamberMainView() {
       activeMapLocation === '华清池' ||
       activeMapLocation === '太医院' ||
       activeMapLocation === '妙音堂' ||
-      activeMapLocation === '掖庭院'
+      activeMapLocation === '掖庭院' ||
+      activeMapLocation === '宫门'
     ) {
       setPendingChamberDialogueAction(null);
       setDialogueText('');
@@ -418,6 +427,10 @@ export function ChamberMainView() {
         setDialogueText('');
         return;
       }
+      if (lastLocationIntroKeyRef.current === activeMapLocation) {
+        return;
+      }
+      lastLocationIntroKeyRef.current = activeMapLocation;
       setPendingChamberDialogueAction(null);
       setDialogueFromEntry(buildMapTransitionNarrativeEntry({ kind: 'enter-location', locationName: activeMapLocation }));
       return;
@@ -486,6 +499,7 @@ export function ChamberMainView() {
       : -1;
     return settlementReports.slice(Math.max(0, lastSeenIndex + 1), latestIndex + 1)[0];
   }, [latestSettlementReportId, lastSeenSettlementReportId, settlementReports]);
+  const latestSettlementReportIsPromotion = latestSettlementReport?.kind === 'promotion';
   const isOvernightSettlementPhase = overnightTransitionPhase === 'settlement';
   const shouldSuppressSettlementReportForScene =
     !isOvernightSettlementPhase &&
@@ -499,13 +513,15 @@ export function ChamberMainView() {
       latestSettlementReport &&
       latestSettlementReport.id !== lastSeenSettlementReportId &&
       !dialogueText &&
-      !pendingYangxinVerdict &&
-      !pendingNightlyServiceEvent &&
-      !pendingNightlyServiceNotice &&
-      (overnightTransitionPhase === 'hidden' || overnightTransitionPhase === 'settlement') &&
-      activeChamberPanel === 'main' &&
-      !shouldSuppressSettlementReportForScene,
+      (latestSettlementReportIsPromotion ||
+        (!pendingYangxinVerdict &&
+          !pendingNightlyServiceEvent &&
+          !pendingNightlyServiceNotice &&
+          (overnightTransitionPhase === 'hidden' || overnightTransitionPhase === 'settlement') &&
+          activeChamberPanel === 'main' &&
+          !shouldSuppressSettlementReportForScene)),
   );
+  const hasPriorityPromotionReport = Boolean(showSettlementReport && latestSettlementReportIsPromotion);
   const pendingNpcPlayerVisit = useMemo(() => getPendingNpcPlayerVisit(npcActivity), [npcActivity]);
   const pendingNpcPlayerVisitor = useMemo(
     () => concubines.find((consort) => consort.id === pendingNpcPlayerVisit?.actorConsortId),
@@ -840,7 +856,7 @@ export function ChamberMainView() {
 
   const handleSettlementReportDone = (reportId: string) => {
     acknowledgeSettlementReport(reportId);
-    if (overnightTransitionPhase === 'settlement') {
+    if (overnightTransitionPhase === 'settlement' && reportId === latestSettlementReportId) {
       setOvernightTransitionPhase('fade-out');
     }
   };
@@ -1238,7 +1254,7 @@ export function ChamberMainView() {
           </section>
         ) : null}
 
-        {shouldShowPendingNightlyServiceEvent && pendingNightlyServiceEvent ? (
+        {!hasPriorityPromotionReport && shouldShowPendingNightlyServiceEvent && pendingNightlyServiceEvent ? (
           <NightlyServiceEventView
             pendingEvent={pendingNightlyServiceEvent}
             playerName={state.name}
@@ -1249,7 +1265,7 @@ export function ChamberMainView() {
           />
         ) : null}
 
-        {shouldShowPendingNightlyServiceNotice && pendingNightlyServiceNotice ? (
+        {!hasPriorityPromotionReport && shouldShowPendingNightlyServiceNotice && pendingNightlyServiceNotice ? (
           <GlobalDialogueStage
             sceneLabel="夜晚侍寝通报"
             portraitLabel="内侍立绘"
@@ -1265,7 +1281,7 @@ export function ChamberMainView() {
           />
         ) : null}
 
-        {!pendingYangxinVerdict && !pendingNightlyServiceEvent && !pendingNightlyServiceNotice && isOvernightTransitionActive ? (
+        {!hasPriorityPromotionReport && !pendingYangxinVerdict && !pendingNightlyServiceEvent && !pendingNightlyServiceNotice && isOvernightTransitionActive ? (
           <section
             className={`nightly-service-event nightly-service-event--overnight nightly-service-event--${overnightTransitionPhase}`}
             aria-label="一夜过去"
@@ -1456,6 +1472,7 @@ export function ChamberMainView() {
         activeChamberPanel === 'main' &&
         activeMapLocation &&
         !isResidenceLocation &&
+        !isGongmenScene &&
         !activeLocationAudience &&
         activeLocationNpcActivities.length > 0 &&
         !dialogueText &&
@@ -1463,16 +1480,11 @@ export function ChamberMainView() {
         !showSettlementReport &&
         !showNpcPlayerVisit &&
         !isNightlyOverlayActive ? (
-          <section className="chamber-main__location-visitors" aria-label={`${activeMapLocation}可交互妃嫔`}>
-            <strong>本旬在此</strong>
-            {activeLocationNpcActivities.map(({ entry, consort }) => (
-              <button key={entry.id} type="button" disabled={entry.resolved} onClick={() => handleStartLocationAudience(entry.id)}>
-                {entry.resolved
-                  ? `${getConcubineDisplayRankText(consort)} ${consort.name}仍在此处（已交谈）`
-                  : `与${getConcubineDisplayRankText(consort)} ${consort.name}交谈`}
-              </button>
-            ))}
-          </section>
+          <LocationConsortVisitorsPanel
+            locationName={activeMapLocation}
+            entries={activeLocationNpcActivities}
+            onStartAudience={handleStartLocationAudience}
+          />
         ) : null}
 
         {!shouldHideChamberUiForNightlyOverlay && activeLocationAudience && activeLocationAudienceConsort && activeMapLocation ? (
@@ -1504,6 +1516,8 @@ export function ChamberMainView() {
           <MiaoYinHallView concubines={concubines} />
         ) : isYetingYardScene ? (
           <YetingYardView />
+        ) : isGongmenScene ? (
+          <GongmenView concubines={concubines} />
         ) : isJianzhangAudience ? (
           <DowagerAudiencePanel onLeave={enterMapMain} />
         ) : activeChamberPanel === 'main' && activeMapLocation === '建章宫' && !activeLocationAudience && !activeEmperorAudience ? (
@@ -1519,6 +1533,8 @@ export function ChamberMainView() {
               </button>
             ) : null}
           </section>
+        ) : activeChamberPanel === 'main' && activeMapLocation && !isResidenceLocation && !activeLocationAudience && !activeEmperorAudience ? (
+          <GenericMapLocationView locationId={activeMapLocation} />
         ) : activeChamberPanel === 'harem' ? (
           <HaremPalaceView
             concubines={concubines}
@@ -1568,7 +1584,7 @@ export function ChamberMainView() {
           <ConcubineListView concubines={concubines} onClose={handleUtilityPanelClose} />
         ) : null}
 
-        {pendingYangxinVerdict && yangxinVerdictDialogue ? (
+        {!hasPriorityPromotionReport && pendingYangxinVerdict && yangxinVerdictDialogue ? (
           <GlobalDialogueStage
             sceneLabel={yangxinVerdictDialogue.sceneLabel}
             portraitLabel={yangxinVerdictDialogue.portraitLabel}
@@ -1588,14 +1604,42 @@ export function ChamberMainView() {
 
         {showSettlementReport && latestSettlementReport ? (
           <GlobalDialogueStage
-            sceneLabel={latestSettlementReport.kind === 'event' ? '宫宴通报场景' : '旬月通报场景'}
-            portraitLabel="娇娇立绘"
-            portrait={<img src={ASSISTANT_PORTRAIT_SRC} alt="娇娇" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant" />}
-            ariaLabel={latestSettlementReport.kind === 'event' ? '宫宴事件通报' : '娇娇旬月通报'}
-            className="global-dialogue-stage--chamber global-dialogue-stage--assistant"
+            sceneLabel={
+              latestSettlementReport.kind === 'promotion'
+                ? '晋升通报场景'
+                : latestSettlementReport.kind === 'event'
+                  ? '宫宴通报场景'
+                  : '旬月通报场景'
+            }
+            portraitLabel={latestSettlementReport.kind === 'promotion' ? '传旨太监立绘' : '娇娇立绘'}
+            portrait={
+              latestSettlementReport.kind === 'promotion' ? (
+                <img src={EUNUCH_PORTRAIT_SRC} alt="传旨太监" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--eunuch" />
+              ) : (
+                <img src={ASSISTANT_PORTRAIT_SRC} alt="娇娇" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant" />
+              )
+            }
+            ariaLabel={
+              latestSettlementReport.kind === 'promotion'
+                ? '晋升太监通报'
+                : latestSettlementReport.kind === 'event'
+                  ? '宫宴事件通报'
+                  : '娇娇旬月通报'
+            }
+            className={`global-dialogue-stage--chamber ${
+              latestSettlementReport.kind === 'promotion' ? 'global-dialogue-stage--nightly-service' : 'global-dialogue-stage--assistant'
+            }`}
             dialogueClassName="palace-dialogue-box--chamber"
-            characterIdentity={latestSettlementReport.kind === 'event' ? '司乐女官' : '贴身宫女'}
-            characterName={latestSettlementReport.kind === 'event' ? '掌册宫人' : '娇娇'}
+            characterIdentity={
+              latestSettlementReport.kind === 'promotion'
+                ? '传旨内侍'
+                : latestSettlementReport.kind === 'event'
+                  ? '司乐女官'
+                  : '贴身宫女'
+            }
+            characterName={
+              latestSettlementReport.kind === 'promotion' ? '内侍' : latestSettlementReport.kind === 'event' ? '掌册宫人' : '娇娇'
+            }
             content={`${latestSettlementReport.title}。${latestSettlementReport.lines.join(' ')}`}
             onNextAction={() => handleSettlementReportDone(latestSettlementReport.id)}
             numericFeedbackBucket="settlement"

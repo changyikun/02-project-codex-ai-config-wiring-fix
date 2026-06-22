@@ -79,7 +79,7 @@
 - `global_numeric_rules.csv`：全局范围、倍率、体力、熬夜惩罚、家族接济和新局基础参数。
 - `monthly_expense_strategies.csv`：月用度策略。
 - `favor_tiers.csv`：宠爱分层。
-- `rank_prestige_table.csv`：位分声望门槛与图标。
+- `rank_prestige_table.csv`：位分声望门槛与颜色标识。
 - `fixed_consort_roster.csv`：固定妃嫔种子数据中的数值字段。
 - `craft_works.csv`：绣花、字画、调香可制作作品的题材、主 / 辅能力、难度、基础售价和基础送礼好感；完整进度 / 成色 / 售价 / 送礼公式在 `src/game/numerics/formula-pages/craftWorkFormulaPage.ts`。
 - `palace_strife_*` / `yangxin_verdict_choice_rules.csv`：宫斗严重度、流言严重度、裁断选项倍率和处罚参数；完整公式在 `src/game/numerics/formula-pages/palaceStrifeFormulaPage.ts`。

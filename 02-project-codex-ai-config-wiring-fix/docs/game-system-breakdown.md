@@ -96,8 +96,8 @@ flowchart LR
 | 选线 | `RouteSelectionView` | `selectedRoute`、`routeId`、路线基础数值 |
 | 属性 | `AttributeAssignmentView` | `state.name`、`age`、`family`、`stats`、`pointsLeft` |
 | 开场 | `OpeningDialogueView` | `openingTendency`、`openingGuideFinished`、开场 AI/本地兜底 |
-| 地图 | `MapMainView` | `activeMapLocation`、`mapEventText`、地点热点、宫门 NPC |
-| 寝殿 | `ChamberMainView` | `activeChamberPanel`、训练行动、地点子场景、结算报告 |
+| 地图 | `MapMainView` | `activeMapLocation`、`mapEventText`、地点热点；不承载地点内互动 |
+| 寝殿 | `ChamberMainView` | `activeChamberPanel`、训练行动、地点子场景、结算报告、地点内 NPC / 特殊入口 |
 | 面板 | `components/chamber/*` | 妃嫔、情缘、纪事、库存、宫务、杂项信息 |
 
 启动菜单现状：
@@ -131,6 +131,7 @@ flowchart LR
 - 视觉层由 `global-dialogue-stage__interaction-lock` 吃掉背景鼠标事件；业务层由 `ChamberMainView`、`MapMainView` 的交互锁判断兜底，避免键盘、测试或程序化点击绕过遮罩。
 - 寝殿行动反馈未收起时，不能继续点学习、外出、家族事务、情缘等按钮；地图剧情反馈未收起时，不能点侧栏或热点。
 - “对白 + 场景内固定按钮”的混合场景必须拆出空闲态与对话态：空闲态不渲染 `GlobalDialogueStage`，对话态才挂共享遮罩，并在对白收束前禁用固定按钮。建章宫、侍寝会面、妃嫔会面都应按此规则处理。
+- 地点入场对白只属于“从地图进入地点”的一次性演出。玩家留在同一地点内进行行动、结算数值、推进时辰或打开地点内面板时，不得再次触发入场对白；地点内行动结果应使用自身的 `LocationActionResultStage` 或对应地点对话态展示，并作为地点场景层级的全局对白渲染，不能嵌套在地点操作卡片、按钮栏或小面板内部。
 - 后续新增剧情浮层时，如果复用 `GlobalDialogueStage`，默认继承交互锁；如果自建浮层，必须显式说明哪些背景操作仍可点。
 
 ## 4. 核心玩法循环
@@ -425,6 +426,7 @@ flowchart LR
   Public --> Miaoyin["妙音堂\n乐理/连翘/曲谱"]
   Public --> Huaqing["华清池\n容华以上开放"]
   Public --> Gongmen["宫门\n杜娘/阿翎/交易"]
+  Public --> Generic["通用地点\n御花园/正阳门/重华宫/御书房/冷宫"]
 
   Public --> Yangxin["养心殿\n日间求见/夜间劝归/侍寝事件"]
 ```
@@ -500,8 +502,11 @@ flowchart LR
 - 外景 / 地点场景左侧的 `外出` 表示返回地图主视角；独立 `回宫` 入口才表示直接回寝殿。
 - 从地图进入“后宫”时也必须按外景地点处理，保留 `activeMapLocation='后宫'`；后宫内 `外出` 返回地图，`回宫` 直接回寝殿。
 - 地图“后宫”热点不得再额外提供“后宫总览”快捷选项；玩家进入后宫统一通过热点默认的 `进入此处`，避免同一个地点同时存在快捷面板入口和外景入口。
+- 地图热点卡只负责展示地点名、地点描述和 `进入此处 / 留在地图`；朝堂事务、旧案纪事、宫门交易、公共地点妃嫔偶遇等都必须放到进入后的地点场景中，避免地图弹窗和地点内场景形成双入口。
+- 空地点或未做专属小玩法的地点统一由 `GenericMapLocationView` 读取 `src/game/data/mapLocationActions.ts` 显示常规行动与地点内特殊入口；行动结果正文继续引用 `location_encounters.csv`，真实行动通过 `useLocationActionFlow()` 推进时辰并接过夜流程。
+- 宫门不再由 `MapMainView` 直接打开独立假场景，而是作为 `activeMapLocation='宫门'` 的地点子场景由 `GongmenView` 承载；杜娘 / 阿翎、交易和宫门妃嫔偶遇都在地点内出现。
 - 从后宫外景打开左侧工具面板时，关闭面板必须返回 `activeChamberPanel='harem'`；不得退回 `main` 导致后宫 UI 被卸载，也不得借玩家寝殿作为中转。
-- 大地图自身的左侧“嫔妃 / 查看 / 纪事 / 情缘”和地点快捷面板必须作为地图覆盖面板打开，不得先调用 `enterMainChamber()` 借寝殿面板承载；关闭后仍停留在地图。
+- 大地图自身的左侧“嫔妃 / 查看 / 纪事 / 情缘”必须作为地图覆盖面板打开，不得先调用 `enterMainChamber()` 借寝殿面板承载；关闭后仍停留在地图。
 - 外景回地图时，`enterMapMain()` 只能先切 `currentView='map-main'` 触发退出动画；旧 `activeMapLocation` 和旧面板状态必须保留到 `AnimatePresence.onExitComplete` 后再清理，避免退出动画期间的旧 `ChamberMainView` 短暂重绘成玩家寝宫。
 
 时间通报归属：

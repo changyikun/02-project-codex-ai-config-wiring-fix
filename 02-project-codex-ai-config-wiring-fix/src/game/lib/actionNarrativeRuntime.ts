@@ -35,7 +35,7 @@ type XunTransitionNarrativeInput = {
 };
 
 type LocationActionNarrativeInput = {
-  locationId: 'kitchen' | 'tai-hospital' | 'miaoyin-hall' | 'baohua-hall';
+  locationId: string;
   actionId: string;
   actionLabel: string;
   resultText?: string;
@@ -121,6 +121,13 @@ const locationActionNarrativeIdByAction: Record<string, string> = {
   'baohua-hall:pray': 'location.action.baohua-hall.pray',
   'baohua-hall:stroll': 'location.action.baohua-hall.stroll',
   'baohua-hall:meet': 'location.action.baohua-hall.meet',
+  'imperial-garden:garden-stroll': 'location.action.imperial-garden.garden-stroll',
+  'imperial-garden:listen-rumors': 'location.action.imperial-garden.listen-rumors',
+  'zhengyang-gate:watch-court-road': 'location.action.zhengyang-gate.watch-court-road',
+  'chonghua-palace:read-lessons': 'location.action.chonghua-palace.read-lessons',
+  'imperial-study:copy-notes': 'location.action.imperial-study.copy-notes',
+  'cold-palace:search-old-traces': 'location.action.cold-palace.search-old-traces',
+  'yangxin-hall:wait-at-steps': 'location.action.yangxin-hall.wait-at-steps',
 };
 
 export function buildLocationActionNarrativeEntry(input: LocationActionNarrativeInput): NarrativeEntry {

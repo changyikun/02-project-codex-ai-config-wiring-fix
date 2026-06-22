@@ -306,7 +306,7 @@ export interface NpcPairRelationState {
 
 export type NpcRelationMatrix = Record<string, NpcPairRelationState>;
 
-export type SettlementReportKind = 'xun' | 'month' | 'event';
+export type SettlementReportKind = 'xun' | 'month' | 'event' | 'promotion';
 
 export interface SettlementReport {
   id: string;
