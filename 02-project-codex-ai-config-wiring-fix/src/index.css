@@ -3795,6 +3795,7 @@ button {
 }
 
 .map-main__hotspot.is-vertical {
+  width: min(4.4vw, 7.822dvh) !important;
   background-image: var(--palace-button-vertical);
 }
 
@@ -8356,4 +8357,40 @@ button {
   [data-dialogue-root='locked'] .global-dialogue-stage .palace-dialogue-box--global-lock .palace-dialogue-box__option small {
     font-size: 10px;
   }
+}
+
+/* 场景级容器必须填满浏览器视口；圆角只保留给内部面板和弹窗。 */
+[data-dialogue-root='locked'] {
+  width: 100vw;
+  min-width: 320px;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+.start-scene-shell,
+.route-selection,
+.attribute-assignment,
+.opening-dialogue,
+.map-main,
+.chamber-main {
+  width: 100vw;
+  min-height: 100dvh;
+  padding: 0;
+  place-items: stretch;
+}
+
+#GameStage.start-scene,
+.route-selection__frame,
+.attribute-assignment__frame,
+.opening-dialogue__frame,
+.map-main__frame,
+.chamber-main__frame {
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  aspect-ratio: auto;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
