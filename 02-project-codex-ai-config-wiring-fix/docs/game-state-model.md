@@ -46,7 +46,7 @@
   - `stress` 压力，范围 `0..100`
   - `ambition` 野心，范围 `-100..100`
   - `silver` 银两，范围 `0..999999`
-- 开发期可通过浏览器控制台 `palaceDebug.addSilver(数量)` 增加银两；该入口必须走 store 正式动作，同步 `state.silver` 与 `hiddenStats.silver`，并按当前主界面触发数值反馈。它只用于调试，不得写入正式经济来源设计。
+- 开发期可通过浏览器控制台 `palaceDebug.addSilver(数量)` 增加银两，或通过 `palaceDebug.addPrestige(数量)` 增加声望；这两个入口必须走 store 正式动作，同步 `state` 与 `hiddenStats` 的对应字段，并按当前主界面触发数值反馈。它们只用于调试，不得写入正式经济 / 声望来源设计。
 - 副属性：
   - `poetry` 诗词，范围 `0..100`
   - `talent` 乐理，范围 `0..100`（沿用既有字段名，显示名不再按“才艺”解释）

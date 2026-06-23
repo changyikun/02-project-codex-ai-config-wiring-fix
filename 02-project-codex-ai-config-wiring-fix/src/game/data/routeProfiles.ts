@@ -1,6 +1,10 @@
 import { getFavorTierByValue } from '../../config/constants';
 import type { HiddenStatsState, RouteId, RouteSelectionProfile } from '../types';
-import { getRouteInitialProfileConfig, getRouteInitialStatDefaults } from '../numerics/numericCatalog';
+import {
+  getRouteInitialProfileConfig,
+  getRouteInitialStatDefaults,
+  resolveRouteInitialPointsTotal,
+} from '../numerics/numericCatalog';
 
 const randomInt = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min;
 const randomRange = (range: readonly [number, number]): number => randomInt(range[0], range[1]);
@@ -26,7 +30,7 @@ const buildInitialProfileState = (routeId: RouteId) => {
       name: config.defaultName,
       family: config.familyDisplay,
       residenceName: config.residenceDisplay,
-      pointsTotal: randomRange(config.pointsRange),
+      pointsTotal: resolveRouteInitialPointsTotal(routeId, config.familyDisplay),
       pointsLeft: 0,
       age: randomRange(config.ageRange),
       stress: randomRange(config.stressRange),

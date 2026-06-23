@@ -73,9 +73,6 @@ export const FORTUNE_POINT_TO_VALUE_RATIO = getNumericRuleValue('fortune_point_t
 export const FORTUNE_ATTRIBUTE_POINT_TO_VALUE_RATIO = getNumericRuleValue('fortune_attribute_point_to_value_ratio');
 export const SKILL_LEVEL_TO_VALUE_RATIO = getNumericRuleValue('skill_level_to_value_ratio');
 
-export const FAMILY_BACKGROUND_TOTAL_POINTS_MIN = getNumericRuleValue('family_background_total_points_min');
-export const FAMILY_BACKGROUND_TOTAL_POINTS_MAX = getNumericRuleValue('family_background_total_points_max');
-
 export const PLAYER_ACTIONS_PER_XUN = 7 as const;
 
 export const FAVOR_TIER_TABLE = numericFavorTiers.map((tier) => ({

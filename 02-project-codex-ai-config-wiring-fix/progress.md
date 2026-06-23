@@ -1,5 +1,41 @@
 Original prompt: 添加存档系统，回溯可以读取上一次存档，开始游戏会清空存档并新建存档（有二级确认）；关于存档功能的维护，需要把这部分写到全局文档里，以便更好的同步，之前已经做出的修改也需要将之前的文档修改到一致
 
+## 2026-06-23 v0.5.4 版本推进
+
+- 本轮目标：归档当前开发版本，并推进下一个版本号。
+- 已处理：`CHANGELOG.md` 新增 `v0.5.4 - 后续系统迭代（进行中）`，后续新增内容写入 v0.5.4。
+- 已处理：`v0.5.3 - 后续系统迭代` 标记为已归档，并补充一段版本总结，概括地点入口、全屏容器、随机事件、开局规则、作品制作和晋升圣旨演出等本版主要内容。
+
+## 2026-06-23 v0.5.3 初始属性点与家世声望规则重构
+
+- 本轮目标：整理初始属性可分配点来源，并让家世每月声望使用同一套家世词条规则。
+- 已处理：新增 `family_initial_traits.csv`，家世拆成品级、文武、嫡庶、义女、商贾、国公、罪臣、和亲等词条；每个词条同时维护 `pointModifier`、`monthlyOfficePrestige` 和 `monthlyBackgroundPrestige`。
+- 已处理：初始可分配点数改为 `initial_attribute_base_points(20) + route.pointModifier + sum(family trait pointModifier)`，最后按路线 `pointsMin / pointsMax` 截断；路线表的 `pointsMin / pointsMax` 不再表示随机范围。
+- 已处理：移除 `resolveFamilyBasePoints()` 的代码分支；`routeProfiles.ts` 不再从路线点数范围随机 `pointsTotal`，而是调用统一 resolver。
+- 已处理：`resolveMonthlyFamilyPrestigeDelta()` 改为读取家世词条表，不再自己匹配中文家世字符串。
+- 已同步：`CHANGELOG.md` v0.5.3 第 10 条；`src/game/numerics/csv/README.md`；`docs/game-system-breakdown.md`；`docs/economy-governance-architecture.md`；`codex-workdocs/2026-06-23-v053-family-trait-points-prestige.md`。
+- 验证：`npx vitest run src/game/numerics/numericCatalog.test.ts src/game/lib/familyPrestigeRuntime.test.ts --reporter=verbose` 通过，`7 passed`；`npx tsc --noEmit` 通过。
+
+## 2026-06-23 v0.5.3 开局资源下调
+
+- 本轮目标：清空玩家初始背包，并降低玩家初始可分配总属性点。
+- 已处理：`inventory_items.csv` 移除所有 `initial` 池归属，`cloneInitialInventory()` 现在返回空数组；杜娘常驻、稀有、御膳房、掖庭毒药和曲谱池不受影响。
+- 已处理：普通家世点数预算从 `48..56` 下调为 `40..48`；路线初始点数范围同步下调，兰因絮果 `40..43`，浮生如梦 `40..46`，影落掖庭固定 `46`，尘缘夙错仍锁定 `0`。
+- 已处理：`resolveFamilyBasePoints()` 改为读取 `family_background_total_points_min/max`，避免家世点数基准继续写死旧数值。
+- 后续修订：上述初始点数口径已被“基础点 + 路线修正 + 家世词条修正”替代，见 `2026-06-23 v0.5.3 初始属性点与家世声望规则重构`。
+- 已同步：`CHANGELOG.md` v0.5.3 第 9 条；`src/game/numerics/csv/README.md`；`docs/game-system-breakdown.md`。
+- 验证：`npx vitest run src/game/numerics/numericCatalog.test.ts --reporter=verbose` 通过；`npx tsc --noEmit` 通过。
+
+## 2026-06-23 v0.5.3 随机事件系统第一版
+
+- 本轮目标：新增独立随机事件系统，第一版只做单表 CSV、catalog loader、纯 runtime 和测试，不接入现有 UI、store、存档或事件入口。
+- 已处理：新增 `src/game/random-events/csv/random_events.csv`，用 `event / line / option` 三类行维护事件池、权重、一次性 / 可重复、前置、剧情行、选项、结果分支、局部效果和后续解锁。
+- 已处理：新增 `randomEventCatalog`，校验重复事件、非法 `rowType / repeatPolicy`、缺失 `start`、孤儿分支、结果分支选项、未知前置 / 解锁和非法 `effectJson`。
+- 已处理：新增 `randomEventRuntime`，提供初始进度、可抽事件筛选、调用方随机函数权重抽取、剧情行推进、选项选择、完成计数、解锁应用和玩家 / 目标 / 背包局部效果应用。
+- 已同步：`CHANGELOG.md` v0.5.3 第 8 条；`docs/README.md`；`docs/game-system-breakdown.md`；`src/game/random-events/csv/README.md`；`codex-workdocs/2026-06-23-v053-random-events.md`。
+- 验证：`npx vitest run src/game/random-events/randomEventCatalog.test.ts src/game/random-events/randomEventRuntime.test.ts --reporter=verbose` 通过，`11 passed`；`npx tsc --noEmit` 已通过；`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告。
+- 全量回归：`npx vitest run --reporter=dot` 未全过，失败集中在既有 `nightlyServiceRuntime.test.ts`、`yingluoyetingStoryRuntime.test.ts` 和 `yingluoyeting-map-flow.test.tsx` 断言，与本轮新增的 `src/game/random-events/` 模块无直接 import 关系；随机事件聚焦测试已通过。
+
 ## 2026-06-22 v0.5.3 地图热点比例修复
 
 - 本轮目标：修复 `map-main__hotspot` 地图地点标志在场景全屏后偏宽的问题。

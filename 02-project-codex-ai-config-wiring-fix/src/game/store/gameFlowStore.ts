@@ -70,6 +70,7 @@ import { resolveNpcRelationMatrixForActivities } from '../lib/npcRelationRuntime
 import { resolveNightlyService, resolvePlayerNightlyServiceEvent } from '../lib/nightlyServiceRuntime';
 import {
   buildCraftWorkInstance,
+  pickCraftWorkInspiration,
   resolveCraftWorkAdvance,
   type CraftWorkAdvanceResolution,
 } from '../lib/craftWorkRuntime';
@@ -117,6 +118,7 @@ import type {
   ConsortInteractionProgress,
   ConsortPalaceActionId,
   CraftWorkInstanceState,
+  CraftWorkType,
   CraftWorksProgressState,
   CurrentView,
   DialogueTurn,
@@ -178,6 +180,14 @@ export interface DebugSilverResult {
   requestedAmount: number;
   appliedAmount: number;
   silver: number;
+}
+
+export interface DebugPrestigeResult {
+  success: boolean;
+  message: string;
+  requestedAmount: number;
+  appliedAmount: number;
+  prestige: number;
 }
 
 export interface EmperorAudienceRequestStoreResult {
@@ -277,6 +287,7 @@ export interface GameFlowStore {
   patchMusicHallProgress: (patch: Partial<MusicHallProgressState>) => void;
   patchPalaceBanquetProgress: (patch: Partial<PalaceBanquetProgressState>) => void;
   startCraftWork: (workId: string) => { success: boolean; message: string; instance?: CraftWorkInstanceState };
+  inspireCraftWork: (type: CraftWorkType) => { success: boolean; message: string; instance?: CraftWorkInstanceState };
   advanceCraftWork: (instanceId: string) => { success: boolean; message: string; resolution?: CraftWorkAdvanceResolution };
   patchTempleProgress: (patch: Partial<TempleProgressState>) => void;
   requestEmperorAudience: (location: MapAreaId, source: EmperorInteractionSource) => EmperorAudienceRequestStoreResult;
@@ -339,6 +350,7 @@ export interface GameFlowStore {
   resumeLastSave: () => { success: boolean; message: string };
   applyStoryEffects: (effects: Partial<GameNumericsState> & { stats?: Record<string, number>; flags?: Record<string, boolean> }) => void;
   debugAddSilver: (amount: number | string) => DebugSilverResult;
+  debugAddPrestige: (amount: number | string) => DebugPrestigeResult;
   markNumericFeedbackEvent: (bucket: NumericFeedbackBucket) => void;
 }
 
@@ -361,7 +373,7 @@ const sumExcessPoints = (stats: Record<string, number>, mins: Record<string, num
 
 const clampInt = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, Math.floor(value)));
 const clampToRange = (value: number, range: readonly [number, number]): number => Math.max(range[0], Math.min(range[1], value));
-const parseDebugSilverAmount = (amount: number | string): number => {
+const parseDebugPositiveIntAmount = (amount: number | string): number => {
   const parsed = typeof amount === 'string' ? Number(amount.trim()) : amount;
   return Number.isFinite(parsed) ? Math.floor(parsed) : 0;
 };
@@ -1603,6 +1615,17 @@ export const useGameFlowStore = create<GameFlowStore>()(
         const shouldApplyLateNightPenalty = reason === 'deep-night' || current.time.slot === '深夜';
 
         get().advanceTime(stepsToMorning, { lateNightPenalty: shouldApplyLateNightPenalty });
+        set((latest) => ({
+          ...latest,
+          currentView: 'bedchamber',
+          scene: 'activity',
+          activeChamberPanel: 'main',
+          activeMapLocation: undefined,
+          activeMapLocationEntryTime: undefined,
+          activeAffairsSource: DEFAULT_AFFAIRS_SOURCE,
+          mapEventText: '',
+          pendingOvernightReturn: undefined,
+        }));
       },
       setSave: (save) => set({ save }),
       setAttributeValue: (key, value) =>
@@ -1756,6 +1779,45 @@ export const useGameFlowStore = create<GameFlowStore>()(
             };
             return current;
           }
+        });
+        return result;
+      },
+      inspireCraftWork: (type) => {
+        let result: { success: boolean; message: string; instance?: CraftWorkInstanceState } = {
+          success: false,
+          message: '眼下没有合适的灵感。',
+        };
+        set((current) => {
+          const activeWorks = Object.values(current.craftWorksProgress.activeWorks).filter((work) => work.type === type);
+          const work = pickCraftWorkInspiration({
+            type,
+            state: current.state,
+            seed: `${current.state.routeId}:${getCurrentXunKey(current.time)}:${current.time.slotIndex}:${activeWorks.length}`,
+            excludedWorkIds: activeWorks.map((entry) => entry.workId),
+          });
+          if (!work) {
+            return current;
+          }
+
+          const existingCount = Object.keys(current.craftWorksProgress.activeWorks).length;
+          const instance = buildCraftWorkInstance({
+            workId: work.workId,
+            instanceId: `craft:${work.workId}:${getCurrentXunKey(current.time)}:${current.time.slotIndex}:${existingCount + 1}`,
+            time: current.time,
+          });
+          result = {
+            success: true,
+            message: `灵感落定：${instance.name}。`,
+            instance,
+          };
+          return {
+            craftWorksProgress: {
+              activeWorks: {
+                ...current.craftWorksProgress.activeWorks,
+                [instance.instanceId]: instance,
+              },
+            },
+          };
         });
         return result;
       },
@@ -3044,6 +3106,13 @@ export const useGameFlowStore = create<GameFlowStore>()(
             concubines: nextConcubines,
             customConsorts: nextCustomConsorts,
             time: nextTime,
+            currentView: 'bedchamber',
+            scene: 'activity',
+            activeChamberPanel: 'main',
+            activeMapLocation: undefined,
+            activeMapLocationEntryTime: undefined,
+            activeAffairsSource: DEFAULT_AFFAIRS_SOURCE,
+            mapEventText: '',
             settlementReports,
             latestSettlementReportId:
               settlementReport && shouldAppendSettlementReport ? settlementReport.id : current.latestSettlementReportId,
@@ -3449,7 +3518,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
         return { success: true, message: '已读取上一次存档。' };
       },
       debugAddSilver: (amount) => {
-        const requestedAmount = parseDebugSilverAmount(amount);
+        const requestedAmount = parseDebugPositiveIntAmount(amount);
         if (requestedAmount <= 0) {
           const currentSilver = get().state.silver;
           return {
@@ -3495,6 +3564,63 @@ export const useGameFlowStore = create<GameFlowStore>()(
             hiddenStats: {
               ...current.hiddenStats,
               silver: nextSilver,
+            },
+            numericFeedbackSignal: {
+              sequence: current.numericFeedbackSignal.sequence + 1,
+              bucket: current.currentView === 'map-main' ? 'map-event' : 'chamber-action',
+            },
+          };
+        });
+
+        return result;
+      },
+      debugAddPrestige: (amount) => {
+        const requestedAmount = parseDebugPositiveIntAmount(amount);
+        if (requestedAmount <= 0) {
+          const currentPrestige = get().state.prestige;
+          return {
+            success: false,
+            message: 'debug 加声望需要传入大于 0 的整数。',
+            requestedAmount,
+            appliedAmount: 0,
+            prestige: currentPrestige,
+          };
+        }
+
+        let result: DebugPrestigeResult = {
+          success: false,
+          message: 'debug 加声望失败。',
+          requestedAmount,
+          appliedAmount: 0,
+          prestige: get().state.prestige,
+        };
+
+        set((current) => {
+          const nextPrestige = clampToRange(current.state.prestige + requestedAmount, PRESTIGE_RANGE);
+          const appliedAmount = nextPrestige - current.state.prestige;
+          result = {
+            success: appliedAmount > 0,
+            message:
+              appliedAmount > 0
+                ? `debug 已增加 ${appliedAmount} 声望，当前声望 ${nextPrestige}。`
+                : `当前声望已达到上限 ${PRESTIGE_RANGE[1]}。`,
+            requestedAmount,
+            appliedAmount,
+            prestige: nextPrestige,
+          };
+
+          if (appliedAmount <= 0) {
+            return current;
+          }
+
+          return {
+            state: {
+              ...current.state,
+              prestige: nextPrestige,
+            },
+            hiddenStats: {
+              ...current.hiddenStats,
+              prestige: nextPrestige,
             },
             numericFeedbackSignal: {
               sequence: current.numericFeedbackSignal.sequence + 1,

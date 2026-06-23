@@ -19,10 +19,12 @@ describe('debug console commands', () => {
       state: {
         ...state.state,
         silver: 100,
+        prestige: 200,
       },
       hiddenStats: {
         ...state.hiddenStats,
         silver: 100,
+        prestige: 200,
       },
       numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
     }));
@@ -46,6 +48,23 @@ describe('debug console commands', () => {
     });
     expect(useGameFlowStore.getState().state.silver).toBe(125);
     expect(useGameFlowStore.getState().hiddenStats.silver).toBe(125);
+
+    cleanup();
+    expect(window.palaceDebug).toBeUndefined();
+  });
+
+  it('installs palaceDebug.addPrestige on window for browser console use', () => {
+    const cleanup = installPalaceDebugConsole();
+
+    const result = window.palaceDebug?.addPrestige('75');
+
+    expect(result).toMatchObject({
+      success: true,
+      appliedAmount: 75,
+      prestige: 275,
+    });
+    expect(useGameFlowStore.getState().state.prestige).toBe(275);
+    expect(useGameFlowStore.getState().hiddenStats.prestige).toBe(275);
 
     cleanup();
     expect(window.palaceDebug).toBeUndefined();

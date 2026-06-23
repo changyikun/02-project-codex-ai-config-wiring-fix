@@ -8,6 +8,7 @@ import {
   craftWorkTypeLabels,
   estimateCraftWorkProgressGain,
   getActiveCraftWorksByType,
+  listEligibleCraftWorkConfigsByType,
   listCraftWorkConfigsByType,
 } from '../../game/lib/craftWorkRuntime';
 import { FAMILY_AID_BONUS, FAMILY_AID_COST, FAMILY_AID_QUARTERLY_PRESTIGE } from '../../game/lib/familyGovernanceRuntime';
@@ -1210,32 +1211,33 @@ interface InventoryPanelViewProps {
 interface CraftWorksPanelViewProps {
   workType: CraftWorkType;
   onAdvanceWork?: (instanceId: string) => void;
+  onInspireWork?: () => void;
+  onPractice?: () => void;
   onClose: () => void;
 }
 
 export function CraftWorksPanelView({
   workType,
   onAdvanceWork,
+  onInspireWork,
+  onPractice,
   onClose,
 }: CraftWorksPanelViewProps) {
-  const [addingType, setAddingType] = useState<CraftWorkType | null>(null);
-  const [resultText, setResultText] = useState('选择作品后，就能在寝殿行动中逐次推进。');
   const craftWorksProgress = useGameFlowStore((store) => store.craftWorksProgress);
   const state = useGameFlowStore((store) => store.state);
-  const startCraftWork = useGameFlowStore((store) => store.startCraftWork);
-
-  useEffect(() => {
-    setAddingType(null);
-  }, [workType]);
 
   const activeWorks = useMemo(() => getActiveCraftWorksByType(craftWorksProgress, workType), [craftWorksProgress, workType]);
   const craftConfigs = useMemo(() => listCraftWorkConfigsByType(workType), [workType]);
-
-  const handleStartWork = (workId: string) => {
-    const result = startCraftWork(workId);
-    setResultText(result.message);
-    setAddingType(null);
-  };
+  const activeWorkIds = useMemo(() => activeWorks.map((work) => work.workId), [activeWorks]);
+  const eligibleWorks = useMemo(
+    () =>
+      listEligibleCraftWorkConfigsByType({
+        type: workType,
+        state,
+        excludedWorkIds: activeWorkIds,
+      }),
+    [activeWorkIds, state, workType],
+  );
 
   return (
     <UtilityPanelShell ariaLabel={`${craftWorkTypeLabels[workType]}制作面板`} backgroundImage={INVENTORY_UI_BACKGROUND} onClose={onClose}>
@@ -1246,29 +1248,15 @@ export function CraftWorksPanelView({
       <div className="chamber-utility-view__body chamber-utility-view__body--inventory">
         <section className="chamber-utility-view__detail-card">
           <h3>{craftWorkTypeLabels[workType]}</h3>
-          <p>{resultText}</p>
           <div className="chamber-utility-view__option-grid">
-            <button type="button" onClick={() => setAddingType(workType)}>
-              <strong>添加作品</strong>
-              <span>从可制作清单中选一件开始做</span>
+            <button type="button" onClick={onInspireWork} disabled={eligibleWorks.length === 0}>
+              <strong>才思泉涌</strong>
+            </button>
+            <button type="button" onClick={onPractice}>
+              <strong>练习</strong>
             </button>
           </div>
         </section>
-
-        {addingType ? (
-          <section className="chamber-utility-view__detail-card">
-            <h3>{`可制作${craftWorkTypeLabels[addingType]}`}</h3>
-            <div className="chamber-utility-view__option-grid">
-              {listCraftWorkConfigsByType(addingType).map((work) => (
-                <button key={work.workId} type="button" onClick={() => handleStartWork(work.workId)}>
-                  <strong>{work.name}</strong>
-                  <span>{`难度 ${work.difficulty}｜基础售价 ${work.basePrice} 两`}</span>
-                  <span>{work.description}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-        ) : null}
 
         <section className="chamber-utility-view__detail-card">
           <h3>进行中</h3>
@@ -1289,7 +1277,6 @@ export function CraftWorksPanelView({
                     <strong>{work.name}</strong>
                     <span>{`完成度 ${work.progressPercent}%｜已做 ${work.actionCount} 次｜预计还需 ${remaining} 次`}</span>
                     <span>{`质量预估 ${work.quality ? craftWorkQualityLabels[work.quality] : '未定'}｜评分 ${work.qualityScore}`}</span>
-                    <span>本次推进这件作品</span>
                   </button>
                 );
               })}

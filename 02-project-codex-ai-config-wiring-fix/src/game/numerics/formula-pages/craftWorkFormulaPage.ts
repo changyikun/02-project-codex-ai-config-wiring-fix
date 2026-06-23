@@ -13,12 +13,12 @@ export const craftWorkFormulaPage: Record<CraftWorkFormulaId, { expression: stri
   },
   craftQualityScore: {
     expression:
-      'clamp(round(45 + mainSkill * 0.38 + supportSkill * 0.18 + difficulty * 0.18 - max(0, actionCount - 1) * 2), 0, 100)',
-    note: '完成质量评分。高能力和高难作品提高上限，制作次数越少略微加分。',
+      'clamp(round(30 + mainSkill * 0.32 + supportSkill * 0.12 + difficulty * 0.08 - max(0, actionCount - 1) * 3), 0, 100)',
+    note: '完成质量评分。高能力和高难作品提高上限，但精妙成色需要高属性、较高难度和较少制作次数共同满足。',
   },
   craftSalePrice: {
-    expression: 'max(1, floor(basePrice * (0.75 + difficulty / 100) * qualityMultiplier))',
-    note: '完成品出售价格。难度越高、质量越好，价格越高。',
+    expression: 'max(1, floor(basePrice * (0.8 + difficulty / 500) * qualityMultiplier))',
+    note: '完成品出售价格。difficulty 主要服务制作难度体感，售价只读取归一化后的小幅难度修正；质量也只做小幅修正，避免价格翻倍。',
   },
   craftFavorDelta: {
     expression: 'max(1, floor(baseFavorDelta * qualityMultiplier))',

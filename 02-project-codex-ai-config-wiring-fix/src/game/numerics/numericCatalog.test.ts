@@ -10,6 +10,7 @@ import {
   getRouteInitialProfileConfig,
   getRouteInitialStatDefaults,
   getYangxinVerdictChoiceRule,
+  numericFamilyInitialTraits,
   numericAttributeFields,
   numericChamberActions,
   numericCraftWorks,
@@ -21,6 +22,8 @@ import {
   numericPalaceStrifeRumorItems,
   numericPrestigeRankTable,
   numericSpecialPrestigeRankTable,
+  resolveFamilyInitialPointModifier,
+  resolveFamilyInitialTraits,
   resolveRouteInitialPointsTotal,
 } from './numericCatalog';
 import { parseNumericCsv, parseStatDeltas } from './csvNumericLoader';
@@ -45,14 +48,30 @@ describe('numericCatalog', () => {
     const yingluo = getRouteInitialProfileConfig('yingluoyeting');
     expect(yingluo.residenceDisplay).toBe('储秀宫西偏殿');
     expect(resolveRouteInitialPointsTotal('chenyuansucuo', '和亲公主')).toBe(0);
-    expect(resolveRouteInitialPointsTotal('fushengrumeng', '商贾之女')).toBe(54);
+    expect(resolveRouteInitialPointsTotal('lanyinxuguo', '镇国公嫡女')).toBe(16);
+    expect(resolveRouteInitialPointsTotal('lanyinxuguo', '正二品武官庶女')).toBe(23);
+    expect(resolveRouteInitialPointsTotal('fushengrumeng', '商贾之女')).toBe(25);
+    expect(resolveRouteInitialPointsTotal('fushengrumeng', '六品武官嫡女')).toBe(27);
+    expect(resolveRouteInitialPointsTotal('yingluoyeting', '罪臣之后')).toBe(26);
     expect(getRouteInitialStatDefaults('chenyuansucuo').politics).toBe(4);
+  });
+
+  it('loads family trait modifiers for initial points and monthly prestige', () => {
+    expect(numericFamilyInitialTraits.find((trait) => trait.traitKey === 'merchant')?.monthlyBackgroundPrestige).toBe(-3);
+    expect(resolveFamilyInitialTraits('正三品文官嫡女').map((trait) => trait.traitKey)).toEqual([
+      'rank_3',
+      'civil_official',
+      'legitimate_daughter',
+    ]);
+    expect(resolveFamilyInitialPointModifier('正三品文官嫡女')).toBe(3);
+    expect(resolveFamilyInitialPointModifier('正二品武官庶女')).toBe(5);
   });
 
   it('loads tier, rank, inventory and fixed consort seed tables', () => {
     expect(numericFavorTiers.find((tier) => tier.label === '独宠')?.maxCount).toBe(1);
     expect(numericPrestigeRankTable[0]?.位分名称).toBe('皇后');
     expect(numericSpecialPrestigeRankTable[0]?.位分名称).toBe('皇贵妃');
+    expect(getInventoryItemsByPool('initial')).toEqual([]);
     expect(getInventoryItemsByPool('yeting-poison').map((item) => item.itemId)).toContain('hedandinghong');
     expect(getInventoryItemsByPool('music-score').length).toBeGreaterThanOrEqual(1);
     expect(numericCraftWorks.find((work) => work.workId === 'chanmeng-incense')?.type).toBe('incense');

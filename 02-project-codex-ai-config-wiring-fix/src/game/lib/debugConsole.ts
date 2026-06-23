@@ -1,7 +1,8 @@
-import { type DebugSilverResult, useGameFlowStore } from '../store/gameFlowStore';
+import { type DebugPrestigeResult, type DebugSilverResult, useGameFlowStore } from '../store/gameFlowStore';
 
 export interface PalaceDebugConsole {
   addSilver: (amount: number | string) => DebugSilverResult;
+  addPrestige: (amount: number | string) => DebugPrestigeResult;
 }
 
 declare global {
@@ -22,12 +23,19 @@ export const installPalaceDebugConsole = (): (() => void) => {
     log('[palace-debug]', result.message, result);
     return result;
   };
+  const addPrestige: PalaceDebugConsole['addPrestige'] = (amount) => {
+    const result = useGameFlowStore.getState().debugAddPrestige(amount);
+    const log = result.success ? console.info : console.warn;
+    log('[palace-debug]', result.message, result);
+    return result;
+  };
 
   window.palaceDebug = {
     ...previousDebugConsole,
     addSilver,
+    addPrestige,
   };
-  console.info('[palace-debug] 可用命令：palaceDebug.addSilver(银两数)');
+  console.info('[palace-debug] 可用命令：palaceDebug.addSilver(银两数), palaceDebug.addPrestige(声望数)');
 
   return () => {
     if (previousDebugConsole) {

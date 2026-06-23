@@ -23,6 +23,7 @@ import { ConcubineListView } from '../components/consorts/ConcubineListView';
 import { ConsortAudiencePanel } from '../components/consorts/ConsortAudiencePanel';
 import { HaremPalaceView } from '../components/consorts/HaremPalaceView';
 import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
+import { PromotionEdictStage } from '../components/dialogue/PromotionEdictStage';
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
 import { PlayerStatsView } from '../components/status/PlayerStatsView';
 import { AutoCutoutPortrait } from '../components/visual/AutoCutoutPortrait';
@@ -217,6 +218,7 @@ export function ChamberMainView() {
     advanceYangxinVerdict,
     finalizeYangxinVerdict,
     resolveZhengyangEmperorWait,
+    inspireCraftWork,
     advanceCraftWork,
   } = useGameFlowStore();
   const [dialogueText, setDialogueText] = useState('');
@@ -351,7 +353,7 @@ export function ChamberMainView() {
   }, [pendingYangxinVerdict?.id, pendingYangxinVerdict?.stage]);
 
   useEffect(() => {
-    if (overnightTransitionPhase === 'hidden' || overnightTransitionPhase === 'settlement') {
+    if (overnightTransitionPhase !== 'fade-in') {
       return undefined;
     }
 
@@ -362,18 +364,29 @@ export function ChamberMainView() {
       }
       overnightTransitionRunKeyRef.current = transitionRunKey;
 
-      if (overnightTransitionPhase === 'fade-out') {
-        setOvernightTransitionPhase('hidden');
-        setOvernightTransitionReason(undefined);
-        return;
-      }
-
       completeOvernightTransition(overnightTransitionReason);
-      setOvernightTransitionPhase('settlement');
+      setOvernightTransitionPhase('fade-out');
     }, OVERNIGHT_TRANSITION_MS);
 
     return () => window.clearTimeout(timer);
   }, [completeOvernightTransition, overnightTransitionPhase, overnightTransitionReason, time.month, time.slotIndex, time.slotProgress, time.xun, time.year]);
+
+  useEffect(() => {
+    if (overnightTransitionPhase !== 'fade-out' && overnightTransitionPhase !== 'settlement') {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (overnightTransitionPhase === 'settlement') {
+        setOvernightTransitionPhase('fade-out');
+        return;
+      }
+      setOvernightTransitionPhase('hidden');
+      setOvernightTransitionReason(undefined);
+    }, OVERNIGHT_TRANSITION_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [overnightTransitionPhase]);
 
   useEffect(() => {
     if (pendingYangxinVerdict) {
@@ -513,11 +526,11 @@ export function ChamberMainView() {
       latestSettlementReport &&
       latestSettlementReport.id !== lastSeenSettlementReportId &&
       !dialogueText &&
+      overnightTransitionPhase === 'hidden' &&
       (latestSettlementReportIsPromotion ||
         (!pendingYangxinVerdict &&
           !pendingNightlyServiceEvent &&
           !pendingNightlyServiceNotice &&
-          (overnightTransitionPhase === 'hidden' || overnightTransitionPhase === 'settlement') &&
           activeChamberPanel === 'main' &&
           !shouldSuppressSettlementReportForScene)),
   );
@@ -851,14 +864,11 @@ export function ChamberMainView() {
   const handleNightlyServiceComplete = (choices: Parameters<typeof finalizePendingNightlyService>[0]) => {
     finalizePendingNightlyService(choices);
     setEndXunAfterNightNotice(false);
-    setOvernightTransitionPhase('settlement');
+    setOvernightTransitionPhase('fade-out');
   };
 
   const handleSettlementReportDone = (reportId: string) => {
     acknowledgeSettlementReport(reportId);
-    if (overnightTransitionPhase === 'settlement' && reportId === latestSettlementReportId) {
-      setOvernightTransitionPhase('fade-out');
-    }
   };
 
   const handleYangxinVerdictNext = () => {
@@ -883,7 +893,11 @@ export function ChamberMainView() {
     advanceYangxinVerdict(choiceId as Parameters<typeof advanceYangxinVerdict>[0]);
   };
 
-  const completeChamberAction = (actionId: string, extraSummary?: string) => {
+  const completeChamberAction = (
+    actionId: string,
+    extraSummary?: string,
+    buildNarrativeEntry?: (input: Parameters<typeof buildChamberActionNarrativeEntry>[0]) => NarrativeEntry,
+  ) => {
     const action = CHAMBER_ACTION_BUTTONS.find((item) => item.id === actionId);
     if (!action) return;
     const pulseUsedFlag = `chamber:pulse:${currentXunKey}`;
@@ -922,14 +936,17 @@ export function ChamberMainView() {
     }
     setPendingChamberDialogueAction(null);
     const actionSummary = extraSummary ? `${action.summary}。${extraSummary.trim()}` : action.summary;
-    const actionNarrativeEntry = buildChamberActionNarrativeEntry({
+    const narrativeInput = {
       actionId: action.id,
       actionLabel: action.label,
       actionSummary,
       playerName: state.name,
       residenceName: state.residenceName,
       timeLabel: `${time.year}年${time.month}月${time.xun}旬${time.slot}`,
-    });
+    };
+    const actionNarrativeEntry = buildNarrativeEntry
+      ? buildNarrativeEntry(narrativeInput)
+      : buildChamberActionNarrativeEntry(narrativeInput);
     setDialogueFromEntry(actionNarrativeEntry);
     if (shouldSleepAfterAction) {
       setPendingChamberDialogueAction('overnight-reminder');
@@ -1011,6 +1028,48 @@ export function ChamberMainView() {
     const actionId = activeCraftWorkActionId;
     setActiveCraftWorkActionId(null);
     completeChamberAction(actionId, extraSummary);
+  };
+
+  const handlePracticeCraftWork = () => {
+    if (!activeCraftWorkActionId) {
+      return;
+    }
+    const actionId = activeCraftWorkActionId;
+    closeChamberPanel();
+    setActiveCraftWorkActionId(null);
+    completeChamberAction(actionId);
+  };
+
+  const handleInspireCraftWork = () => {
+    if (!activeCraftWorkActionId) {
+      return;
+    }
+    const action = CHAMBER_ACTION_BUTTONS.find((item) => item.id === activeCraftWorkActionId);
+    if (action && (action.staminaCost ?? 0) > state.stamina) {
+      closeChamberPanel();
+      setActiveCraftWorkActionId(null);
+      setPendingChamberDialogueAction(null);
+      setDialogueFromEntry(renderNarrativeEntry('chamber.notice.stamina-block', { residenceName: state.residenceName }));
+      return;
+    }
+
+    const workType = chamberCraftWorkTypes[activeCraftWorkActionId];
+    if (!workType) {
+      return;
+    }
+    const result = inspireCraftWork(workType);
+    if (!result.success || !result.instance) {
+      return;
+    }
+    const actionId = activeCraftWorkActionId;
+    closeChamberPanel();
+    setActiveCraftWorkActionId(null);
+    completeChamberAction(actionId, ` ${result.instance.name}已有眉目，暂记下来，待日后续作。`, (input) =>
+      renderNarrativeEntry(`chamber.craft.inspiration.${workType}`, {
+        ...input,
+        workName: result.instance?.name ?? '',
+      }),
+    );
   };
 
   const handleBottomTool = (toolLabel: string) => {
@@ -1566,6 +1625,8 @@ export function ChamberMainView() {
           <CraftWorksPanelView
             workType={activeCraftWorkActionId ? chamberCraftWorkTypes[activeCraftWorkActionId] ?? 'embroidery' : 'embroidery'}
             onAdvanceWork={handleAdvanceCraftWork}
+            onInspireWork={handleInspireCraftWork}
+            onPractice={handlePracticeCraftWork}
             onClose={handleUtilityPanelClose}
           />
         ) : activeChamberPanel === 'affairs' ? (
@@ -1602,44 +1663,22 @@ export function ChamberMainView() {
           />
         ) : null}
 
-        {showSettlementReport && latestSettlementReport ? (
+        {showSettlementReport && latestSettlementReport?.kind === 'promotion' ? (
+          <PromotionEdictStage report={latestSettlementReport} onComplete={() => handleSettlementReportDone(latestSettlementReport.id)} />
+        ) : null}
+
+        {showSettlementReport && latestSettlementReport && latestSettlementReport.kind !== 'promotion' ? (
           <GlobalDialogueStage
-            sceneLabel={
-              latestSettlementReport.kind === 'promotion'
-                ? '晋升通报场景'
-                : latestSettlementReport.kind === 'event'
-                  ? '宫宴通报场景'
-                  : '旬月通报场景'
-            }
-            portraitLabel={latestSettlementReport.kind === 'promotion' ? '传旨太监立绘' : '娇娇立绘'}
+            sceneLabel={latestSettlementReport.kind === 'event' ? '宫宴通报场景' : '旬月通报场景'}
+            portraitLabel="娇娇立绘"
             portrait={
-              latestSettlementReport.kind === 'promotion' ? (
-                <img src={EUNUCH_PORTRAIT_SRC} alt="传旨太监" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--eunuch" />
-              ) : (
-                <img src={ASSISTANT_PORTRAIT_SRC} alt="娇娇" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant" />
-              )
+              <img src={ASSISTANT_PORTRAIT_SRC} alt="娇娇" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant" />
             }
-            ariaLabel={
-              latestSettlementReport.kind === 'promotion'
-                ? '晋升太监通报'
-                : latestSettlementReport.kind === 'event'
-                  ? '宫宴事件通报'
-                  : '娇娇旬月通报'
-            }
-            className={`global-dialogue-stage--chamber ${
-              latestSettlementReport.kind === 'promotion' ? 'global-dialogue-stage--nightly-service' : 'global-dialogue-stage--assistant'
-            }`}
+            ariaLabel={latestSettlementReport.kind === 'event' ? '宫宴事件通报' : '娇娇旬月通报'}
+            className="global-dialogue-stage--chamber global-dialogue-stage--assistant"
             dialogueClassName="palace-dialogue-box--chamber"
-            characterIdentity={
-              latestSettlementReport.kind === 'promotion'
-                ? '传旨内侍'
-                : latestSettlementReport.kind === 'event'
-                  ? '司乐女官'
-                  : '贴身宫女'
-            }
-            characterName={
-              latestSettlementReport.kind === 'promotion' ? '内侍' : latestSettlementReport.kind === 'event' ? '掌册宫人' : '娇娇'
-            }
+            characterIdentity={latestSettlementReport.kind === 'event' ? '司乐女官' : '贴身宫女'}
+            characterName={latestSettlementReport.kind === 'event' ? '掌册宫人' : '娇娇'}
             content={`${latestSettlementReport.title}。${latestSettlementReport.lines.join(' ')}`}
             onNextAction={() => handleSettlementReportDone(latestSettlementReport.id)}
             numericFeedbackBucket="settlement"

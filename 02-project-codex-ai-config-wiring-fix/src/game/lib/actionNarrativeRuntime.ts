@@ -46,6 +46,7 @@ const chamberActionNarrativeIdByAction: Record<string, string> = {
   painting: 'chamber.action.painting',
   music: 'chamber.action.music',
   embroidery: 'chamber.action.embroidery',
+  incense: 'chamber.action.incense',
   rest: 'chamber.action.rest',
 };
 

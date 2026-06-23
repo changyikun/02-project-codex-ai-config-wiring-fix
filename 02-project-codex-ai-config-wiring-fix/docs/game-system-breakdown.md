@@ -60,6 +60,7 @@ flowchart TB
 | 游戏类型 | `src/game/types.ts` | 路线、时间、属性、道具、妃嫔、关系 AI、存档结构类型 |
 | 规则配置 | `src/config/*`、`src/game/numerics/*` | 时间、体力、位分、路线、地点开放、颜色、系统事件等硬规则；核心可调数值由 numerics CSV 和 catalog 提供 |
 | 剧情配置 | `src/game/narrative/csv/*`、`src/game/narrative/narrativeCatalog.ts`、`src/game/narrative/narrativeDialogueAdapter.ts` | 按系统域维护剧情正文、说话人、立绘键、立绘位置和场景提示；代码引用稳定剧情 ID，并通过 adapter 将完整 entry 转换为对应 UI 展示结构 |
+| 随机事件配置 | `src/game/random-events/csv/random_events.csv`、`src/game/random-events/randomEventCatalog.ts`、`src/game/random-events/randomEventRuntime.ts` | 维护可抽取事件池、前置事件、剧情行、选项、局部效果和后续解锁；当前只提供 catalog、纯 runtime 和测试，不接入 UI / store / 存档 |
 | 前端运行时 | `src/game/lib/*Runtime.ts` | 本地兜底对话、地点交互、关系判定调用、寝殿工具函数、玩家姓名称呼解析 |
 | 后端入口 | `server/src/app.ts` | 装配 AI、Foundation、Memory、路由、缓存、错误处理 |
 | AI 路由 | `server/src/routes/aiRoutes.ts` | `/api/v1/ai/*` 对话、数值、关系、场景氛围接口 |
@@ -135,6 +136,7 @@ flowchart LR
 - `GlobalDialogueStage` 是剧情、旁白、地图提示、寝殿反馈和通报的共享遮罩入口。
 - 剧情正文和基础演出元数据优先来自 `src/game/narrative/csv/`；运行时代码负责选择剧情 ID、传变量和处理状态，不在 CSV 中写 JS 表达式、数值公式或条件逻辑。需要说话人、立绘、旁白名和正文一起出现的剧情，应按完整 entry 读取，并通过 `narrativeDialogueAdapter` 转换为当前 UI 所需结构，不能只配置 `text`，也不能在各业务流程里重复手写 `entry.speakerName` / `entry.text` 映射。
 - CSV 变量统一使用 `{{variableName}}`，正文分页使用现有 `<<PAGE_BREAK>>`；缺失变量在运行时保留原样并由测试捕获，不静默吞掉。
+- 随机事件正文暂不并入 `narrativeCatalog`；第一版由 `src/game/random-events/csv/random_events.csv` 单表维护事件元信息、剧情行、选项、局部效果和解锁。随机事件 runtime 只能作为纯函数被未来入口调用，不能直接读写 store、存档或 UI。
 - 任意剧情 / 对话文本正在显示时，除当前对话框、分支选项和同场景明确允许的操作区外，背景 UI 不能响应点击。
 - 视觉层由 `global-dialogue-stage__interaction-lock` 吃掉背景鼠标事件；业务层由 `ChamberMainView`、`MapMainView` 的交互锁判断兜底，避免键盘、测试或程序化点击绕过遮罩。
 - 寝殿行动反馈未收起时，不能继续点学习、外出、家族事务、情缘等按钮；地图剧情反馈未收起时，不能点侧栏或热点。
@@ -165,6 +167,14 @@ flowchart TB
   MonthEnd -- 否 --> Dawn
   MonthEnd -- 是 --> Monthly --> Dawn
 ```
+
+清晨通报与黑屏转场规则：
+
+- 深夜行动、体力归零、结束本旬和玩家侍寝后，必须先进入黑屏转场；黑屏期间只做时间推进、体力重算、外景上下文清理和回到寝殿清晨。
+- 所有清晨结算通报，包括普通旬报、月初通报、侍寝后通报、熬夜惩罚和晋升传旨，都必须在黑屏淡出结束后才显示。
+- `ChamberMainView` 的黑屏状态只负责 `fade-in -> 推进/复位 -> fade-out -> hidden`；`showSettlementReport` 必须等 `overnightTransitionPhase === 'hidden'` 才能放行。
+- 普通睡觉流程统一经 `completeOvernightTransition` 复位到寝殿；玩家侍寝结算虽然由 `finalizePendingNightlyService` 直接生成次旬清晨，也必须同步清理外景位置并回到寝殿主循环。
+- 晋升通报是清晨通报队列中的最高优先级演出，但仍不能出现在黑屏中；内侍送旨和圣旨展开都发生在清晨寝殿可见后。圣旨展开阶段使用右侧题签素材、长卷轴柄和由通报时间生成的宫历日期，不参与实际位分判定。圣旨舞台必须同时按视口宽度和高度约束，正文从右侧题签左边固定起排，避免宽屏下裁掉末尾列。
 
 ### 4.2 月循环
 
@@ -325,9 +335,9 @@ classDiagram
 
 - `src/game/numerics/csv/player_attribute_fields.csv`：属性 key、显示名、创建面板上下限、默认点数、运行时倍率和用途说明。
 - `src/game/numerics/csv/global_numeric_rules.csv`：全局范围、体力、属性倍率、熬夜惩罚、家族接济和新局基础参数。
-- `src/game/numerics/csv/route_initial_profiles.csv` / `route_initial_stats.csv`：路线初始范围、初始位分候选、家世候选和固定属性路线。
+- `src/game/numerics/csv/route_initial_profiles.csv` / `route_initial_stats.csv` / `family_initial_traits.csv`：路线初始范围、初始位分候选、家世候选、家世词条点数 / 声望修正和固定属性路线。初始可分配点数统一按 `基础点 + 路线修正 + 家世词条修正` 计算，不再随机。
 - `src/game/numerics/csv/chamber_actions.csv`、`monthly_expense_strategies.csv`、`rank_prestige_table.csv`、`favor_tiers.csv`：寝殿行动、月用度、位分门槛和宠爱分层。
-- `src/game/numerics/csv/inventory_items.csv`、`fixed_consort_roster.csv`：初始背包、商店、毒药、曲谱和固定妃嫔种子数值。
+- `src/game/numerics/csv/inventory_items.csv`、`fixed_consort_roster.csv`：物品池、商店、毒药、曲谱和固定妃嫔种子数值。当前 `initial` 物品池保持为空，玩家开局不带初始背包物品。
 - `src/game/numerics/csv/palace_strife_*`、`yangxin_verdict_choice_rules.csv`：宫斗严重度、流言严重度、裁断处罚倍率和关系影响。主动宫斗检定、嫌疑人动机、初始定案率、银两干预等完整公式维护在 `src/game/numerics/formula-pages/palaceStrifeFormulaPage.ts`，由公式解析器求值。
 - `src/game/numerics/csv/nightly_*`：皇帝独寝率、侍寝池宠爱权重、兴致收益档位、第三方美言 / 抹黑与侍寝保底值。侍寝互动选项读取属性与分段加成的完整公式维护在 `src/game/numerics/formula-pages/nightlyServiceFormulaPage.ts`。
 - `src/game/numerics/csv/generated_consort_templates.csv`、`generated_consort_rules.csv`：随机补足妃嫔模板、开局目标人数、属性浮动和病中健康阈值。
@@ -489,9 +499,11 @@ flowchart LR
 作品制作规则：
 
 - `泼墨作画`、`镂月裁云`、`调制香薰` 不直接结算行动，而是先进入对应类别制作面板；当前没有独立“作品管理”总入口，避免作品系统和寝殿行动形成两套入口。
-- 面板内只能看到当前类别作品：可添加新作品或选择进行中作品推进；当前不提供“只练习技艺”分支。
-- 作品进度真值保存在 `progress.craftWorks.activeWorks`；题材、主 / 辅能力、难度、基础售价和基础送礼好感维护在 `craft_works.csv`。
-- 单次进度、成色评分、最终售价和送礼好感由 `craftWorkFormulaPage.ts` 的完整公式计算；CSV 不写公式碎片。
+- 面板内只有两个即时行动：`练习` 只结算本次寝殿行动的普通加点；`才思泉涌` 结算同样的行动收益，并从当前类别的合格作品池中随机引出一件新作品。
+- `才思泉涌` 必须有独立剧情反馈，且正文要写出随机到的作品名；剧情文本维护在 `map_chamber_dialogues.csv` 的 `chamber.craft.inspiration.*` 条目中。
+- 进行中作品直接显示在当前类别面板里，点击作品本身会消耗本次寝殿行动并推进该作品进度；完成后作品立刻进入背包，不在制作面板显示已完成库存。
+- 作品进度真值保存在 `progress.craftWorks.activeWorks`；题材、主 / 辅能力、灵感抽取门槛、难度、基础售价和基础送礼好感维护在 `craft_works.csv`。
+- 单次进度、成色评分、最终售价和送礼好感由 `craftWorkFormulaPage.ts` 的完整公式计算；CSV 不写公式碎片。当前成色阈值为 `粗成 <65`、`工稳 65..89`、`精妙 >=90`。`difficulty` 主要用于制作进度和成色体感，售价只读取归一化后的小幅难度修正，作品价格主要仍来自 `basePrice`。
 - 完成品进入背包 `gift` 分类，后续可按普通礼物赠送，也可通过变卖逻辑换银两。调香第一版不接毒药、药效或特殊状态。
 
 归寝与清晨落点：
@@ -561,7 +573,7 @@ toast 反馈口径：
 - 数值 toast 由状态差异队列驱动，体力和宠爱不显示 toast。
 - 声望、玩家压力、银两、玩家副属性、妃嫔声望，以及物品获得 / 失去应显示 toast；妃嫔压力不作为普通 toast 追踪项。
 - 道具新增按 0 -> 当前数量计算正向变化；道具消耗到 0 也必须显示负向变化。
-- 开发期调试银两只能使用浏览器控制台 `palaceDebug.addSilver(数量)`；实现必须通过 store 动作修改银两、同步隐藏状态并触发数值反馈，不得把 debug 指令混入正式经济入口。
+- 开发期调试银两和声望只能使用浏览器控制台 `palaceDebug.addSilver(数量)` / `palaceDebug.addPrestige(数量)`；实现必须通过 store 动作修改对应数值、同步隐藏状态并触发数值反馈，不得把 debug 指令混入正式经济或声望入口。
 
 ## 10. 后宫关系系统
 

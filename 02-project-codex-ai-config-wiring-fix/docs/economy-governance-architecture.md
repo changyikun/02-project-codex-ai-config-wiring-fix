@@ -150,6 +150,12 @@
 
 父亲官职决定玩家每月固定声望补贴：
 
+当前实现从 `src/game/numerics/csv/family_initial_traits.csv` 读取家世词条。一个家世可以命中多个词条；每月家世声望为：
+
+```txt
+sum(monthlyOfficePrestige) + sum(monthlyBackgroundPrestige)
+```
+
 - `0级` 商贾 / 罪臣：`+0`
 - `1级` 六品：`+2`
 - `2级` 四品：`+4`

@@ -22,11 +22,20 @@
   - `description`：给策划看的用途说明。
 
 - `route_initial_profiles.csv`
-  - `pointsMin` / `pointsMax`：该路线初始可分配点数范围。
+  - `pointsMin` / `pointsMax`：该路线初始可分配点数硬上下限，不是随机范围。
+  - `pointModifier`：路线修正。当前初始可分配点数公式为 `initial_attribute_base_points + route.pointModifier + sum(family trait pointModifier)`，最后再按 `pointsMin / pointsMax` 截断。
   - `silverMin` / `silverMax`、`prestigeMin` / `prestigeMax`、`favorMin` / `favorMax`、`trueHeartMin` / `trueHeartMax`：入局随机范围。
   - `initialRankOptions`：初始位分候选，多个用 `|` 分隔。
   - `statsLocked`：是否锁定属性面板。
   - `familyOptions`：家世随机候选，多个用 `|` 分隔。
+
+- `family_initial_traits.csv`
+  - `traitKey`：家世词条内部 ID。
+  - `matchText`：用于匹配家世显示文本，多个别名用 `|` 分隔，例如 `镇国公|国公`。
+  - `pointModifier`：该词条对初始可分配点数的修正。品级按 `一品 +1` 到 `九品 +9`。
+  - `monthlyOfficePrestige`：父亲官职 / 家族地位每月声望。
+  - `monthlyBackgroundPrestige`：家世自然评价每月声望，可为负数。
+  - 同一个家世可以命中多个词条，例如 `正二品武官庶女 = 二品 + 武官 + 庶女`。
 
 - `chamber_actions.csv`
   - `timeCost`：行动消耗的时间格。
@@ -35,7 +44,7 @@
   - `stressDelta` / `favorDelta`：压力或宠爱的直接变化。
 
 - `inventory_items.csv`
-  - `pools`：物品出现池。常用值：`initial`、`kitchen`、`duniang-always`、`duniang-rare`、`yeting-poison`、`music-score`。
+  - `pools`：物品出现池。常用值：`initial`、`kitchen`、`duniang-always`、`duniang-rare`、`yeting-poison`、`music-score`。当前 `initial` 池应保持为空，玩家开局不带初始背包物品。
   - `category`：背包分类，当前可用 `gift`、`food`、`medicine`、`rare`、`music-score`。
   - `rarity` / `color`：品质颜色，当前可用 `green`、`blue`、`purple`、`red`。
   - `favorDelta` / `healthDelta` / `appearanceDelta` / `temperamentDelta`：道具效果数值。
@@ -45,6 +54,7 @@
   - `type`：作品类别，只能是 `embroidery` 绣花、`painting` 字画、`incense` 调香；玩家只能通过对应寝殿行动进入该类别面板。
   - `requiredStatKey`：主能力字段。绣花读 `embroidery`，字画读 `painting`，调香当前读 `medicine`。
   - `supportStatKey`：辅助能力字段，用于小幅影响进度和成色。
+  - `unlockStatKey` / `unlockStatMin`：`才思泉涌` 抽取作品时读取的门槛。当前按运行时 `0..100` 技艺值判断；未达到门槛的作品不会进入随机池。
   - `difficulty`：作品难度，影响单次进度、完成成色和售价。
   - `basePrice`：基础售价，最终售价还会受难度和成色公式影响。
   - `baseFavorDelta`：作为赠礼时的基础好感收益，最终好感受成色公式影响。
@@ -76,12 +86,13 @@
 
 ## 文件职责
 
-- `global_numeric_rules.csv`：全局范围、倍率、体力、熬夜惩罚、家族接济和新局基础参数。
+- `global_numeric_rules.csv`：全局范围、倍率、体力、熬夜惩罚、家族接济和新局基础参数；`initial_attribute_base_points` 是初始属性可分配点基础值。
+- `family_initial_traits.csv`：家世词条的初始点修正和每月家世声望修正。
 - `monthly_expense_strategies.csv`：月用度策略。
 - `favor_tiers.csv`：宠爱分层。
 - `rank_prestige_table.csv`：位分声望门槛与颜色标识。
 - `fixed_consort_roster.csv`：固定妃嫔种子数据中的数值字段。
-- `craft_works.csv`：绣花、字画、调香可制作作品的题材、主 / 辅能力、难度、基础售价和基础送礼好感；完整进度 / 成色 / 售价 / 送礼公式在 `src/game/numerics/formula-pages/craftWorkFormulaPage.ts`。
+- `craft_works.csv`：绣花、字画、调香可制作作品的题材、主 / 辅能力、灵感抽取门槛、难度、基础售价和基础送礼好感；完整进度 / 成色 / 售价 / 送礼公式在 `src/game/numerics/formula-pages/craftWorkFormulaPage.ts`。
 - `palace_strife_*` / `yangxin_verdict_choice_rules.csv`：宫斗严重度、流言严重度、裁断选项倍率和处罚参数；完整公式在 `src/game/numerics/formula-pages/palaceStrifeFormulaPage.ts`。
 - `nightly_*`：夜晚侍寝池、兴致结果档位和第三方影响参数；互动选项完整公式在 `src/game/numerics/formula-pages/nightlyServiceFormulaPage.ts`。
 - `generated_consort_*`：随机补足妃嫔模板与生成数量 / 浮动参数。

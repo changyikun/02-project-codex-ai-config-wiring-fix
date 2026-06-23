@@ -37,16 +37,16 @@ export const craftWorkQualityLabels: Record<CraftWorkQuality, string> = {
 };
 
 const qualityMultipliers: Record<CraftWorkQuality, number> = {
-  rough: 0.75,
+  rough: 0.9,
   steady: 1,
-  fine: 1.35,
+  fine: 1.12,
 };
 
 export const resolveCraftWorkQuality = (score: number): CraftWorkQuality => {
-  if (score >= 75) {
+  if (score >= 90) {
     return 'fine';
   }
-  if (score >= 50) {
+  if (score >= 65) {
     return 'steady';
   }
   return 'rough';
@@ -93,6 +93,48 @@ export const buildCraftWorkInstance = ({
 };
 
 export const listCraftWorkConfigsByType = getCraftWorksByType;
+
+export const getCraftWorkUnlockStatValue = (work: NumericCraftWorkConfig, state: GameNumericsState): number =>
+  normalizeCraftStat(Number(state.stats[work.unlockStatKey] ?? 0));
+
+export const isCraftWorkEligible = (work: NumericCraftWorkConfig, state: GameNumericsState): boolean =>
+  getCraftWorkUnlockStatValue(work, state) >= work.unlockStatMin;
+
+export const listEligibleCraftWorkConfigsByType = ({
+  type,
+  state,
+  excludedWorkIds = [],
+}: {
+  type: CraftWorkInstanceState['type'];
+  state: GameNumericsState;
+  excludedWorkIds?: readonly string[];
+}): NumericCraftWorkConfig[] => {
+  const excluded = new Set(excludedWorkIds);
+  return getCraftWorksByType(type).filter((work) => !excluded.has(work.workId) && isCraftWorkEligible(work, state));
+};
+
+export const pickCraftWorkInspiration = ({
+  type,
+  state,
+  seed,
+  excludedWorkIds = [],
+}: {
+  type: CraftWorkInstanceState['type'];
+  state: GameNumericsState;
+  seed: string;
+  excludedWorkIds?: readonly string[];
+}): NumericCraftWorkConfig | undefined => {
+  const eligibleWorks = listEligibleCraftWorkConfigsByType({
+    type,
+    state,
+    excludedWorkIds,
+  });
+  if (eligibleWorks.length === 0) {
+    return undefined;
+  }
+  const index = hashSeed(`${seed}:${type}:craft-inspiration`) % eligibleWorks.length;
+  return eligibleWorks[index];
+};
 
 export const estimateCraftWorkProgressGain = ({
   workId,

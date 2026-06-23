@@ -2,6 +2,7 @@ import playerAttributeFieldsCsv from './csv/player_attribute_fields.csv?raw';
 import globalNumericRulesCsv from './csv/global_numeric_rules.csv?raw';
 import routeInitialProfilesCsv from './csv/route_initial_profiles.csv?raw';
 import routeInitialStatsCsv from './csv/route_initial_stats.csv?raw';
+import familyInitialTraitsCsv from './csv/family_initial_traits.csv?raw';
 import chamberActionsCsv from './csv/chamber_actions.csv?raw';
 import monthlyExpenseStrategiesCsv from './csv/monthly_expense_strategies.csv?raw';
 import rankPrestigeTableCsv from './csv/rank_prestige_table.csv?raw';
@@ -67,6 +68,7 @@ export interface NumericRouteInitialProfileConfig {
   residenceDisplay: PlayerResidenceName;
   ageRange: RangeTuple;
   pointsRange: RangeTuple;
+  pointModifier: number;
   silverRange: RangeTuple;
   prestigeRange: RangeTuple;
   stressRange: RangeTuple;
@@ -75,6 +77,16 @@ export interface NumericRouteInitialProfileConfig {
   initialRankOptions: string[];
   statsLocked: boolean;
   familyOptions: string[];
+}
+
+export interface NumericFamilyInitialTraitConfig {
+  traitKey: string;
+  matchText: string;
+  matchTerms: string[];
+  pointModifier: number;
+  monthlyOfficePrestige: number;
+  monthlyBackgroundPrestige: number;
+  notes: string;
 }
 
 export interface NumericChamberActionConfig {
@@ -117,6 +129,8 @@ export interface NumericCraftWorkConfig {
   rarity: InventoryItem['rarity'];
   requiredStatKey: string;
   supportStatKey: string;
+  unlockStatKey: string;
+  unlockStatMin: number;
   difficulty: number;
   basePrice: number;
   baseFavorDelta: number;
@@ -317,6 +331,30 @@ export const getNumericRuleRange = (id: string): RangeTuple => {
   return [rule.min, rule.max] as const;
 };
 
+const normalizeFamilyText = (family: string): string => String(family ?? '').replace(/\s+/g, '');
+
+export const numericFamilyInitialTraits: readonly NumericFamilyInitialTraitConfig[] = parseNumericCsv(
+  familyInitialTraitsCsv,
+  'family_initial_traits.csv',
+  ['traitKey', 'matchText', 'pointModifier', 'monthlyOfficePrestige', 'monthlyBackgroundPrestige'],
+).map((row) => {
+  const matchTerms = splitPipeList(row.matchText).map(normalizeFamilyText);
+  if (matchTerms.length === 0) {
+    throw new Error(`family_initial_traits.csv trait "${row.traitKey}" must define matchText.`);
+  }
+  return {
+    traitKey: row.traitKey,
+    matchText: row.matchText,
+    matchTerms,
+    pointModifier: parseRequiredNumber(row.pointModifier, `${row.traitKey}.pointModifier`),
+    monthlyOfficePrestige: parseRequiredNumber(row.monthlyOfficePrestige, `${row.traitKey}.monthlyOfficePrestige`),
+    monthlyBackgroundPrestige: parseRequiredNumber(row.monthlyBackgroundPrestige, `${row.traitKey}.monthlyBackgroundPrestige`),
+    notes: row.notes,
+  };
+});
+
+assertUniqueIds(numericFamilyInitialTraits, (trait) => trait.traitKey, 'family initial trait');
+
 export const numericRouteInitialProfiles: readonly NumericRouteInitialProfileConfig[] = parseNumericCsv(
   routeInitialProfilesCsv,
   'route_initial_profiles.csv',
@@ -328,6 +366,7 @@ export const numericRouteInitialProfiles: readonly NumericRouteInitialProfileCon
   residenceDisplay: row.residenceDisplay as PlayerResidenceName,
   ageRange: parseRange(row, 'ageMin', 'ageMax', `route_initial_profiles.${row.routeId}.age`),
   pointsRange: parseRange(row, 'pointsMin', 'pointsMax', `route_initial_profiles.${row.routeId}.points`),
+  pointModifier: parseRequiredNumber(row.pointModifier, `route_initial_profiles.${row.routeId}.pointModifier`),
   silverRange: parseRange(row, 'silverMin', 'silverMax', `route_initial_profiles.${row.routeId}.silver`),
   prestigeRange: parseRange(row, 'prestigeMin', 'prestigeMax', `route_initial_profiles.${row.routeId}.prestige`),
   stressRange: parseRange(row, 'stressMin', 'stressMax', `route_initial_profiles.${row.routeId}.stress`),
@@ -365,47 +404,24 @@ export const getRouteInitialStatDefaults = (routeId: RouteId): Record<string, nu
     numericRouteInitialStats.filter((entry) => entry.routeId === routeId).map((entry) => [entry.attributeKey, entry.initialPoints]),
   );
 
-const resolveFamilyBasePoints = (family: string): number => {
-  const normalized = String(family ?? '').replace(/\s+/g, '');
-  if (normalized.includes('镇国公') || normalized.includes('和亲公主')) {
-    return 48;
-  }
-  if (normalized.includes('异国贡女')) {
-    return 52;
-  }
-  if (normalized.includes('罪臣')) {
-    return 54;
-  }
-  if (normalized.includes('商贾')) {
-    return 56;
-  }
-
-  const gradeMatch = normalized.match(/[一二三四五六七八九]品/);
-  if (gradeMatch) {
-    const gradeMap: Record<string, number> = {
-      一: 1,
-      二: 2,
-      三: 3,
-      四: 4,
-      五: 5,
-      六: 6,
-      七: 7,
-      八: 8,
-      九: 9,
-    };
-    const grade = gradeMap[gradeMatch[0][0]];
-    if (grade) {
-      return Math.max(48, Math.min(56, 47 + grade));
-    }
-  }
-
-  return 50;
+export const resolveFamilyInitialTraits = (family: string): readonly NumericFamilyInitialTraitConfig[] => {
+  const normalized = normalizeFamilyText(family);
+  return numericFamilyInitialTraits.filter((trait) => trait.matchTerms.some((term) => normalized.includes(term)));
 };
+
+export const resolveFamilyInitialPointModifier = (family: string): number =>
+  resolveFamilyInitialTraits(family).reduce((sum, trait) => sum + trait.pointModifier, 0);
 
 export const resolveRouteInitialPointsTotal = (routeId: RouteId, family: string): number => {
   const profile = getRouteInitialProfileConfig(routeId);
-  const base = resolveFamilyBasePoints(family);
-  return Math.max(profile.pointsRange[0], Math.min(profile.pointsRange[1], base));
+  if (profile.statsLocked) {
+    return 0;
+  }
+  const total =
+    getNumericRuleValue('initial_attribute_base_points') +
+    profile.pointModifier +
+    resolveFamilyInitialPointModifier(family);
+  return Math.max(profile.pointsRange[0], Math.min(profile.pointsRange[1], total));
 };
 
 export const numericChamberActions: readonly NumericChamberActionConfig[] = parseNumericCsv(
@@ -538,7 +554,19 @@ export const getInventoryItemsByPool = (pool: string): InventoryItem[] =>
 export const numericCraftWorks: readonly NumericCraftWorkConfig[] = parseNumericCsv(
   craftWorksCsv,
   'craft_works.csv',
-  ['workId', 'type', 'name', 'rarity', 'requiredStatKey', 'supportStatKey', 'difficulty', 'basePrice', 'baseFavorDelta'],
+  [
+    'workId',
+    'type',
+    'name',
+    'rarity',
+    'requiredStatKey',
+    'supportStatKey',
+    'unlockStatKey',
+    'unlockStatMin',
+    'difficulty',
+    'basePrice',
+    'baseFavorDelta',
+  ],
 ).map((row) => {
   if (!craftWorkTypes.has(row.type as CraftWorkType)) {
     throw new Error(`craft_works.csv has invalid type "${row.type}".`);
@@ -553,6 +581,8 @@ export const numericCraftWorks: readonly NumericCraftWorkConfig[] = parseNumeric
     rarity: row.rarity as InventoryItem['rarity'],
     requiredStatKey: row.requiredStatKey,
     supportStatKey: row.supportStatKey,
+    unlockStatKey: row.unlockStatKey,
+    unlockStatMin: parseRequiredNumber(row.unlockStatMin, `${row.workId}.unlockStatMin`),
     difficulty: parseRequiredNumber(row.difficulty, `${row.workId}.difficulty`),
     basePrice: parseRequiredNumber(row.basePrice, `${row.workId}.basePrice`),
     baseFavorDelta: parseRequiredNumber(row.baseFavorDelta, `${row.workId}.baseFavorDelta`),

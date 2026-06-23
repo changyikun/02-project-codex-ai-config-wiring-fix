@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AffairsPanelView, BondPanelView, ChroniclePanelView } from '../components/chamber/ChamberUtilityViews';
 import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
+import { PromotionEdictStage } from '../components/dialogue/PromotionEdictStage';
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
 import { ConcubineListView } from '../components/consorts/ConcubineListView';
 import { HaremPalaceView } from '../components/consorts/HaremPalaceView';
@@ -25,7 +26,6 @@ import { renderNarrativeEntry } from '../game/narrative/narrativeCatalog';
 import { narrativeEntryToPresentation } from '../game/narrative/narrativeDialogueAdapter';
 
 const MAP_GUIDE_LINE_IDS = ['map.guide.line1', 'map.guide.line2'] as const;
-const EUNUCH_PORTRAIT_SRC = '/assets/characters/men/taijian.png';
 type MapUtilityPanelId = Extract<ChamberPanelId, 'consorts' | 'stats' | 'chronicle' | 'bond' | 'harem' | 'affairs'>;
 const ASSISTANT_PORTRAIT_SRC = '/assets/characters/women/jiaojiao.png';
 const CHEN_WANNING_PORTRAIT_SRC = getConcubinePortraitPath('陈婉宁');
@@ -562,52 +562,26 @@ export function MapMainView() {
           />
         ) : null}
 
-        {showSettlementReport && latestSettlementReport ? (
+        {showSettlementReport && latestSettlementReport?.kind === 'promotion' ? (
+          <PromotionEdictStage report={latestSettlementReport} onComplete={() => acknowledgeSettlementReport(latestSettlementReport.id)} />
+        ) : null}
+
+        {showSettlementReport && latestSettlementReport && latestSettlementReport.kind !== 'promotion' ? (
           <GlobalDialogueStage
-            sceneLabel={
-              latestSettlementReport.kind === 'promotion'
-                ? '地图晋升通报场景'
-                : latestSettlementReport.kind === 'event'
-                  ? '地图事件通报场景'
-                  : '地图时间通报场景'
-            }
-            portraitLabel={latestSettlementReport.kind === 'promotion' ? '传旨太监立绘' : '娇娇立绘'}
+            sceneLabel={latestSettlementReport.kind === 'event' ? '地图事件通报场景' : '地图时间通报场景'}
+            portraitLabel="娇娇立绘"
             portrait={
-              latestSettlementReport.kind === 'promotion' ? (
-                <img
-                  src={EUNUCH_PORTRAIT_SRC}
-                  alt="传旨太监"
-                  className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--eunuch"
-                />
-              ) : (
-                <img
-                  src={ASSISTANT_PORTRAIT_SRC}
-                  alt="娇娇"
-                  className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant"
-                />
-              )
+              <img
+                src={ASSISTANT_PORTRAIT_SRC}
+                alt="娇娇"
+                className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant"
+              />
             }
-            ariaLabel={
-              latestSettlementReport.kind === 'promotion'
-                ? '晋升太监通报'
-                : latestSettlementReport.kind === 'event'
-                  ? '地图事件通报'
-                  : '娇娇时间通报'
-            }
-            className={`global-dialogue-stage--map ${
-              latestSettlementReport.kind === 'promotion' ? 'global-dialogue-stage--nightly-service' : 'global-dialogue-stage--assistant'
-            }`}
+            ariaLabel={latestSettlementReport.kind === 'event' ? '地图事件通报' : '娇娇时间通报'}
+            className="global-dialogue-stage--map global-dialogue-stage--assistant"
             dialogueClassName="palace-dialogue-box--map"
-            characterIdentity={
-              latestSettlementReport.kind === 'promotion'
-                ? '传旨内侍'
-                : latestSettlementReport.kind === 'event'
-                  ? '司乐女官'
-                  : '贴身宫女'
-            }
-            characterName={
-              latestSettlementReport.kind === 'promotion' ? '内侍' : latestSettlementReport.kind === 'event' ? '掌册宫人' : '娇娇'
-            }
+            characterIdentity={latestSettlementReport.kind === 'event' ? '司乐女官' : '贴身宫女'}
+            characterName={latestSettlementReport.kind === 'event' ? '掌册宫人' : '娇娇'}
             content={`${latestSettlementReport.title}。${latestSettlementReport.lines.join(' ')}`}
             onNextAction={() => acknowledgeSettlementReport(latestSettlementReport.id)}
             numericFeedbackBucket="settlement"

@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildCraftWorkInstance,
+  listEligibleCraftWorkConfigsByType,
   listCraftWorkConfigsByType,
+  pickCraftWorkInspiration,
   resolveCraftWorkAdvance,
+  resolveCraftWorkQuality,
 } from './craftWorkRuntime';
 import type { GameNumericsState, PalaceTimeState } from '../types';
 
@@ -43,6 +46,25 @@ describe('craftWorkRuntime', () => {
 
     expect(paintings.map((work) => work.workId)).toContain('plum-blossom-scroll');
     expect(paintings.every((work) => work.type === 'painting')).toBe(true);
+  });
+
+  it('only draws craft inspiration from works unlocked by current skill', () => {
+    const lowSkill = buildState({ painting: 20, poetry: 50 });
+    const highSkill = buildState({ painting: 90, poetry: 80 });
+
+    expect(listEligibleCraftWorkConfigsByType({ type: 'painting', state: lowSkill }).map((work) => work.workId)).not.toContain(
+      'luoshen-riverside',
+    );
+    expect(listEligibleCraftWorkConfigsByType({ type: 'painting', state: highSkill }).map((work) => work.workId)).toContain(
+      'luoshen-riverside',
+    );
+    expect(
+      pickCraftWorkInspiration({
+        type: 'painting',
+        state: highSkill,
+        seed: 'same-seed',
+      })?.type,
+    ).toBe('painting');
   });
 
   it('lets higher matching skill advance the same work faster', () => {
@@ -96,6 +118,93 @@ describe('craftWorkRuntime', () => {
     });
 
     expect(easy.gain).toBeGreaterThan(hard.gain);
+  });
+
+  it('uses stricter quality tiers so fine work is not easy to obtain', () => {
+    expect(resolveCraftWorkQuality(64)).toBe('rough');
+    expect(resolveCraftWorkQuality(65)).toBe('steady');
+    expect(resolveCraftWorkQuality(89)).toBe('steady');
+    expect(resolveCraftWorkQuality(90)).toBe('fine');
+
+    const easyInstance = buildCraftWorkInstance({
+      workId: 'clear-heart-incense',
+      instanceId: 'craft:test:quality-easy',
+      time,
+    });
+    const easyNearDone = {
+      ...easyInstance,
+      progressPercent: 98,
+      actionCount: 2,
+    };
+    const result = resolveCraftWorkAdvance({
+      instance: easyNearDone,
+      state: buildState({ medicine: 90, temperament: 80 }),
+      time,
+      seed: 'quality-seed',
+    });
+
+    expect(result.completed).toBe(true);
+    expect(result.quality).not.toBe('fine');
+  });
+
+  it('keeps quality sale spread modest', () => {
+    const roughInstance = {
+      ...buildCraftWorkInstance({
+        workId: 'clear-heart-incense',
+        instanceId: 'craft:test:rough-price',
+        time,
+      }),
+      progressPercent: 99,
+      actionCount: 5,
+    };
+    const steadyInstance = {
+      ...buildCraftWorkInstance({
+        workId: 'clear-heart-incense',
+        instanceId: 'craft:test:steady-price',
+        time,
+      }),
+      progressPercent: 99,
+      actionCount: 1,
+    };
+
+    const rough = resolveCraftWorkAdvance({
+      instance: roughInstance,
+      state: buildState({ medicine: 10, temperament: 10 }),
+      time,
+      seed: 'price-seed',
+    });
+    const steady = resolveCraftWorkAdvance({
+      instance: steadyInstance,
+      state: buildState({ medicine: 90, temperament: 90 }),
+      time,
+      seed: 'price-seed',
+    });
+
+    expect(rough.completed).toBe(true);
+    expect(steady.completed).toBe(true);
+    expect(steady.salePrice ?? 0).toBeLessThanOrEqual(Math.ceil((rough.salePrice ?? 1) * 1.12));
+  });
+
+  it('normalizes difficulty for sale price instead of treating it as a direct multiplier', () => {
+    const instance = {
+      ...buildCraftWorkInstance({
+        workId: 'moon-kylin-incense',
+        instanceId: 'craft:test:hard-sale-price',
+        time,
+      }),
+      progressPercent: 99,
+      actionCount: 1,
+    };
+
+    const result = resolveCraftWorkAdvance({
+      instance,
+      state: buildState({ medicine: 100, poetry: 100 }),
+      time,
+      seed: 'hard-sale-price-seed',
+    });
+
+    expect(result.completed).toBe(true);
+    expect(result.completedItem?.price ?? 0).toBeLessThan(600);
   });
 
   it('turns completed work into a sellable gift item', () => {

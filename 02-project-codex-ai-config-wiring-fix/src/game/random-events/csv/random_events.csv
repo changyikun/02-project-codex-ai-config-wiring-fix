@@ -1,0 +1,12 @@
+eventId,rowType,poolId,weight,repeatPolicy,prerequisiteEventIds,branchId,order,speakerIdentity,speakerName,portraitKey,portraitPlacement,narrationName,text,sceneHint,optionId,optionLabel,nextBranchId,effectJson,unlockEventIds,notes
+garden.first-meet,event,target.public,10,once,,,,,,,,,,,,,,,,"示例：公共地点初遇目标"
+garden.first-meet,line,,,,,start,1,场景旁白,,,,御花园,"花影覆过宫墙，{{targetAddress}}在廊下停步，似也认出了{{playerAddress}}。",御花园,,,,,,
+garden.first-meet,line,,,,,start,2,目标,{{targetName}},consort_default,dialogue-left,,"{{playerAddress}}也来赏花？今日风色倒好。",御花园,,,,,,
+garden.first-meet,option,,,,,start,,,,,,,,,greet,上前寒暄,greet-result,"{""target"":{""relationToPlayer"":2}}",garden.follow-up,
+garden.first-meet,option,,,,,start,,,,,,,,,probe,试探来意,probe-result,"{""player"":{""stats"":{""intrigue"":1}},""target"":{""stress"":1}}",,
+garden.first-meet,line,,,,,greet-result,1,玩家,,,,,"你含笑接过话头，与她闲谈了几句花期与宫中近事。",御花园,,,,,,
+garden.first-meet,line,,,,,probe-result,1,场景旁白,,,,御花园,"你顺着她的话探问，她垂眸一笑，没有把话说满。",御花园,,,,,,
+garden.follow-up,event,target.public,6,once,garden.first-meet,,,,,,,,,,,,,,,"示例：需由初遇选项解锁的后续"
+garden.follow-up,line,,,,,start,1,目标,{{targetName}},consort_default,dialogue-left,,"上回花下之谈，{{playerAddress}}还记得么？",御花园,,,,"{""player"":{""prestige"":1}}",,
+garden.daily-weather,event,target.public,4,repeatable,,,,,,,,,,,,,,,,"示例：可重复无选项事件"
+garden.daily-weather,line,,,,,start,1,场景旁白,,,,御花园,"一阵风过，暑气暂歇，你与{{targetAddress}}在檐下避了片刻。",御花园,,,,"{""player"":{""stress"":-1}}",,

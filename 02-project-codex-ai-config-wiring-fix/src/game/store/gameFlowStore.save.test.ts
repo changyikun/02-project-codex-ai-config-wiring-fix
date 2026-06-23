@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PRESTIGE_RANGE } from '../../config/constants';
+import { numericInventoryItems } from '../numerics/numericCatalog';
 import { CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN } from '../lib/consortVisitRuntime';
 import { PLAYER_PALACE_STRIFE_TARGET_ID } from '../lib/palaceStrifeRuntime';
 import { YINGLUOYETING_STORY_FLAGS } from '../lib/yingluoyetingStoryRuntime';
@@ -154,6 +155,10 @@ describe('gameFlowStore SaveGameV1 integration', () => {
   });
 
   it('consumes a real inventory gift during emperor gift interaction', () => {
+    const pineWindScroll = numericInventoryItems.find((item) => item.itemId === 'pine-wind-scroll');
+    expect(pineWindScroll).toBeDefined();
+    useGameFlowStore.getState().grantInventoryItem(pineWindScroll!, 1);
+
     const gift = useGameFlowStore.getState().inventory.find((item) => item.itemId === 'pine-wind-scroll');
     expect(gift?.quantity).toBeGreaterThan(0);
 
@@ -1077,6 +1082,35 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     expect(flow.state.silver).toBe(before.state.silver);
     expect(flow.hiddenStats.silver).toBe(before.hiddenStats.silver);
     expect(flow.numericFeedbackSignal.sequence).toBe(before.numericFeedbackSignal.sequence);
+  });
+
+  it('adds player prestige through the debug store command and triggers numeric feedback', () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      state: {
+        ...state.state,
+        prestige: 300,
+      },
+      hiddenStats: {
+        ...state.hiddenStats,
+        prestige: 300,
+      },
+    }));
+    const before = useGameFlowStore.getState();
+
+    const result = useGameFlowStore.getState().debugAddPrestige(120);
+
+    const flow = useGameFlowStore.getState();
+    expect(result).toMatchObject({
+      success: true,
+      requestedAmount: 120,
+      appliedAmount: 120,
+      prestige: 420,
+    });
+    expect(flow.state.prestige).toBe(420);
+    expect(flow.hiddenStats.prestige).toBe(420);
+    expect(flow.numericFeedbackSignal.sequence).toBe(before.numericFeedbackSignal.sequence + 1);
+    expect(flow.numericFeedbackSignal.bucket).toBe('chamber-action');
   });
 
   it('allows player prestige losses to go below zero within the configured range', () => {

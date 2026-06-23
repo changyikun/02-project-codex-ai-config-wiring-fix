@@ -164,13 +164,19 @@ const clickDialogueOnce = async () => {
 };
 
 const advanceFirstPaintingWork = async () => {
-  const craftPanel = await screen.findByLabelText('字画制作面板');
-  fireEvent.click(within(craftPanel).getByRole('button', { name: /添加作品/ }));
-  fireEvent.click(await within(craftPanel).findByRole('button', { name: /寒梅小轴/ }));
+  let craftPanel = await screen.findByLabelText('字画制作面板');
+  fireEvent.click(within(craftPanel).getByRole('button', { name: /才思泉涌/ }));
+  await waitFor(() => expect(useGameFlowStore.getState().craftWorksProgress.activeWorks).not.toEqual({}));
+  await clickDialogueAdvance();
+  fireEvent.click(await screen.findByRole('button', { name: '泼墨作画' }));
+  craftPanel = await screen.findByLabelText('字画制作面板');
+  const activeWork = Object.values(useGameFlowStore.getState().craftWorksProgress.activeWorks)[0];
+  expect(activeWork).toBeDefined();
   await waitFor(() => {
     expect(within(craftPanel).getByText(/完成度 0%/)).toBeInTheDocument();
   });
-  fireEvent.click(within(craftPanel).getByRole('button', { name: /本次推进这件作品/ }));
+  fireEvent.click(within(craftPanel).getByRole('button', { name: new RegExp(activeWork?.name ?? '') }));
+  return activeWork?.name ?? '';
 };
 
 const dismissPalaceBanquetRegistrationNoticeIfPresent = async () => {
@@ -6758,13 +6764,16 @@ describe('App 主流程切换', () => {
 
     expect(await screen.findByLabelText('一夜过去')).toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(screen.getByText('1年1月2旬（清晨）')).toBeInTheDocument();
-      expect(screen.getByText(`体力：${STAMINA_INITIAL_PER_XUN}`)).toBeInTheDocument();
-      expect(screen.getByText(/1年1月第2旬清晨通报/)).toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByText('1年1月2旬（清晨）')).toBeInTheDocument();
+        expect(screen.getByText(`体力：${STAMINA_INITIAL_PER_XUN}`)).toBeInTheDocument();
+        expect(screen.getByText(/1年1月第2旬清晨通报/)).toBeInTheDocument();
+        expect(screen.queryByLabelText('一夜过去')).not.toBeInTheDocument();
+      },
+      { timeout: 3500 },
+    );
     expect(useGameFlowStore.getState().settlementReports.filter((report) => report.title === '1年1月第2旬清晨通报')).toHaveLength(1);
-    expect(screen.getByLabelText('一夜过去')).toBeInTheDocument();
 
     await clickDialogueAdvance();
 
@@ -7002,15 +7011,16 @@ describe('App 主流程切换', () => {
       () => {
         expect(screen.getByText('1年1月2旬（清晨）')).toBeInTheDocument();
         expect(screen.getByText(/1年1月第2旬清晨通报/)).toBeInTheDocument();
+        expect(screen.queryByLabelText('一夜过去')).not.toBeInTheDocument();
         expect((container.querySelector('.chamber-main__background') as HTMLElement).style.backgroundImage).toContain(
           '/assets/routes/home/home_yeting_dawn%20till%20dask.png',
         );
       },
-      { timeout: 2000 },
+      { timeout: 3500 },
     );
   });
 
-  it('从妙音堂触发主角侍寝后，黑幕中仍会显示清晨通报并可淡出', async () => {
+  it('从妙音堂触发主角侍寝后，黑幕结束后再显示清晨通报', async () => {
     useGameFlowStore.setState((flow) => ({
       ...flow,
       currentView: 'bedchamber',
@@ -7092,19 +7102,16 @@ describe('App 主流程切换', () => {
       () => {
         expect(screen.getByText('1年1月2旬（清晨）')).toBeInTheDocument();
         expect(screen.getByText(/1年1月第2旬清晨通报/)).toBeInTheDocument();
+        expect(screen.queryByLabelText('一夜过去')).not.toBeInTheDocument();
       },
-      { timeout: 2000 },
+      { timeout: 3500 },
     );
 
     await clickDialogueAdvance();
-
-    await waitFor(() => {
-      expect(screen.queryByLabelText('一夜过去')).not.toBeInTheDocument();
-    });
   }, 8000);
 
   it.each(['御膳房', '宝华殿', '华清池', '太医院', '建章宫'] as const)(
-    '从%s触发主角侍寝后，黑幕中仍会显示清晨通报',
+    '从%s触发主角侍寝后，黑幕结束后再显示清晨通报',
     async (locationName) => {
       useGameFlowStore.setState((flow) => ({
         ...flow,
@@ -7187,8 +7194,9 @@ describe('App 主流程切换', () => {
         () => {
           expect(screen.getByText('1年1月2旬（清晨）')).toBeInTheDocument();
           expect(screen.getByText(/1年1月第2旬清晨通报/)).toBeInTheDocument();
+          expect(screen.queryByLabelText('一夜过去')).not.toBeInTheDocument();
         },
-        { timeout: 2000 },
+        { timeout: 3500 },
       );
     },
   );
@@ -7664,14 +7672,25 @@ describe('App 主流程切换', () => {
       title: '1年2月月初通报',
     });
 
-    const promotionNotice = await screen.findByLabelText('晋升太监通报');
-    expect(within(promotionNotice).getByText(/晋封旨意/)).toBeInTheDocument();
-    expect(within(promotionNotice).getByText(/官女子/)).toBeInTheDocument();
-    expect(within(promotionNotice).getByText(new RegExp(flow.hiddenStats.initialRank ?? ''))).toBeInTheDocument();
+    const summonNotice = await screen.findByLabelText('晋升太监通报');
+    expect(within(summonNotice).getByText(/圣旨到/)).toBeInTheDocument();
     expect(screen.queryByLabelText('娇娇旬月通报')).not.toBeInTheDocument();
 
     await clickDialogueAdvance();
-    await clickDialogueAdvance();
+
+    const promotionNotice = await screen.findByLabelText('晋升太监通报');
+    expect(within(promotionNotice).getByLabelText('圣旨题签')).toBeInTheDocument();
+    expect(within(promotionNotice).getByText('宫历元年二月上旬')).toBeInTheDocument();
+    expect(within(promotionNotice).getByText(/由官女子晋为/)).toBeInTheDocument();
+    expect(within(promotionNotice).getByText(new RegExp(flow.hiddenStats.initialRank ?? ''))).toBeInTheDocument();
+    fireEvent.animationEnd(within(promotionNotice).getByLabelText('晋封圣旨'), { animationName: 'promotion-edict-unfold' });
+    expect(screen.queryByLabelText('娇娇旬月通报')).not.toBeInTheDocument();
+
+    fireEvent.click(promotionNotice);
+    if (!screen.queryByLabelText('娇娇旬月通报')) {
+      await waitFor(() => expect(screen.getAllByLabelText('夜晚侍寝通报').length).toBeGreaterThan(0));
+      await clickDialogueAdvance();
+    }
 
     expect(await screen.findByLabelText('娇娇旬月通报')).toBeInTheDocument();
   });
@@ -7854,21 +7873,59 @@ describe('App 主流程切换', () => {
     const craftPanel = await screen.findByLabelText('字画制作面板');
     expect(within(craftPanel).getByRole('heading', { name: '字画制作' })).toBeInTheDocument();
     expect(within(craftPanel).queryByRole('button', { name: /绣花/ })).not.toBeInTheDocument();
-    expect(within(craftPanel).queryByRole('button', { name: /只练习技艺/ })).not.toBeInTheDocument();
+    expect(within(craftPanel).getByRole('button', { name: /练习/ })).toBeInTheDocument();
     expect(within(craftPanel).queryByRole('heading', { name: '已完成库存' })).not.toBeInTheDocument();
 
-    fireEvent.click(within(craftPanel).getByRole('button', { name: /添加作品/ }));
-    fireEvent.click(await within(craftPanel).findByRole('button', { name: /寒梅小轴/ }));
-    expect(useGameFlowStore.getState().craftWorksProgress.activeWorks).not.toEqual({});
+    fireEvent.click(within(craftPanel).getByRole('button', { name: /才思泉涌/ }));
+    await waitFor(() => expect(useGameFlowStore.getState().craftWorksProgress.activeWorks).not.toEqual({}));
+    const inspiredWork = Object.values(useGameFlowStore.getState().craftWorksProgress.activeWorks)[0];
+    expect(inspiredWork).toBeDefined();
+    const inspirationDialogue = await screen.findByLabelText('寝殿对白');
+    expect(within(inspirationDialogue).getByText(new RegExp(`《${inspiredWork?.name ?? ''}》`))).toBeInTheDocument();
+
+    await clickDialogueAdvance();
+    fireEvent.click(await screen.findByRole('button', { name: '泼墨作画' }));
+    const reopenedCraftPanel = await screen.findByLabelText('字画制作面板');
 
     await waitFor(() => {
-      expect(within(craftPanel).getByText(/完成度 0%/)).toBeInTheDocument();
+      expect(within(reopenedCraftPanel).getByText(/完成度 0%/)).toBeInTheDocument();
     });
-    fireEvent.click(within(craftPanel).getByRole('button', { name: /本次推进这件作品/ }));
+    fireEvent.click(within(reopenedCraftPanel).getByRole('button', { name: new RegExp(inspiredWork?.name ?? '') }));
     expect(Object.values(useGameFlowStore.getState().craftWorksProgress.activeWorks)[0]?.actionCount).toBe(1);
     const chamberDialogue = await screen.findByLabelText('寝殿对白');
     fireEvent.click(within(chamberDialogue).getByLabelText('对话正文，点击翻页'));
-    expect(within(chamberDialogue).getByText(/寒梅小轴完成度/)).toBeInTheDocument();
+    expect(within(chamberDialogue).getByText(new RegExp(`${inspiredWork?.name ?? ''}完成度`))).toBeInTheDocument();
+  });
+
+  it('调香练习显示调香行动剧情而不是只剩数值 toast', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      state: {
+        ...state.state,
+        stamina: STAMINA_INITIAL_PER_XUN,
+        flags: {
+          ...state.state.flags,
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+          attributeStatsFinalized: true,
+        },
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '调制香薰' }));
+    const craftPanel = await screen.findByLabelText('调香制作面板');
+    fireEvent.click(within(craftPanel).getByRole('button', { name: '练习' }));
+
+    const chamberDialogue = await screen.findByLabelText('寝殿对白');
+    expect(within(chamberDialogue).getByText(/香材分列小案/)).toBeInTheDocument();
+    expect(within(chamberDialogue).getByText(/调制香薰/)).toBeInTheDocument();
+    expect(within(chamberDialogue).queryByText(/容貌 \+1/)).not.toBeInTheDocument();
   });
 
   it('回宫反馈收起后不会覆盖后续寝殿行动剧情', async () => {

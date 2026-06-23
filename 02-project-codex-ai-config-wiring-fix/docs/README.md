@@ -18,6 +18,7 @@
 | `imperial-heir-architecture.md` | 皇嗣管理、生育后续 | 皇嗣专项主源 |
 | `fixed-romance-npc-profiles.md` | 固定可攻略 NPC 人设设定 | 角色设定主源 |
 | `routes/*` | 路线专项剧情 / 设定 | 路线专项源 |
+| `src/game/random-events/csv/README.md` | 随机事件 CSV 表头、效果 JSON 与编辑规则 | 随机事件数据表主源 |
 
 ## 归档文档
 
@@ -36,6 +37,7 @@
 - 单次任务证据写 `codex-workdocs/`。
 - 状态 / 存档字段写 `game-state-model.md` 和 `save-system-maintenance.md`。
 - 代码结构和模块边界写 `game-system-breakdown.md`。
+- 随机事件表头、剧情行 / 选项行和效果 JSON 写 `src/game/random-events/csv/README.md`。
 - 玩法规则只更新对应专项 `*-architecture.md`，不要再维护单一总规则文档。
 - 新对话入口只维护 `new-chat-start.md`，不要再维护巨型 handoff 文档。
 
