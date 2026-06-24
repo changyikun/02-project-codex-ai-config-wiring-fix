@@ -2,15 +2,19 @@ import { useMemo, useState } from 'react';
 import { buildYetingPoisonCatalog } from '../../game/data/inventoryPresets';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type { InventoryItem } from '../../game/types';
+import { LocationActionResultStage } from './LocationActionResultStage';
+import { MapSubsceneView, type SubsceneActionEntry, type SubsceneNpcEntry } from './MapSubsceneView';
 
 export function YetingYardView() {
   const state = useGameFlowStore((store) => store.state);
   const inventory = useGameFlowStore((store) => store.inventory);
   const buyInventoryItem = useGameFlowStore((store) => store.buyInventoryItem);
+  const enterMapMain = useGameFlowStore((store) => store.enterMapMain);
   const [shopOpen, setShopOpen] = useState(false);
   const [systemMessage, setSystemMessage] = useState(
     '掖庭院里差役往来，旧档、杂役和不能摆到明面上的交易都藏在墙根阴影里。',
   );
+  const [npcIntroText, setNpcIntroText] = useState('');
   const poisonCatalog = useMemo(() => buildYetingPoisonCatalog(), []);
 
   const getOwnedQuantity = (itemId: string): number =>
@@ -18,29 +22,61 @@ export function YetingYardView() {
 
   const handleBuyPoison = (item: InventoryItem) => {
     const result = buyInventoryItem(item);
-    setSystemMessage(
-      result.success
-        ? `月姑姑收下银两，将${item.name}用旧纸包好递来。${result.message}`
-        : `月姑姑把药包按回匣底。${result.message}`,
-    );
+    const nextMessage = result.success
+      ? `月姑姑收下银两，将${item.name}用旧纸包好递来。${result.message}`
+      : `月姑姑把药包按回匣底。${result.message}`;
+    setSystemMessage(nextMessage);
+    setNpcIntroText(nextMessage);
   };
+
+  const npcEntries = useMemo<SubsceneNpcEntry[]>(
+    () => [
+      {
+        id: 'fixed:yue-gugu',
+        kind: 'fixed',
+        name: '月姑姑',
+        identityLabel: '掖庭掌事',
+        onClick: () =>
+          setNpcIntroText(
+            '月姑姑把手里一串旧钥匙慢慢拢进袖中，抬眼只问你一句：“娘娘来此，是问旧档，还是问那些不该摆上台面的东西？”',
+          ),
+      },
+    ],
+    [],
+  );
+  const actionEntries = useMemo<SubsceneActionEntry[]>(
+    () => [
+      {
+        id: 'buy-poison',
+        label: '买毒药',
+        onClick: () => {
+          setNpcIntroText('月姑姑听见你点明来意，便转身从暗格里取出一只旧匣。');
+          setShopOpen(true);
+        },
+      },
+    ],
+    [],
+  );
 
   return (
     <section className="yeting-yard-view" aria-label="掖庭院场景">
-      <header className="yeting-yard-view__header">
-        <span>掖庭院 · 旧役暗巷</span>
-        <p>这里不掌体面，只掌活路。想找见不得光的东西，往往要先认得见不得光的人。</p>
-      </header>
+      <MapSubsceneView
+        locationId="掖庭院"
+        ariaLabel="掖庭院互动"
+        npcs={npcEntries}
+        actions={actionEntries}
+        onLeave={enterMapMain}
+      />
 
-      <section className="yeting-yard-view__npc-card" aria-label="掖庭院 NPC">
-        <div>
-          <strong>掖庭掌事 · 月姑姑</strong>
-          <p>{systemMessage}</p>
-        </div>
-        <button type="button" onClick={() => setShopOpen(true)}>
-          买毒药
-        </button>
-      </section>
+      {npcIntroText ? (
+        <LocationActionResultStage
+          locationName="掖庭院"
+          className="global-dialogue-stage--chamber"
+          dialogueClassName="palace-dialogue-box--chamber"
+          content={npcIntroText}
+          onNextAction={() => setNpcIntroText('')}
+        />
+      ) : null}
 
       {shopOpen ? (
         <section className="yeting-yard-view__shop-modal" role="dialog" aria-label="月姑姑毒药货单">

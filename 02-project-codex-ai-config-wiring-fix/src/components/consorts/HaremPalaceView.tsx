@@ -10,13 +10,11 @@ import {
   canStartConsortVisit,
   CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN,
   CONSORT_VISIT_STAMINA_BLOCK_TEXT,
-  CONSORT_VISIT_STAMINA_COST,
   buildConsortInteractionLimitNarrative,
 } from '../../game/lib/consortVisitRuntime';
 import { getNpcVisitAtResidence, isNpcAtOwnResidence } from '../../game/lib/npcActivityRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type { ConcubineProfile } from '../../game/types';
-import { useLocationActionFlow, type TimedLocationActionOutcome } from '../chamber/useLocationActionFlow';
 
 interface HaremPalaceViewProps {
   concubines: ConcubineProfile[];
@@ -62,12 +60,10 @@ const getResidencePresenceLabel = (
 
 export function HaremPalaceView({ concubines, playerResidenceName, playerName, playerRankLabel }: HaremPalaceViewProps) {
   const { state, time, npcActivity, consortInteractionMap, resolveNpcActivityEntry, enterMainChamber } = useGameFlowStore();
-  const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [selectedPalaceId, setSelectedPalaceId] = useState<HaremPalaceId | null>(null);
   const [selectedHallId, setSelectedHallId] = useState<string | null>(null);
   const [activeResidentId, setActiveResidentId] = useState<string | null>(null);
   const [actionNote, setActionNote] = useState('');
-  const [pendingVisitOutcome, setPendingVisitOutcome] = useState<TimedLocationActionOutcome | null>(null);
 
   const selectedPalace = useMemo(
     () => HAREM_PALACES.find((palace) => palace.id === selectedPalaceId) ?? null,
@@ -124,16 +120,13 @@ export function HaremPalaceView({ concubines, playerResidenceName, playerName, p
       return;
     }
 
-    const outcome = beginTimedLocationAction({ staminaCost: CONSORT_VISIT_STAMINA_COST });
     setActionNote('');
-    setPendingVisitOutcome(outcome);
     setActiveResidentId(consortId);
   };
 
   const returnToPlayerResidence = () => {
     setActionNote('');
     setActiveResidentId(null);
-    setPendingVisitOutcome(null);
     enterMainChamber();
   };
 
@@ -286,11 +279,6 @@ export function HaremPalaceView({ concubines, playerResidenceName, playerName, p
               resolveNpcActivityEntry(activeResidenceVisit.id);
             }
             setActiveResidentId(null);
-            if (finishTimedLocationAction(pendingVisitOutcome)) {
-              setPendingVisitOutcome(null);
-              return;
-            }
-            setPendingVisitOutcome(null);
           }}
         />
       ) : selectedPalace ? (

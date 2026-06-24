@@ -32,6 +32,7 @@ import type {
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
 import { AutoCutoutPortrait } from '../visual/AutoCutoutPortrait';
 import { LocationActionResultStage } from './LocationActionResultStage';
+import { MapSubsceneView, type SubsceneActionEntry, type SubsceneNpcEntry } from './MapSubsceneView';
 import { useLocationActionFlow, type TimedLocationActionOutcome } from './useLocationActionFlow';
 
 interface HuaQingPoolViewProps {
@@ -105,6 +106,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
     applyConsortRelationshipJudgement,
     npcActivity,
     resolveNpcActivityEntry,
+    enterMapMain,
   } = useGameFlowStore();
   const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [activeActor, setActiveActor] = useState<HuaqingSceneActor | null>(null);
@@ -121,6 +123,12 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const dialogueOptions = dialogueTurn?.options ?? [];
   const deepNightActive = isSpecialSlot(time.slot);
+  const scheduledConsortActivity = useMemo(() => {
+    const scheduledEntries = getNpcActivitiesAtLocation(npcActivity, '华清池');
+    const entry = scheduledEntries.find((candidate) => concubines.some((consort) => consort.id === candidate.actorConsortId));
+    const consort = entry ? concubines.find((candidate) => candidate.id === entry.actorConsortId) : undefined;
+    return entry && consort ? { entry, consort } : null;
+  }, [concubines, npcActivity]);
 
   const inviteOptions = useMemo<HotSpringInviteOption[]>(() => {
     const eligibleConsorts: HotSpringInviteOption[] = concubines
@@ -520,32 +528,62 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
     }
   };
 
+  const subsceneNpcEntries = useMemo<SubsceneNpcEntry[]>(() => {
+    if (!scheduledConsortActivity) {
+      return [];
+    }
+
+    const { entry, consort } = scheduledConsortActivity;
+    return [
+      {
+        id: `consort:${entry.id}`,
+        kind: 'consort',
+        name: consort.name,
+        identityLabel: getConcubineDisplayRankText(consort),
+        portraitSrc: getConcubinePortraitPath(consort.portraitId),
+        interactableState: entry.resolved ? 'spent' : 'available',
+        disabledReason: entry.resolved ? '本旬已交谈过' : undefined,
+        onClick: entry.resolved
+          ? undefined
+          : () => {
+              resolveNpcActivityEntry(entry.id);
+              void beginEncounter(
+                buildConsortActor(consort),
+                'scheduled-consort',
+                '华清池偶遇',
+                `${entry.summary}你看见${getConcubineDisplayRankText(consort)} ${consort.name}正在池畔停留，便主动上前搭话。`,
+              );
+            },
+      },
+    ];
+  }, [beginEncounter, resolveNpcActivityEntry, scheduledConsortActivity]);
+
+  const subsceneActions = useMemo<SubsceneActionEntry[]>(
+    () => [
+      {
+        id: 'solo-bath',
+        label: '单人沐浴',
+        onClick: handleSoloBath,
+      },
+      {
+        id: 'shared-bath',
+        label: '双人沐浴',
+        onClick: handleOpenSharedBath,
+      },
+    ],
+    [handleOpenSharedBath, handleSoloBath],
+  );
+
   return (
     <section className="huaqing-view" aria-label="华清池场景">
       {!activeActor ? (
-        <header className="huaqing-view__header">
-          <div className="huaqing-view__heading">
-            <span>华清池 · 水暖雾深</span>
-            <p>华清池离宫道远，离人心却近。这里最容易把体温与试探一起蒸起来，也最难装作一句都没听见。</p>
-          </div>
-        </header>
-      ) : null}
-
-      {!activeActor ? (
-        <section className="huaqing-view__menu" aria-label="华清池主界面">
-          <div className="huaqing-view__menu-buttons">
-            <button type="button" onClick={handleSoloBath} disabled={busy}>
-              单人沐浴
-            </button>
-            <button type="button" onClick={handleOpenSharedBath} disabled={busy}>
-              双人沐浴
-            </button>
-          </div>
-          <div className="huaqing-view__note">
-            <strong>{deepNightActive ? '当前时辰：深夜' : `当前时辰：${time.slot}`}</strong>
-            <p>{systemMessage}</p>
-          </div>
-        </section>
+        <MapSubsceneView
+          locationId="华清池"
+          npcs={subsceneNpcEntries}
+          actions={subsceneActions}
+          busy={busy}
+          onLeave={enterMapMain}
+        />
       ) : (
         <section className="huaqing-view__encounter" aria-label={`${activeActor.name} 华清池对话`}>
           <aside className="huaqing-view__actions" aria-label="华清池对话操作">

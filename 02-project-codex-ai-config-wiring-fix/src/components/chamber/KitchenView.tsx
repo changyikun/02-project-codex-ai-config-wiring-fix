@@ -26,6 +26,7 @@ import type {
   InventoryItem,
 } from '../../game/types';
 import { LocationActionResultStage } from './LocationActionResultStage';
+import { MapSubsceneView, type SubsceneActionEntry, type SubsceneNpcEntry } from './MapSubsceneView';
 import { useLocationActionFlow, type TimedLocationActionOutcome } from './useLocationActionFlow';
 
 interface KitchenViewProps {
@@ -84,6 +85,7 @@ export function KitchenView({ concubines }: KitchenViewProps) {
     applyConsortRelationshipJudgement,
     npcActivity,
     resolveNpcActivityEntry,
+    enterMapMain,
   } = useGameFlowStore();
   const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [activeActor, setActiveActor] = useState<KitchenSceneActor | null>(null);
@@ -440,37 +442,77 @@ export function KitchenView({ concubines }: KitchenViewProps) {
     }
   };
 
+  const subsceneNpcEntries = useMemo<SubsceneNpcEntry[]>(() => {
+    const entries: SubsceneNpcEntry[] = [];
+
+    if (kitchenProgress.buZiyouUnlocked) {
+      entries.push({
+        id: 'fixed:buziyou',
+        kind: 'fixed',
+        name: '布自游',
+        identityLabel: '御厨',
+        portraitSrc: BU_ZIYOU_PORTRAIT_SRC,
+        onClick: () => {
+          void handleOpenBuZiyou();
+        },
+      });
+    }
+
+    if (scheduledConsortActivity) {
+      const { entry, consort } = scheduledConsortActivity;
+      entries.push({
+        id: `consort:${entry.id}`,
+        kind: 'consort',
+        name: consort.name,
+        identityLabel: getConcubineDisplayRankText(consort),
+        portraitSrc: getConcubinePortraitPath(consort.portraitId),
+        interactableState: entry.resolved ? 'spent' : 'available',
+        disabledReason: entry.resolved ? '本旬已交谈过' : undefined,
+        onClick: entry.resolved
+          ? undefined
+          : () => {
+              resolveNpcActivityEntry(entry.id);
+              void beginEncounter(
+                buildConsortActor(consort),
+                'scheduled-consort',
+                '御膳房偶遇',
+                `${entry.summary}你看见${getConcubineDisplayRankText(consort)} ${consort.name}正在膳房一侧停留，便主动上前搭话。`,
+              );
+            },
+      });
+    }
+
+    return entries;
+  }, [beginEncounter, handleOpenBuZiyou, kitchenProgress.buZiyouUnlocked, resolveNpcActivityEntry, scheduledConsortActivity]);
+
+  const subsceneActions = useMemo<SubsceneActionEntry[]>(
+    () => [
+      {
+        id: 'stroll',
+        label: '闲逛',
+        onClick: () => {
+          void handleStroll();
+        },
+      },
+      {
+        id: 'buy-food',
+        label: '购买美食',
+        onClick: () => setShopOpen(true),
+      },
+    ],
+    [handleStroll],
+  );
+
   return (
     <section className="kitchen-view" aria-label="御膳房场景">
       {!activeActor ? (
-        <header className="kitchen-view__header">
-          <div className="kitchen-view__heading">
-            <span>御膳房 · 炊火往来</span>
-            <p>炊烟、食匣与宫人脚步混在一处，最适合闲逛探人，也最容易撞见不该撞见的耳目。</p>
-          </div>
-        </header>
-      ) : null}
-
-      {!activeActor ? (
-        <section className="kitchen-view__menu" aria-label="御膳房主界面">
-          <div className="kitchen-view__menu-buttons">
-            <button type="button" onClick={() => void handleStroll()} disabled={busy}>
-              闲逛
-            </button>
-            <button type="button" onClick={() => setShopOpen(true)} disabled={busy}>
-              购买美食
-            </button>
-            {kitchenProgress.buZiyouUnlocked ? (
-              <button type="button" onClick={() => void handleOpenBuZiyou()} disabled={busy}>
-                布自游
-              </button>
-            ) : null}
-          </div>
-          <div className="kitchen-view__note">
-            <strong>{`累计闲逛：${kitchenProgress.strollCount} 次`}</strong>
-            <p>{systemMessage}</p>
-          </div>
-        </section>
+        <MapSubsceneView
+          locationId="御膳房"
+          npcs={subsceneNpcEntries}
+          actions={subsceneActions}
+          busy={busy}
+          onLeave={enterMapMain}
+        />
       ) : (
         <section className="kitchen-view__encounter" aria-label={`${activeActor.name} 御膳房对话`}>
           <aside className="kitchen-view__actions" aria-label="御膳房对话操作">

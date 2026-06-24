@@ -44,6 +44,7 @@ import type {
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
 import { AutoCutoutPortrait } from '../visual/AutoCutoutPortrait';
 import { LocationActionResultStage } from './LocationActionResultStage';
+import { MapSubsceneView, type SubsceneActionEntry, type SubsceneNpcEntry } from './MapSubsceneView';
 import { useLocationActionFlow, type TimedLocationActionOutcome } from './useLocationActionFlow';
 
 interface MiaoYinHallViewProps {
@@ -121,6 +122,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     markNumericFeedbackEvent,
     npcActivity,
     resolveNpcActivityEntry,
+    enterMapMain,
   } = useGameFlowStore();
   const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [activeActor, setActiveActor] = useState<MiaoYinSceneActor | null>(null);
@@ -805,55 +807,94 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     }
   };
 
+  const subsceneNpcEntries = useMemo<SubsceneNpcEntry[]>(() => {
+    const entries: SubsceneNpcEntry[] = [];
+
+    if (isLianQiaoMet) {
+      entries.push({
+        id: 'fixed:lianqiao',
+        kind: 'fixed',
+        name: '连翘',
+        identityLabel: '妙音堂伶人',
+        portraitSrc: LIANQIAO_PORTRAIT_SRC,
+        onClick: () => {
+          void handleOpenLianQiao();
+        },
+      });
+    }
+
+    if (scheduledConsortActivity) {
+      const { entry, consort } = scheduledConsortActivity;
+      entries.push({
+        id: `consort:${entry.id}`,
+        kind: 'consort',
+        name: consort.name,
+        identityLabel: getConcubineDisplayRankText(consort),
+        portraitSrc: getConcubinePortraitPath(consort.portraitId),
+        interactableState: entry.resolved ? 'spent' : 'available',
+        disabledReason: entry.resolved ? '本旬已交谈过' : undefined,
+        onClick: entry.resolved
+          ? undefined
+          : () => {
+              resolveNpcActivityEntry(entry.id);
+              void beginEncounter(
+                buildConsortActor(consort),
+                'scheduled-consort',
+                '妙音堂偶遇',
+                `${entry.summary}你看见${getConcubineDisplayRankText(consort)} ${consort.name}正停在曲声尽处，便主动上前搭话。`,
+                'consort',
+              );
+            },
+      });
+    }
+
+    return entries;
+  }, [beginEncounter, handleOpenLianQiao, isLianQiaoMet, resolveNpcActivityEntry, scheduledConsortActivity]);
+
+  const subsceneActions = useMemo<SubsceneActionEntry[]>(
+    () => [
+      {
+        id: 'sign-up',
+        label: '报名',
+        onClick: handleOpenSignUp,
+      },
+      {
+        id: 'listen',
+        label: '听曲',
+        onClick: () => {
+          void handleListen();
+        },
+      },
+      ...(isLianQiaoMet
+        ? [
+            {
+              id: 'practice',
+              label: '学谱',
+              onClick: handleOpenPractice,
+            },
+          ]
+        : []),
+      {
+        id: 'stroll',
+        label: '闲逛',
+        onClick: () => {
+          void handleStroll();
+        },
+      },
+    ],
+    [handleListen, handleOpenPractice, handleOpenSignUp, handleStroll, isLianQiaoMet],
+  );
+
   return (
     <section className="miaoyin-view" aria-label="妙音堂场景">
       {!activeActor ? (
-        <header className="miaoyin-view__header">
-          <div className="miaoyin-view__heading">
-            <span>妙音堂 · 丝竹留声</span>
-            <p>这里最擅长收住人的心绪。曲终之后，真正留下来的，往往不是最后一个音，而是谁在余韵里回头看了你一眼。</p>
-          </div>
-        </header>
-      ) : null}
-
-      {!activeActor ? (
-        <section className="miaoyin-view__menu" aria-label="妙音堂主界面">
-          <div className="miaoyin-view__menu-buttons">
-            <button type="button" onClick={handleOpenSignUp} disabled={busy}>
-              报名
-            </button>
-            <button type="button" onClick={() => void handleListen()} disabled={busy}>
-              听曲
-            </button>
-            {isLianQiaoMet ? (
-              <button type="button" onClick={handleOpenPractice} disabled={busy}>
-                学谱
-              </button>
-            ) : null}
-            <button type="button" onClick={() => void handleStroll()} disabled={busy}>
-              闲逛
-            </button>
-            {isLianQiaoMet ? (
-              <button type="button" onClick={() => void handleOpenLianQiao()} disabled={busy}>
-                连翘
-              </button>
-            ) : null}
-          </div>
-
-          <div className="miaoyin-view__note">
-            <strong>{`累计听曲：${musicHallProgress.listenCount} 次｜已报名：${musicHallProgress.signUpCount} 次`}</strong>
-            <p>
-              {submittedScore
-                ? `本届宫宴已登记：《${submittedScore.name}》，当前完成度${submittedScoreMastery?.masteryPercent ?? 0}%，表现上限${
-                    submittedScoreMastery?.performanceCap ?? 0
-                  }。`
-                : `本届宫宴：${banquetEventTime.month}月第${banquetEventTime.xun}旬${banquetEventTime.slot}，${
-                    canSignUp ? '报名册已开。' : '报名册未开。'
-                  }`}
-            </p>
-            <p>{systemMessage}</p>
-          </div>
-        </section>
+        <MapSubsceneView
+          locationId="妙音堂"
+          npcs={subsceneNpcEntries}
+          actions={subsceneActions}
+          busy={busy}
+          onLeave={enterMapMain}
+        />
       ) : (
         <section className="miaoyin-view__encounter" aria-label={`${activeActor.name} 妙音堂对话`}>
           <aside className="miaoyin-view__actions" aria-label="妙音堂对话操作">

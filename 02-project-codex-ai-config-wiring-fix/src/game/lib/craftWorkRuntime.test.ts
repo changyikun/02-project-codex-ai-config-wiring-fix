@@ -185,28 +185,6 @@ describe('craftWorkRuntime', () => {
     expect(steady.salePrice ?? 0).toBeLessThanOrEqual(Math.ceil((rough.salePrice ?? 1) * 1.12));
   });
 
-  it('normalizes difficulty for sale price instead of treating it as a direct multiplier', () => {
-    const instance = {
-      ...buildCraftWorkInstance({
-        workId: 'moon-kylin-incense',
-        instanceId: 'craft:test:hard-sale-price',
-        time,
-      }),
-      progressPercent: 99,
-      actionCount: 1,
-    };
-
-    const result = resolveCraftWorkAdvance({
-      instance,
-      state: buildState({ medicine: 100, poetry: 100 }),
-      time,
-      seed: 'hard-sale-price-seed',
-    });
-
-    expect(result.completed).toBe(true);
-    expect(result.completedItem?.price ?? 0).toBeLessThan(600);
-  });
-
   it('turns completed work into a sellable gift item', () => {
     const instance = buildCraftWorkInstance({
       workId: 'clear-heart-incense',

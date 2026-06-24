@@ -14,13 +14,12 @@ import { GenericMapLocationView } from '../components/chamber/GenericMapLocation
 import { GongmenView } from '../components/chamber/GongmenView';
 import { HuaQingPoolView } from '../components/chamber/HuaQingPoolView';
 import { KitchenView } from '../components/chamber/KitchenView';
-import { LocationConsortVisitorsPanel } from '../components/chamber/LocationConsortVisitorsPanel';
+import { MapSubsceneView, type SubsceneActionEntry, type SubsceneNpcEntry } from '../components/chamber/MapSubsceneView';
 import { MiaoYinHallView } from '../components/chamber/MiaoYinHallView';
 import { NightlyServiceEventView, OVERNIGHT_TRANSITION_MS } from '../components/chamber/NightlyServiceEventView';
 import { TaiHospitalView } from '../components/chamber/TaiHospitalView';
 import { YetingYardView } from '../components/chamber/YetingYardView';
 import { ConcubineListView } from '../components/consorts/ConcubineListView';
-import { ConsortAudiencePanel } from '../components/consorts/ConsortAudiencePanel';
 import { HaremPalaceView } from '../components/consorts/HaremPalaceView';
 import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
 import { PromotionEdictStage } from '../components/dialogue/PromotionEdictStage';
@@ -52,13 +51,12 @@ import {
 } from '../game/data/concubineRoster';
 import {
   buildChamberActionNarrativeEntry,
-  buildMapTransitionNarrative,
   buildMapTransitionNarrativeEntry,
 } from '../game/lib/actionNarrativeRuntime';
 import { getRarityColor } from '../game/lib/bedchamberRuntime';
 import { craftWorkQualityLabels } from '../game/lib/craftWorkRuntime';
 import { isJiaojiaoSpokenText } from '../game/lib/dialoguePresentation';
-import { getNpcActivitiesAtLocation, getPendingNpcPlayerVisit } from '../game/lib/npcActivityRuntime';
+import { getPendingNpcPlayerVisit } from '../game/lib/npcActivityRuntime';
 import {
   EMPEROR_AUDIENCE_OPEN_SLOTS,
   isEmperorPublicEncounterAvailable,
@@ -231,11 +229,6 @@ export function ChamberMainView() {
   const [utilityReturnPanel, setUtilityReturnPanel] = useState<ChamberPanelId | null>(null);
   const [npcPlayerVisitResultText, setNpcPlayerVisitResultText] = useState('');
   const [yangxinStatementIndex, setYangxinStatementIndex] = useState(0);
-  const [activeLocationAudience, setActiveLocationAudience] = useState<{
-    entryId: string;
-    consortId: string;
-    summary: string;
-  } | null>(null);
   const [activeEmperorAudience, setActiveEmperorAudience] = useState<{
     source: EmperorInteractionSource;
     location: MapAreaId;
@@ -247,7 +240,6 @@ export function ChamberMainView() {
     useState<PendingChamberDialogueAction>(null);
   const overnightTransitionRunKeyRef = useRef<string | null>(null);
   const suppressNextYangxinEntryNarrativeRef = useRef(false);
-  const lastLocationIntroKeyRef = useRef<string | null>(null);
   const isResidenceLocation = activeMapLocation === state.residenceName;
   const isOutsideScene = Boolean(activeMapLocation && !isResidenceLocation);
   const isJianzhangAudience = activeChamberPanel === 'main' && activeMapLocation === '建章宫' && jianzhangAudienceMode === 'dowager';
@@ -317,35 +309,15 @@ export function ChamberMainView() {
       (activeLocationEntryTime.slot === '夜晚' || activeLocationEntryTime.slot === '深夜'),
   );
   const shouldShowZhengyangWait = Boolean(activeMapLocation === '正阳门' && activeLocationEntryTime.slot === '清晨');
-  const activeLocationNpcActivities = useMemo(() => {
-    if (!activeMapLocation || isResidenceLocation) {
-      return [];
-    }
-    return getNpcActivitiesAtLocation(npcActivity, activeMapLocation, { includeResolved: true })
-      .map((entry) => {
-        const consort = allConsorts.find((candidate) => candidate.id === entry.actorConsortId);
-        return consort ? { entry, consort } : null;
-      })
-      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
-  }, [activeMapLocation, allConsorts, isResidenceLocation, npcActivity]);
-  const activeLocationAudienceConsort = useMemo(
-    () => allConsorts.find((consort) => consort.id === activeLocationAudience?.consortId) ?? null,
-    [activeLocationAudience, allConsorts],
-  );
-
   useEffect(() => {
     ensureBondProfile(state.routeId);
     ensureConcubines(state.routeId);
   }, [ensureBondProfile, ensureConcubines, state.routeId]);
 
   useEffect(() => {
-    setActiveLocationAudience(null);
     setActiveEmperorAudience(null);
     setEmperorNoticeText('');
     setJianzhangAudienceMode(null);
-    if (!activeMapLocation) {
-      lastLocationIntroKeyRef.current = null;
-    }
   }, [activeMapLocation]);
 
   useEffect(() => {
@@ -436,16 +408,9 @@ export function ChamberMainView() {
     if (activeMapLocation && !isResidenceLocation) {
       if (activeMapLocation === '养心殿' && suppressNextYangxinEntryNarrativeRef.current) {
         suppressNextYangxinEntryNarrativeRef.current = false;
-        setPendingChamberDialogueAction(null);
-        setDialogueText('');
-        return;
       }
-      if (lastLocationIntroKeyRef.current === activeMapLocation) {
-        return;
-      }
-      lastLocationIntroKeyRef.current = activeMapLocation;
       setPendingChamberDialogueAction(null);
-      setDialogueFromEntry(buildMapTransitionNarrativeEntry({ kind: 'enter-location', locationName: activeMapLocation }));
+      setDialogueText('');
       return;
     }
 
@@ -725,8 +690,7 @@ export function ChamberMainView() {
       showSettlementReport ||
       showNpcPlayerVisit ||
       isNightlyOverlayActive ||
-      bedchamberGiftItemName ||
-      Boolean(activeLocationAudience),
+      bedchamberGiftItemName,
   );
   const isChamberUiInteractionLocked = isChamberDialogueBlocking || expenseStrategyPanelOpen;
 
@@ -811,7 +775,6 @@ export function ChamberMainView() {
       return;
     }
 
-    setActiveLocationAudience(null);
     setPendingChamberDialogueAction(null);
     setDialogueText('');
     setMapEventText('');
@@ -1193,26 +1156,10 @@ export function ChamberMainView() {
     setDialogueText('');
   };
 
-  const handleStartLocationAudience = (entryId: string) => {
-    const activity = activeLocationNpcActivities.find((item) => item.entry.id === entryId);
-    if (!activity || activity.entry.resolved) {
-      return;
-    }
-    setDialogueText('');
-    setPendingChamberDialogueAction(null);
-    setActiveLocationAudience({
-      entryId,
-      consortId: activity.consort.id,
-      summary: activity.entry.summary,
-    });
-    resolveNpcActivityEntry(entryId);
-  };
-
   const handleStartEmperorAudience = (source: EmperorInteractionSource, location: MapAreaId) => {
     setDialogueText('');
     setEmperorNoticeText('');
     setPendingChamberDialogueAction(null);
-    setActiveLocationAudience(null);
     setActiveEmperorAudience({ source, location });
   };
 
@@ -1280,6 +1227,43 @@ export function ChamberMainView() {
   useEffect(() => {
     setNpcPlayerVisitResultText('');
   }, [pendingNpcPlayerVisit?.id]);
+
+  const locationSpecialActions: SubsceneActionEntry[] = [];
+  if (canRequestEmperorAtYangxin) {
+    locationSpecialActions.push({
+      id: 'request-emperor',
+      label: '求见皇上',
+      onClick: () => handleStartEmperorAudience('yangxin-request', '养心殿'),
+    });
+  }
+  if (shouldShowYangxinNightRefusal) {
+    locationSpecialActions.push({
+      id: 'yangxin-night-refusal',
+      label: '听内侍回话',
+      onClick: handleYangxinNightRefusal,
+    });
+  }
+  if (shouldShowZhengyangWait) {
+    locationSpecialActions.push({
+      id: 'zhengyang-wait',
+      label: '等待下朝',
+      onClick: handleZhengyangWait,
+    });
+  }
+
+  const locationSpecialNpcs: SubsceneNpcEntry[] =
+    emperorPublicEncounterAvailable && activeMapLocation
+      ? [
+          {
+            id: 'special:emperor',
+            kind: 'emperor',
+            name: '容安',
+            identityLabel: '皇帝',
+            portraitSrc: EMPEROR_PORTRAIT_SRC,
+            onClick: () => handleStartEmperorAudience('public-encounter', activeMapLocation),
+          },
+        ]
+      : [];
 
   return (
     <main className={`chamber-main palace-stage-shell ${isHaremPanelActive ? 'is-harem-open' : ''} ${isJiaojiaoPanel ? 'is-jiaojiao-open' : ''}`}>
@@ -1489,81 +1473,7 @@ export function ChamberMainView() {
           />
         ) : null}
 
-        {!shouldHideChamberUiForNightlyOverlay &&
-        activeChamberPanel === 'main' &&
-        activeMapLocation &&
-        !isResidenceLocation &&
-        !activeLocationAudience &&
-        !activeEmperorAudience &&
-        !dialogueText &&
-        !emperorNoticeText &&
-        !pendingYangxinVerdict &&
-        !showSettlementReport &&
-        !showNpcPlayerVisit &&
-        !isNightlyOverlayActive &&
-        (canRequestEmperorAtYangxin || shouldShowYangxinNightRefusal || shouldShowZhengyangWait || emperorPublicEncounterAvailable) ? (
-          <section className="chamber-main__location-visitors chamber-main__location-visitors--emperor" aria-label="皇帝动向入口">
-            <strong>御前动静</strong>
-            {canRequestEmperorAtYangxin ? (
-              <button type="button" onClick={() => handleStartEmperorAudience('yangxin-request', '养心殿')}>
-                求见皇上
-              </button>
-            ) : null}
-            {shouldShowYangxinNightRefusal ? (
-              <button type="button" onClick={handleYangxinNightRefusal}>
-                听内侍回话
-              </button>
-            ) : null}
-            {shouldShowZhengyangWait ? (
-              <button type="button" onClick={handleZhengyangWait}>
-                等待下朝
-              </button>
-            ) : null}
-            {emperorPublicEncounterAvailable && activeMapLocation ? (
-              <button type="button" onClick={() => handleStartEmperorAudience('public-encounter', activeMapLocation)}>
-                与皇上交谈
-              </button>
-            ) : null}
-          </section>
-        ) : null}
-
-        {!shouldHideChamberUiForNightlyOverlay &&
-        activeChamberPanel === 'main' &&
-        activeMapLocation &&
-        !isResidenceLocation &&
-        !isGongmenScene &&
-        !activeLocationAudience &&
-        activeLocationNpcActivities.length > 0 &&
-        !dialogueText &&
-        !pendingYangxinVerdict &&
-        !showSettlementReport &&
-        !showNpcPlayerVisit &&
-        !isNightlyOverlayActive ? (
-          <LocationConsortVisitorsPanel
-            locationName={activeMapLocation}
-            entries={activeLocationNpcActivities}
-            onStartAudience={handleStartLocationAudience}
-          />
-        ) : null}
-
-        {!shouldHideChamberUiForNightlyOverlay && activeLocationAudience && activeLocationAudienceConsort && activeMapLocation ? (
-          <ConsortAudiencePanel
-            consort={activeLocationAudienceConsort}
-            palaceLabel={activeMapLocation}
-            hallLabel="偶遇"
-            concubines={concubines}
-            backLabel={`返回${activeMapLocation}`}
-            initialActionLabel={`${activeMapLocation}偶遇`}
-            encounterPlace="public"
-            initialActionResult={`${buildMapTransitionNarrative({
-              kind: 'enter-location',
-              locationName: activeMapLocation,
-            })}${activeLocationAudience.summary}你看见${getConcubineDisplayRankText(activeLocationAudienceConsort)} ${
-              activeLocationAudienceConsort.name
-            }正在此处，便主动上前搭话。`}
-            onBack={() => setActiveLocationAudience(null)}
-          />
-        ) : !shouldHideChamberUiForNightlyOverlay && isKitchenScene ? (
+        {!shouldHideChamberUiForNightlyOverlay && isKitchenScene ? (
           <KitchenView concubines={concubines} />
         ) : isBaohuaHallScene ? (
           <BaohuaHallView concubines={concubines} />
@@ -1579,21 +1489,21 @@ export function ChamberMainView() {
           <GongmenView concubines={concubines} />
         ) : isJianzhangAudience ? (
           <DowagerAudiencePanel onLeave={enterMapMain} />
-        ) : activeChamberPanel === 'main' && activeMapLocation === '建章宫' && !activeLocationAudience && !activeEmperorAudience ? (
-          <section className="dowager-audience-view__briefing chamber-main__location-choice" aria-label="建章宫行动">
-            <strong>建章宫殿门半启，宫人正候在阶前。</strong>
-            <p>若要拜见太后，须先请宫人入内通传。若圣驾在此，也可另行上前见驾。</p>
-            <button type="button" onClick={() => setJianzhangAudienceMode('dowager')}>
-              拜见太后
-            </button>
-            {emperorPublicEncounterAvailable ? (
-              <button type="button" onClick={() => handleStartEmperorAudience('public-encounter', '建章宫')}>
-                与皇上交谈
-              </button>
-            ) : null}
-          </section>
-        ) : activeChamberPanel === 'main' && activeMapLocation && !isResidenceLocation && !activeLocationAudience && !activeEmperorAudience ? (
-          <GenericMapLocationView locationId={activeMapLocation} />
+        ) : activeChamberPanel === 'main' && activeMapLocation === '建章宫' && !activeEmperorAudience ? (
+          <MapSubsceneView
+            locationId="建章宫"
+            npcs={locationSpecialNpcs}
+            actions={[
+              {
+                id: 'visit-dowager',
+                label: '拜见太后',
+                onClick: () => setJianzhangAudienceMode('dowager'),
+              },
+            ]}
+            onLeave={enterMapMain}
+          />
+        ) : activeChamberPanel === 'main' && activeMapLocation && !isResidenceLocation && !activeEmperorAudience ? (
+          <GenericMapLocationView locationId={activeMapLocation} extraNpcs={locationSpecialNpcs} extraActions={locationSpecialActions} />
         ) : activeChamberPanel === 'harem' ? (
           <HaremPalaceView
             concubines={concubines}

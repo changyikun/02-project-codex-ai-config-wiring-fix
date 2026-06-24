@@ -1,5 +1,23 @@
 Original prompt: 添加存档系统，回溯可以读取上一次存档，开始游戏会清空存档并新建存档（有二级确认）；关于存档功能的维护，需要把这部分写到全局文档里，以便更好的同步，之前已经做出的修改也需要将之前的文档修改到一致
 
+## 2026-06-24 v0.5.4 后宫妃嫔拜访入口不耗时修复
+
+- 本轮目标：修复从后宫殿位进入其他妃嫔寝宫 / 日常对话时会推进时辰的问题。
+- 诊断结论：`HaremPalaceView.startConsortAudience()` 误用 `useLocationActionFlow().beginTimedLocationAction()`；该 helper 会立即 `advanceTime(1)`，适合真实地点行动，不适合纯场景切换。
+- 已处理：进入妃嫔会面页只设置 `activeResidentId`，不再创建 `pendingVisitOutcome`，返回时也不再调用 `finishTimedLocationAction()`；体力不足拦截、会客结束后 NPC 回归和互动次数限制保留。
+- 已同步：`CHANGELOG.md` v0.5.4 第 7 条；`docs/game-system-breakdown.md` 地点子场景规则。
+- 验证：先将 `后宫宫内可进入妃嫔日常对话并展示固定操作` 改为断言 `slotIndex` 不变并确认失败；修复后 `npx vitest run src/__tests__/app-flow.test.tsx -t "后宫宫内可进入妃嫔日常对话并展示固定操作|后宫宫殿入口体力不足时不能拜访妃嫔|玩家结束会客后来访妃嫔会回到自己的寝宫" --reporter=dot` 通过；`npx tsc --noEmit` 通过；`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告。
+
+## 2026-06-24 v0.5.4 子场景视觉与入场流程修订
+
+- 本轮目标：修正地图子场景右侧按钮组太靠上、太小的问题，并删除进入子场景时娇娇的无意义入场演出。
+- 已处理：`MapSubsceneView` 的右侧行动栏改为垂直居中，按钮尺寸和字号放大；NPC 区改为更大的两排三列立绘 + 名字标签组合，并下移到画面中段。
+- 后续修订：NPC 展示取消卡片底板，改成透明点击热区上的人物立牌；姓名改为 `官职/位分·名字` 的横向胶囊名牌，不再单独显示底部身份行；立绘左对齐，整体更大、更偏横向、偏扁，名牌改为深色描边、浅色填色的扁平风格。
+- 后续修订：NPC 六个槽位改为底排优先、再向上补位；立牌区从固定像素改为随视口宽高自适应放大，宽屏下尽量撑满中间区域，同时避开右侧行动栏。
+- 已处理：`ChamberMainView` 不再在进入普通地图子场景时自动塞入 `enter-location` 入场对白；进入地点后直接显示地点行动和 NPC，点击 NPC 或地点行动后再触发剧情。
+- 已同步：`CHANGELOG.md` v0.5.4 第 4-6 条；`docs/game-system-breakdown.md` 地点子场景规则。
+- 验证：初轮全量 `npx vitest run --reporter=dot` 通过，`35 passed / 346 passed`；本次底排优先与自适应尺寸修订后，`npx tsc --noEmit` 通过，`npx vitest run src/__tests__/app-flow.test.tsx -t "公共地点排班|等待下朝|大地图地点弹窗|御书房|养心殿|建章宫" --reporter=dot` 通过，`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告。
+
 ## 2026-06-23 v0.5.4 版本推进
 
 - 本轮目标：归档当前开发版本，并推进下一个版本号。

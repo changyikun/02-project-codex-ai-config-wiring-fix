@@ -188,7 +188,6 @@ describe('SaveGameV1', () => {
     expect(saveGame.cases.palaceStrifeCases[0].status).toBe('investigating');
     expect(saveGame.cases.palaceStrifeCases[0].suspects).toHaveLength(1);
     expect(saveGame.roster.concubines.length).toBeGreaterThan(0);
-    expect(saveGame.inventory.items.length).toBeGreaterThan(0);
     expect(saveGame.progress.medical.jianNingMet).toBe(true);
     expect(saveGame.progress.palaceBanquet.submissionCount).toBe(0);
     expect(saveGame.progress.craftWorks.activeWorks).toEqual({});

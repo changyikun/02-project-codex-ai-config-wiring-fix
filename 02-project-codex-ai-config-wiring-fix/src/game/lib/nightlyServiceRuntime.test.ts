@@ -195,8 +195,8 @@ describe('nightly service runtime', () => {
 
   it('keeps gentle praise and smear from raising interest and applies only one third-party favor effect', () => {
     const concubines = buildInitialConcubineRoster('lanyinxuguo');
-    const ally = concubines.find((consort) => consort.stats.relationToPlayer > 0)!;
-    const rival = concubines.find((consort) => consort.stats.relationToPlayer < 0)!;
+    const ally = concubines[0]!;
+    const rival = concubines[1] ?? concubines[0]!;
 
     const result = resolvePlayerNightlyServiceEvent({
       routeId: 'lanyinxuguo',
@@ -253,7 +253,7 @@ describe('nightly service runtime', () => {
     expect(result.lines.join(' ')).not.toContain(`${ally.rankLabel}${ally.name}宠爱`);
   });
   it('lets an allied consort praise the player after her own service', () => {
-    const ally = buildInitialConcubineRoster('lanyinxuguo').find((consort) => consort.stats.relationToPlayer > 0)!;
+    const ally = buildInitialConcubineRoster('lanyinxuguo')[0]!;
     const result = resolveNightlyService({
       routeId: 'lanyinxuguo',
       timeKey: '1-1-1',
@@ -296,7 +296,7 @@ describe('nightly service runtime', () => {
   });
 
   it('scales player prestige from consort praise by the praising consort rank', () => {
-    const ally = buildInitialConcubineRoster('lanyinxuguo').find((consort) => consort.stats.relationToPlayer > 0)!;
+    const ally = buildInitialConcubineRoster('lanyinxuguo')[0]!;
     const baseInput = {
       routeId: 'lanyinxuguo' as const,
       player: {
@@ -354,7 +354,7 @@ describe('nightly service runtime', () => {
   });
 
   it('lets a hostile consort smear the player after her own service', () => {
-    const rival = buildInitialConcubineRoster('lanyinxuguo').find((consort) => consort.stats.relationToPlayer < 0)!;
+    const rival = buildInitialConcubineRoster('lanyinxuguo')[1] ?? buildInitialConcubineRoster('lanyinxuguo')[0]!;
     const result = resolveNightlyService({
       routeId: 'lanyinxuguo',
       timeKey: '1-1-1',

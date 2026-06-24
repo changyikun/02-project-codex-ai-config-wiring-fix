@@ -27,6 +27,7 @@ import type {
   ConsortDialogueTurn,
 } from '../../game/types';
 import { LocationActionResultStage } from './LocationActionResultStage';
+import { MapSubsceneView, type SubsceneActionEntry, type SubsceneNpcEntry } from './MapSubsceneView';
 import { useLocationActionFlow, type TimedLocationActionOutcome } from './useLocationActionFlow';
 
 interface TaiHospitalViewProps {
@@ -103,6 +104,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     applyConsortRelationshipJudgement,
     npcActivity,
     resolveNpcActivityEntry,
+    enterMapMain,
   } = useGameFlowStore();
   const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [activeActor, setActiveActor] = useState<TaiyiSceneActor | null>(null);
@@ -533,39 +535,83 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     }
   };
 
+  const subsceneNpcEntries = useMemo<SubsceneNpcEntry[]>(() => {
+    const entries: SubsceneNpcEntry[] = [];
+
+    if (isJianNingMet) {
+      entries.push({
+        id: 'fixed:jianning',
+        kind: 'fixed',
+        name: '简宁',
+        identityLabel: '太医院医官',
+        portraitSrc: JIANNING_PORTRAIT_SRC,
+        onClick: () => {
+          void handleOpenJianNing();
+        },
+      });
+    }
+
+    if (scheduledConsortActivity) {
+      const { entry, consort } = scheduledConsortActivity;
+      entries.push({
+        id: `consort:${entry.id}`,
+        kind: 'consort',
+        name: consort.name,
+        identityLabel: getConcubineDisplayRankText(consort),
+        portraitSrc: getConcubinePortraitPath(consort.portraitId),
+        interactableState: entry.resolved ? 'spent' : 'available',
+        disabledReason: entry.resolved ? '本旬已交谈过' : undefined,
+        onClick: entry.resolved
+          ? undefined
+          : () => {
+              resolveNpcActivityEntry(entry.id);
+              void beginEncounter(
+                buildConsortActor(consort),
+                'scheduled-consort',
+                '太医院偶遇',
+                `${entry.summary}你看见${getConcubineDisplayRankText(consort)} ${consort.name}在药廊下停步，便主动上前搭话。`,
+              );
+            },
+      });
+    }
+
+    return entries;
+  }, [beginEncounter, handleOpenJianNing, isJianNingMet, resolveNpcActivityEntry, scheduledConsortActivity]);
+
+  const subsceneActions = useMemo<SubsceneActionEntry[]>(
+    () => [
+      {
+        id: 'stroll',
+        label: '闲逛',
+        onClick: () => {
+          void handleStroll();
+        },
+      },
+      ...(showConsultation
+        ? [
+            {
+              id: 'consultation',
+              label: '会诊',
+              onClick: () => {
+                void handleConsultation();
+              },
+            },
+          ]
+        : []),
+    ],
+    [handleConsultation, handleStroll, showConsultation],
+  );
+
   return (
     <section className="taiyi-view" aria-label="太医院场景">
       {!activeActor ? (
-        <header className="taiyi-view__header">
-          <div className="taiyi-view__heading">
-            <span>太医院 · 药香沉静</span>
-            <p>药柜、脉案与铜炉把整座太医院压得极稳。这里最像救人的地方，也最容易藏住不该外传的病症与秘密。</p>
-          </div>
-        </header>
-      ) : null}
-
-      {!activeActor ? (
-        <section className="taiyi-view__menu" aria-label="太医院主界面">
-          <div className="taiyi-view__menu-buttons">
-            <button type="button" onClick={() => void handleStroll()} disabled={busy}>
-              闲逛
-            </button>
-            {isJianNingMet ? (
-              <button type="button" onClick={() => void handleOpenJianNing()} disabled={busy}>
-                简宁
-              </button>
-            ) : null}
-            {showConsultation ? (
-              <button type="button" onClick={() => void handleConsultation()} disabled={busy}>
-                会诊
-              </button>
-            ) : null}
-          </div>
-          <div className="taiyi-view__note">
-            <strong>{`累计闲逛：${medicalProgress.strollCount} 次`}</strong>
-            <p>{systemMessage}</p>
-          </div>
-        </section>
+        <MapSubsceneView
+          locationId="太医院"
+          npcs={subsceneNpcEntries}
+          actions={subsceneActions}
+          busy={busy}
+          onLeave={enterMapMain}
+        />
       ) : (
         <section className="taiyi-view__encounter" aria-label={`${activeActor.name} 太医院对话`}>
           <aside className="taiyi-view__actions" aria-label="太医院对话操作">

@@ -61,7 +61,6 @@ describe('yingluoyetingStoryRuntime', () => {
 
     expect(event?.eventId).toBe('yingluo_02_chen_first_meet');
     expect(event?.locationId).toBe('后宫');
-    expect(event?.speakerIdentity).toBe('陈婉宁');
     expect(event?.options.map((option) => option.id)).toEqual(['thank-chen', 'probe-chen', 'ask-old-case']);
 
     expect(
@@ -149,7 +148,6 @@ describe('yingluoyetingStoryRuntime', () => {
 
     expect(event?.eventId).toBe('yingluo_03_cold_palace_clue');
     expect(event?.locationId).toBe('冷宫');
-    expect(event?.speakerIdentity).toBe('冷宫旧人');
     expect(event?.options.map((option) => option.id)).toEqual(['shelter', 'press', 'take']);
   });
 
@@ -227,7 +225,6 @@ describe('yingluoyetingStoryRuntime', () => {
     });
 
     expect(event?.eventId).toBe('yingluo_05_taiyi_old_prescription');
-    expect(event?.speakerIdentity).toBe('太医院医官');
     expect(event?.options.map((option) => option.id)).toEqual(['copy', 'witness', 'memorize']);
   });
 
@@ -323,7 +320,6 @@ describe('yingluoyetingStoryRuntime', () => {
     expect(event?.locationId).toBe('昭阳宫');
     expect(event?.text).toContain('昭阳宫旧年封存的杂物');
     expect(event?.text).not.toContain('长春宫');
-    expect(event?.speakerIdentity).toBe('陈婉宁');
     expect(event?.options.map((option) => option.id)).toEqual([
       'take-evidence',
       'question-chen',

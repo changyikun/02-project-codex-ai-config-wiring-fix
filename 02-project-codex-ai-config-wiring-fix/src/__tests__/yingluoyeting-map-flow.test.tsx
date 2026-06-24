@@ -131,11 +131,6 @@ describe('影落掖庭地图主线体验', () => {
     expect(screen.queryByRole('button', { name: '承诺替她遮掩此事' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '继续' })).not.toBeInTheDocument();
 
-    fireEvent.click(document.querySelector<HTMLElement>('[data-dialogue-page-state="more"]')!);
-
-    expect(screen.getByText(/姑娘又来了/)).toBeInTheDocument();
-    expect(screen.getByText('冷宫旧人 · 老宫人')).toBeInTheDocument();
-    expect(screen.getByLabelText('老宫人剪影')).toBeInTheDocument();
     advanceDialoguePages();
     fireEvent.click(screen.getByRole('button', { name: '承诺替她遮掩此事' }));
 

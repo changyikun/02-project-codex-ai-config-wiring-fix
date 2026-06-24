@@ -26,6 +26,7 @@ import type {
   ConsortDialogueTurn,
 } from '../../game/types';
 import { LocationActionResultStage } from './LocationActionResultStage';
+import { MapSubsceneView, type SubsceneActionEntry, type SubsceneNpcEntry } from './MapSubsceneView';
 import { useLocationActionFlow, type TimedLocationActionOutcome } from './useLocationActionFlow';
 
 interface BaohuaHallViewProps {
@@ -82,6 +83,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     applyConsortRelationshipJudgement,
     npcActivity,
     resolveNpcActivityEntry,
+    enterMapMain,
   } = useGameFlowStore();
   const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [activeActor, setActiveActor] = useState<BaohuaSceneActor | null>(null);
@@ -515,40 +517,86 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     }
   };
 
+  const subsceneNpcEntries = useMemo<SubsceneNpcEntry[]>(() => {
+    const entries: SubsceneNpcEntry[] = [];
+
+    if (isDangYiMet) {
+      entries.push({
+        id: 'fixed:dangyi',
+        kind: 'fixed',
+        name: '当一',
+        identityLabel: '佛殿执事',
+        portraitSrc: DANGYI_PORTRAIT_SRC,
+        onClick: () => {
+          void handleOpenDangYi();
+        },
+      });
+    }
+
+    if (scheduledConsortActivity) {
+      const { entry, consort } = scheduledConsortActivity;
+      entries.push({
+        id: `consort:${entry.id}`,
+        kind: 'consort',
+        name: consort.name,
+        identityLabel: getConcubineDisplayRankText(consort),
+        portraitSrc: getConcubinePortraitPath(consort.portraitId),
+        interactableState: entry.resolved ? 'spent' : 'available',
+        disabledReason: entry.resolved ? '本旬已交谈过' : undefined,
+        onClick: entry.resolved
+          ? undefined
+          : () => {
+              resolveNpcActivityEntry(entry.id);
+              void beginEncounter(
+                buildConsortActor(consort),
+                'scheduled-consort',
+                '宝华殿偶遇',
+                `${entry.summary}你看见${getConcubineDisplayRankText(consort)} ${consort.name}在佛灯旁停步，便主动上前搭话。`,
+              );
+            },
+      });
+    }
+
+    return entries;
+  }, [beginEncounter, handleOpenDangYi, isDangYiMet, resolveNpcActivityEntry, scheduledConsortActivity]);
+
+  const subsceneActions = useMemo<SubsceneActionEntry[]>(
+    () => [
+      {
+        id: 'worship',
+        label: '礼佛',
+        onClick: () => {
+          void handleWorship();
+        },
+      },
+      {
+        id: 'pray',
+        label: '祈福',
+        onClick: () => {
+          void handlePray();
+        },
+      },
+      {
+        id: 'stroll',
+        label: '闲逛',
+        onClick: () => {
+          void handleStroll();
+        },
+      },
+    ],
+    [handlePray, handleStroll, handleWorship],
+  );
+
   return (
     <section className="baohua-view" aria-label="宝华殿场景">
       {!activeActor ? (
-        <header className="baohua-view__header">
-          <div className="baohua-view__heading">
-            <span>宝华殿 · 梵音静处</span>
-            <p>香火与钟磬压住了俗声。这里看似最静，偏偏也最容易撞见带着心事来求一份清净的人。</p>
-          </div>
-        </header>
-      ) : null}
-
-      {!activeActor ? (
-        <section className="baohua-view__menu" aria-label="宝华殿主界面">
-          <div className="baohua-view__menu-buttons">
-            <button type="button" onClick={() => void handleWorship()} disabled={busy}>
-              礼佛
-            </button>
-            <button type="button" onClick={() => void handlePray()} disabled={busy}>
-              祈福
-            </button>
-            <button type="button" onClick={() => void handleStroll()} disabled={busy}>
-              闲逛
-            </button>
-            {isDangYiMet ? (
-              <button type="button" onClick={() => void handleOpenDangYi()} disabled={busy}>
-                当一
-              </button>
-            ) : null}
-          </div>
-          <div className="baohua-view__note">
-            <strong>{`累计礼佛：${templeProgress.worshipCount} 次`}</strong>
-            <p>{systemMessage}</p>
-          </div>
-        </section>
+        <MapSubsceneView
+          locationId="宝华殿"
+          npcs={subsceneNpcEntries}
+          actions={subsceneActions}
+          busy={busy}
+          onLeave={enterMapMain}
+        />
       ) : (
         <section className="baohua-view__encounter" aria-label={`${activeActor.name} 宝华殿对话`}>
           <aside className="baohua-view__actions" aria-label="宝华殿对话操作">

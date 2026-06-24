@@ -3,13 +3,13 @@ import { ConsortAudiencePanel } from '../consorts/ConsortAudiencePanel';
 import { AutoCutoutPortrait } from '../visual/AutoCutoutPortrait';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
 import { buildDuNiangShopCatalog, getInventoryRecyclePrice, type DuNiangShopEntry } from '../../game/data/inventoryPresets';
-import { getConcubineDisplayRankText } from '../../game/data/concubineRoster';
+import { getConcubineDisplayRankText, getConcubinePortraitPath } from '../../game/data/concubineRoster';
 import { getNpcActivitiesAtLocation } from '../../game/lib/npcActivityRuntime';
 import { narrativeEntryToDialogueFields } from '../../game/narrative/narrativeDialogueAdapter';
 import { renderNarrativeEntry } from '../../game/narrative/narrativeCatalog';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type { ConcubineProfile } from '../../game/types';
-import { LocationConsortVisitorsPanel } from './LocationConsortVisitorsPanel';
+import { MapSubsceneView, type SubsceneNpcEntry } from './MapSubsceneView';
 
 type GongmenNpcId = 'du-niang' | 'aling';
 type GongmenTradeMode = 'buy' | 'sell';
@@ -78,6 +78,7 @@ export function GongmenView({ concubines }: GongmenViewProps) {
     sellInventoryItem,
     npcActivity,
     resolveNpcActivityEntry,
+    enterMapMain,
   } = useGameFlowStore();
   const [activeNpc, setActiveNpc] = useState<GongmenNpcId | null>(null);
   const [activeTradeMode, setActiveTradeMode] = useState<GongmenTradeMode | null>(null);
@@ -202,6 +203,35 @@ export function GongmenView({ concubines }: GongmenViewProps) {
     });
     resolveNpcActivityEntry(entryId);
   };
+  const subsceneNpcEntries = useMemo<SubsceneNpcEntry[]>(
+    () => [
+      ...npcButtons.map((npc) => {
+        const profile = npcProfiles[npc.id];
+        return {
+          id: `fixed:${npc.id}`,
+          kind: 'fixed' as const,
+          name: profile.name,
+          identityLabel: profile.identity,
+          portraitSrc: profile.portrait,
+          onClick: () => handleOpenNpc(npc.id),
+        };
+      }),
+      ...publicConsortEntries.map(({ entry, consort }) => ({
+        id: `consort:${entry.id}`,
+        kind: 'consort' as const,
+        name: consort.name,
+        identityLabel: getConcubineDisplayRankText(consort),
+        ariaLabel: entry.resolved
+          ? `${getConcubineDisplayRankText(consort)} ${consort.name}仍在此处`
+          : `与${getConcubineDisplayRankText(consort)} ${consort.name}交谈`,
+        portraitSrc: getConcubinePortraitPath(consort.portraitId),
+        interactableState: entry.resolved ? ('spent' as const) : ('available' as const),
+        disabledReason: entry.resolved ? '本旬已交谈过' : undefined,
+        onClick: entry.resolved ? undefined : () => handleStartConsortAudience(entry.id),
+      })),
+    ],
+    [npcButtons, publicConsortEntries],
+  );
 
   if (activeConsortAudience && activeAudienceConsort) {
     return (
@@ -346,19 +376,13 @@ export function GongmenView({ concubines }: GongmenViewProps) {
   }
 
   return (
-    <section className="map-main__gongmen-selector" aria-label="宫门人物入口">
-      <div className="map-main__gongmen-entry-buttons">
-        {npcButtons.map((npc) => (
-          <button key={npc.id} type="button" onClick={() => handleOpenNpc(npc.id)}>
-            {npc.label}
-          </button>
-        ))}
-      </div>
-      <LocationConsortVisitorsPanel
-        locationName="宫门"
-        entries={publicConsortEntries}
-        onStartAudience={handleStartConsortAudience}
-      />
-    </section>
+    <MapSubsceneView
+      locationId="宫门"
+      ariaLabel="宫门人物入口"
+      npcStageLabel="宫门可交互妃嫔"
+      npcs={subsceneNpcEntries}
+      actions={[]}
+      onLeave={enterMapMain}
+    />
   );
 }

@@ -2689,35 +2689,6 @@ button {
   font-size: 22px;
 }
 
-.chamber-main__location-visitors {
-  position: absolute;
-  z-index: 42;
-  right: 19%;
-  top: 19%;
-  width: min(300px, 34vw);
-  display: grid;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid rgba(118, 77, 46, 0.28);
-  border-radius: 8px;
-  background: rgba(255, 247, 226, 0.9);
-  box-shadow: 0 14px 28px rgba(68, 38, 25, 0.16);
-}
-
-.chamber-main__location-visitors strong {
-  font-size: 0.82rem;
-  color: #6d4028;
-}
-
-.chamber-main__location-visitors button {
-  min-height: 34px;
-  border: 1px solid rgba(121, 79, 48, 0.34);
-  border-radius: 6px;
-  background: rgba(112, 62, 39, 0.9);
-  color: #fff7e8;
-  font-size: 0.82rem;
-}
-
 .chamber-main__location-choice {
   position: absolute;
   z-index: 38;
@@ -6497,6 +6468,171 @@ button {
 }
 .chamber-utility-view__toolbar--inventory .chamber-utility-view__subtabs {
   transform: translateX(-40px);
+}
+
+.map-subscene-view {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.map-subscene-view__npc-stage {
+  --subscene-npc-slot-height: clamp(236px, 31vh, 300px);
+  position: absolute;
+  left: calc(50% - 54px);
+  top: 51%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  width: min(calc(100vw - 390px), 1120px);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, var(--subscene-npc-slot-height));
+  gap: clamp(8px, 1.4vh, 18px) clamp(20px, 2vw, 42px);
+  align-items: end;
+  justify-content: center;
+  z-index: 6;
+  pointer-events: auto;
+}
+
+.map-subscene-view__npc-standee {
+  position: relative;
+  width: 100%;
+  height: var(--subscene-npc-slot-height);
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff3dc;
+  cursor: pointer;
+}
+
+.map-subscene-view__npc-standee:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.map-subscene-view__npc-standee:hover:not(:disabled) .map-subscene-view__npc-portrait img,
+.map-subscene-view__npc-standee:hover:not(:disabled) .map-subscene-view__npc-placeholder {
+  transform: translateY(-3px);
+}
+
+.map-subscene-view__npc-standee:hover:not(:disabled) .map-subscene-view__npc-name {
+  border-color: rgba(255, 239, 196, 0.92);
+  filter: brightness(1.06);
+}
+
+.map-subscene-view__npc-standee:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.map-subscene-view__npc-portrait {
+  position: absolute;
+  left: 0;
+  bottom: 34px;
+  width: 72%;
+  height: calc(var(--subscene-npc-slot-height) - 22px);
+  display: grid;
+  place-items: end start;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.map-subscene-view__npc-portrait img {
+  max-width: clamp(200px, 16vw, 260px);
+  max-height: calc(var(--subscene-npc-slot-height) - 6px);
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.42));
+  transition: transform 160ms ease;
+}
+
+.map-subscene-view__npc-placeholder {
+  width: clamp(150px, 12vw, 190px);
+  height: clamp(176px, 24vh, 238px);
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(91, 54, 35, 0.62);
+  border-radius: 50% 50% 42% 42%;
+  background: #efd9b4;
+  color: #74482f;
+  font-family: 'STSong', 'SimSun', serif;
+  font-size: 56px;
+  box-shadow: 0 8px 10px rgba(0, 0, 0, 0.18);
+  transition: transform 160ms ease;
+}
+
+.map-subscene-view__npc-name {
+  position: absolute;
+  left: clamp(32px, 3vw, 54px);
+  bottom: 14px;
+  width: calc(100% - clamp(36px, 4vw, 68px));
+  min-height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 3px 16px 4px;
+  border: 2px solid rgba(91, 54, 35, 0.9);
+  border-radius: 999px;
+  background: #f3dfbd;
+  color: #5a3424;
+  font-family: 'STSong', 'SimSun', serif;
+  font-size: 20px;
+  line-height: 1;
+  text-shadow: none;
+  box-shadow: 0 2px 0 rgba(88, 52, 35, 0.2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.map-subscene-view__actions {
+  position: absolute;
+  top: 50%;
+  right: 44px;
+  transform: translateY(-50%);
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  pointer-events: auto;
+}
+
+.map-subscene-view__action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.map-subscene-view__actions button {
+  min-width: 156px;
+  min-height: 52px;
+  padding: 11px 22px;
+  border: 1px solid rgba(252, 226, 170, 0.58);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(96, 48, 29, 0.88), rgba(57, 28, 18, 0.9));
+  color: #fff3df;
+  font-family: 'STSong', 'SimSun', serif;
+  font-size: 19px;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+}
+
+.map-subscene-view__actions button:hover:not(:disabled) {
+  border-color: rgba(255, 236, 184, 0.95);
+  transform: translateY(-1px);
+}
+
+.map-subscene-view__actions button:disabled {
+  opacity: 0.52;
+}
+
+.map-subscene-view__leave {
+  margin-top: 8px;
+}
+
+.map-subscene-view__encounter-shell {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
 }
 
 .kitchen-view {
