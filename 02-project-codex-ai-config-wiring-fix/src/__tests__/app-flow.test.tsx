@@ -1121,7 +1121,7 @@ describe('App 主流程切换', () => {
     expect(useGameFlowStore.getState().state.flags[YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]).toBe(true);
 
     await clickDialogueAdvance();
-    expect(screen.getByLabelText('地图引导对话框')).toHaveTextContent(/左侧五个菱形是常驻入口/);
+    expect(screen.getByLabelText('地图引导对话框')).toHaveTextContent(/左侧四个圆形是常驻入口/);
     await clickDialogueAdvance();
 
     expect(await screen.findByText(/你第一次踏进后宫宫道时/)).toBeInTheDocument();
@@ -4054,7 +4054,7 @@ describe('App 主流程切换', () => {
       expect(screen.getByRole('button', { name: '诵读经典' })).toBeInTheDocument();
       expect(screen.queryByText(/更换装扮/)).not.toBeInTheDocument();
     });
-    fireEvent.click(screen.getByRole('button', { name: '情缘' }));
+    useGameFlowStore.setState({ activeChamberPanel: 'bond' });
 
     expect(await screen.findByText(/容安表面上仍守着皇帝该有的分寸/)).toBeInTheDocument();
     expect(screen.queryByText('含笑试探')).not.toBeInTheDocument();
@@ -4079,7 +4079,7 @@ describe('App 主流程切换', () => {
       ...state,
       currentView: 'bedchamber',
       scene: 'activity',
-      activeChamberPanel: 'main',
+      activeChamberPanel: 'bond',
       activeMapLocation: undefined,
       routeId: 'lanyinxuguo',
       state: {
@@ -4099,8 +4099,6 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '情缘' }));
-
     fireEvent.click((await screen.findByText('江晚晚')).closest('button')!);
 
     await waitFor(() => {
@@ -4113,7 +4111,7 @@ describe('App 主流程切换', () => {
       ...state,
       currentView: 'bedchamber',
       scene: 'activity',
-      activeChamberPanel: 'main',
+      activeChamberPanel: 'bond',
       activeMapLocation: undefined,
       routeId: 'chenyuansucuo',
       state: {
@@ -4133,8 +4131,6 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '情缘' }));
-
     expect(await screen.findByText(/阿翎表面上仍守着故国旧识该有的分寸/)).toBeInTheDocument();
     expect(screen.queryByText('容安')).not.toBeInTheDocument();
   });
@@ -4144,7 +4140,7 @@ describe('App 主流程切换', () => {
       ...state,
       currentView: 'bedchamber',
       scene: 'activity',
-      activeChamberPanel: 'main',
+      activeChamberPanel: 'bond',
       activeMapLocation: undefined,
       routeId: 'lanyinxuguo',
       state: {
@@ -4164,8 +4160,6 @@ describe('App 主流程切换', () => {
     }));
 
     render(<App />);
-
-    fireEvent.click(screen.getByRole('button', { name: '情缘' }));
 
     fireEvent.click((await screen.findByText('布自游')).closest('button')!);
 

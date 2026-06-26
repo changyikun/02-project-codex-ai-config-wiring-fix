@@ -53,7 +53,6 @@ import {
   buildChamberActionNarrativeEntry,
   buildMapTransitionNarrativeEntry,
 } from '../game/lib/actionNarrativeRuntime';
-import { getRarityColor } from '../game/lib/bedchamberRuntime';
 import { craftWorkQualityLabels } from '../game/lib/craftWorkRuntime';
 import { isJiaojiaoSpokenText } from '../game/lib/dialoguePresentation';
 import { getPendingNpcPlayerVisit } from '../game/lib/npcActivityRuntime';
@@ -87,6 +86,14 @@ const resolveSkillDisplayValue = (rawValue: number, statsFinalized: boolean): nu
   }
 
   return Math.round(statsFinalized || Math.abs(rawValue) > 10 ? rawValue : rawValue * 10);
+};
+
+const getCultivationSkillColor = (value: number): string => {
+  if (value >= 80) return '#B46A3C';
+  if (value >= 60) return '#8A668E';
+  if (value >= 35) return '#4F789E';
+  if (value > 0) return '#5F8B80';
+  return '#786E64';
 };
 
 const bottomToolMessage: Record<string, string> = {
@@ -1341,6 +1348,7 @@ export function ChamberMainView() {
                 key={button.id}
                 type="button"
                 className={`palace-sidebar__diamond ${activeChamberPanel === button.id ? 'is-active' : ''}`}
+                data-menu-id={button.id}
                 style={{ top: button.top }}
                 onClick={() => handleSidebar(button.id)}
               >
@@ -1407,7 +1415,7 @@ export function ChamberMainView() {
                 {skillStats.map((skill) => (
                   <div key={skill.key} className="chamber-main__skill-item">
                     <span>{skill.label}</span>
-                    <strong style={{ color: getRarityColor(skill.value, 100) }}>{skill.value}</strong>
+                    <strong style={{ color: getCultivationSkillColor(skill.value) }}>{skill.value}</strong>
                   </div>
                 ))}
               </div>

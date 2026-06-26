@@ -3833,8 +3833,8 @@ button {
    ============================================================ */
 
 .palace-stage-shell {
-  --palace-status-top: 18px;
-  --palace-status-right: 28px;
+  --palace-status-top: clamp(18px, 2.9vh, 34px);
+  --palace-status-right: clamp(30px, 4.1vw, 84px);
   --palace-status-width: 320px;
   --palace-status-text-top: 64px;
   --palace-status-text-right: 22px;
@@ -3844,6 +3844,13 @@ button {
   --palace-dialogue-right: 96px;
   --palace-dialogue-bottom: -22px;
   --palace-dialogue-height: 306px;
+  --paper-dialogue-frame-left: 6.31vw;
+  --paper-dialogue-frame-top: 67.3vh;
+  --paper-dialogue-frame-width: 88.16vw;
+  --paper-dialogue-text-left: 29.42vw;
+  --paper-dialogue-text-top: 80.57vh;
+  --paper-dialogue-text-width: 58.32vw;
+  --paper-dialogue-text-height: 16.24vh;
 }
 
 .palace-status {
@@ -4138,10 +4145,10 @@ button {
   padding: 0;
   border: none;
   border-radius: 0;
-  background: var(--palace-button-horizontal) center / 100% 100% no-repeat;
+  background: url('/assets/routes/buttons/menu/shukuang1.png') center / contain no-repeat;
   box-shadow: none;
   filter: drop-shadow(0 8px 12px rgba(69, 35, 41, 0.16));
-  overflow: hidden;
+  overflow: visible;
 }
 
 .map-main__hotspot::before {
@@ -4160,25 +4167,36 @@ button {
   text-align: center;
   line-height: 1.1;
   font-family: 'FangSong', 'STSong', 'SimSun', serif;
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-shadow: 0 1px 0 rgba(255, 244, 224, 0.72);
 }
 
 .map-main__hotspot.is-vertical span {
-  writing-mode: vertical-rl;
-  text-orientation: upright;
+  flex-direction: column;
+  writing-mode: horizontal-tb;
   padding: 12px 0;
+}
+
+.map-main__hotspot.is-vertical[data-label-length='2'] span {
+  gap: 1em;
+}
+
+.map-main__hotspot-char {
+  display: block;
+  width: 1.2em;
+  line-height: 1;
+  text-align: center;
+}
+
+.map-main__hotspot.is-large span {
+  font-size: 19px;
 }
 
 .map-main__hotspot.is-vertical {
   width: min(4.4vw, 7.822dvh) !important;
-  background-image: var(--palace-button-vertical);
-}
-
-.map-main__hotspot.is-large span {
-  font-size: 23px;
+  background-image: url('/assets/routes/buttons/menu/shukuang1.png');
 }
 
 .map-main__hotspot:hover,
@@ -4188,19 +4206,19 @@ button {
 }
 
 .map-main__hotspot.is-active {
-  background-image: var(--palace-button-horizontal-active);
+  background-image: url('/assets/routes/buttons/menu/shukuang1.png');
 }
 
 .map-main__hotspot.is-vertical.is-active {
-  background-image: var(--palace-button-vertical-active);
+  background-image: url('/assets/routes/buttons/menu/shukuang1.png');
 }
 
 .map-main__hotspot.is-player-residence {
-  background-image: var(--palace-button-horizontal-soft);
+  background-image: url('/assets/routes/buttons/menu/shukuang1.png');
 }
 
 .map-main__hotspot.is-vertical.is-player-residence {
-  background-image: var(--palace-button-vertical-active);
+  background-image: url('/assets/routes/buttons/menu/shukuang1.png');
 }
 
 .map-main__event-card--gongmen {
@@ -6880,6 +6898,377 @@ button {
   z-index: 8;
 }
 
+/* ============================================================
+   通用小场景纸纹 UI：不改圣旨资源，先覆盖大地图场景内常驻控件
+   ============================================================ */
+
+.palace-stage-shell {
+  --paper-ui-text: #56251f;
+  --paper-ui-text-light: #fff4df;
+  --paper-ui-red-shadow: rgba(49, 15, 13, 0.34);
+  --paper-ui-warm-shadow: rgba(73, 40, 24, 0.22);
+}
+
+.palace-stage-shell .palace-status {
+  --palace-status-strip-left: clamp(152px, 11vw, 206px);
+  --palace-status-strip-width: clamp(148px, 10.8vw, 196px);
+  width: clamp(320px, 24vw, 430px);
+  min-width: 0;
+  height: clamp(138px, 16.8vh, 202px);
+  aspect-ratio: auto;
+  background: none !important;
+  background-image: none !important;
+  pointer-events: none;
+  right: var(--palace-status-right);
+  left: auto;
+}
+
+.palace-stage-shell .palace-status__text {
+  display: none;
+}
+
+.palace-stage-shell .palace-status__list {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.palace-stage-shell .palace-status__item {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  height: auto;
+  padding: 0;
+  box-sizing: border-box;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  border: 0;
+  color: var(--paper-ui-text);
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: clamp(15px, 1.15vw, 21px);
+  font-weight: 800;
+  line-height: 1.08;
+  text-align: center;
+  text-shadow: 0 1px 0 rgba(255, 249, 230, 0.72);
+  white-space: nowrap;
+  filter: drop-shadow(0 6px 7px rgba(38, 20, 12, 0.18));
+}
+
+.palace-stage-shell .palace-status__item span {
+  display: block;
+  max-width: 78%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.palace-stage-shell .palace-status__item--time {
+  right: calc(100% - (var(--palace-status-strip-left) + var(--palace-status-strip-width)));
+  top: clamp(44px, 5.2vh, 62px);
+  width: clamp(116px, 8.45vw, 138px);
+  aspect-ratio: 437 / 380;
+  background-image: url('/assets/routes/buttons/menu/tittle_butterfly.png');
+  color: #805046;
+  font-size: clamp(15px, 1.08vw, 20px);
+  white-space: normal;
+  overflow: visible;
+}
+
+.palace-stage-shell .palace-status__time-date,
+.palace-stage-shell .palace-status__time-slot {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: visible;
+  text-overflow: clip;
+  letter-spacing: 0;
+}
+
+.palace-stage-shell .palace-status__time-date {
+  left: 66%;
+  top: 14%;
+  max-width: none;
+  height: auto;
+  color: #8d6451;
+  font-size: clamp(11px, 0.74vw, 14px);
+  font-weight: 800;
+  line-height: 1.18;
+  transform: translateX(-50%);
+}
+
+.palace-stage-shell .palace-status__time-slot {
+  right: clamp(-4px, -0.18vw, -2px);
+  top: 28%;
+  max-width: none;
+  height: auto;
+  color: #724336;
+  font-size: clamp(24px, 1.68vw, 30px);
+  font-weight: 900;
+  line-height: 1.14;
+  text-shadow: 0 1px 0 rgba(255, 246, 229, 0.82);
+}
+
+.palace-stage-shell .palace-status__time-char {
+  display: block;
+  width: 1.25em;
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  writing-mode: horizontal-tb;
+  text-align: center;
+}
+
+.palace-stage-shell .palace-status__item--silver {
+  left: var(--palace-status-strip-left);
+  top: 0;
+  width: var(--palace-status-strip-width);
+  aspect-ratio: 396 / 89;
+  background-image: url('/assets/routes/buttons/menu/hengkuang5.png');
+}
+
+.palace-stage-shell .palace-status__item--stamina {
+  left: 0;
+  top: 0;
+  width: var(--palace-status-strip-width);
+  aspect-ratio: 396 / 89;
+  background-image: url('/assets/routes/buttons/menu/hengkuang4.png');
+  color: #6a2224;
+}
+
+.palace-stage-shell .map-subscene-view__actions {
+  top: 49%;
+  right: clamp(24px, 2.6vw, 54px);
+  gap: clamp(18px, 3.1vh, 36px);
+}
+
+.palace-stage-shell .map-subscene-view__action-list {
+  gap: clamp(18px, 3.1vh, 36px);
+}
+
+.palace-stage-shell .map-subscene-view__npc-stage {
+  --subscene-npc-slot-height: clamp(236px, 33vh, 340px);
+  left: 52.5%;
+  top: 60%;
+  width: min(68vw, 960px);
+  grid-template-rows: var(--subscene-npc-slot-height);
+  grid-auto-rows: var(--subscene-npc-slot-height);
+  column-gap: clamp(28px, 3vw, 62px);
+}
+
+.palace-stage-shell .map-subscene-view__npc-portrait {
+  left: 50%;
+  width: 100%;
+  place-items: end center;
+  transform: translateX(-50%);
+}
+
+.palace-stage-shell .map-subscene-view__actions button {
+  width: clamp(160px, 11.4vw, 214px);
+  min-width: clamp(160px, 11.4vw, 214px);
+  height: auto;
+  min-height: 0;
+  aspect-ratio: 396 / 89;
+  padding: 0 clamp(22px, 1.9vw, 38px) 4px;
+  border: 0;
+  border-radius: 0;
+  background: url('/assets/routes/buttons/menu/hengkuang4.png') center / contain no-repeat;
+  color: #793331;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: clamp(18px, 1.35vw, 27px);
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgba(255, 244, 225, 0.82);
+  box-shadow: none;
+  filter: drop-shadow(0 7px 8px rgba(61, 25, 20, 0.18));
+}
+
+.palace-stage-shell .map-subscene-view__actions button:nth-child(2n) {
+  background-image: url('/assets/routes/buttons/menu/hengkuang5.png');
+  color: #682128;
+  text-shadow: 0 1px 0 rgba(255, 240, 222, 0.8);
+}
+
+.palace-stage-shell .map-subscene-view__actions button:hover:not(:disabled) {
+  border-color: transparent;
+  transform: translateY(-2px) rotate(-0.4deg);
+  filter: drop-shadow(0 10px 10px rgba(58, 18, 15, 0.32)) brightness(1.05);
+}
+
+.palace-stage-shell .map-subscene-view__leave {
+  margin-top: 0;
+  background-image: url('/assets/routes/buttons/menu/hengkuang5.png') !important;
+  color: #623323 !important;
+  text-shadow: 0 1px 0 rgba(255, 245, 220, 0.82) !important;
+}
+
+.palace-stage-shell .map-subscene-view__npc-name {
+  left: 50%;
+  bottom: clamp(18px, 2.95vh, 34px);
+  width: clamp(220px, 18.5vw, 380px);
+  min-height: 0;
+  aspect-ratio: 374 / 64;
+  padding: 0 clamp(28px, 2.4vw, 48px) 4px clamp(46px, 4vw, 76px);
+  border: 0;
+  border-radius: 0;
+  background: url('/assets/routes/buttons/menu/hengkuang3.png') center / contain no-repeat;
+  color: #6c3a2f;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: clamp(17px, 1.5vw, 27px);
+  font-weight: 800;
+  text-shadow: 0 1px 0 rgba(255, 245, 226, 0.82);
+  box-shadow: none;
+  filter: drop-shadow(0 7px 7px rgba(42, 20, 13, 0.24));
+  transform: translateX(-50%);
+}
+
+.palace-stage-shell .map-subscene-view__npc-standee:hover:not(:disabled) .map-subscene-view__npc-name {
+  border-color: transparent;
+  filter: drop-shadow(0 9px 9px rgba(42, 20, 13, 0.28)) brightness(1.06);
+}
+
+.palace-stage-shell .palace-dialogue-box__speaker {
+  min-width: 384px;
+  min-height: 92px;
+  margin-bottom: 0;
+  padding: 0 58px 10px;
+  border-radius: 0;
+  background: url('/assets/routes/buttons/materials-202606041509/material-202606041509-016.png') center / 100% 100% no-repeat;
+  color: #692128;
+  box-shadow: none;
+  text-shadow: 0 1px 0 rgba(255, 240, 224, 0.8);
+  filter: drop-shadow(0 7px 7px rgba(61, 25, 20, 0.18));
+}
+
+.palace-stage-shell .palace-dialogue-box__content {
+  overflow: visible;
+}
+
+.palace-stage-shell .palace-dialogue-box__text-plate::before {
+  inset: auto;
+  left: var(--paper-dialogue-frame-left);
+  top: var(--paper-dialogue-frame-top);
+  width: var(--paper-dialogue-frame-width);
+  height: auto;
+  aspect-ratio: 2016 / 326;
+  border-radius: 0;
+  background: url('/assets/routes/buttons/wenbenkuang.png') center / contain no-repeat;
+  box-shadow: none;
+  filter: drop-shadow(0 13px 14px rgba(73, 40, 24, 0.22));
+  position: fixed;
+}
+
+.palace-stage-shell .palace-dialogue-box__text-container {
+  position: fixed;
+  left: var(--paper-dialogue-text-left);
+  top: var(--paper-dialogue-text-top);
+  width: var(--paper-dialogue-text-width);
+  height: var(--paper-dialogue-text-height);
+  padding: 0;
+  z-index: 3;
+}
+
+.palace-stage-shell .palace-dialogue-box__text-plate {
+  width: 100%;
+  max-width: none;
+  min-height: 100%;
+}
+
+.palace-stage-shell .palace-dialogue-box__text-scroll {
+  min-height: 100%;
+  max-height: 100%;
+}
+
+.palace-stage-shell .palace-dialogue-box__option {
+  min-width: 240px;
+  height: 106px;
+  padding: 0 42px 12px;
+  border: 0;
+  border-radius: 0;
+  background: url('/assets/routes/buttons/materials-202606041509/material-202606041509-016.png') center / 100% 100% no-repeat;
+  box-shadow: none;
+  filter: drop-shadow(0 8px 8px rgba(66, 25, 22, 0.2));
+}
+
+.palace-stage-shell .palace-dialogue-box__option:nth-child(2n) {
+  background-image: url('/assets/routes/buttons/materials-202606041509/material-202606041509-017.png');
+}
+
+.palace-stage-shell .palace-dialogue-box__option span {
+  color: #5f2024;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: 21px;
+  line-height: 1.18;
+  text-shadow: 0 1px 0 rgba(255, 244, 225, 0.78);
+}
+
+.palace-stage-shell .palace-dialogue-box__next {
+  width: 160px;
+  height: 76px;
+  padding: 0 28px 8px;
+  border: 0;
+  border-radius: 0;
+  background: url('/assets/routes/buttons/materials-202606041509/material-202606041509-017.png') center / 100% 100% no-repeat;
+  color: #603323;
+  box-shadow: none;
+  filter: drop-shadow(0 7px 7px rgba(62, 33, 20, 0.2));
+  text-shadow: 0 1px 0 rgba(255, 245, 220, 0.82);
+}
+
+.palace-stage-shell .palace-dialogue-box__option:hover:not(:disabled),
+.palace-stage-shell .palace-dialogue-box__next:hover:not(:disabled) {
+  transform: translateY(-2px) rotate(0.3deg);
+  filter: drop-shadow(0 10px 10px rgba(58, 18, 15, 0.24)) brightness(1.04);
+}
+
+@media (max-width: 760px) {
+  .palace-stage-shell .palace-status {
+    --palace-status-strip-left: 138px;
+    --palace-status-strip-width: 146px;
+    top: 10px;
+    right: 10px;
+    left: auto;
+    width: min(312px, calc(100vw - 20px));
+    height: 132px;
+  }
+
+  .palace-stage-shell .palace-status__item {
+    font-size: 14px;
+  }
+
+  .palace-stage-shell .palace-status__item--time {
+    width: 106px;
+    top: 42px;
+  }
+
+  .palace-stage-shell .palace-status__item--silver,
+  .palace-stage-shell .palace-status__item--stamina {
+    width: 146px;
+  }
+
+  .palace-stage-shell .palace-status__item--silver {
+    left: 138px;
+  }
+
+  .palace-stage-shell .map-subscene-view__actions button {
+    width: 172px;
+    min-width: 172px;
+    padding: 0 24px 4px;
+    font-size: 18px;
+  }
+
+  .palace-stage-shell .map-subscene-view__npc-name {
+    min-height: 56px;
+    padding: 0 18px 7px;
+    font-size: 17px;
+  }
+}
+
 .kitchen-view {
   position: absolute;
   inset: 0;
@@ -8998,4 +9387,481 @@ button {
   border: 0;
   border-radius: 0;
   box-shadow: none;
+}
+
+/* Final locked-stage paper UI overrides. Keep this after the legacy locked dialogue rules. */
+[data-dialogue-root='locked'] .palace-stage-shell .palace-dialogue-box__speaker {
+  min-width: 384px !important;
+  min-height: 92px !important;
+  padding: 0 58px 10px !important;
+  border-radius: 0 !important;
+  background: url('/assets/routes/buttons/materials-202606041509/material-202606041509-016.png') center / 100% 100% no-repeat !important;
+  box-shadow: none !important;
+}
+
+[data-dialogue-root='locked'] .palace-stage-shell .palace-dialogue-box__text-plate::before {
+  inset: auto !important;
+  left: var(--paper-dialogue-frame-left) !important;
+  top: var(--paper-dialogue-frame-top) !important;
+  width: var(--paper-dialogue-frame-width) !important;
+  height: auto !important;
+  aspect-ratio: 2016 / 326 !important;
+  border-radius: 0 !important;
+  background: url('/assets/routes/buttons/wenbenkuang.png') center / contain no-repeat !important;
+  box-shadow: none !important;
+  filter: drop-shadow(0 13px 14px rgba(73, 40, 24, 0.22));
+  position: fixed !important;
+}
+
+[data-dialogue-root='locked'] .palace-stage-shell .palace-dialogue-box__text-container {
+  left: var(--paper-dialogue-text-left) !important;
+  top: var(--paper-dialogue-text-top) !important;
+  width: var(--paper-dialogue-text-width) !important;
+  height: var(--paper-dialogue-text-height) !important;
+  padding: 0 !important;
+  position: fixed !important;
+}
+
+[data-dialogue-root='locked'] .palace-stage-shell .global-dialogue-stage .palace-dialogue-box--global-lock .palace-dialogue-box__text-container {
+  left: var(--paper-dialogue-text-left) !important;
+  top: var(--paper-dialogue-text-top) !important;
+  width: var(--paper-dialogue-text-width) !important;
+  height: var(--paper-dialogue-text-height) !important;
+  padding: 0 !important;
+  position: fixed !important;
+}
+
+[data-dialogue-root='locked'] .palace-stage-shell .palace-dialogue-box__text-plate {
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 100% !important;
+}
+
+[data-dialogue-root='locked'] .palace-stage-shell .palace-dialogue-box__text-scroll {
+  min-height: 100% !important;
+  max-height: 100% !important;
+}
+
+[data-dialogue-root='locked'] .palace-stage-shell .global-dialogue-stage__options.palace-dialogue-box__options {
+  top: auto !important;
+  bottom: calc(var(--global-dialogue-box-bottom, -22px) + var(--global-dialogue-box-height, 306px) + 16px) !important;
+  left: 50% !important;
+  width: min(1120px, calc(100% - 150px)) !important;
+  max-width: 1120px !important;
+  transform: translateX(-50%) !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 16px !important;
+}
+
+[data-dialogue-root='locked'] .palace-stage-shell .palace-dialogue-box__option {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  max-width: 260px !important;
+  min-height: 86px !important;
+  height: 86px !important;
+  padding: 0 32px 10px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: url('/assets/routes/buttons/materials-202606041509/material-202606041509-016.png') center / 100% 100% no-repeat !important;
+  box-shadow: none !important;
+}
+
+[data-dialogue-root='locked'] .palace-stage-shell .palace-dialogue-box__option:nth-child(2n) {
+  background-image: url('/assets/routes/buttons/materials-202606041509/material-202606041509-017.png') !important;
+}
+
+[data-dialogue-root='locked'] .palace-stage-shell .palace-dialogue-box__option span {
+  color: #5f2024 !important;
+  font-size: 20px !important;
+  line-height: 1.18 !important;
+}
+
+[data-dialogue-root='locked'] .palace-stage-shell .palace-dialogue-box__next {
+  width: 160px !important;
+  min-width: 160px !important;
+  height: 76px !important;
+  min-height: 76px !important;
+  padding: 0 28px 8px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: url('/assets/routes/buttons/materials-202606041509/material-202606041509-017.png') center / 100% 100% no-repeat !important;
+  box-shadow: none !important;
+}
+
+[data-dialogue-root='locked'] .chamber-main__skills-strip {
+  left: 35.8%;
+  right: 4.2%;
+  min-height: 0;
+  height: clamp(54px, 6.6vh, 66px);
+  padding: 4px clamp(72px, 6.2vw, 118px) 0 clamp(46px, 4.2vw, 82px);
+  border-radius: 0;
+  background: url('/assets/routes/buttons/menu/changhengkuang.png') center / auto 100% no-repeat;
+  box-shadow: none;
+  filter: drop-shadow(0 8px 9px rgba(61, 25, 20, 0.2));
+}
+
+[data-dialogue-root='locked'] .chamber-main__skills-strip .chamber-main__skill-item {
+  align-items: baseline;
+  color: #604f43;
+  font-size: clamp(19px, 1.48vw, 24px);
+  text-shadow: 0 1px 0 rgba(255, 246, 228, 0.72);
+}
+
+[data-dialogue-root='locked'] .chamber-main__skills-strip .chamber-main__skill-item strong {
+  font-size: clamp(23px, 1.78vw, 29px);
+  font-weight: 900;
+  text-shadow: 0 1px 0 rgba(255, 247, 229, 0.82);
+}
+
+[data-dialogue-root='locked'] .palace-sidebar__diamond {
+  left: clamp(14px, 1.7vw, 34px);
+  width: clamp(168px, 13.7vw, 232px);
+  height: clamp(68px, 9.4vh, 94px);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+  filter: drop-shadow(0 8px 8px rgba(61, 25, 20, 0.18));
+  overflow: visible;
+  transform-origin: center;
+}
+
+[data-dialogue-root='locked'] .palace-sidebar__diamond::before,
+[data-dialogue-root='locked'] .palace-sidebar__diamond::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+}
+
+[data-dialogue-root='locked'] .palace-sidebar__diamond::before {
+  left: 0;
+  top: 50%;
+  width: clamp(68px, 8.5vh, 90px);
+  height: clamp(68px, 8.5vh, 90px);
+  background: url('/assets/routes/buttons/menu/ditu.png') center / contain no-repeat;
+  transform: translateY(-50%) rotate(0deg);
+  transform-origin: 50% 50%;
+  z-index: 3;
+  transition: transform 260ms cubic-bezier(0.2, 0.78, 0.22, 1), filter 260ms ease;
+}
+
+[data-dialogue-root='locked'] .palace-sidebar__diamond::after {
+  left: clamp(12px, 1.35vh, 15px);
+  top: 50%;
+  width: clamp(40px, 5.4vh, 56px);
+  height: clamp(40px, 5.4vh, 56px);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  transform: translateY(-50%);
+  z-index: 4;
+  transition: transform 260ms cubic-bezier(0.2, 0.78, 0.22, 1), filter 260ms ease;
+}
+
+[data-dialogue-root='locked'] .palace-sidebar__diamond[data-menu-id='consorts']::after {
+  background-image: url('/assets/routes/buttons/menu/icon/nvziqunxiang.png');
+}
+
+[data-dialogue-root='locked'] .palace-sidebar__diamond[data-menu-id='return']::after,
+[data-dialogue-root='locked'] .palace-sidebar__diamond[data-menu-id='map-main']::after {
+  background-image: url('/assets/routes/buttons/menu/icon/jianzhu.png');
+}
+
+[data-dialogue-root='locked'] .palace-sidebar__diamond[data-menu-id='stats']::after {
+  background-image: url('/assets/routes/buttons/menu/icon/nvzixiang.png');
+}
+
+[data-dialogue-root='locked'] .palace-sidebar__diamond[data-menu-id='chronicle']::after {
+  background-image: url('/assets/routes/buttons/menu/icon/huajuan.png');
+}
+
+[data-dialogue-root='locked'] .palace-sidebar__diamond span {
+  left: clamp(54px, 6.55vh, 72px);
+  right: 0;
+  top: 50%;
+  bottom: auto;
+  height: clamp(42px, 5.8vh, 58px);
+  display: grid;
+  place-items: center;
+  padding: 0 clamp(16px, 1.6vw, 30px) 3px clamp(22px, 2vw, 38px);
+  background: none;
+  color: rgba(101, 61, 44, 0);
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: clamp(21px, 1.8vw, 34px);
+  font-weight: 900;
+  letter-spacing: 0;
+  text-shadow: 0 1px 0 rgba(255, 238, 225, 0.86);
+  transform: translate(-44px, -50%);
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    color 180ms ease 105ms,
+    opacity 180ms ease 45ms,
+    transform 260ms cubic-bezier(0.2, 0.78, 0.22, 1);
+}
+
+[data-dialogue-root='locked'] .palace-sidebar__diamond span::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: url('/assets/routes/buttons/menu/touzhi.png') center / 100% 100% no-repeat;
+  opacity: 0;
+  transform: translateX(-28px) scaleX(0.28);
+  transform-origin: left center;
+  transition:
+    opacity 160ms ease,
+    transform 260ms cubic-bezier(0.2, 0.78, 0.22, 1);
+}
+
+[data-dialogue-root='locked'] .palace-sidebar__diamond.is-active span {
+  text-shadow: 0 1px 0 rgba(255, 244, 226, 0.9);
+}
+
+[data-dialogue-root='locked'] .palace-sidebar__diamond:hover {
+  transform: none;
+  box-shadow: none;
+  filter: drop-shadow(0 9px 9px rgba(61, 25, 20, 0.28)) brightness(1.04);
+}
+
+[data-dialogue-root='locked'] .palace-sidebar__diamond:hover::before {
+  transform: translateY(-50%) rotate(45deg);
+}
+
+[data-dialogue-root='locked'] .palace-sidebar__diamond:hover span {
+  color: #6d432f;
+  opacity: 1;
+  transform: translateY(-50%);
+}
+
+[data-dialogue-root='locked'] .palace-sidebar__diamond:hover span::before {
+  opacity: 1;
+  transform: translateX(0) scaleX(1);
+}
+
+[data-dialogue-root='locked'] .palace-sidebar__quick-return {
+  left: clamp(116px, 8.2vw, 152px);
+  width: clamp(52px, 4.6vw, 70px);
+  min-height: clamp(156px, 17.5vh, 220px);
+  border: 0;
+  border-radius: 0;
+  background: url('/assets/routes/buttons/menu/shukuang2.png') center / contain no-repeat;
+  box-shadow: none;
+  color: #813b3b;
+  filter: drop-shadow(0 9px 9px rgba(61, 25, 20, 0.2));
+}
+
+[data-dialogue-root='locked'] .palace-sidebar__quick-return:hover {
+  box-shadow: none;
+  filter: drop-shadow(0 11px 10px rgba(61, 25, 20, 0.26)) brightness(1.04);
+}
+
+/* Paper UI coverage for remaining chamber/common location controls. */
+[data-dialogue-root='locked'] .chamber-main__title-bar {
+  top: var(--palace-status-top);
+  align-items: flex-start;
+}
+
+[data-dialogue-root='locked'] .chamber-main__title-chip,
+[data-dialogue-root='locked'] .chamber-main__residence-chip {
+  box-sizing: border-box;
+  width: clamp(278px, 22vw, 306px);
+  height: 72px;
+  min-height: 0;
+  padding: 0 48px 0 22px;
+  border-radius: 0;
+  background: url('/assets/routes/buttons/menu/hengkuang1.png') center -12px / auto 80px no-repeat;
+  box-shadow: none;
+  color: #5d2524;
+  font-size: 32px;
+  justify-content: flex-start;
+  line-height: 1;
+  overflow: hidden;
+  text-shadow: 0 1px 0 rgba(255, 244, 225, 0.86);
+  filter: drop-shadow(0 8px 9px rgba(61, 25, 20, 0.18));
+  white-space: nowrap;
+}
+
+[data-dialogue-root='locked'] .chamber-main__residence-chip {
+  background-image: url('/assets/routes/buttons/menu/hengkuang2.png');
+  background-position: center -3px;
+  background-size: auto 72px;
+}
+
+[data-dialogue-root='locked'] .chamber-main__scene-button {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: url('/assets/routes/buttons/menu/shukuang2.png') center / contain no-repeat !important;
+  box-shadow: none !important;
+  color: #5d2524 !important;
+  filter: drop-shadow(0 8px 9px rgba(61, 25, 20, 0.18));
+}
+
+[data-dialogue-root='locked'] .chamber-main__scene-button--horizontal,
+[data-dialogue-root='locked'] .chamber-main__scene-button--dismiss {
+  background-image: url('/assets/routes/buttons/menu/hengkuang4.png') !important;
+}
+
+[data-dialogue-root='locked'] .chamber-main__scene-button--vertical:nth-of-type(2n) {
+  background-image: url('/assets/routes/buttons/menu/shukuang2.png') !important;
+}
+
+[data-dialogue-root='locked'] .chamber-main__scene-button--horizontal:nth-of-type(2n),
+[data-dialogue-root='locked'] .chamber-main__scene-button--dismiss:nth-of-type(2n) {
+  background-image: url('/assets/routes/buttons/menu/hengkuang5.png') !important;
+}
+
+[data-dialogue-root='locked'] .chamber-main__jiaojiao-entry {
+  left: 82.6%;
+  right: auto;
+  top: 37.3%;
+  width: 12.6%;
+  height: 5.8%;
+  background: url('/assets/routes/buttons/menu/hengkuang4.png') center / contain no-repeat;
+  overflow: visible;
+  filter: drop-shadow(0 8px 9px rgba(61, 25, 20, 0.18));
+}
+
+[data-dialogue-root='locked'] .chamber-main__jiaojiao-entry img {
+  left: 50%;
+  bottom: -2%;
+  width: 48%;
+  height: 215%;
+  object-fit: contain;
+  object-position: bottom center;
+  transform: translateX(-50%);
+  z-index: 1;
+  filter: drop-shadow(0 7px 8px rgba(68, 39, 42, 0.2));
+}
+
+[data-dialogue-root='locked'] .chamber-main__jiaojiao-entry span {
+  inset: 0;
+  width: auto;
+  height: auto;
+  display: grid;
+  place-items: center;
+  padding: 0 clamp(14px, 1.2vw, 24px) 5px;
+  background: none;
+  color: #604f43;
+  font-size: clamp(17px, 1.32vw, 25px);
+  font-weight: 900;
+  line-height: 1;
+  writing-mode: horizontal-tb;
+  text-orientation: mixed;
+  transform: none;
+  z-index: 2;
+  text-shadow:
+    0 1px 0 rgba(255, 246, 229, 0.9),
+    0 0 5px rgba(255, 246, 229, 0.72);
+}
+
+[data-dialogue-root='locked'] .chamber-main__jiaojiao-entry:hover {
+  transform: translateY(-2px);
+  filter: drop-shadow(0 14px 15px rgba(61, 25, 20, 0.23)) brightness(1.03);
+}
+
+[data-dialogue-root='locked'] .chamber-main__jiaojiao-prompt,
+[data-dialogue-root='locked'] .kitchen-view__menu,
+[data-dialogue-root='locked'] .kitchen-view__actions,
+[data-dialogue-root='locked'] .kitchen-view__shop-modal,
+[data-dialogue-root='locked'] .baohua-view__menu,
+[data-dialogue-root='locked'] .baohua-view__actions,
+[data-dialogue-root='locked'] .taiyi-view__menu,
+[data-dialogue-root='locked'] .taiyi-view__actions,
+[data-dialogue-root='locked'] .miaoyin-view__menu,
+[data-dialogue-root='locked'] .miaoyin-view__actions,
+[data-dialogue-root='locked'] .miaoyin-view__picker,
+[data-dialogue-root='locked'] .huaqing-view__menu,
+[data-dialogue-root='locked'] .huaqing-view__actions,
+[data-dialogue-root='locked'] .huaqing-view__picker,
+[data-dialogue-root='locked'] .yeting-yard-view__npc-card,
+[data-dialogue-root='locked'] .yeting-yard-view__shop-modal,
+[data-dialogue-root='locked'] .map-main__trade-modal {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: url('/assets/routes/buttons/menu/hengkuang1.png') center / contain no-repeat !important;
+  box-shadow: none !important;
+  filter: drop-shadow(0 12px 14px rgba(61, 25, 20, 0.16));
+}
+
+[data-dialogue-root='locked'] .kitchen-view__menu-buttons button,
+[data-dialogue-root='locked'] .kitchen-view__actions button,
+[data-dialogue-root='locked'] .kitchen-view__shop-header button,
+[data-dialogue-root='locked'] .kitchen-view__shop-card button,
+[data-dialogue-root='locked'] .baohua-view__menu-buttons button,
+[data-dialogue-root='locked'] .baohua-view__actions button,
+[data-dialogue-root='locked'] .taiyi-view__menu-buttons button,
+[data-dialogue-root='locked'] .taiyi-view__actions button,
+[data-dialogue-root='locked'] .miaoyin-view__menu-buttons button,
+[data-dialogue-root='locked'] .miaoyin-view__actions button,
+[data-dialogue-root='locked'] .miaoyin-view__picker-list button,
+[data-dialogue-root='locked'] .miaoyin-view__picker-cancel,
+[data-dialogue-root='locked'] .huaqing-view__menu-buttons button,
+[data-dialogue-root='locked'] .huaqing-view__actions button,
+[data-dialogue-root='locked'] .huaqing-view__picker-list button,
+[data-dialogue-root='locked'] .huaqing-view__picker-cancel,
+[data-dialogue-root='locked'] .yeting-yard-view__npc-card button,
+[data-dialogue-root='locked'] .yeting-yard-view__shop-header button,
+[data-dialogue-root='locked'] .yeting-yard-view__shop-card button,
+[data-dialogue-root='locked'] .map-main__trade-header button,
+[data-dialogue-root='locked'] .map-main__trade-card button,
+[data-dialogue-root='locked'] .chamber-utility-view__option-grid button,
+[data-dialogue-root='locked'] .chamber-main__action-grid button,
+[data-dialogue-root='locked'] .chamber-main__bottom-tools button,
+[data-dialogue-root='locked'] .chamber-main__location-choice button {
+  min-height: 80px !important;
+  padding: 0 30px 8px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: url('/assets/routes/buttons/menu/hengkuang4.png') center / contain no-repeat !important;
+  box-shadow: none !important;
+  color: #5d2524 !important;
+  font-family: 'STKaiti', 'KaiTi', serif !important;
+  text-align: center !important;
+  text-shadow: 0 1px 0 rgba(255, 244, 225, 0.82);
+  filter: drop-shadow(0 7px 8px rgba(61, 25, 20, 0.18));
+}
+
+[data-dialogue-root='locked'] .kitchen-view__menu-buttons button:nth-child(2n),
+[data-dialogue-root='locked'] .kitchen-view__actions button:nth-child(2n),
+[data-dialogue-root='locked'] .baohua-view__menu-buttons button:nth-child(2n),
+[data-dialogue-root='locked'] .baohua-view__actions button:nth-child(2n),
+[data-dialogue-root='locked'] .taiyi-view__menu-buttons button:nth-child(2n),
+[data-dialogue-root='locked'] .taiyi-view__actions button:nth-child(2n),
+[data-dialogue-root='locked'] .miaoyin-view__menu-buttons button:nth-child(2n),
+[data-dialogue-root='locked'] .miaoyin-view__actions button:nth-child(2n),
+[data-dialogue-root='locked'] .huaqing-view__menu-buttons button:nth-child(2n),
+[data-dialogue-root='locked'] .huaqing-view__actions button:nth-child(2n),
+[data-dialogue-root='locked'] .chamber-utility-view__option-grid button:nth-child(2n),
+[data-dialogue-root='locked'] .chamber-main__action-grid button:nth-child(2n),
+[data-dialogue-root='locked'] .chamber-main__bottom-tools button:nth-child(2n),
+[data-dialogue-root='locked'] .chamber-main__location-choice button:nth-child(2n) {
+  background-image: url('/assets/routes/buttons/menu/hengkuang5.png') !important;
+}
+
+[data-dialogue-root='locked'] .map-main__trade-header button,
+[data-dialogue-root='locked'] .map-main__trade-card button,
+[data-dialogue-root='locked'] .kitchen-view__shop-header button,
+[data-dialogue-root='locked'] .kitchen-view__shop-card button,
+[data-dialogue-root='locked'] .yeting-yard-view__npc-card button,
+[data-dialogue-root='locked'] .yeting-yard-view__shop-header button,
+[data-dialogue-root='locked'] .yeting-yard-view__shop-card button,
+[data-dialogue-root='locked'] .miaoyin-view__picker-cancel,
+[data-dialogue-root='locked'] .huaqing-view__picker-cancel {
+  min-width: 132px !important;
+  min-height: 70px !important;
+  padding: 0 24px 7px !important;
+  background-image: url('/assets/routes/buttons/menu/hengkuang5.png') !important;
+}
+
+[data-dialogue-root='locked'] .kitchen-view__shop-card,
+[data-dialogue-root='locked'] .yeting-yard-view__shop-card,
+[data-dialogue-root='locked'] .map-main__trade-card {
+  border-radius: 0 !important;
+  background: rgba(255, 246, 232, 0.72) !important;
+  box-shadow: none !important;
 }

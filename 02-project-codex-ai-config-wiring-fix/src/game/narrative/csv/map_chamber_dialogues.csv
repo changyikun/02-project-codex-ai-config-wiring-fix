@@ -1,6 +1,6 @@
 id,group,routeId,locationId,actorKey,actionId,variant,order,speakerIdentity,speakerName,portraitKey,portraitPlacement,narrationName,text,sceneHint,notes
 "map.guide.line1","map-guide","","","jiaojiao","guide","line1","1","贴身宫女","娇娇","jiaojiao","stage","宫道","娘娘先记着，宫中大事多半都要从地图上走。养心殿与宝华殿最常去，若有宫务、朝堂、祈福与偶遇，也多从这里起头。","","地图引导"
-"map.guide.line2","map-guide","","","jiaojiao","guide","line2","2","贴身宫女","娇娇","jiaojiao","stage","宫道","左侧五个菱形是常驻入口，能随时查看妃嫔、自己、纪事与情缘。等娘娘认过这些地方，咱们便回寝殿安排行程。","","地图引导"
+"map.guide.line2","map-guide","","","jiaojiao","guide","line2","2","贴身宫女","娇娇","jiaojiao","stage","宫道","左侧四个圆形是常驻入口，能随时查看妃嫔、自己与纪事，也能在宫道和寝殿之间往返。等娘娘认过这些地方，咱们便回寝殿安排行程。","","地图引导"
 "map.transition.enter-map","map-transition","","","jiaojiao","enter-map","","1","贴身宫女","娇娇","jiaojiao","stage","宫道","从{{fromResidence}}出殿时，廊下宫人纷纷避让。娇娇替你拢好披风，低声提醒：宫中各处都在眼前，只看娘娘今日想往哪里去。","","从寝殿进入地图"
 "map.transition.inspect-location.with-description","map-transition","","{{locationName}}","","inspect-location","with-description","2","场景旁白","{{locationName}}","","","{{locationName}}","{{locationName}}近在眼前，{{locationDescription}}","","查看地图地点"
 "map.transition.inspect-location.default","map-transition","","{{locationName}}","","inspect-location","default","3","场景旁白","{{locationName}}","","","{{locationName}}","{{locationName}}近在眼前，宫道上的声息也随之变得分明。","","查看地图地点"

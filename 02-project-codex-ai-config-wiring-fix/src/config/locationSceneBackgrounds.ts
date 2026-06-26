@@ -18,6 +18,7 @@ export const resolvePlayerHomeBackground = (slot: TimeSlot): string =>
 
 const residenceBackground = PLAYER_HOME_BACKGROUND;
 const locationBackground = '/assets/ui/map-bg.jpg';
+const baohuaHallBackground = '/assets/routes/backgrounds/baohuadian_outside_daytime.png';
 const haremBackground = HAREM_OVERVIEW_BACKGROUND;
 const affairsBackground = '/assets/ui/affairs-ui.jpg';
 const coldPalaceBackground = '/assets/routes/backgrounds/lenggong_daytime.png';
@@ -34,7 +35,7 @@ const imperialKitchenBackground = '/assets/routes/backgrounds/yushanfang_daytime
 const zhengyangGateBackground = '/assets/routes/backgrounds/zhengyangmen_daytime.png';
 
 export const LOCATION_SCENE_BACKGROUNDS: Partial<Record<MapAreaId, string>> = {
-  宝华殿: locationBackground,
+  宝华殿: baohuaHallBackground,
   储秀宫: residenceBackground,
   建章宫: jianzhangBackground,
   宫门: gongmenBackground,

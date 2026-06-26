@@ -27,11 +27,11 @@ import type { RouteId as GameRouteId } from '../game/types';
 export const CONFIG_SOURCE_VERSION = 'v1.0.0' as const;
 export const CONFIG_GENERATED_AT = '2026-04-17 16:02' as const;
 
-export const RARITY_COLOR_LEGENDARY = '#FF0800' as const;
-export const RARITY_COLOR_EPIC = '#E840B2' as const;
-export const RARITY_COLOR_RARE = '#7371D8' as const;
-export const RARITY_COLOR_COMMON = '#70D1D7' as const;
-export const RARITY_COLOR_NEUTRAL = '#7C7B78' as const;
+export const RARITY_COLOR_LEGENDARY = '#B46A3C' as const;
+export const RARITY_COLOR_EPIC = '#8A668E' as const;
+export const RARITY_COLOR_RARE = '#4F789E' as const;
+export const RARITY_COLOR_COMMON = '#5F8B80' as const;
+export const RARITY_COLOR_NEUTRAL = '#786E64' as const;
 
 export const RARITY_COLOR_MAP: Record<RarityColorId, string> = {
   [RarityColorId.Legendary]: RARITY_COLOR_LEGENDARY,

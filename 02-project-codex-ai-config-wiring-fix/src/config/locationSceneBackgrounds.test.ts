@@ -11,5 +11,6 @@ describe('LOCATION_SCENE_BACKGROUNDS', () => {
     expect(LOCATION_SCENE_BACKGROUNDS['妙音堂']).toBe('/assets/routes/backgrounds/miaoyintang_daytime.png');
     expect(LOCATION_SCENE_BACKGROUNDS['御花园']).toBe('/assets/routes/backgrounds/yuhuayuan_daytime.png');
     expect(LOCATION_SCENE_BACKGROUNDS['华清池']).toBe('/assets/routes/backgrounds/huaqingchi_daytime.png');
+    expect(LOCATION_SCENE_BACKGROUNDS['宝华殿']).toBe('/assets/routes/backgrounds/baohuadian_outside_daytime.png');
   });
 });

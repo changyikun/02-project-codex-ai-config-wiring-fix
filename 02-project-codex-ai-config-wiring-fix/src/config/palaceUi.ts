@@ -71,25 +71,23 @@ export const GUIDE_TENDENCY_OPTIONS: readonly GuideTendencyOption[] = MONTHLY_EX
 }));
 
 export const MAP_SIDEBAR_BUTTONS: readonly PalaceSidebarButtonConfig[] = [
-  { id: 'consorts', label: '嫔妃', top: '18%' },
-  { id: 'stats', label: '查看', top: '32%' },
-  { id: 'return', label: '回宫', top: '46%' },
-  { id: 'chronicle', label: '纪事', top: '60%' },
-  { id: 'bond', label: '情缘', top: '74%' },
+  { id: 'consorts', label: '嫔妃', top: '22%' },
+  { id: 'return', label: '回宫', top: '31.5%' },
+  { id: 'stats', label: '查看', top: '41%' },
+  { id: 'chronicle', label: '纪事', top: '50.5%' },
 ] as const;
 
 export const CHAMBER_SIDEBAR_BUTTONS: readonly PalaceSidebarButtonConfig[] = [
-  { id: 'consorts', label: '嫔妃', top: '18%' },
-  { id: 'stats', label: '查看', top: '32%' },
-  { id: 'map-main', label: '外出', top: '46%' },
-  { id: 'chronicle', label: '纪事', top: '60%' },
-  { id: 'bond', label: '情缘', top: '74%' },
+  { id: 'consorts', label: '嫔妃', top: '22%' },
+  { id: 'map-main', label: '外出', top: '31.5%' },
+  { id: 'stats', label: '查看', top: '41%' },
+  { id: 'chronicle', label: '纪事', top: '50.5%' },
 ] as const;
 
 export const MAP_HOTSPOTS: readonly MapHotspotConfig[] = [
   { id: '冷宫', label: '冷宫', top: '2%', left: '15.8%', width: '4.4%', height: '18.2%', description: '冷宫阴气重，进去容易，出来难。多数时候这里只能探听旧案。', vertical: true },
   { id: '御花园', label: '御花园', top: '6.8%', left: '53%', width: '4.4%', height: '16.5%', description: '御花园最适合偶遇与闲逛，也是后宫流言最爱生根的地方。', vertical: true },
-  { id: '宝华殿', label: '宝华殿', top: '3%', left: '78.5%', width: '4.4%', height: '17.2%', description: '宝华殿可祈福、静心，也会触发寿命与因果类提示。', vertical: true },
+  { id: '宝华殿', label: '宝华殿', top: '14.5%', left: '78.5%', width: '4.4%', height: '17.2%', description: '宝华殿可祈福、静心，也会触发寿命与因果类提示。', vertical: true },
   { id: '华清池', label: '华清池', top: '20.4%', left: '31.5%', width: '4.4%', height: '18.8%', description: '华清池偏重养颜与休息，也会承接部分亲密事件。', vertical: true },
   { id: '建章宫', label: '建章宫', top: '15.5%', left: '66.7%', width: '4.4%', height: '15.7%', description: '建章宫多牵涉大事，往后部分主线会在这里推进。', vertical: true },
   { id: '后宫', label: '后宫', top: '33.2%', left: '18.3%', width: '4.4%', height: '18.7%', description: '后宫总览会汇聚各宫妃动向，是嫔妃与宫斗信息的集散地。', vertical: true, emphasis: 'large' },
@@ -121,7 +119,6 @@ export const CHAMBER_BOTTOM_TOOLS = [
 ] as const;
 
 export const CHAMBER_HOME_ACTION_LAYOUTS: readonly ChamberSceneButtonLayout[] = [
-  { id: 'explore', label: '外出探索', top: '14.4%', left: '33.5%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
   { id: 'incense', label: '调制香薰', top: '50.0%', left: '37.8%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
   { id: 'study', label: '诵读经典', top: '36.8%', left: '47.1%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
   { id: 'embroidery', label: '镂月裁云', top: '50.0%', left: '58.4%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
@@ -129,7 +126,7 @@ export const CHAMBER_HOME_ACTION_LAYOUTS: readonly ChamberSceneButtonLayout[] = 
   { id: 'music', label: '习舞奏乐', top: '41.8%', left: '73.8%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
   { id: 'painting', label: '泼墨作画', top: '51.2%', left: '83.3%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
   { id: 'pulse', label: '请平安脉', top: '67.6%', left: '92.7%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
-  { id: 'end-xun', label: '结束本旬', top: '28.0%', left: '87.0%', width: '11.0%', height: '5.2%', orientation: 'horizontal' },
+  { id: 'end-xun', label: '结束本旬', top: '43.9%', left: '82.6%', width: '12.6%', height: '5.8%', orientation: 'horizontal' },
 ] as const;
 
 export const JIAOJIAO_COMMAND_LAYOUTS: readonly ChamberSceneButtonLayout[] = [

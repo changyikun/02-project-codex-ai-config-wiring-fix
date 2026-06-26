@@ -30,6 +30,18 @@ type MapUtilityPanelId = Extract<ChamberPanelId, 'consorts' | 'stats' | 'chronic
 const ASSISTANT_PORTRAIT_SRC = '/assets/characters/women/jiaojiao.png';
 const CHEN_WANNING_PORTRAIT_SRC = getConcubinePortraitPath('陈婉宁');
 
+const renderHotspotLabel = (label: string, vertical?: boolean) => {
+  if (!vertical) {
+    return label;
+  }
+
+  return Array.from(label).map((char, index) => (
+    <span key={`${char}-${index}`} className="map-main__hotspot-char" aria-hidden="true">
+      {char}
+    </span>
+  ));
+};
+
 const resolveYingluoyetingEventPortrait = (event: YingluoyetingMapEvent, isResult: boolean) => {
   if (isResult) {
     return undefined;
@@ -443,6 +455,7 @@ export function MapMainView() {
               key={button.id}
               type="button"
               className={`palace-sidebar__diamond ${activeMapUtilityPanel === button.id ? 'is-active' : ''}`}
+              data-menu-id={button.id}
               style={{ top: button.top }}
               onClick={() => handleSidebar(button.id)}
             >
@@ -462,6 +475,8 @@ export function MapMainView() {
                 } ${selectedHotspotId === hotspot.id ? 'is-active' : ''} ${
                   hotspot.id === state.residenceName ? 'is-player-residence' : ''
                 }`}
+                aria-label={hotspot.label}
+                data-label-length={Array.from(hotspot.label).length}
                 style={{
                   top: hotspot.top,
                   left: hotspot.left,
@@ -470,7 +485,7 @@ export function MapMainView() {
                 }}
                 onClick={() => handleHotspot(hotspot.id)}
               >
-                <span>{hotspot.label}</span>
+                <span>{renderHotspotLabel(hotspot.label, hotspot.vertical)}</span>
               </button>
             ))}
           </section>

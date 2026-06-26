@@ -44,8 +44,8 @@ interface MetricDescriptor {
   note?: string;
 }
 
-const STRESS_SAFE_COLOR = '#5B9158';
-const STRESS_WARNING_COLOR = '#C9A447';
+const STRESS_SAFE_COLOR = '#5F8B80';
+const STRESS_WARNING_COLOR = '#A77F3D';
 
 const getMetricAccentColor = (metricKey: string, numericValue?: number, range?: readonly [number, number]): string => {
   if (typeof numericValue !== 'number') {
