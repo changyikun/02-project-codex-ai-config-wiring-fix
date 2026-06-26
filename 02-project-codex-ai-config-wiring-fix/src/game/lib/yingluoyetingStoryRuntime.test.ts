@@ -181,6 +181,7 @@ describe('yingluoyetingStoryRuntime', () => {
             description: '冷宫老宫人偷藏的半页口供残抄。',
             canSell: false,
             canRecycle: false,
+            isQuestItem: true,
           },
         ],
       }),

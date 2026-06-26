@@ -19,7 +19,17 @@
   - `defaultValue`：创建面板默认点数。
   - `runtimeMultiplier`：进入正式游戏后的真值倍率。注意“加点时”和“实际扣值时”不同，例如福德加点 1 点等于 10 真值，但宫斗消耗直接扣真值。
   - `category`：`main` 主属性或 `skill` 技艺属性。
-  - `description`：给策划看的用途说明。
+  - `description`：属性说明弹窗正文，面向玩家概括说明“这是什么”和大致影响方向，不写过细的隐藏系统、内部公式或具体判定名。属性创建页和局内个人属性面板的 `?` 按钮都直接读取此列。
+
+- `player_status_fields.csv`
+  - `key`：局内个人面板的非加点状态内部名，例如 `prestige`、`favor`、`ambition`、`family`、`stress`、`children`。
+  - `label`：界面显示名。
+  - `description`：局内个人面板 `?` 弹窗正文，编辑规则同玩家属性说明；不要在组件里另写声望、宠爱、家世等说明。
+
+- `consort_attribute_fields.csv`
+  - `key`：嫔妃属性内部名，必须与嫔妃总览 metric key 一致，例如 `prestige`、`favor`、`ambition`、`relationToPlayer`、`affection`。
+  - `label`：嫔妃总览显示名。
+  - `description`：嫔妃属性说明弹窗正文，面向玩家概括说明“这是什么”和大致影响方向，不写过细的隐藏系统、内部公式或具体判定名。嫔妃总览每个属性后的 `?` 按钮直接读取此列；不要在组件里另写一份说明。
 
 - `route_initial_profiles.csv`
   - `pointsMin` / `pointsMax`：该路线初始可分配点数硬上下限，不是随机范围。
@@ -44,9 +54,10 @@
   - `stressDelta` / `favorDelta`：压力或宠爱的直接变化。
 
 - `inventory_items.csv`
-  - `pools`：物品出现池。常用值：`initial`、`kitchen`、`duniang-always`、`duniang-rare`、`yeting-poison`、`music-score`。当前 `initial` 池应保持为空，玩家开局不带初始背包物品。
+  - `pools`：物品出现池。常用值：`initial`、`kitchen`、`duniang-always`、`yeting-poison`、`music-score`。当前 `initial` 池应保持为空，玩家开局不带初始背包物品。
   - `category`：背包分类，当前可用 `gift`、`food`、`medicine`、`rare`、`music-score`。
   - `rarity` / `color`：品质颜色，当前可用 `green`、`blue`、`purple`、`red`。
+  - `isQuestItem`：任务 / 剧情关键物品标记。杜娘和通用回收逻辑不得收购该类物品；毒药、曲谱和主线证物等非普通交易物应显式标记。
   - `favorDelta` / `healthDelta` / `appearanceDelta` / `temperamentDelta`：道具效果数值。
 
 - `craft_works.csv`
@@ -84,9 +95,14 @@
   - `generated_consort_templates.csv`：随机补足妃嫔的模板池，包含年龄范围、候选位分 / 住处、基础属性、人设摘要。
   - `generated_consort_rules.csv`：开局补足目标人数、随机浮动范围、病中健康阈值等生成参数。
 
+宫门杜娘货单只读取 `duniang-always` 池，设计口径是中低品质宫外物件，不放毒药、曲谱、红 / 紫高稀有物品或剧情物品。杜娘回收读取背包中所有 `canRecycle !== false` 且 `isQuestItem !== true` 的物品；好感达到友情价阈值后，买入价和回收价由 runtime 按常驻 NPC 关系统一修正。
+
 ## 文件职责
 
 - `global_numeric_rules.csv`：全局范围、倍率、体力、熬夜惩罚、家族接济和新局基础参数；`initial_attribute_base_points` 是初始属性可分配点基础值。
+- `player_attribute_fields.csv`：玩家属性字段、创建面板范围、真值倍率和属性说明，用于属性创建页与局内个人属性面板的主属性 / 技艺属性 `?` 弹窗。
+- `player_status_fields.csv`：玩家局内非加点状态说明，用于局内个人属性面板的声望、宠爱、野心、家世、压力、子嗣 `?` 弹窗。
+- `consort_attribute_fields.csv`：嫔妃属性说明，用于嫔妃总览 `?` 弹窗。
 - `family_initial_traits.csv`：家世词条的初始点修正和每月家世声望修正。
 - `monthly_expense_strategies.csv`：月用度策略。
 - `favor_tiers.csv`：宠爱分层。

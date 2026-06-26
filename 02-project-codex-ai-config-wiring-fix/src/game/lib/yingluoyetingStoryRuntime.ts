@@ -87,6 +87,7 @@ const oldTestimonyItem: InventoryItem = {
   description: '冷宫老宫人偷藏的半页口供残抄，只能证明案发夜有异常宫牌借道。',
   canSell: false,
   canRecycle: false,
+  isQuestItem: true,
 };
 
 const originalPrescriptionItem: InventoryItem = {
@@ -103,6 +104,7 @@ const originalPrescriptionItem: InventoryItem = {
   description: '太医院旧档中留存的原始调理方，可证明沈氏案卷里的毒方并非原方。',
   canSell: false,
   canRecycle: false,
+  isQuestItem: true,
 };
 
 const storageTransferListItem: InventoryItem = {
@@ -119,6 +121,7 @@ const storageTransferListItem: InventoryItem = {
   description: '御膳房旧库账册中抄出的封存木匣调出记录，可证明沈氏案卷相关木匣结案后曾被复核。',
   canSell: false,
   canRecycle: false,
+  isQuestItem: true,
 };
 
 const forgedTestimonyPageItem: InventoryItem = {
@@ -135,6 +138,7 @@ const forgedTestimonyPageItem: InventoryItem = {
   description: '长春宫旧年封存物中取出的残缺供状副页，可证明沈氏认罪供状落款朱印存在伪造嫌疑。',
   canSell: false,
   canRecycle: false,
+  isQuestItem: true,
 };
 
 const hasInventoryItem = (inventory: InventoryItem[], itemId: string): boolean =>

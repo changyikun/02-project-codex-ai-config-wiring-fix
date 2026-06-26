@@ -60,7 +60,7 @@ flowchart TB
 | 游戏类型 | `src/game/types.ts` | 路线、时间、属性、道具、妃嫔、关系 AI、存档结构类型 |
 | 规则配置 | `src/config/*`、`src/game/numerics/*` | 时间、体力、位分、路线、地点开放、颜色、系统事件等硬规则；核心可调数值由 numerics CSV 和 catalog 提供 |
 | 剧情配置 | `src/game/narrative/csv/*`、`src/game/narrative/narrativeCatalog.ts`、`src/game/narrative/narrativeDialogueAdapter.ts` | 按系统域维护剧情正文、说话人、立绘键、立绘位置和场景提示；代码引用稳定剧情 ID，并通过 adapter 将完整 entry 转换为对应 UI 展示结构 |
-| 随机事件配置 | `src/game/random-events/csv/random_events.csv`、`src/game/random-events/randomEventCatalog.ts`、`src/game/random-events/randomEventRuntime.ts` | 维护可抽取事件池、前置事件、剧情行、选项、局部效果和后续解锁；当前只提供 catalog、纯 runtime 和测试，不接入 UI / store / 存档 |
+| 随机事件配置 | `src/game/random-events/csv/random_events.csv`、`src/game/random-events/randomEventCatalog.ts`、`src/game/random-events/randomEventRuntime.ts` | 维护可抽取事件池、前置事件、剧情行、选项、局部效果和后续解锁；当前已接入杜娘闲谈，进度保存于 `progress.randomEvents` |
 | 前端运行时 | `src/game/lib/*Runtime.ts` | 本地兜底对话、地点交互、关系判定调用、寝殿工具函数、玩家姓名称呼解析 |
 | 后端入口 | `server/src/app.ts` | 装配 AI、Foundation、Memory、路由、缓存、错误处理 |
 | AI 路由 | `server/src/routes/aiRoutes.ts` | `/api/v1/ai/*` 对话、数值、关系、场景氛围接口 |
@@ -333,11 +333,13 @@ classDiagram
 
 当前核心数值配置入口：
 
-- `src/game/numerics/csv/player_attribute_fields.csv`：属性 key、显示名、创建面板上下限、默认点数、运行时倍率和用途说明。
+- `src/game/numerics/csv/player_attribute_fields.csv`：玩家属性字段、创建面板范围、默认点数、真值倍率和属性说明。属性创建页与局内个人属性面板的主属性 / 技艺属性 `?` 说明按钮直接读取 `description`；该列是玩家可见文案，只概括说明属性含义和大致影响方向，不写过细的隐藏系统、内部公式或具体判定名。
+- `src/game/numerics/csv/player_status_fields.csv`：玩家局内非加点状态说明。局内个人属性面板中的声望、宠爱、野心、家世、压力、子嗣等 `?` 说明按钮直接读取此表；这些字段不参与创建面板加点，因此不放入 `player_attribute_fields.csv`。
+- `src/game/numerics/csv/consort_attribute_fields.csv`：嫔妃属性字段和玩家可见说明。嫔妃总览中声望、宠爱、野心、好感、倾情等属性后的 `?` 说明按钮直接读取 `description`；组件只能按属性 key 取配置，不维护第二份解释文本。
 - `src/game/numerics/csv/global_numeric_rules.csv`：全局范围、体力、属性倍率、熬夜惩罚、家族接济和新局基础参数。
 - `src/game/numerics/csv/route_initial_profiles.csv` / `route_initial_stats.csv` / `family_initial_traits.csv`：路线初始范围、初始位分候选、家世候选、家世词条点数 / 声望修正和固定属性路线。初始可分配点数统一按 `基础点 + 路线修正 + 家世词条修正` 计算，不再随机。
 - `src/game/numerics/csv/chamber_actions.csv`、`monthly_expense_strategies.csv`、`rank_prestige_table.csv`、`favor_tiers.csv`：寝殿行动、月用度、位分门槛和宠爱分层。
-- `src/game/numerics/csv/inventory_items.csv`、`fixed_consort_roster.csv`：物品池、商店、毒药、曲谱和固定妃嫔种子数值。当前 `initial` 物品池保持为空，玩家开局不带初始背包物品。
+- `src/game/numerics/csv/inventory_items.csv`、`fixed_consort_roster.csv`：物品池、商店、毒药、曲谱和固定妃嫔种子数值。当前 `initial` 物品池保持为空，玩家开局不带初始背包物品；任务 / 剧情关键物品统一用 `isQuestItem` 标记，不能被杜娘或通用回收收购。
 - `src/game/numerics/csv/palace_strife_*`、`yangxin_verdict_choice_rules.csv`：宫斗严重度、流言严重度、裁断处罚倍率和关系影响。主动宫斗检定、嫌疑人动机、初始定案率、银两干预等完整公式维护在 `src/game/numerics/formula-pages/palaceStrifeFormulaPage.ts`，由公式解析器求值。
 - `src/game/numerics/csv/nightly_*`：皇帝独寝率、侍寝池宠爱权重、兴致收益档位、第三方美言 / 抹黑与侍寝保底值。侍寝互动选项读取属性与分段加成的完整公式维护在 `src/game/numerics/formula-pages/nightlyServiceFormulaPage.ts`。
 - `src/game/numerics/csv/generated_consort_templates.csv`、`generated_consort_rules.csv`：随机补足妃嫔模板、开局目标人数、属性浮动和病中健康阈值。
@@ -444,7 +446,7 @@ flowchart LR
   Public --> Miaoyin["妙音堂\n乐理/连翘/曲谱"]
   Public --> Huaqing["华清池\n容华以上开放"]
   Public --> Gongmen["宫门\n杜娘/阿翎/交易"]
-  Public --> Generic["通用地点\n御花园/正阳门/重华宫/御书房/冷宫"]
+  Public --> Generic["通用地点\n御花园/正阳门/重华宫/冷宫"]
 
   Public --> Yangxin["养心殿\n日间求见/夜间劝归/侍寝事件"]
 ```
@@ -453,7 +455,7 @@ flowchart LR
 
 | 地点类型 | 示例 | 开放口径 |
 |---|---|---|
-| 全天开放 | 御书房、御膳房、太医院、妙音堂、宝华殿、御花园、后宫宫殿 | 任意时间格可进入 |
+| 全天开放 | 御膳房、太医院、妙音堂、宝华殿、御花园、后宫宫殿 | 任意时间格可进入 |
 | 时段开放 | 正阳门、宫门、重华宫、养心殿 | 指定时间段开放；养心殿上午到深夜可进入 |
 | 条件开放 | 华清池 | 位分达到容华及以上 |
 
@@ -526,8 +528,11 @@ flowchart LR
 - 地点子场景统一由 `MapSubsceneView` 呈现：中间画面主区域只放本场景 NPC（固定 NPC、游走妃嫔、皇帝 / 太后等特殊人物），按最多两排、每排三人的透明立牌展示；槽位按底排优先、再向上补位，进入场景后位置不重排。NPC 不得使用卡片底板，必须是“左对齐立绘 / 占位人物 + 横向姓名名牌”的场景摆放形式；宽屏下立牌区域必须随视口自适应放大并尽量撑满中间区域。名牌文本统一为 `官职/位分·名字`，不得在名牌下另起身份行；名牌视觉统一使用深色描边、浅色填色、弱阴影、扁平化风格。右侧只放地点行动和业务入口，按钮组必须垂直居中，底部固定 `离开` 返回地图；NPC 名字不得再作为右侧动作按钮出现。
 - 进入地点子场景只负责切换场景和展示可交互对象，不自动播放娇娇入场通传、地点介绍等阻塞对白；强剧情承接应发生在点击 NPC、执行地点行动或触发特殊事件之后。
 - 后宫殿位进入妃嫔日常对话同样只属于场景切换：选择殿位、点击殿内妃嫔或会客中的妃嫔不得推进时辰，也不得借 `useLocationActionFlow()` 处理；体力不足仍可阻止拜访，会面内固定操作继续走妃嫔互动次数限制和对应剧情。
+- 人物交互页必须复用 `AudienceInteractionShell`：妃嫔日常会面、常驻 NPC（如杜娘 / 阿翎）和后续同类人物入口都应消费同一套 header、状态卡、立绘区、右侧操作栏、picker 面板和对话舞台外壳；不得为单个 NPC 再复制一套“看起来相似”的 portrait/actions/dialogue 布局。人物专属业务只作为 shell 内部的 action 或 picker 内容存在，业务逻辑仍可留在对应地点组件中。该 shell 统一维护左右安全区：左侧状态卡必须避开左侧菱形功能栏，右上返回按钮必须避开时间状态栏，右侧操作栏必须从时间状态栏下方开始排列。
 - 空地点或未做专属小玩法的地点统一由 `GenericMapLocationView` 读取 `src/game/data/mapLocationActions.ts` 显示常规行动与地点内特殊入口；行动结果正文继续引用 `location_encounters.csv`，真实行动通过 `useLocationActionFlow()` 推进时辰并接过夜流程。
-- 宫门不再由 `MapMainView` 直接打开独立假场景，而是作为 `activeMapLocation='宫门'` 的地点子场景由 `GongmenView` 承载；杜娘 / 阿翎显示在 `MapSubsceneView` 的 NPC 区，交易、闲谈和售卖保留为工具 NPC 对话后的二级业务。
+- 宫门不再由 `MapMainView` 直接打开独立假场景，而是作为 `activeMapLocation='宫门'` 的地点子场景由 `GongmenView` 承载；杜娘 / 阿翎显示在 `MapSubsceneView` 的 NPC 区，交易、闲谈、送礼和售卖保留为工具 NPC 对话后的二级业务。工具 NPC 的右侧操作栏只放交互次数与操作按钮，不得在互动后追加临时提示标识；购买 / 售卖 / 送礼等业务结果由背包、银两和既有数值反馈承担，不塞进右侧按钮组。宫门工具 NPC 人物页不使用共享外壳顶部返回按钮，只保留右侧操作栏中的 `返回`，避免同一页面出现两个退出入口。
+- 杜娘是第一名接入常驻 NPC 关系的工具 NPC：初见对白读取 `npc_tools_dialogues.csv`，见过后进入买卖 / 闲谈 / 送礼操作栏；买卖不消耗交互次数，闲谈和送礼消耗每旬次数。杜娘只售卖 `inventory_items.csv` 中 `duniang-always` 池的中低品质宫外物件；她可收购所有 `canRecycle !== false` 且 `isQuestItem !== true` 的物品。杜娘好感达到友情价阈值后，买入价打折、回收价上浮。宫门工具 NPC 的普通入场对白只承担进入人物页的承接作用，不应连续拆成多段阻挡操作；退出人物页统一使用 `返回`，不维护 `返回宫门` 这类地点专属退出文案。
+- 杜娘闲谈由随机事件系统驱动：`random_events.csv` 中维护 `npc.du-niang.common`、`npc.du-niang.low-affinity`、`npc.du-niang.high-affinity` 三类事件池，运行时按通用池 + 当前好感池合并抽取。当前杜娘池共 25 个事件，通用池 12 个、低好感池 4 个、高好感池 9 个；内容应围绕她在宫门口听来的日常、宫外街坊、小本买卖、熟人琐事和对宫内生活的好奇展开，避免把所有闲谈写成空泛后宫旁白。正常流程的随机事件正文应优先是对白框可直接显示的台词，不写电视剧剧本式动作 / 环境描写；只有会影响玩家理解的交易或关系信息才可极短补充。杜娘闲谈不能只是空对白：每个事件的剧情行或选项必须至少提供一次 `target.relationToPlayer` 正收益，有选项的事件每个选项也必须有好感收益。玩家发言行的身份栏不得写死为“玩家”，应使用 `{{playerRank}}` 并由运行时传入当前位分；玩家发言行的立绘必须标记 `portraitKey=player`，宫门工具 NPC 页会据此把中间立绘切换为当前路线玩家立绘。随机事件的 `unlockEventIds` 不会立即加入可抽池，而是进入 `progress.randomEvents.pendingUnlocks`，到下一旬清晨才释放。
 - 妙音堂、御膳房、太医院、宝华殿、华清池、掖庭院、建章宫等专属地点不得再各自维护一级入口卡片；复杂业务继续保留在二级面板或原有流程中，但入口必须先挂到通用子场景框架。
 - 从后宫外景打开左侧工具面板时，关闭面板必须返回 `activeChamberPanel='harem'`；不得退回 `main` 导致后宫 UI 被卸载，也不得借玩家寝殿作为中转。
 - 大地图自身的左侧“嫔妃 / 查看 / 纪事 / 情缘”必须作为地图覆盖面板打开，不得先调用 `enterMainChamber()` 借寝殿面板承载；关闭后仍停留在地图。
@@ -542,7 +547,7 @@ flowchart LR
 NPC 旬级动向：
 
 - 每旬由 `npcActivityRuntime` 为 live 且非冷宫妃嫔生成一张行动表，行动包括留宫、公共外出、拜访玩家、拜访其他妃嫔、社交筹谋和敌意筹谋。
-- 公共外出地点从 `MAP_HOTSPOTS` 派生，排除“后宫”聚合入口和玩家寝殿占位；御花园、正阳门、重华宫、御书房、宫门、建章宫、冷宫、养心殿等空地图点也属于进入后可能出现 NPC 交互入口的地点。
+- 公共外出地点从 `MAP_HOTSPOTS` 派生，排除“后宫”聚合入口和玩家寝殿占位；御花园、正阳门、重华宫、宫门、建章宫、冷宫、养心殿等空地图点也属于进入后可能出现 NPC 交互入口的地点。
 - 妙音堂、御膳房、太医院、宝华殿、华清池等功能小场景优先读取行动表中的安排；没有安排时，不允许再从全体 live 妃嫔里无条件随机抓人。
 - 地图热点卡只显示地点自身描述，不显示本旬安排在该地点的妃嫔摘要；真正进入公共地点或空地图点后，NPC 应显示为可点击交互入口，玩家主动点击后再用地点入场叙述和行动摘要进入妃嫔日常对话。
 - A 拜访 B 时，B 原本的公共外出被取消并留在自己殿内接待 A；玩家进 B 的殿内时应显示两人同场状态和互动摘要。
@@ -684,7 +689,7 @@ flowchart TB
 |---|---|
 | 夜晚选中 | 不是每个妃子独立百分比，而是互动池权重抽取 |
 | 皇帝心情 | 影响独寝、册封、养心殿裁断 |
-| 真心值 | 影响夜晚权重、御书房带回、求情宽判、处罚保底 |
+| 真心值 | 影响夜晚权重、养心殿带回、求情宽判、处罚保底 |
 | 侍寝兴致 | 初始兴致与宠爱档位/历史表现有关，满 100 默认可额外声望；兴致区间收益由 `nightly_interest_effects.csv` 维护，互动选项加成公式维护在 `nightlyServiceFormulas.ts` |
 | 怀孕前提 | 生产/流产后 3 个月生育冷却期内不能怀孕 |
 | 怀孕概率 | 与福德等硬规则相关，永久不孕为独立隐藏状态 |

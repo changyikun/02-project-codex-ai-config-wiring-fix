@@ -16,12 +16,14 @@ import type {
   PalaceBanquetProgressState,
   PalaceTimeState,
   PalaceStrifeCaseState,
+  PermanentNpcRelationshipMap,
   YangxinVerdictEventState,
   RouteId,
   RouteSelectionProfile,
   SettlementReport,
   TempleProgressState,
 } from '../types';
+import type { RandomEventProgress } from '../random-events/randomEventRuntime';
 import {
   hasRequiredSaveProgress,
   hasRequiredSaveRelations,
@@ -45,6 +47,7 @@ export interface SaveGameV1Source {
   inventory: InventoryItem[];
   merchantLedger: Record<string, number>;
   consortInteractionMap: Record<string, ConsortInteractionProgress>;
+  permanentNpcRelationships: PermanentNpcRelationshipMap;
   kitchenProgress: KitchenProgressState;
   medicalProgress: MedicalProgressState;
   musicHallProgress: MusicHallProgressState;
@@ -55,6 +58,7 @@ export interface SaveGameV1Source {
   nightlyService: NightlyServiceState;
   npcActivity: NpcActivityState;
   npcRelationMatrix: NpcRelationMatrix;
+  randomEventProgress: RandomEventProgress;
   settlementReports: SettlementReport[];
   palaceStrifeCases: PalaceStrifeCaseState[];
   pendingYangxinVerdict?: YangxinVerdictEventState;
@@ -92,6 +96,7 @@ export interface SaveGameV1 {
     bondProfile: BondProfileState;
     consortInteractionMap: Record<string, ConsortInteractionProgress>;
     npcRelationMatrix: NpcRelationMatrix;
+    permanentNpcRelationships: PermanentNpcRelationshipMap;
   };
   cases: {
     palaceStrifeCases: PalaceStrifeCaseState[];
@@ -107,6 +112,7 @@ export interface SaveGameV1 {
     emperorInteraction: EmperorInteractionProgressState;
     nightlyService: NightlyServiceState;
     npcActivity: NpcActivityState;
+    randomEvents: RandomEventProgress;
   };
 }
 
@@ -210,6 +216,7 @@ export const buildSaveGameV1 = (source: SaveGameV1Source, savedAt = new Date().t
     bondProfile: source.bondProfile,
     consortInteractionMap: source.consortInteractionMap,
     npcRelationMatrix: source.npcRelationMatrix,
+    permanentNpcRelationships: source.permanentNpcRelationships,
   },
   cases: {
     palaceStrifeCases: source.palaceStrifeCases,
@@ -225,5 +232,6 @@ export const buildSaveGameV1 = (source: SaveGameV1Source, savedAt = new Date().t
     emperorInteraction: source.emperorInteraction,
     nightlyService: source.nightlyService,
     npcActivity: source.npcActivity,
+    randomEvents: source.randomEventProgress,
   },
 });

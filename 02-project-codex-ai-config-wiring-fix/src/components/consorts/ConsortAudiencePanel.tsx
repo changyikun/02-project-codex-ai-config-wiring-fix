@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
+import { AudienceInteractionShell, type AudienceMetaRow } from './AudienceInteractionShell';
 import {
   getConcubineConditionLabel,
   getConcubineDisplayRankText,
@@ -588,43 +589,13 @@ export function ConsortAudiencePanel({
     setSceneHint('');
   };
 
-  return (
-    <section className="harem-palace-view__audience" aria-label={`${displayRank} ${consort.name} 日常对话`}>
-      <header className="harem-palace-view__audience-header">
-        <div className="harem-palace-view__heading">
-          <span>{`${palaceLabel} · ${hallLabel}`}</span>
-        </div>
-
-        <div className="harem-palace-view__header-actions">
-          <button type="button" className="harem-palace-view__utility-button" onClick={onBack}>
-            {backLabel}
-          </button>
-        </div>
-      </header>
-
-      <div className="harem-palace-view__audience-meta">
-        <article className="harem-palace-view__audience-card">
-          <div className="harem-palace-view__audience-kv">
-            <span>当前状态</span>
-            <strong>{currentStateLabel}</strong>
-          </div>
-          <div className="harem-palace-view__audience-kv">
-            <span>对你态度</span>
-            <strong>{consort.stats.relationToPlayer}</strong>
-          </div>
-          <div className="harem-palace-view__audience-kv">
-            <span>倾情</span>
-            <strong>{consort.stats.affection}</strong>
-          </div>
-          <div className="harem-palace-view__audience-kv">
-            <span>关系</span>
-            <strong>{relationLabel}</strong>
-          </div>
-        </article>
-      </div>
-
-      {persistentConsortPortrait}
-
+  const metaRows: AudienceMetaRow[] = [
+    { label: '当前状态', value: currentStateLabel },
+    { label: '对你态度', value: consort.stats.relationToPlayer },
+    { label: '倾情', value: consort.stats.affection },
+    { label: '关系', value: relationLabel },
+  ];
+  const actions = (
       <aside className="harem-palace-view__audience-actions" aria-label="宫内互动操作">
         <span className="harem-palace-view__audience-action-note">
           {`本旬可互动 ${remainingInteractionCount}/${CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN}`}
@@ -643,8 +614,9 @@ export function ConsortAudiencePanel({
           返回
         </button>
       </aside>
-
-      {pickerMode === 'gift' ? (
+  );
+  const picker =
+    pickerMode === 'gift' ? (
         <section className="harem-palace-view__audience-picker harem-palace-view__audience-picker--gift" aria-label="送礼选物">
           <header>
             <strong>可赠礼物</strong>
@@ -665,9 +637,9 @@ export function ConsortAudiencePanel({
             )}
           </div>
         </section>
-      ) : null}
-
-      {dialogueTurn || busy ? (
+      ) : undefined;
+  const dialogue =
+    dialogueTurn || busy ? (
         <GlobalDialogueStage
           sceneLabel={`${displayRank} ${consort.name} 宫内对话场景`}
           portraitLabel="旁白无立绘"
@@ -682,7 +654,19 @@ export function ConsortAudiencePanel({
           options={[]}
           busy={busy}
         />
-      ) : null}
-    </section>
+      ) : undefined;
+
+  return (
+    <AudienceInteractionShell
+      ariaLabel={`${displayRank} ${consort.name} 日常对话`}
+      heading={`${palaceLabel} · ${hallLabel}`}
+      onBack={onBack}
+      backLabel={backLabel}
+      metaRows={metaRows}
+      portrait={persistentConsortPortrait}
+      actions={actions}
+      picker={picker}
+      dialogue={dialogue}
+    />
   );
 }

@@ -86,30 +86,6 @@ export const MAP_LOCATION_INTERACTION_CONFIGS: readonly MapLocationInteractionCo
     ],
   },
   {
-    locationId: '御书房',
-    subtitle: '书案札记',
-    idleText: '书案与奏札都收得很严，能看见的只是一点边角。',
-    actions: [
-      {
-        id: 'copy-notes',
-        label: '抄读',
-        locationId: '御书房',
-        narrativeLocationId: 'imperial-study',
-        resultText: '你照着旧札抄读一回，对朝中章法有了更清楚的分寸。',
-        effects: { stats: { politics: 1 } },
-      },
-    ],
-    panelActions: [
-      {
-        id: 'open-court-affairs',
-        label: '朝堂事务',
-        locationId: '御书房',
-        panel: 'affairs',
-        affairsSource: '朝堂事务',
-      },
-    ],
-  },
-  {
     locationId: '冷宫',
     subtitle: '旧门残影',
     idleText: '门锁与荒草都冷着，越是无人来的地方，越容易留下旧事。',
@@ -144,6 +120,23 @@ export const MAP_LOCATION_INTERACTION_CONFIGS: readonly MapLocationInteractionCo
         narrativeLocationId: 'yangxin-hall',
         resultText: '你在阶前候了片刻，越发知道御前进退不能急，也不能乱。',
         effects: { stats: { politics: 1 } },
+      },
+      {
+        id: 'copy-notes',
+        label: '抄读',
+        locationId: '养心殿',
+        narrativeLocationId: 'yangxin-hall',
+        resultText: '你照着旧札抄读一回，对朝中章法有了更清楚的分寸。',
+        effects: { stats: { politics: 1 } },
+      },
+    ],
+    panelActions: [
+      {
+        id: 'open-court-affairs',
+        label: '朝堂事务',
+        locationId: '养心殿',
+        panel: 'affairs',
+        affairsSource: '朝堂事务',
       },
     ],
   },

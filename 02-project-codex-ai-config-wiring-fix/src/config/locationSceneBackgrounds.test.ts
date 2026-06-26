@@ -6,7 +6,6 @@ describe('LOCATION_SCENE_BACKGROUNDS', () => {
     expect(LOCATION_SCENE_BACKGROUNDS['宫门']).toBe('/assets/routes/backgrounds/gongmen_daytime.png');
     expect(LOCATION_SCENE_BACKGROUNDS['太医院']).toBe('/assets/routes/backgrounds/taiyiyuan_daytime.png');
     expect(LOCATION_SCENE_BACKGROUNDS['养心殿']).toBe('/assets/routes/backgrounds/yangxindian_outside_daytime.png');
-    expect(LOCATION_SCENE_BACKGROUNDS['御书房']).toBe('/assets/routes/backgrounds/yushufang_outside_daytime.png');
     expect(LOCATION_SCENE_BACKGROUNDS['御膳房']).toBe('/assets/routes/backgrounds/yushanfang_daytime.png');
     expect(LOCATION_SCENE_BACKGROUNDS['正阳门']).toBe('/assets/routes/backgrounds/zhengyangmen_daytime.png');
     expect(LOCATION_SCENE_BACKGROUNDS['妙音堂']).toBe('/assets/routes/backgrounds/miaoyintang_daytime.png');

@@ -6,11 +6,13 @@ import type {
   MusicHallProgressState,
   NightlyServiceState,
   PalaceBanquetProgressState,
+  PermanentNpcRelationshipMap,
   TempleProgressState,
 } from '../types';
+import type { RandomEventProgress } from '../random-events/randomEventRuntime';
 import { getNumericRuleValue } from '../numerics/numericCatalog';
 
-export const SAVE_GAME_SCHEMA_VERSION = 4;
+export const SAVE_GAME_SCHEMA_VERSION = 5;
 export const SAVE_GAME_STORAGE_KEY = 'palace-galgame-flow';
 
 export const SAVE_GAME_REQUIRED_SECTIONS = ['route', 'player', 'world', 'roster', 'inventory', 'relations', 'cases', 'progress'] as const;
@@ -25,9 +27,15 @@ export const SAVE_GAME_REQUIRED_PROGRESS_KEYS = [
   'nightlyService',
   'npcActivity',
   'craftWorks',
+  'randomEvents',
 ] as const;
 
-export const SAVE_GAME_REQUIRED_RELATION_KEYS = ['bondProfile', 'consortInteractionMap', 'npcRelationMatrix'] as const;
+export const SAVE_GAME_REQUIRED_RELATION_KEYS = [
+  'bondProfile',
+  'consortInteractionMap',
+  'npcRelationMatrix',
+  'permanentNpcRelationships',
+] as const;
 
 export const createInitialKitchenProgress = (): KitchenProgressState => ({
   strollCount: 0,
@@ -70,6 +78,14 @@ export const createInitialPalaceBanquetProgress = (): PalaceBanquetProgressState
 
 export const createInitialCraftWorksProgress = (): CraftWorksProgressState => ({
   activeWorks: {},
+});
+
+export const createInitialPermanentNpcRelationships = (): PermanentNpcRelationshipMap => ({});
+
+export const createInitialRandomEventProgress = (): RandomEventProgress => ({
+  triggerCounts: {},
+  unlockedEventIds: [],
+  pendingUnlocks: [],
 });
 
 export const createInitialEmperorInteractionProgress = (): EmperorInteractionProgressState => ({

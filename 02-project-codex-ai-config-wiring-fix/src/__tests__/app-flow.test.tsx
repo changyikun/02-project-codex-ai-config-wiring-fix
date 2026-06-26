@@ -76,6 +76,12 @@ const resetFlowStore = () => {
     merchantLedger: {},
     npcActivity: buildInitialNpcActivityState(),
     npcRelationMatrix: {},
+    permanentNpcRelationships: {},
+    randomEventProgress: {
+      triggerCounts: {},
+      unlockedEventIds: [],
+      pendingUnlocks: [],
+    },
     consortInteractionMap: {},
     kitchenProgress: {
       strollCount: 0,
@@ -523,6 +529,24 @@ describe('App 主流程切换', () => {
     fireEvent.click(decreaseHealth);
 
     expect(increaseHealth).not.toBeDisabled();
+  });
+
+  it('属性说明按钮会在当前属性位置弹出用途说明', async () => {
+    render(<App />);
+
+    await clickStartNewGame();
+    fireEvent.click(await screen.findByRole('button', { name: '确定' }));
+    await screen.findByRole('button', { name: '确认进入剧情' });
+
+    fireEvent.click(screen.getByRole('button', { name: '查看心计说明' }));
+
+    const helpDialog = await screen.findByRole('dialog');
+    expect(helpDialog).toHaveTextContent('心计');
+    expect(helpDialog).toHaveTextContent('试探');
+    expect(helpDialog).toHaveTextContent('应对暗处风险');
+
+    fireEvent.click(screen.getByRole('button', { name: '查看心计说明' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('福德加点按每点十点显示，进入剧情后折算为运行时福德值', async () => {
@@ -1541,23 +1565,23 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: '御书房' }));
+    fireEvent.click(await screen.findByRole('button', { name: '养心殿' }));
     fireEvent.click(await screen.findByRole('button', { name: '进入此处' }));
-    expect(await screen.findByLabelText('御书房行动')).toBeInTheDocument();
-    expect(screen.queryByText(/行至御书房前/)).not.toBeInTheDocument();
+    expect(await screen.findByLabelText('养心殿行动')).toBeInTheDocument();
+    expect(screen.queryByText(/行至养心殿前/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText('寝殿对白')).not.toBeInTheDocument();
 
-    const locationPanel = await screen.findByLabelText('御书房行动');
+    const locationPanel = await screen.findByLabelText('养心殿行动');
     expect(within(locationPanel).getByRole('button', { name: '抄读' })).toBeInTheDocument();
     expect(within(locationPanel).getByRole('button', { name: '朝堂事务' })).toBeInTheDocument();
 
     fireEvent.click(within(locationPanel).getByRole('button', { name: '抄读' }));
 
-    expect(await screen.findByLabelText('御书房行动结果')).toBeInTheDocument();
-    expect(locationPanel).not.toContainElement(screen.getByLabelText('御书房行动结果舞台'));
+    expect(await screen.findByLabelText('养心殿行动结果')).toBeInTheDocument();
+    expect(locationPanel).not.toContainElement(screen.getByLabelText('养心殿行动结果舞台'));
     expect(screen.queryByLabelText('寝殿对白')).not.toBeInTheDocument();
-    expect(screen.queryByText(/行至御书房前/)).not.toBeInTheDocument();
-    expect(await screen.findByText(/御书房外书气沉沉/)).toBeInTheDocument();
+    expect(screen.queryByText(/行至养心殿前/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/养心殿外书气沉沉/)).toBeInTheDocument();
     expect(useGameFlowStore.getState().state.stats.politics).toBe(11);
     expect(useGameFlowStore.getState().time.slot).toBe('上午');
   });
@@ -1789,6 +1813,46 @@ describe('App 主流程切换', () => {
     expect(useGameFlowStore.getState().currentView).toBe('map-main');
     expect(useGameFlowStore.getState().activeMapLocation).toBe('御膳房');
     await waitFor(() => expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined());
+  });
+
+  it('局内个人属性面板可查看属性说明', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'stats',
+      activeMapLocation: undefined,
+      state: {
+        ...state.state,
+        flags: {
+          ...state.state.flags,
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      concubineRouteId: 'lanyinxuguo',
+      concubines: buildInitialConcubineRoster('lanyinxuguo'),
+      inventory: cloneInitialInventory(),
+    }));
+
+    render(<App />);
+
+    expect(await screen.findByLabelText('个人属性面板')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '查看健康说明' }));
+    expect(await screen.findByRole('dialog')).toHaveTextContent('承受风险');
+
+    fireEvent.click(screen.getByRole('button', { name: '查看健康说明' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '查看声望说明' }));
+    expect(await screen.findByRole('dialog')).toHaveTextContent('位分');
+
+    fireEvent.click(screen.getByRole('button', { name: '查看家世说明' }));
+    expect(await screen.findByRole('dialog')).toHaveTextContent('初始资源');
+
+    fireEvent.click(screen.getByRole('button', { name: '查看乐理说明' }));
+    expect(await screen.findByRole('dialog')).toHaveTextContent('学谱');
   });
 
   it('打开寝殿面板时点击外出会先关闭面板并展示出行提示', async () => {
@@ -2536,17 +2600,16 @@ describe('App 主流程切换', () => {
     expect(await screen.findByLabelText('杜娘 宫门对话')).toBeInTheDocument();
     expect(screen.getByLabelText('杜娘常驻立绘')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '杜娘' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '返回宫门' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '返回' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '离开' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '购买' })).not.toBeInTheDocument();
     expect(screen.queryByText(/交易即时结算/)).not.toBeInTheDocument();
 
     await clickDialogueAdvance();
     await clickDialogueAdvance();
-    expect(await screen.findByLabelText('杜娘 宫门对话')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '购买' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '返回宫门' })).toBeInTheDocument();
-    expect(screen.getByLabelText('杜娘 宫门对话')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: '返回' })).toHaveLength(1);
+    expect(screen.queryByLabelText('杜娘 宫门对话')).not.toBeInTheDocument();
     expect(screen.getByLabelText('杜娘常驻立绘')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '杜娘' })).not.toBeInTheDocument();
 
@@ -2576,12 +2639,12 @@ describe('App 主流程切换', () => {
       expect(screen.getByText('当前银两：986')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '返回宫门' }));
+    fireEvent.click(screen.getAllByRole('button', { name: '返回' })[0]);
     expect(await screen.findByRole('button', { name: '杜娘' })).toBeInTheDocument();
     expect(screen.queryByLabelText('杜娘 宫门对话')).not.toBeInTheDocument();
   });
 
-  it('杜娘闲谈先显示本地回应，不被后台 AI 请求锁住', async () => {
+  it('杜娘闲谈走随机事件池且不被后台 AI 请求锁住', async () => {
     const fetchMock = vi.mocked(globalThis.fetch);
     fetchMock.mockReset();
     fetchMock.mockImplementation(() => new Promise<Response>(() => {}));
@@ -2621,6 +2684,21 @@ describe('App 主流程切换', () => {
       concubines: buildInitialConcubineRoster('lanyinxuguo'),
       inventory: cloneInitialInventory(),
       merchantLedger: {},
+      permanentNpcRelationships: {
+        'du-niang': {
+          npcId: 'du-niang',
+          npcName: '杜娘',
+          met: true,
+          affinity: 60,
+          xunKey: '1-1-1',
+          actionCountThisXun: 0,
+        },
+      },
+      randomEventProgress: {
+        triggerCounts: {},
+        unlockedEventIds: [],
+        pendingUnlocks: [],
+      },
       time: {
         year: 1,
         month: 1,
@@ -2632,23 +2710,112 @@ describe('App 主流程切换', () => {
     }));
 
     render(<App />);
+    vi.spyOn(Math, 'random').mockReturnValue(0);
 
     fireEvent.click(await screen.findByRole('button', { name: '宫门' }));
     fireEvent.click(await screen.findByRole('button', { name: '进入此处' }));
     fireEvent.click(await screen.findByRole('button', { name: '杜娘' }));
 
     await clickDialogueAdvance();
-    await clickDialogueAdvance();
-    const smallTalkButton = await screen.findByRole('button', { name: '闲谈' });
+    const smallTalkButton = await screen.findByRole('button', { name: '闲谈（耗次）' });
     fireEvent.click(smallTalkButton);
 
     await advanceDialoguePages();
-    expect(await screen.findByText(/买卖归买卖，闲话归闲话/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '闲谈' })).not.toBeDisabled();
+    expect(await screen.findByText(/哟，您闻见没/)).toBeInTheDocument();
+    await clickDialogueOnce();
+    await clickDialogueOnce();
+    await clickDialogueOnce();
+    expect(screen.getByRole('button', { name: '闲谈（耗次）' })).not.toBeDisabled();
+    expect(useGameFlowStore.getState().permanentNpcRelationships['du-niang']?.affinity).toBe(61);
 
-    fireEvent.click(screen.getByRole('button', { name: '闲谈' }));
+    fireEvent.click(screen.getByRole('button', { name: '闲谈（耗次）' }));
     await advanceDialoguePages();
-    expect(await screen.findByText(/闲谈不入账|热闹|买卖归买卖/)).toBeInTheDocument();
+    expect(await screen.findByText(/哟，您闻见没/)).toBeInTheDocument();
+    await clickDialogueOnce();
+    await clickDialogueOnce();
+    await clickDialogueOnce();
+    expect(useGameFlowStore.getState().permanentNpcRelationships['du-niang']?.affinity).toBe(62);
+  });
+
+  it('杜娘随机闲谈轮到玩家发言时会切换为玩家立绘', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'map-main',
+      scene: 'map',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      selectedRoute: buildRouteProfiles().find((route) => route.id === 'lanyinxuguo'),
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        silver: 1000,
+        favor: 50,
+        flags: {
+          ...state.state.flags,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 50,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      bondProfile: buildInitialBondProfile('lanyinxuguo', '1-1-1'),
+      concubineRouteId: 'lanyinxuguo',
+      concubines: buildInitialConcubineRoster('lanyinxuguo'),
+      inventory: cloneInitialInventory(),
+      merchantLedger: {},
+      permanentNpcRelationships: {
+        'du-niang': {
+          npcId: 'du-niang',
+          npcName: '杜娘',
+          met: true,
+          affinity: 80,
+          xunKey: '1-1-1',
+          actionCountThisXun: 0,
+        },
+      },
+      randomEventProgress: {
+        triggerCounts: {},
+        unlockedEventIds: [],
+        pendingUnlocks: [],
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 1,
+        slot: '上午',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+    vi.spyOn(Math, 'random').mockReturnValue(0.67);
+
+    fireEvent.click(await screen.findByRole('button', { name: '宫门' }));
+    fireEvent.click(await screen.findByRole('button', { name: '进入此处' }));
+    fireEvent.click(await screen.findByRole('button', { name: '杜娘' }));
+    await clickDialogueAdvance();
+
+    fireEvent.click(await screen.findByRole('button', { name: '闲谈（耗次）' }));
+    expect(await screen.findByText(/御花园好看/)).toBeInTheDocument();
+    await clickDialogueOnce();
+    await clickDialogueOnce();
+    fireEvent.click(await screen.findByRole('button', { name: '愿意说说' }));
+
+    expect(await screen.findByText(/走快了一盏茶/)).toBeInTheDocument();
+    expect(screen.getByLabelText('谢令仪立绘')).toBeInTheDocument();
+    expect(screen.getByAltText('谢令仪')).toHaveAttribute('src', '/assets/player/lanyinxuguo-cutout.png');
   });
 
   it('妙音堂会显示基础按钮，并在结识连翘后开放曲谱报名', async () => {
@@ -3076,7 +3243,7 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: '御书房' }));
+    fireEvent.click(await screen.findByRole('button', { name: '养心殿' }));
     fireEvent.click(screen.getByRole('button', { name: '进入此处' }));
     fireEvent.click(await screen.findByRole('button', { name: '朝堂事务' }));
 
@@ -4725,6 +4892,8 @@ describe('App 主流程切换', () => {
     expect(useGameFlowStore.getState().time.slotIndex).toBe(1);
     expect(screen.queryByRole('button', { name: '拜访' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '人际' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '查看好感说明' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('是否替你说话');
     expect(screen.queryByLabelText(/日常对话/)).not.toBeInTheDocument();
     expect(useGameFlowStore.getState().state.stamina).toBe(STAMINA_INITIAL_PER_XUN);
     expect(useGameFlowStore.getState().time.slotIndex).toBe(1);
@@ -6021,7 +6190,7 @@ describe('App 主流程切换', () => {
 
     expect(await screen.findByLabelText('贵妃 姚铃儿 日常对话')).toBeInTheDocument();
     expect(useGameFlowStore.getState().state.stamina).toBe(STAMINA_INITIAL_PER_XUN);
-    expect(useGameFlowStore.getState().time.slotIndex).toBe(2);
+    expect(useGameFlowStore.getState().time.slotIndex).toBe(1);
 
     const actionPanel = screen.getByLabelText('宫内互动操作');
     const actionLabels = within(actionPanel)
@@ -6030,7 +6199,7 @@ describe('App 主流程切换', () => {
 
     expect(actionLabels).toEqual(['送礼', '试探', '拉拢', '返回']);
     expect(useGameFlowStore.getState().state.stamina).toBe(STAMINA_INITIAL_PER_XUN);
-    expect(useGameFlowStore.getState().time.slotIndex).toBe(2);
+    expect(useGameFlowStore.getState().time.slotIndex).toBe(1);
   });
 
   it('妃嫔本旬互动次数用尽后会送客并退出会面', async () => {

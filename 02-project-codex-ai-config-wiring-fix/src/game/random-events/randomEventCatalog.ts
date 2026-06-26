@@ -559,6 +559,7 @@ export const renderRandomEventLine = (line: RandomEventLine, variables: RandomEv
   ...line,
   speakerIdentity: renderRandomEventTemplate(line.speakerIdentity, variables),
   speakerName: renderRandomEventTemplate(line.speakerName, variables),
+  portraitKey: renderRandomEventTemplate(line.portraitKey, variables),
   narrationName: renderRandomEventTemplate(line.narrationName, variables),
   text: renderRandomEventTemplate(line.text, variables),
   sceneHint: renderRandomEventTemplate(line.sceneHint, variables),

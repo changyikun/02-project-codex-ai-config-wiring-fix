@@ -98,7 +98,6 @@ export const MAP_HOTSPOTS: readonly MapHotspotConfig[] = [
   { id: '妙音堂', label: '妙音堂', top: '58.8%', left: '17.8%', width: '4.4%', height: '16.7%', description: '妙音堂可习舞奏乐，也容易撞见擅长才艺的角色。', vertical: true },
   { id: '太医院', label: '太医院', top: '67.3%', left: '25.9%', width: '4.4%', height: '18.1%', description: '太医院能请平安脉，也与怀孕、流产与下毒调查相关。', vertical: true },
   { id: '养心殿', label: '养心殿', top: '50.3%', left: '38.4%', width: '4.4%', height: '17.1%', description: '养心殿关系侍寝、陪伴与皇帝主线，重要剧情会在这里展开。', vertical: true },
-  { id: '御书房', label: '御书房', top: '46.4%', left: '59.8%', width: '4.4%', height: '15.6%', description: '御书房牵涉政治、朝臣与皇帝，后期通关条件多半在此发力。', vertical: true },
   { id: '御膳房', label: '御膳房', top: '55.6%', left: '70.2%', width: '4.4%', height: '17.7%', description: '御膳房能采买膳食，也常牵连赏赐、补品与偶发小事。', vertical: true },
   { id: '宫门', label: '宫门', top: '73.8%', left: '57.4%', width: '4.4%', height: '18.2%', description: '宫门关系外来人物与特殊事件，也是部分路线支线的入口。', vertical: true },
   { id: '掖庭院', label: '掖庭院', top: '64.5%', left: '81.7%', width: '4.4%', height: '18.2%', description: '掖庭院多为宫中差役、旧档与杂务所在，影落掖庭旧事也常从这里翻起。', vertical: true },

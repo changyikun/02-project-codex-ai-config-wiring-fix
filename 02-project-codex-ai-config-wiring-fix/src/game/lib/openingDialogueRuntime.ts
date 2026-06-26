@@ -37,7 +37,7 @@ const resolveRoutePressure = (payload: OpeningDialogueRequestPayload): string =>
 
 const resolveMapFeatureSummary = (payload: OpeningDialogueRequestPayload): string =>
   payload.routeContext?.mapFeatureSummary?.trim() ||
-  '御书房、宝华殿与后宫入口最常用，先把这些地方认熟，后头才好安排行程。';
+  '养心殿、宝华殿与后宫入口最常用，先把这些地方认熟，后头才好安排行程。';
 
 const resolveChoiceFocus = (payload: OpeningDialogueRequestPayload): string =>
   payload.routeContext?.choiceFocus?.trim() || '眼下最紧要的，是先定下待人行事的起手章法。';

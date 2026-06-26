@@ -1,5 +1,105 @@
 Original prompt: 添加存档系统，回溯可以读取上一次存档，开始游戏会清空存档并新建存档（有二级确认）；关于存档功能的维护，需要把这部分写到全局文档里，以便更好的同步，之前已经做出的修改也需要将之前的文档修改到一致
 
+## 2026-06-25 v0.5.4 属性说明缺项与浮层遮挡修订
+
+- 本轮目标：补齐局内个人属性面板仍无说明的状态项，并解决说明框被面板遮挡或贴近屏幕边缘时显示不完整的问题。
+- 已处理：新增 `player_status_fields.csv`，维护声望、宠爱、野心、家世、压力、子嗣等非加点状态说明；`PlayerStatsView` 对这些项也显示 `?` 按钮。
+- 已处理：新增 `AttributeHelpButton`，属性说明不再嵌在各面板内部，而是通过 portal 渲染到页面顶层固定浮层；浮层根据按钮两侧空间自动选择左侧或右侧，并限制在视口安全边距内。
+- 已处理：属性创建页、局内个人属性面板、嫔妃总览均改用同一个说明按钮组件，减少三套面板各自维护弹窗定位逻辑。
+- 已同步：`CHANGELOG.md` v0.5.4 第 22 条；`src/game/numerics/csv/README.md`；`docs/game-system-breakdown.md`。
+- 验证：`npx tsc --noEmit` 通过；`npx vitest run src/game/numerics/numericCatalog.test.ts` 通过；`npx vitest run src/__tests__/app-flow.test.tsx -t "属性说明|局内个人属性"` 通过。
+
+## 2026-06-25 v0.5.4 属性说明文案与局内查看修订
+
+- 本轮目标：把属性说明改为更概括的玩家可见口径，并让玩家在局内查看个人属性时也能点 `?` 查看说明。
+- 已处理：`player_attribute_fields.csv` 与 `consort_attribute_fields.csv` 的说明删去过细的系统名、公式和判定细节，只保留属性含义和大致影响方向。
+- 已处理：`PlayerStatsView` 接入 `getPlayerAttributeFieldConfig()`，个人面板中的健康、心计、容貌、气质、福德，以及诗词、丹青、乐理、刺绣、药理、政治都可通过 `?` 按钮查看同一份 CSV 说明。
+- 已同步：`CHANGELOG.md` v0.5.4 第 21 条；`src/game/numerics/csv/README.md`；`docs/game-system-breakdown.md`；`codex-workdocs/2026-06-25-v054-attribute-help-panels.md`。
+- 验证：`npx tsc --noEmit` 通过；`npx vitest run src/game/numerics/numericCatalog.test.ts` 通过；`npx vitest run src/__tests__/app-flow.test.tsx` 通过；`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告。
+
+## 2026-06-25 v0.5.4 随机事件玩家立绘修复
+
+- 本轮目标：修复随机对话轮到玩家发言时，画面仍显示目标 NPC / 杜娘立绘的问题。
+- 已处理：`random_events.csv` 中玩家发言行统一补 `portraitKey=player` 与 `portraitPlacement=stage`；`renderRandomEventLine()` 同步替换 `portraitKey` 模板，避免后续立绘 key 变量无法生效。
+- 已处理：`GongmenView` 在杜娘随机事件中判断当前行是否为玩家发言，若是则从 `selectedRoute.portrait` 或路线配置读取当前玩家立绘，并替换共享人物页的中间立绘。
+- 已同步：`CHANGELOG.md` v0.5.4 第 20 条；`src/game/random-events/csv/README.md`；`docs/game-system-breakdown.md`。
+
+## 2026-06-25 v0.5.4 嫔妃属性说明弹窗
+
+- 本轮目标：把属性说明从玩家创建页扩展到嫔妃总览，玩家查看妃嫔属性时也能知道这些数值影响哪些系统。
+- 已处理：新增 `consort_attribute_fields.csv`，集中维护嫔妃声望、宠爱、福德、野心、压力、家世、健康、心计、容貌、气质、好感、倾情和子嗣说明；`ConcubineListView` 按 metric key 从 `numericCatalog` 读取说明。
+- 已处理：嫔妃总览属性名后新增 `?` 按钮和原位说明弹窗，测试覆盖“好感”说明中侍寝美言 / 抹黑用途。
+- 已同步：`CHANGELOG.md` v0.5.4 第 19 条；`src/game/numerics/csv/README.md`；`docs/game-system-breakdown.md`。
+
+## 2026-06-25 v0.5.4 属性说明弹窗
+
+- 本轮目标：给属性创建页每个属性补充玩家可见说明，并在属性名后提供 `?` 小按钮，点击后原位弹出说明框。
+- 已处理：`player_attribute_fields.csv` 的 `description` 改为正式玩家可见说明，逐项写明属性含义和影响的玩法；`AttributeAssignmentView` 统一读取 `field.note` 显示，不在组件中硬编码说明文本。
+- 已处理：属性创建页新增 `attribute-assignment__help` 与 `attribute-assignment__help-popover`，支持同一时间展开一个属性说明，再次点击收起。
+- 已同步：`CHANGELOG.md` v0.5.4 第 18 条；`src/game/numerics/csv/README.md`；`docs/game-system-breakdown.md`。
+
+## 2026-06-25 v0.5.4 杜娘交互页称谓与返回入口修订
+
+- 本轮目标：修复杜娘随机事件里玩家发言身份栏显示“玩家”的问题，并删除杜娘交互页顶部多余返回按钮。
+- 已处理：`random_events.csv` 中玩家发言行的 `speakerIdentity` 改为 `{{playerRank}}`；`GongmenView` 在启动杜娘随机事件时传入玩家当前位分，`speakerName` 继续使用玩家名称 / 称呼变量。
+- 已处理：宫门工具 NPC 调用 `AudienceInteractionShell` 时不再传顶部 `onBack`，页面只保留右侧操作栏中的 `返回`。
+- 已同步：`CHANGELOG.md` v0.5.4 第 17 条；`src/game/random-events/csv/README.md`；`docs/game-system-breakdown.md`。
+
+## 2026-06-25 v0.5.4 杜娘随机事件用户稿替换
+
+- 本轮目标：删除上一版杜娘闲谈事件，改用用户提供的杜娘随机事件文本，并确保闲谈不再只是空对白。
+- 已处理：`random_events.csv` 中杜娘事件改为 25 个，按通用池 12 个、低好感池 4 个、高好感池 9 个拆分；每个事件的剧情行或选项至少提供一次 `target.relationToPlayer` 正收益，有选项的事件每个选项也都有好感收益。
+- 已处理：杜娘闲谈流程测试改为按当前多段对白逐段推进，并断言连续闲谈会增加杜娘好感。
+- 已同步：`CHANGELOG.md` v0.5.4 第 16 条；`src/game/random-events/csv/README.md`；`docs/game-system-breakdown.md`。
+
+## 2026-06-25 v0.5.4 杜娘右侧提示清理
+
+- 本轮目标：删除杜娘人物页右侧操作栏中互动后追加的临时提示标识，避免把剧情句或结果句塞进按钮组。
+- 已处理：`GongmenView` 移除右侧栏的 `feedback` 展示与对应临时状态；购买、售卖、送礼只落地背包 / 银两 / 好感变化，不再在右侧栏追加文字。
+- 已同步：`CHANGELOG.md` v0.5.4 第 13 条；`docs/game-system-breakdown.md` 宫门工具 NPC 操作栏规则。
+
+## 2026-06-25 v0.5.4 杜娘交互页收束修订
+
+- 本轮目标：修复杜娘共享人物交互页被全屏对话层遮挡，导致买卖 / 送礼等业务面板无法点击的问题；同时取消“返回宫门”这类地点专属退出文案。
+- 已处理：`GongmenView` 将入场 / 随机事件剧情与业务反馈拆开，只有真正剧情行才渲染 `GlobalDialogueStage`；买卖、送礼、次数不足等反馈改为右侧交互栏内非阻塞状态文本。
+- 已处理：杜娘普通入场对白缩为一段，工具 NPC 对话关闭自动引号拆段，避免每次交互被拆成两段；杜娘 / 阿翎人物页统一显示 `返回`。
+- 已同步：`CHANGELOG.md` v0.5.4 第 12 条；`docs/game-system-breakdown.md` 宫门工具 NPC 交互规则。
+- 验证：`npx tsc --noEmit` 通过；`npx vitest run src/__tests__/app-flow.test.tsx -t "宫门|杜娘" --reporter=dot` 通过；`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告。
+
+## 2026-06-25 v0.5.4 人物交互 UI 安全区修订
+
+- 本轮目标：统一调整人物交互 UI 位置，避免左侧状态卡被菱形功能栏遮挡、右侧返回 / 操作按钮被时间状态栏遮挡。
+- 已处理：`AudienceInteractionShell` 对应样式新增统一安全区变量；左侧状态卡改用 `--audience-left-safe`，右上返回按钮改到时间状态栏左侧，右侧操作栏和 picker 从状态栏下方开始排列。
+- 已处理：太后交互页的右侧操作栏和说明区也改为复用同一安全区变量，避免同类人物交互页出现不同位置规则。
+- 已同步：`CHANGELOG.md` v0.5.4 第 11 条；`docs/game-system-breakdown.md` 人物交互页规则。
+- 验证：`npx tsc --noEmit` 通过；`npx vitest run src/__tests__/app-flow.test.tsx -t "宫门|杜娘|后宫宫内可进入妃嫔日常对话|建章宫" --reporter=dot` 通过；`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告。
+
+## 2026-06-25 v0.5.4 人物交互 UI 统一
+
+- 本轮目标：修复常驻 NPC 交互 UI 与妃嫔交互 UI 不一致的问题，并确保不是复制一套相似样式。
+- 已处理：新增 `AudienceInteractionShell` 作为人物交互页共享外壳，统一 header、状态卡、立绘区、右侧操作栏、picker 面板和对话舞台插槽。
+- 已处理：`ConsortAudiencePanel` 改为消费共享 shell；宫门杜娘 / 阿翎入口也改为消费同一 shell，杜娘买卖 / 售卖 / 送礼面板改挂入共享 picker 区。
+- 已同步：`CHANGELOG.md` v0.5.4 第 10 条；`docs/game-system-breakdown.md` 地点子场景与人物交互规则。
+- 验证：`npx tsc --noEmit` 通过；`npx vitest run src/__tests__/app-flow.test.tsx -t "宫门|杜娘|后宫宫内可进入妃嫔日常对话|公共地点排班" --reporter=dot` 通过；`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告；全量 `npx vitest run --reporter=dot` 通过，`35 passed / 349 passed`，仍有既有 React `act(...)` 测试警告和 AI key fallback 日志。
+
+## 2026-06-25 v0.5.4 杜娘随机事件池扩充
+
+- 本轮目标：直接填充杜娘随机事件内容，使闲谈池达到 20 个事件，并让对白更像宫门小贩的真实生活和买卖口吻。
+- 已处理：`random_events.csv` 中杜娘事件扩展为通用 / 低好感 / 高好感三池共 20 个事件，覆盖布价路费、雨天误货、跑腿工钱、熟客记账、香粉成色、茶坊闲话、家信、讲价、收货边界、友情价、留货和旧事等内容。
+- 已处理：保留自然选项分支，例如讲价学习、货源追问；效果仍使用随机事件系统的局部 `effectJson`，可调整玩家压力 / 银两和杜娘好感。
+- 已同步：`CHANGELOG.md` v0.5.4 第 9 条；`src/game/random-events/csv/README.md`；`docs/game-system-breakdown.md`。
+- 验证：`npx vitest run src/game/random-events/randomEventRuntime.test.ts --reporter=dot` 通过；`npx vitest run src/__tests__/app-flow.test.tsx -t "宫门|杜娘" --reporter=dot` 通过；`npx tsc --noEmit` 通过；`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告；全量 `npx vitest run --reporter=dot` 通过，`35 passed / 349 passed`，仍有既有 React `act(...)` 测试警告和 AI key fallback 日志。
+
+## 2026-06-24 v0.5.4 宫门杜娘与常驻 NPC 关系修订
+
+- 本轮目标：删除与养心殿重合的重复地图地点；重构宫门杜娘，使她进入常驻 NPC 关系、初见剧情、友情价、闲谈随机事件和非任务物品回收闭环。
+- 已处理：地图、地点配置、泛用地点行动和相关剧情文案统一移除重复地点；抄读等常规行动并入养心殿。
+- 已处理：新增 `permanentNpcRelationships` 长期关系和 `progress.randomEvents` 随机事件进度；杜娘初见读取 `npc_tools_dialogues.csv`，闲谈从 `random_events.csv` 的杜娘通用 / 高好感 / 低好感池合并抽取，送礼和闲谈耗交互次数，买卖不耗次数。
+- 已处理：`inventory_items.csv` 新增 `isQuestItem`，杜娘只售卖 `duniang-always` 中低品质宫外物件，回收所有非任务物品；毒药、曲谱和主线证物标记为任务物品。
+- 已处理：随机事件后续解锁改为写入 `pendingUnlocks`，到下一旬清晨释放；存档 schema 提升到 `5`，旧结构不兼容则按开发期规则清档。
+- 已同步：`CHANGELOG.md` v0.5.4 第 8 条；`docs/game-system-breakdown.md`、`docs/game-state-model.md`、`docs/save-system-maintenance.md`、`src/game/random-events/csv/README.md`、`src/game/numerics/csv/README.md`。
+- 验证：`npx tsc --noEmit` 通过；`npx vitest run src/game/random-events/randomEventRuntime.test.ts src/game/numerics/numericCatalog.test.ts src/game/save/saveGameV1.test.ts --reporter=dot` 通过；`npx vitest run src/__tests__/app-flow.test.tsx -t "养心殿|宫门|杜娘|朝堂事务|公共地点排班" --reporter=dot` 通过；`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告；全量 `npx vitest run --reporter=dot` 通过，`35 passed / 348 passed`，仍有既有 React `act(...)` 测试警告和 AI key fallback 日志。
+
 ## 2026-06-24 v0.5.4 后宫妃嫔拜访入口不耗时修复
 
 - 本轮目标：修复从后宫殿位进入其他妃嫔寝宫 / 日常对话时会推进时辰的问题。
@@ -16,7 +116,7 @@ Original prompt: 添加存档系统，回溯可以读取上一次存档，开始
 - 后续修订：NPC 六个槽位改为底排优先、再向上补位；立牌区从固定像素改为随视口宽高自适应放大，宽屏下尽量撑满中间区域，同时避开右侧行动栏。
 - 已处理：`ChamberMainView` 不再在进入普通地图子场景时自动塞入 `enter-location` 入场对白；进入地点后直接显示地点行动和 NPC，点击 NPC 或地点行动后再触发剧情。
 - 已同步：`CHANGELOG.md` v0.5.4 第 4-6 条；`docs/game-system-breakdown.md` 地点子场景规则。
-- 验证：初轮全量 `npx vitest run --reporter=dot` 通过，`35 passed / 346 passed`；本次底排优先与自适应尺寸修订后，`npx tsc --noEmit` 通过，`npx vitest run src/__tests__/app-flow.test.tsx -t "公共地点排班|等待下朝|大地图地点弹窗|御书房|养心殿|建章宫" --reporter=dot` 通过，`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告。
+- 验证：初轮全量 `npx vitest run --reporter=dot` 通过，`35 passed / 346 passed`；本次底排优先与自适应尺寸修订后，`npx tsc --noEmit` 通过，`npx vitest run src/__tests__/app-flow.test.tsx -t "公共地点排班|等待下朝|大地图地点弹窗|养心殿|建章宫" --reporter=dot` 通过，`npm run build:web` 通过，仍有既有 Vite 大 chunk 警告。
 
 ## 2026-06-23 v0.5.4 版本推进
 
@@ -75,7 +175,7 @@ Original prompt: 添加存档系统，回溯可以读取上一次存档，开始
 - 本轮目标：修复新加的泛用地点场景内互动对白尺寸不对、正文看不到的问题。
 - 诊断结论：`GenericMapLocationView` 将 `LocationActionResultStage` 直接渲染在 `chamber-main__location-choice` 小操作卡片内部；全局对白舞台的 absolute 定位因此以小卡片为参照，导致对白框被压缩和错位。
 - 已处理：泛用地点的行动结果对白从地点操作卡片内移出，作为卡片兄弟节点挂在地点场景层级，复用全局对白框尺寸。
-- 已新增回归：御书房 `抄读` 后 `御书房行动结果舞台` 不得成为 `御书房行动` 卡片的子元素。
+- 已新增回归：养心殿 `抄读` 后 `养心殿行动结果舞台` 不得成为 `养心殿行动` 卡片的子元素。
 - 已同步：`CHANGELOG.md` v0.5.3 第 5 条；`docs/game-system-breakdown.md` 对话交互锁规范；`codex-workdocs/2026-06-22-v053-location-dialogue-layout-fix.md`。
 
 ## 2026-06-22 v0.5.3 地点入场对白重复触发修复
@@ -83,14 +183,14 @@ Original prompt: 添加存档系统，回溯可以读取上一次存档，开始
 - 本轮目标：修复玩家进入地点后，在地点内执行常规互动时反复触发入场对白，导致正常行动结果对白被覆盖的问题。
 - 诊断结论：`ChamberMainView` 的泛用地点入场 effect 只判断 `activeMapLocation`，没有记录本次地点入场对白是否已播；地点内行动修改数值或推进时辰后 effect 重新运行，再次塞入“行至某地前”的入场对白。
 - 已处理：新增本次地点入场对白 key，只有从地图新进入地点时播放一次；同一地点内的行动结算、面板切换和时辰变化不再重播入场对白。
-- 已新增回归：御书房“抄读”后必须显示 `御书房行动结果`，且不再出现 `寝殿对白 / 行至御书房前`。
+- 已新增回归：养心殿“抄读”后必须显示 `养心殿行动结果`，且不再出现 `寝殿对白 / 行至养心殿前`。
 - 已同步：`CHANGELOG.md` v0.5.3 第 4 条；`docs/game-system-breakdown.md` 对话交互锁规范。
 
 ## 2026-06-22 v0.5.3 地点入口与常规行动收口
 
 - 本轮目标：解决地图地点入口不统一、空地点进入后缺少寻常互动、公共地点 NPC / 偶遇入口粗糙且分散的问题。
 - 已处理：大地图热点卡统一只显示地点描述和 `进入此处 / 留在地图`，不再在地图弹窗里提供朝堂事务、旧案纪事、宫门人物等快捷入口。
-- 已处理：新增 `GenericMapLocationView` 与 `mapLocationActions.ts`，为御花园、正阳门、重华宫、御书房、冷宫、养心殿提供统一的地点内常规行动；行动正文读取 `location_encounters.csv`，真实行动才推进时辰并接入过夜流程。
+- 已处理：新增 `GenericMapLocationView` 与 `mapLocationActions.ts`，为御花园、正阳门、重华宫、冷宫、养心殿提供统一的地点内常规行动；行动正文读取 `location_encounters.csv`，真实行动才推进时辰并接入过夜流程。
 - 已处理：宫门从 `MapMainView` 的旧假场景迁入 `GongmenView` 地点子场景，杜娘 / 阿翎、交易和宫门妃嫔偶遇都在进入宫门后出现。
 - 已处理：新增 `LocationConsortVisitorsPanel` 复用公共地点和宫门的妃嫔偶遇入口。
 - 已同步：`CHANGELOG.md` v0.5.3 第 3 条；`docs/game-system-breakdown.md` 地图与场景系统；`codex-workdocs/2026-06-22-v053-location-entry-hub.md`。

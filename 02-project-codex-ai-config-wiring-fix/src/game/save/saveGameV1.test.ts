@@ -68,6 +68,7 @@ const source: SaveGameV1Source = {
     '1-2-1:embroidered-sachet': 1,
   },
   consortInteractionMap: {},
+  permanentNpcRelationships: {},
   kitchenProgress: {
     strollCount: 1,
     buZiyouUnlocked: false,
@@ -119,6 +120,11 @@ const source: SaveGameV1Source = {
     triggeredVisitIds: [],
   },
   npcRelationMatrix: {},
+  randomEventProgress: {
+    triggerCounts: {},
+    unlockedEventIds: [],
+    pendingUnlocks: [],
+  },
   settlementReports: [
     {
       id: 'settlement-1',
@@ -193,8 +199,10 @@ describe('SaveGameV1', () => {
     expect(saveGame.progress.craftWorks.activeWorks).toEqual({});
     expect(saveGame.progress.emperorInteraction.triggeredEncounterIds).toEqual([]);
     expect(saveGame.progress.npcActivity.xunKey).toBe('1-2-1');
+    expect(saveGame.progress.randomEvents.pendingUnlocks).toEqual([]);
     expect(saveGame.relations.bondProfile.npcId).toBe(source.bondProfile.npcId);
     expect(saveGame.relations.npcRelationMatrix).toEqual({});
+    expect(saveGame.relations.permanentNpcRelationships).toEqual({});
   });
 
   it('keeps transient UI state out of the durable save schema', () => {

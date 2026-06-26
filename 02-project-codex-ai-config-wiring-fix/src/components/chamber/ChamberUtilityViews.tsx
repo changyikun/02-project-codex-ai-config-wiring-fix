@@ -52,8 +52,8 @@ const inventoryTabs: Array<{ id: InventoryTabId; label: string }> = [
   { id: 'key-item', label: '关键物件' },
 ];
 
-const isKeyInventoryItem = (item: { category: string; price: number; canSell?: boolean; canRecycle?: boolean }): boolean =>
-  item.category === 'rare' && item.price === 0 && item.canSell === false && item.canRecycle === false;
+const isKeyInventoryItem = (item: { category: string; price: number; canSell?: boolean; canRecycle?: boolean; isQuestItem?: boolean }): boolean =>
+  Boolean(item.isQuestItem) || (item.category === 'rare' && item.price === 0 && item.canSell === false && item.canRecycle === false);
 
 const affairSteps: Array<{ id: AffairStepId; label: string }> = [
   { id: 'target', label: '宫斗对象' },

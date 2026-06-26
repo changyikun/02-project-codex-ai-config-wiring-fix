@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import {
   PLAYER_APPEARANCE_RANGE,
   PLAYER_AMBITION_RANGE,
@@ -21,7 +21,9 @@ import {
   convertTemperamentPoints,
 } from '../../config/formulas';
 import { getRarityColor } from '../../game/lib/bedchamberRuntime';
+import { getPlayerAttributeFieldConfig, getPlayerStatusFieldConfig } from '../../game/numerics/numericCatalog';
 import type { ConcubineProfile, GameNumericsState, HiddenStatsState, RouteSelectionProfile } from '../../game/types';
+import { AttributeHelpButton } from './AttributeHelpButton';
 
 const formatMetricValue = (value: number): string =>
   Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '');
@@ -43,6 +45,14 @@ interface MetricDescriptor {
   numericValue?: number;
   range?: readonly [number, number];
   accentColor?: string;
+  note?: string;
+}
+
+interface SkillDescriptor {
+  key: string;
+  label: string;
+  display: string;
+  note?: string;
 }
 
 const STRESS_SAFE_COLOR = '#5B9158';
@@ -134,6 +144,10 @@ const resolvePlayerConditionLabel = (state: GameNumericsState): string => {
   return '寻常';
 };
 
+const resolvePlayerAttributeNote = (key: string): string | undefined => getPlayerAttributeFieldConfig(key)?.note;
+const resolvePlayerMetricNote = (key: string): string | undefined =>
+  getPlayerAttributeFieldConfig(key)?.note ?? getPlayerStatusFieldConfig(key)?.note;
+
 const buildMetricRows = (state: GameNumericsState, hiddenStats: HiddenStatsState): MetricDescriptor[][] => [
   [
     {
@@ -142,6 +156,7 @@ const buildMetricRows = (state: GameNumericsState, hiddenStats: HiddenStatsState
       display: formatMetricValue(hiddenStats.prestige),
       numericValue: hiddenStats.prestige,
       range: PRESTIGE_RANGE,
+      note: resolvePlayerMetricNote('prestige'),
     },
   ],
   [
@@ -152,6 +167,7 @@ const buildMetricRows = (state: GameNumericsState, hiddenStats: HiddenStatsState
       numericValue: hiddenStats.favor,
       range: PLAYER_FAVOR_RANGE,
       accentColor: hiddenStats.favorColor,
+      note: resolvePlayerMetricNote('favor'),
     },
     {
       key: 'ambition',
@@ -159,6 +175,7 @@ const buildMetricRows = (state: GameNumericsState, hiddenStats: HiddenStatsState
       display: formatMetricValue(resolvePlayerAmbitionValue(state)),
       numericValue: resolvePlayerAmbitionValue(state),
       range: PLAYER_AMBITION_RANGE,
+      note: resolvePlayerMetricNote('ambition'),
     },
   ],
   [
@@ -166,6 +183,7 @@ const buildMetricRows = (state: GameNumericsState, hiddenStats: HiddenStatsState
       key: 'family',
       label: '家世',
       display: state.family,
+      note: resolvePlayerMetricNote('family'),
     },
   ],
   [
@@ -175,6 +193,7 @@ const buildMetricRows = (state: GameNumericsState, hiddenStats: HiddenStatsState
       display: formatMetricValue(resolveMainStatDisplayValue(state, 'health')),
       numericValue: resolveMainStatDisplayValue(state, 'health'),
       range: PLAYER_HEALTH_RANGE,
+      note: resolvePlayerAttributeNote('health'),
     },
     {
       key: 'intrigue',
@@ -182,6 +201,7 @@ const buildMetricRows = (state: GameNumericsState, hiddenStats: HiddenStatsState
       display: formatMetricValue(resolveMainStatDisplayValue(state, 'intrigue')),
       numericValue: resolveMainStatDisplayValue(state, 'intrigue'),
       range: PLAYER_INTRIGUE_RANGE,
+      note: resolvePlayerAttributeNote('intrigue'),
     },
   ],
   [
@@ -191,6 +211,7 @@ const buildMetricRows = (state: GameNumericsState, hiddenStats: HiddenStatsState
       display: formatMetricValue(resolveMainStatDisplayValue(state, 'appearance')),
       numericValue: resolveMainStatDisplayValue(state, 'appearance'),
       range: PLAYER_APPEARANCE_RANGE,
+      note: resolvePlayerAttributeNote('appearance'),
     },
     {
       key: 'temperament',
@@ -198,6 +219,7 @@ const buildMetricRows = (state: GameNumericsState, hiddenStats: HiddenStatsState
       display: formatMetricValue(resolveMainStatDisplayValue(state, 'temperament')),
       numericValue: resolveMainStatDisplayValue(state, 'temperament'),
       range: PLAYER_TEMPERAMENT_RANGE,
+      note: resolvePlayerAttributeNote('temperament'),
     },
   ],
   [
@@ -207,6 +229,7 @@ const buildMetricRows = (state: GameNumericsState, hiddenStats: HiddenStatsState
       display: formatMetricValue(hiddenStats.stress),
       numericValue: hiddenStats.stress,
       range: PLAYER_STRESS_RANGE,
+      note: resolvePlayerMetricNote('stress'),
     },
     {
       key: 'fortune',
@@ -214,6 +237,7 @@ const buildMetricRows = (state: GameNumericsState, hiddenStats: HiddenStatsState
       display: formatMetricValue(resolveFortuneDisplayValue(state)),
       numericValue: resolveFortuneDisplayValue(state),
       range: PLAYER_FORTUNE_RANGE,
+      note: resolvePlayerAttributeNote('fortune'),
     },
   ],
   [
@@ -221,21 +245,25 @@ const buildMetricRows = (state: GameNumericsState, hiddenStats: HiddenStatsState
       key: 'children',
       label: '子嗣',
       display: '暂无记载',
+      note: resolvePlayerMetricNote('children'),
     },
   ],
 ];
 
-const buildSkillSummary = (state: GameNumericsState): string =>
+const buildSkillRows = (state: GameNumericsState): SkillDescriptor[] =>
   [
-    ['诗词', resolveSkillDisplayValue(state, 'poetry')],
-    ['丹青', resolveSkillDisplayValue(state, 'painting')],
-    ['乐理', resolveSkillDisplayValue(state, 'talent')],
-    ['刺绣', resolveSkillDisplayValue(state, 'embroidery')],
-    ['药理', resolveSkillDisplayValue(state, 'medicine')],
-    ['政治', resolveSkillDisplayValue(state, 'politics')],
-  ]
-    .map(([label, value]) => `${label} ${value}`)
-    .join(' / ');
+    ['poetry', '诗词'],
+    ['painting', '丹青'],
+    ['talent', '乐理'],
+    ['embroidery', '刺绣'],
+    ['medicine', '药理'],
+    ['politics', '政治'],
+  ].map(([key, label]) => ({
+    key,
+    label,
+    display: formatMetricValue(resolveSkillDisplayValue(state, key)),
+    note: resolvePlayerAttributeNote(key),
+  }));
 
 interface PlayerStatsViewProps {
   state: GameNumericsState;
@@ -247,8 +275,13 @@ interface PlayerStatsViewProps {
 
 export function PlayerStatsView({ state, hiddenStats, selectedRoute, concubines, onClose }: PlayerStatsViewProps) {
   const metricRows = useMemo(() => buildMetricRows(state, hiddenStats), [hiddenStats, state]);
-  const skillSummary = useMemo(() => buildSkillSummary(state), [state]);
+  const skillRows = useMemo(() => buildSkillRows(state), [state]);
   const conditionLabel = useMemo(() => resolvePlayerConditionLabel(state), [state]);
+  const [activeHelpKey, setActiveHelpKey] = useState<string | null>(null);
+
+  const toggleHelp = (key: string): void => {
+    setActiveHelpKey((current) => (current === key ? null : key));
+  };
 
   const allies = useMemo(
     () =>
@@ -308,7 +341,21 @@ export function PlayerStatsView({ state, hiddenStats, selectedRoute, concubines,
                   style={meterStyle}
                 >
                   <div className="concubine-list-view__metric-copy">
-                    <span>{metric.label}</span>
+                    <span className="concubine-list-view__metric-label-wrap">
+                      <span>{metric.label}</span>
+                      {metric.note ? (
+                        <>
+                          <AttributeHelpButton
+                            id={`player-metric-help-${metric.key}`}
+                            label={metric.label}
+                            note={metric.note}
+                            open={activeHelpKey === `metric:${metric.key}`}
+                            onToggle={() => toggleHelp(`metric:${metric.key}`)}
+                            buttonClassName="concubine-list-view__metric-help"
+                          />
+                        </>
+                      ) : null}
+                    </span>
                     <strong>{metric.display}</strong>
                   </div>
                   {metric.range ? (
@@ -358,7 +405,31 @@ export function PlayerStatsView({ state, hiddenStats, selectedRoute, concubines,
         </article>
       </section>
 
-      <p className="player-stats-view__note">{`当前技艺：${skillSummary}。年龄 ${state.age}，体力 ${state.stamina}。`}</p>
+      <section className="player-stats-view__note" aria-label="个人技艺与状态">
+        <div className="player-stats-view__skill-list" aria-label="个人技艺属性">
+          {skillRows.map((skill) => (
+            <span key={skill.key} className="player-stats-view__skill-item">
+              <span className="concubine-list-view__metric-label-wrap">
+                <span>{skill.label}</span>
+                {skill.note ? (
+                  <>
+                    <AttributeHelpButton
+                      id={`player-skill-help-${skill.key}`}
+                      label={skill.label}
+                      note={skill.note}
+                      open={activeHelpKey === `skill:${skill.key}`}
+                      onToggle={() => toggleHelp(`skill:${skill.key}`)}
+                      buttonClassName="concubine-list-view__metric-help"
+                    />
+                  </>
+                ) : null}
+              </span>
+              <strong>{skill.display}</strong>
+            </span>
+          ))}
+        </div>
+        <span className="player-stats-view__note-meta">{`年龄 ${state.age}，体力 ${state.stamina}`}</span>
+      </section>
 
       <section className="player-stats-view__portrait-stage" aria-label={`${state.name}立绘`}>
         <div className="player-stats-view__portrait-frame">

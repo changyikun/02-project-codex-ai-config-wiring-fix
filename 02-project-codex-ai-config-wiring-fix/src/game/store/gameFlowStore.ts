@@ -66,6 +66,13 @@ import {
   getHostilePlotActivity,
 } from '../lib/npcActivityRuntime';
 import { CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN } from '../lib/consortVisitRuntime';
+import {
+  applyPermanentNpcAffinityDelta as applyPermanentNpcAffinityDeltaRuntime,
+  createPermanentNpcRelationship,
+  markPermanentNpcMet as markPermanentNpcRelationshipMet,
+  normalizePermanentNpcRelationshipForXun,
+  recordPermanentNpcInteractionAction as resolvePermanentNpcInteractionAction,
+} from '../lib/permanentNpcRuntime';
 import { resolveNpcRelationMatrixForActivities } from '../lib/npcRelationRuntime';
 import { resolveNightlyService, resolvePlayerNightlyServiceEvent } from '../lib/nightlyServiceRuntime';
 import {
@@ -103,8 +110,17 @@ import {
   createInitialMusicHallProgress,
   createInitialNightlyService,
   createInitialPalaceBanquetProgress,
+  createInitialPermanentNpcRelationships,
+  createInitialRandomEventProgress,
   createInitialTempleProgress,
 } from '../save/saveGameConfig';
+import {
+  applyRandomEventEffect,
+  queueRandomEventUnlocks,
+  releaseAvailableRandomEventUnlocks,
+  type RandomEventProgress,
+} from '../random-events/randomEventRuntime';
+import type { RandomEventEffect } from '../random-events/randomEventCatalog';
 import {
   getNumericRuleValue,
   getRouteInitialProfileConfig,
@@ -142,6 +158,8 @@ import type {
   PalaceStrifeCaseState,
   PalaceStrifeResolution,
   PalaceStrifeStartInput,
+  PermanentNpcInteractionActionId,
+  PermanentNpcRelationshipMap,
   YangxinVerdictChoiceId,
   YangxinVerdictEventState,
   TempleProgressState,
@@ -237,6 +255,7 @@ export interface GameFlowStore {
   inventory: InventoryItem[];
   merchantLedger: Record<string, number>;
   consortInteractionMap: Record<string, ConsortInteractionProgress>;
+  permanentNpcRelationships: PermanentNpcRelationshipMap;
   kitchenProgress: KitchenProgressState;
   medicalProgress: MedicalProgressState;
   musicHallProgress: MusicHallProgressState;
@@ -247,6 +266,7 @@ export interface GameFlowStore {
   nightlyService: NightlyServiceState;
   npcActivity: NpcActivityState;
   npcRelationMatrix: NpcRelationMatrix;
+  randomEventProgress: RandomEventProgress;
   settlementReports: SettlementReport[];
   palaceStrifeCases: PalaceStrifeCaseState[];
   pendingYangxinVerdict?: YangxinVerdictEventState;
@@ -312,10 +332,25 @@ export interface GameFlowStore {
     actionCountThisXun: number;
     actionLimitHit: boolean;
   };
+  ensurePermanentNpcRelationship: (npcId: string, npcName: string) => void;
+  markPermanentNpcMet: (npcId: string, npcName: string) => void;
+  recordPermanentNpcInteractionAction: (
+    npcId: string,
+    npcName: string,
+    actionId: PermanentNpcInteractionActionId,
+  ) => {
+    success: boolean;
+    actionCountThisXun: number;
+    actionLimitHit: boolean;
+  };
+  applyPermanentNpcAffinityDelta: (npcId: string, npcName: string, delta: number) => void;
+  applyRandomEventEffectForPermanentNpc: (npcId: string, npcName: string, effect?: RandomEventEffect) => void;
+  queueRandomEventUnlocks: (unlockEventIds: readonly string[]) => void;
+  completeRandomEventById: (eventId: string) => void;
   consumeInventoryItem: (itemId: string) => boolean;
   grantInventoryItem: (item: InventoryItem, quantity?: number) => void;
   buyInventoryItem: (item: InventoryItem, stockLimit?: number | null) => { success: boolean; message: string };
-  sellInventoryItem: (itemId: string) => { success: boolean; message: string };
+  sellInventoryItem: (itemId: string, recyclePriceOverride?: number) => { success: boolean; message: string };
   applyConsortRelationshipJudgement: (
     consortId: string,
     actionId: ConsortPalaceActionId,
@@ -1205,6 +1240,7 @@ const initialTime: PalaceTimeState = {
 const initialBondProfile = buildInitialBondProfile('lanyinxuguo', getCurrentXunKey(initialTime));
 const initialConcubines = buildRouteConcubines('lanyinxuguo', [], initialState.favor);
 const initialNpcRelationMatrix: NpcRelationMatrix = {};
+const initialPermanentNpcRelationships = createInitialPermanentNpcRelationships();
 const initialNpcActivity = generateNpcActivities({
   routeId: 'lanyinxuguo',
   xunKey: getCurrentXunKey(initialTime),
@@ -1214,6 +1250,7 @@ const initialNpcActivity = generateNpcActivities({
 });
 const initialInventory = cloneInitialInventory();
 const initialMerchantLedger: Record<string, number> = {};
+const initialRandomEventProgress = createInitialRandomEventProgress();
 
 const resolveSceneForView = (currentView: CurrentView): SceneId => {
   if (currentView === 'start') {
@@ -1264,6 +1301,7 @@ const createInitialGameFlowFields = (currentView: CurrentView): Partial<GameFlow
   inventory: cloneInitialInventory(),
   merchantLedger: {},
   consortInteractionMap: {},
+  permanentNpcRelationships: createInitialPermanentNpcRelationships(),
   kitchenProgress: createInitialKitchenProgress(),
   medicalProgress: createInitialMedicalProgress(),
   musicHallProgress: createInitialMusicHallProgress(),
@@ -1274,6 +1312,7 @@ const createInitialGameFlowFields = (currentView: CurrentView): Partial<GameFlow
   nightlyService: createInitialNightlyService(),
   npcActivity: initialNpcActivity,
   npcRelationMatrix: initialNpcRelationMatrix,
+  randomEventProgress: createInitialRandomEventProgress(),
   settlementReports: [],
   palaceStrifeCases: [],
   pendingYangxinVerdict: undefined,
@@ -1316,6 +1355,7 @@ const restoreSaveGameV1Fields = (saveGame: SaveGameV1): Partial<GameFlowStore> =
   inventory: saveGame.inventory.items,
   merchantLedger: saveGame.inventory.merchantLedger,
   consortInteractionMap: saveGame.relations.consortInteractionMap,
+  permanentNpcRelationships: saveGame.relations.permanentNpcRelationships,
   kitchenProgress: saveGame.progress.kitchen,
   medicalProgress: saveGame.progress.medical,
   musicHallProgress: saveGame.progress.musicHall,
@@ -1326,6 +1366,7 @@ const restoreSaveGameV1Fields = (saveGame: SaveGameV1): Partial<GameFlowStore> =
   nightlyService: saveGame.progress.nightlyService,
   npcActivity: saveGame.progress.npcActivity,
   npcRelationMatrix: saveGame.relations.npcRelationMatrix,
+  randomEventProgress: saveGame.progress.randomEvents,
   settlementReports: saveGame.world.settlementReports,
   palaceStrifeCases: saveGame.cases?.palaceStrifeCases ?? [],
   pendingYangxinVerdict: saveGame.cases?.pendingYangxinVerdict ?? undefined,
@@ -1360,6 +1401,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
       inventory: initialInventory,
       merchantLedger: initialMerchantLedger,
       consortInteractionMap: {},
+      permanentNpcRelationships: initialPermanentNpcRelationships,
       kitchenProgress: createInitialKitchenProgress(),
       medicalProgress: createInitialMedicalProgress(),
       musicHallProgress: createInitialMusicHallProgress(),
@@ -1370,6 +1412,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
       nightlyService: createInitialNightlyService(),
       npcActivity: initialNpcActivity,
       npcRelationMatrix: initialNpcRelationMatrix,
+      randomEventProgress: initialRandomEventProgress,
       settlementReports: [],
       palaceStrifeCases: [],
       pendingYangxinVerdict: undefined,
@@ -1435,6 +1478,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             concubineRouteId: routeId,
             concubines: nextConcubines,
             merchantLedger: {},
+            permanentNpcRelationships: createInitialPermanentNpcRelationships(),
             kitchenProgress: createInitialKitchenProgress(),
             medicalProgress: createInitialMedicalProgress(),
             musicHallProgress: createInitialMusicHallProgress(),
@@ -1443,6 +1487,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             emperorInteraction: createInitialEmperorInteractionProgress(),
             nightlyService: createInitialNightlyService(),
             npcRelationMatrix,
+            randomEventProgress: createInitialRandomEventProgress(),
             npcActivity: generateNpcActivities({
               routeId,
               xunKey: getCurrentXunKey(current.time),
@@ -1510,6 +1555,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             inventory: cloneInitialInventory(),
             merchantLedger: {},
             consortInteractionMap: {},
+            permanentNpcRelationships: createInitialPermanentNpcRelationships(),
             kitchenProgress: createInitialKitchenProgress(),
             medicalProgress: createInitialMedicalProgress(),
             musicHallProgress: createInitialMusicHallProgress(),
@@ -1518,6 +1564,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             emperorInteraction: createInitialEmperorInteractionProgress(),
             nightlyService: createInitialNightlyService(),
             npcRelationMatrix,
+            randomEventProgress: createInitialRandomEventProgress(),
             npcActivity: generateNpcActivities({
               routeId: profile.id,
               xunKey: getCurrentXunKey(initialTime),
@@ -2210,6 +2257,144 @@ export const useGameFlowStore = create<GameFlowStore>()(
 
         return result;
       },
+      ensurePermanentNpcRelationship: (npcId, npcName) =>
+        set((current) => {
+          const xunKey = getCurrentXunKey(current.time);
+          const relationship = normalizePermanentNpcRelationshipForXun(
+            current.permanentNpcRelationships[npcId],
+            npcId,
+            npcName,
+            xunKey,
+          );
+          return {
+            permanentNpcRelationships: {
+              ...current.permanentNpcRelationships,
+              [npcId]: relationship,
+            },
+          };
+        }),
+      markPermanentNpcMet: (npcId, npcName) =>
+        set((current) => {
+          const xunKey = getCurrentXunKey(current.time);
+          const relationship = normalizePermanentNpcRelationshipForXun(
+            current.permanentNpcRelationships[npcId],
+            npcId,
+            npcName,
+            xunKey,
+          );
+          return {
+            permanentNpcRelationships: {
+              ...current.permanentNpcRelationships,
+              [npcId]: markPermanentNpcRelationshipMet(relationship),
+            },
+          };
+        }),
+      recordPermanentNpcInteractionAction: (npcId, npcName, actionId) => {
+        let result = {
+          success: false,
+          actionCountThisXun: 0,
+          actionLimitHit: false,
+        };
+        set((current) => {
+          const xunKey = getCurrentXunKey(current.time);
+          const relationship = normalizePermanentNpcRelationshipForXun(
+            current.permanentNpcRelationships[npcId],
+            npcId,
+            npcName,
+            xunKey,
+          );
+          const resolution = resolvePermanentNpcInteractionAction(relationship, actionId);
+          result = {
+            success: resolution.success,
+            actionCountThisXun: resolution.actionCountThisXun,
+            actionLimitHit: resolution.actionLimitHit,
+          };
+          return {
+            permanentNpcRelationships: {
+              ...current.permanentNpcRelationships,
+              [npcId]: resolution.relationship,
+            },
+          };
+        });
+        return result;
+      },
+      applyPermanentNpcAffinityDelta: (npcId, npcName, delta) =>
+        set((current) => {
+          const xunKey = getCurrentXunKey(current.time);
+          const relationship = normalizePermanentNpcRelationshipForXun(
+            current.permanentNpcRelationships[npcId],
+            npcId,
+            npcName,
+            xunKey,
+          );
+          return {
+            permanentNpcRelationships: {
+              ...current.permanentNpcRelationships,
+              [npcId]: applyPermanentNpcAffinityDeltaRuntime(relationship, delta),
+            },
+          };
+        }),
+      applyRandomEventEffectForPermanentNpc: (npcId, npcName, effect) =>
+        set((current) => {
+          const xunKey = getCurrentXunKey(current.time);
+          const relationship = normalizePermanentNpcRelationshipForXun(
+            current.permanentNpcRelationships[npcId],
+            npcId,
+            npcName,
+            xunKey,
+          );
+          const result = applyRandomEventEffect(effect, {
+            player: current.state,
+            targetKind: 'npc',
+            npcRelationship: relationship,
+            inventory: current.inventory,
+          });
+          const nextState = result.player;
+          const shouldSignal = Boolean(effect?.player || effect?.inventory);
+          return {
+            state: nextState,
+            hiddenStats: {
+              ...current.hiddenStats,
+              silver: nextState.silver,
+              prestige: nextState.prestige,
+              stress: nextState.stress,
+              favor: nextState.favor,
+              trueHeart: nextState.trueHeart,
+              ...resolveFavorPresentation(nextState.favor),
+            },
+            inventory: result.inventory,
+            permanentNpcRelationships: {
+              ...current.permanentNpcRelationships,
+              [npcId]: result.npcRelationship ?? relationship,
+            },
+            ...(shouldSignal
+              ? {
+                  numericFeedbackSignal: {
+                    sequence: current.numericFeedbackSignal.sequence + 1,
+                    bucket: current.currentView === 'map-main' ? 'map-event' : 'chamber-action',
+                  },
+                }
+              : {}),
+          };
+        }),
+      queueRandomEventUnlocks: (unlockEventIds) =>
+        set((current) => ({
+          randomEventProgress: queueRandomEventUnlocks(
+            current.randomEventProgress,
+            unlockEventIds,
+            getCurrentXunKey(getNextXunMorning(current.time)),
+          ),
+        })),
+      completeRandomEventById: (eventId) =>
+        set((current) => ({
+          randomEventProgress: {
+            ...current.randomEventProgress,
+            triggerCounts: {
+              ...current.randomEventProgress.triggerCounts,
+              [eventId]: Number(current.randomEventProgress.triggerCounts[eventId] ?? 0) + 1,
+            },
+          },
+        })),
       patchConcubineById: (consortId, updater) =>
         set((current) => {
           const nextConcubines = enforceRosterFavorCaps(
@@ -2369,7 +2554,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
 
         return result;
       },
-      sellInventoryItem: (itemId) => {
+      sellInventoryItem: (itemId, recyclePriceOverride) => {
         let result = {
           success: false,
           message: '这件东西眼下卖不出去。',
@@ -2385,7 +2570,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             return current;
           }
 
-          if (inventoryItem.canRecycle === false) {
+          if (inventoryItem.canRecycle === false || inventoryItem.isQuestItem) {
             result = {
               success: false,
               message: `${inventoryItem.name}不在杜娘的回收范围里。`,
@@ -2393,7 +2578,10 @@ export const useGameFlowStore = create<GameFlowStore>()(
             return current;
           }
 
-          const recyclePrice = getInventoryRecyclePrice(inventoryItem);
+          const recyclePrice =
+            typeof recyclePriceOverride === 'number'
+              ? Math.max(0, Math.floor(recyclePriceOverride))
+              : getInventoryRecyclePrice(inventoryItem);
           const nextInventory = current.inventory
             .map((item) =>
               item.itemId === itemId
@@ -2881,6 +3069,10 @@ export const useGameFlowStore = create<GameFlowStore>()(
                   relationMatrix: npcRelationSettlement.matrix,
                 })
               : current.npcActivity;
+          const nextRandomEventProgress =
+            xunTransitions > 0
+              ? releaseAvailableRandomEventUnlocks(current.randomEventProgress, getCurrentXunKey(nextTime))
+              : current.randomEventProgress;
           const nightlyServiceLines =
             xunTransitions > 0
               ? current.nightlyService.pendingMorningLines ?? []
@@ -2957,6 +3149,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             customConsorts: nextCustomConsorts,
             npcRelationMatrix: npcRelationSettlement.matrix,
             npcActivity: nextNpcActivity,
+            randomEventProgress: nextRandomEventProgress,
             pendingYangxinVerdict: nextPendingYangxinVerdict,
             palaceBanquetProgress: {
               ...current.palaceBanquetProgress,

@@ -13,6 +13,7 @@ import {
   numericFamilyInitialTraits,
   numericAttributeFields,
   numericChamberActions,
+  numericConsortAttributeFields,
   numericCraftWorks,
   numericFavorTiers,
   numericFixedConsortSeeds,
@@ -20,6 +21,7 @@ import {
   numericMonthlyExpenseStrategies,
   numericNightlyInterestEffects,
   numericPalaceStrifeRumorItems,
+  numericPlayerStatusFields,
   numericPrestigeRankTable,
   numericSpecialPrestigeRankTable,
   resolveFamilyInitialPointModifier,
@@ -39,6 +41,11 @@ describe('numericCatalog', () => {
     expect(getNumericRuleRange('age_range')).toEqual([15, 23]);
     expect(getNumericRuleValue('stamina_initial_per_xun')).toBe(10);
     expect(numericAttributeFields.find((field) => field.key === 'talent')?.label).toBe('乐理');
+    expect(numericAttributeFields.every((field) => field.note.includes('影响'))).toBe(true);
+    expect(numericPlayerStatusFields.find((field) => field.key === 'prestige')?.note).toContain('位分');
+    expect(numericPlayerStatusFields.every((field) => field.note.includes('影响'))).toBe(true);
+    expect(numericConsortAttributeFields.find((field) => field.key === 'relationToPlayer')?.note).toContain('替你说话');
+    expect(numericConsortAttributeFields.every((field) => field.note.includes('影响'))).toBe(true);
     expect(numericChamberActions.find((action) => action.id === 'explore')?.staminaCost).toBe(0);
     expect(DEFAULT_MONTHLY_EXPENSE_STRATEGY_ID).toBe('balanced');
     expect(numericMonthlyExpenseStrategies).toHaveLength(3);
@@ -74,6 +81,9 @@ describe('numericCatalog', () => {
     expect(getInventoryItemsByPool('initial')).toEqual([]);
     expect(getInventoryItemsByPool('yeting-poison').map((item) => item.itemId)).toContain('hedandinghong');
     expect(getInventoryItemsByPool('music-score').length).toBeGreaterThanOrEqual(1);
+    expect(getInventoryItemsByPool('duniang-always').every((item) => item.rarity === 'green' || item.rarity === 'blue')).toBe(true);
+    expect(getInventoryItemsByPool('duniang-always').every((item) => !item.isQuestItem)).toBe(true);
+    expect(getInventoryItemsByPool('yeting-poison').every((item) => item.isQuestItem)).toBe(true);
     expect(numericCraftWorks.find((work) => work.workId === 'chanmeng-incense')?.type).toBe('incense');
     expect(numericFixedConsortSeeds.find((seed) => seed.name === '姚铃儿')?.stats.prestige).toBe(2180);
   });

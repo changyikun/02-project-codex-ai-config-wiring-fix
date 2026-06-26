@@ -6,6 +6,7 @@ import {
 } from '../../config/constants';
 import { numericInventoryItems } from '../numerics/numericCatalog';
 import type { ConcubineProfile, GameNumericsState, InventoryItem } from '../types';
+import type { PermanentNpcRelationshipState } from '../types';
 import {
   getRandomEvent,
   randomEventCatalog,
@@ -21,6 +22,12 @@ import {
 export interface RandomEventProgress {
   triggerCounts: Record<string, number>;
   unlockedEventIds: string[];
+  pendingUnlocks: RandomEventPendingUnlock[];
+}
+
+export interface RandomEventPendingUnlock {
+  eventId: string;
+  availableFromXunKey: string;
 }
 
 export type RandomEventSessionStage = 'lines' | 'options' | 'done';
@@ -54,7 +61,9 @@ export interface RandomEventOptionResult {
 
 export interface RandomEventEffectContext {
   player: GameNumericsState;
+  targetKind?: 'consort' | 'npc';
   target?: ConcubineProfile;
+  npcRelationship?: PermanentNpcRelationshipState;
   inventory?: InventoryItem[];
   itemCatalog?: readonly InventoryItem[];
 }
@@ -62,6 +71,7 @@ export interface RandomEventEffectContext {
 export interface RandomEventEffectResult {
   player: GameNumericsState;
   target?: ConcubineProfile;
+  npcRelationship?: PermanentNpcRelationshipState;
   inventory: InventoryItem[];
 }
 
@@ -76,11 +86,13 @@ const addUnique = (values: string[], additions: readonly string[]): string[] => 
 const cloneProgress = (progress: RandomEventProgress): RandomEventProgress => ({
   triggerCounts: { ...progress.triggerCounts },
   unlockedEventIds: [...progress.unlockedEventIds],
+  pendingUnlocks: progress.pendingUnlocks.map((unlock) => ({ ...unlock })),
 });
 
 export const createInitialRandomEventProgress = (): RandomEventProgress => ({
   triggerCounts: {},
   unlockedEventIds: [],
+  pendingUnlocks: [],
 });
 
 const hasTriggered = (progress: RandomEventProgress, eventId: string): boolean => Number(progress.triggerCounts[eventId] ?? 0) > 0;
@@ -189,6 +201,58 @@ export const applyRandomEventUnlocks = (
   ...cloneProgress(progress),
   unlockedEventIds: addUnique(progress.unlockedEventIds, unlockEventIds),
 });
+
+export const queueRandomEventUnlocks = (
+  progress: RandomEventProgress,
+  unlockEventIds: readonly string[],
+  availableFromXunKey: string,
+): RandomEventProgress => {
+  const next = cloneProgress(progress);
+  const existingImmediate = new Set(next.unlockedEventIds);
+  const existingPending = new Set(next.pendingUnlocks.map((unlock) => unlock.eventId));
+  unlockEventIds.forEach((eventId) => {
+    if (!eventId || existingImmediate.has(eventId) || existingPending.has(eventId)) {
+      return;
+    }
+    next.pendingUnlocks.push({ eventId, availableFromXunKey });
+    existingPending.add(eventId);
+  });
+  return next;
+};
+
+const parseXunKey = (xunKey: string): [number, number, number] => {
+  const [year, month, xun] = xunKey.split('-').map((value) => Number(value));
+  return [year || 0, month || 0, xun || 0];
+};
+
+const compareXunKey = (left: string, right: string): number => {
+  const leftParts = parseXunKey(left);
+  const rightParts = parseXunKey(right);
+  for (let index = 0; index < leftParts.length; index += 1) {
+    if (leftParts[index] !== rightParts[index]) {
+      return leftParts[index] - rightParts[index];
+    }
+  }
+  return 0;
+};
+
+export const releaseAvailableRandomEventUnlocks = (
+  progress: RandomEventProgress,
+  currentXunKey: string,
+): RandomEventProgress => {
+  const next = cloneProgress(progress);
+  const releasable = next.pendingUnlocks
+    .filter((unlock) => compareXunKey(unlock.availableFromXunKey, currentXunKey) <= 0)
+    .map((unlock) => unlock.eventId);
+  if (releasable.length === 0) {
+    return next;
+  }
+  return {
+    ...next,
+    unlockedEventIds: addUnique(next.unlockedEventIds, releasable),
+    pendingUnlocks: next.pendingUnlocks.filter((unlock) => compareXunKey(unlock.availableFromXunKey, currentXunKey) > 0),
+  };
+};
 
 const getLineEffectKey = (session: RandomEventSession): string => `${session.branchId}:${session.lineIndex}`;
 
@@ -339,7 +403,12 @@ export const applyRandomEventEffect = (
 ): RandomEventEffectResult => {
   const inventory = context.inventory ? context.inventory.map((item) => ({ ...item })) : [];
   if (!effect) {
-    return { player: { ...context.player, stats: { ...context.player.stats }, flags: { ...context.player.flags } }, target: context.target, inventory };
+    return {
+      player: { ...context.player, stats: { ...context.player.stats }, flags: { ...context.player.flags } },
+      target: context.target,
+      npcRelationship: context.npcRelationship,
+      inventory,
+    };
   }
 
   let player: GameNumericsState = {
@@ -348,6 +417,7 @@ export const applyRandomEventEffect = (
     flags: { ...context.player.flags },
   };
   let target = context.target ? { ...context.target, stats: { ...context.target.stats } } : undefined;
+  let npcRelationship = context.npcRelationship ? { ...context.npcRelationship } : undefined;
   let nextInventory = inventory;
 
   if (effect.player) {
@@ -368,29 +438,44 @@ export const applyRandomEventEffect = (
   }
 
   if (effect.target) {
-    if (!target) {
+    if (context.targetKind === 'npc') {
+      if (!npcRelationship) {
+        throw new Error('Random event target effect requires a permanent NPC relationship context.');
+      }
+      const unsupportedNpcFields = Object.entries(effect.target).filter(
+        ([key, delta]) => key !== 'relationToPlayer' && Number(delta ?? 0) !== 0,
+      );
+      if (unsupportedNpcFields.length > 0) {
+        throw new Error(`Random event NPC target effect does not support "${unsupportedNpcFields[0][0]}".`);
+      }
+      npcRelationship = {
+        ...npcRelationship,
+        affinity: clamp(npcRelationship.affinity + (effect.target.relationToPlayer ?? 0), 0, 100),
+      };
+    } else if (!target) {
       throw new Error('Random event target effect requires a target context.');
+    } else {
+      target = {
+        ...target,
+        stats: {
+          ...target.stats,
+          relationToPlayer: clamp(
+            target.stats.relationToPlayer + (effect.target.relationToPlayer ?? 0),
+            -100,
+            100,
+          ),
+          prestige: clamp(target.stats.prestige + (effect.target.prestige ?? 0), PRESTIGE_RANGE[0], PRESTIGE_RANGE[1]),
+          favor: clamp(target.stats.favor + (effect.target.favor ?? 0), PLAYER_FAVOR_RANGE[0], PLAYER_FAVOR_RANGE[1]),
+          stress: clamp(target.stats.stress + (effect.target.stress ?? 0), PLAYER_STRESS_RANGE[0], PLAYER_STRESS_RANGE[1]),
+          health: Math.max(0, target.stats.health + (effect.target.health ?? 0)),
+        },
+      };
     }
-    target = {
-      ...target,
-      stats: {
-        ...target.stats,
-        relationToPlayer: clamp(
-          target.stats.relationToPlayer + (effect.target.relationToPlayer ?? 0),
-          -100,
-          100,
-        ),
-        prestige: clamp(target.stats.prestige + (effect.target.prestige ?? 0), PRESTIGE_RANGE[0], PRESTIGE_RANGE[1]),
-        favor: clamp(target.stats.favor + (effect.target.favor ?? 0), PLAYER_FAVOR_RANGE[0], PLAYER_FAVOR_RANGE[1]),
-        stress: clamp(target.stats.stress + (effect.target.stress ?? 0), PLAYER_STRESS_RANGE[0], PLAYER_STRESS_RANGE[1]),
-        health: Math.max(0, target.stats.health + (effect.target.health ?? 0)),
-      },
-    };
   }
 
   if (effect.inventory) {
     nextInventory = applyInventoryEffect(nextInventory, effect.inventory, context.itemCatalog ?? defaultItemCatalog());
   }
 
-  return { player, target, inventory: nextInventory };
+  return { player, target, npcRelationship, inventory: nextInventory };
 };

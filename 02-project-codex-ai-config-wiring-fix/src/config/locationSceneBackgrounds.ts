@@ -31,7 +31,6 @@ const taiHospitalBackground = '/assets/routes/backgrounds/taiyiyuan_daytime.png'
 const yangxinOutsideBackground = '/assets/routes/backgrounds/yangxindian_outside_daytime.png';
 export const YANGXIN_VERDICT_BACKGROUND = '/assets/routes/backgrounds/yangxin_verdict_daytime.png';
 const imperialKitchenBackground = '/assets/routes/backgrounds/yushanfang_daytime.png';
-const imperialStudyBackground = '/assets/routes/backgrounds/yushufang_outside_daytime.png';
 const zhengyangGateBackground = '/assets/routes/backgrounds/zhengyangmen_daytime.png';
 
 export const LOCATION_SCENE_BACKGROUNDS: Partial<Record<MapAreaId, string>> = {
@@ -50,7 +49,6 @@ export const LOCATION_SCENE_BACKGROUNDS: Partial<Record<MapAreaId, string>> = {
   启祥宫: residenceBackground,
   正阳门: zhengyangGateBackground,
   重华宫: haremBackground,
-  御书房: imperialStudyBackground,
   养心殿: yangxinOutsideBackground,
   华清池: huaqingchiBackground,
   永宁宫: residenceBackground,

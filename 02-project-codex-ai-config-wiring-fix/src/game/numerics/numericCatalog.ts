@@ -1,4 +1,6 @@
 import playerAttributeFieldsCsv from './csv/player_attribute_fields.csv?raw';
+import playerStatusFieldsCsv from './csv/player_status_fields.csv?raw';
+import consortAttributeFieldsCsv from './csv/consort_attribute_fields.csv?raw';
 import globalNumericRulesCsv from './csv/global_numeric_rules.csv?raw';
 import routeInitialProfilesCsv from './csv/route_initial_profiles.csv?raw';
 import routeInitialStatsCsv from './csv/route_initial_stats.csv?raw';
@@ -49,6 +51,18 @@ export interface NumericAttributeFieldConfig {
   value: number;
   runtimeMultiplier: number;
   category: 'main' | 'skill';
+  note: string;
+}
+
+export interface NumericConsortAttributeFieldConfig {
+  key: string;
+  label: string;
+  note: string;
+}
+
+export interface NumericPlayerStatusFieldConfig {
+  key: string;
+  label: string;
   note: string;
 }
 
@@ -210,6 +224,22 @@ const inventoryCategories = new Set<InventoryItem['category']>(['gift', 'food', 
 const inventoryRarities = new Set<InventoryItem['rarity']>(['green', 'blue', 'purple', 'red']);
 const craftWorkTypes = new Set<CraftWorkType>(['embroidery', 'painting', 'incense']);
 const consortStatuses = new Set<ConcubineStatus>(['live', 'limbo', 'deceased']);
+const playerStatusFieldKeys = new Set<string>(['prestige', 'favor', 'ambition', 'family', 'stress', 'children']);
+const consortAttributeKeys = new Set<string>([
+  'prestige',
+  'favor',
+  'fortune',
+  'ambition',
+  'stress',
+  'familyBackground',
+  'health',
+  'intrigue',
+  'appearance',
+  'temperament',
+  'relationToPlayer',
+  'affection',
+  'childrenCount',
+]);
 const palaceStrifeSeverities = new Set<PalaceStrifeSeverity>(['light', 'medium', 'heavy']);
 const yangxinVerdictChoiceIds = new Set<YangxinVerdictChoiceId>([
   'self-defend',
@@ -288,6 +318,69 @@ export const numericAttributeFields: readonly NumericAttributeFieldConfig[] = pa
 });
 
 assertUniqueIds(numericAttributeFields, (field) => field.key, 'attribute field');
+
+const numericAttributeFieldByKey = new Map(numericAttributeFields.map((field) => [field.key, field]));
+
+export const getPlayerAttributeFieldConfig = (key: string): NumericAttributeFieldConfig | undefined =>
+  numericAttributeFieldByKey.get(key);
+
+export const numericPlayerStatusFields: readonly NumericPlayerStatusFieldConfig[] = parseNumericCsv(
+  playerStatusFieldsCsv,
+  'player_status_fields.csv',
+  ['key', 'label', 'description'],
+).map((row) => {
+  if (!playerStatusFieldKeys.has(row.key)) {
+    throw new Error(`player_status_fields.csv has unknown status key "${row.key}".`);
+  }
+
+  return {
+    key: row.key,
+    label: row.label,
+    note: row.description,
+  };
+});
+
+assertUniqueIds(numericPlayerStatusFields, (field) => field.key, 'player status field');
+
+const numericPlayerStatusFieldByKey = new Map(numericPlayerStatusFields.map((field) => [field.key, field]));
+
+playerStatusFieldKeys.forEach((key) => {
+  if (!numericPlayerStatusFieldByKey.has(key)) {
+    throw new Error(`player_status_fields.csv is missing status key "${key}".`);
+  }
+});
+
+export const getPlayerStatusFieldConfig = (key: string): NumericPlayerStatusFieldConfig | undefined =>
+  numericPlayerStatusFieldByKey.get(key);
+
+export const numericConsortAttributeFields: readonly NumericConsortAttributeFieldConfig[] = parseNumericCsv(
+  consortAttributeFieldsCsv,
+  'consort_attribute_fields.csv',
+  ['key', 'label', 'description'],
+).map((row) => {
+  if (!consortAttributeKeys.has(row.key)) {
+    throw new Error(`consort_attribute_fields.csv has unknown attribute key "${row.key}".`);
+  }
+
+  return {
+    key: row.key,
+    label: row.label,
+    note: row.description,
+  };
+});
+
+assertUniqueIds(numericConsortAttributeFields, (field) => field.key, 'consort attribute field');
+
+const numericConsortAttributeFieldByKey = new Map(numericConsortAttributeFields.map((field) => [field.key, field]));
+
+consortAttributeKeys.forEach((key) => {
+  if (!numericConsortAttributeFieldByKey.has(key)) {
+    throw new Error(`consort_attribute_fields.csv is missing attribute key "${key}".`);
+  }
+});
+
+export const getConsortAttributeFieldConfig = (key: string): NumericConsortAttributeFieldConfig | undefined =>
+  numericConsortAttributeFieldByKey.get(key);
 
 export const numericRules: readonly NumericRuleConfig[] = parseNumericCsv(globalNumericRulesCsv, 'global_numeric_rules.csv', [
   'id',
@@ -541,6 +634,7 @@ export const numericInventoryItems: readonly NumericInventoryItem[] = parseNumer
     description: row.description,
     canSell: parseBoolean(row.canSell, `${row.itemId}.canSell`),
     canRecycle: parseBoolean(row.canRecycle, `${row.itemId}.canRecycle`),
+    isQuestItem: parseOptionalBoolean(row.isQuestItem, `${row.itemId}.isQuestItem`) ?? false,
     recyclePriceOverride: parseOptionalNumber(row.recyclePriceOverride, `${row.itemId}.recyclePriceOverride`),
     pools: splitPipeList(row.pools),
   };

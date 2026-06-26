@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ConcubineProfile, GameNumericsState, InventoryItem } from '../types';
-import { parseRandomEventCsv } from './randomEventCatalog';
+import { parseRandomEventCsv, randomEventCatalog } from './randomEventCatalog';
 import {
   advanceRandomEventLine,
   applyRandomEventEffect,
@@ -12,6 +12,8 @@ import {
   getRandomEventCurrentOptions,
   listEligibleRandomEvents,
   pickRandomEvent,
+  queueRandomEventUnlocks,
+  releaseAvailableRandomEventUnlocks,
   selectRandomEventOption,
 } from './randomEventRuntime';
 
@@ -81,6 +83,33 @@ const target: ConcubineProfile = {
 };
 
 describe('randomEventRuntime', () => {
+  it('loads DuNiang small-talk events from the content table with pool split and guaranteed gains', () => {
+    const duNiangEvents = Object.values(randomEventCatalog.events).filter((event) => event.eventId.startsWith('du-niang.'));
+    expect(duNiangEvents).toHaveLength(25);
+    expect(new Set(duNiangEvents.map((event) => event.poolId))).toEqual(
+      new Set(['npc.du-niang.common', 'npc.du-niang.low-affinity', 'npc.du-niang.high-affinity']),
+    );
+    expect(duNiangEvents.filter((event) => event.poolId === 'npc.du-niang.common')).toHaveLength(12);
+    expect(duNiangEvents.filter((event) => event.poolId === 'npc.du-niang.low-affinity')).toHaveLength(4);
+    expect(duNiangEvents.filter((event) => event.poolId === 'npc.du-niang.high-affinity')).toHaveLength(9);
+    duNiangEvents.forEach((event) => {
+      const startBranch = event.branches.start;
+      const startLineRelationGain = startBranch.lines.some((line) => Number(line.effect?.target?.relationToPlayer ?? 0) > 0);
+      const optionRelationGains = startBranch.options.map((option) => Number(option.effect?.target?.relationToPlayer ?? 0));
+      expect(startLineRelationGain || optionRelationGains.some((gain) => gain > 0)).toBe(true);
+      expect(optionRelationGains.every((gain) => gain > 0)).toBe(true);
+    });
+    const playerLines = duNiangEvents.flatMap((event) =>
+      Object.values(event.branches).flatMap((branch) => branch.lines.filter((line) => line.speakerName === '{{playerAddress}}')),
+    );
+    expect(playerLines.length).toBeGreaterThan(0);
+    playerLines.forEach((line) => {
+      expect(line.speakerIdentity).toBe('{{playerRank}}');
+      expect(line.portraitKey).toBe('player');
+      expect(line.portraitPlacement).toBe('stage');
+    });
+  });
+
   it('filters eligible events by prerequisites, repeat policy and option unlocks', () => {
     const progress = createInitialRandomEventProgress();
     expect(listEligibleRandomEvents({ poolId: 'pool', progress, catalog }).map((event) => event.eventId)).toEqual([
@@ -93,6 +122,28 @@ describe('randomEventRuntime', () => {
 
     const unlocked = applyRandomEventUnlocks(afterFirst, ['locked']);
     expect(listEligibleRandomEvents({ poolId: 'pool', progress: unlocked, catalog }).map((event) => event.eventId)).toEqual([
+      'locked',
+      'daily',
+    ]);
+  });
+
+  it('keeps option unlocks pending until the configured xun', () => {
+    const progress = completeRandomEvent(
+      { ...beginRandomEventSession({ eventId: 'first', catalog }), stage: 'done' },
+      createInitialRandomEventProgress(),
+    );
+    const queued = queueRandomEventUnlocks(progress, ['locked'], '1-1-2');
+
+    expect(queued.unlockedEventIds).toEqual([]);
+    expect(listEligibleRandomEvents({ poolId: 'pool', progress: queued, catalog }).map((event) => event.eventId)).toEqual(['daily']);
+
+    const sameXun = releaseAvailableRandomEventUnlocks(queued, '1-1-1');
+    expect(sameXun.unlockedEventIds).toEqual([]);
+
+    const nextXun = releaseAvailableRandomEventUnlocks(queued, '1-1-2');
+    expect(nextXun.unlockedEventIds).toEqual(['locked']);
+    expect(nextXun.pendingUnlocks).toEqual([]);
+    expect(listEligibleRandomEvents({ poolId: 'pool', progress: nextXun, catalog }).map((event) => event.eventId)).toEqual([
       'locked',
       'daily',
     ]);
@@ -163,6 +214,26 @@ describe('randomEventRuntime', () => {
     expect(result.target?.stats.relationToPlayer).toBe(3);
     expect(result.target?.stats.stress).toBe(7);
     expect(result.inventory.find((entry) => entry.itemId === 'test-gift')?.quantity).toBe(2);
+  });
+
+  it('maps target relation effects to permanent NPC affinity when targetKind is npc', () => {
+    const result = applyRandomEventEffect(
+      { target: { relationToPlayer: 6 } },
+      {
+        player,
+        targetKind: 'npc',
+        npcRelationship: {
+          npcId: 'du-niang',
+          npcName: '杜娘',
+          met: true,
+          affinity: 58,
+          xunKey: '1-1-1',
+          actionCountThisXun: 0,
+        },
+      },
+    );
+
+    expect(result.npcRelationship?.affinity).toBe(64);
   });
 
   it('rejects target effects without target context and inventory losses without stock', () => {

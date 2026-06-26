@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { AGE_RANGE } from '../config/constants';
 import { convertFortuneAttributePoints } from '../config/formulas';
 import { attributeFields } from '../game/data/config';
 import { resolveRouteInitialPointsTotal } from '../game/numerics/numericCatalog';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
+import { AttributeHelpButton } from '../components/status/AttributeHelpButton';
 
 const ATTRIBUTE_STATS_FINALIZED_FLAG = 'attributeStatsFinalized';
 
@@ -43,6 +44,7 @@ const formatDisplayedValue = (key: string, value: number, routeLocked: boolean, 
 export function AttributeAssignmentView() {
   const { state, selectedRoute, setPlayerName, patchState, setAttributeValue, finalizeAttributeAssignment, setCurrentView, setScene } =
     useGameFlowStore();
+  const [activeHelpKey, setActiveHelpKey] = useState<string | null>(null);
 
   const finalized = Boolean(state.flags[ATTRIBUTE_STATS_FINALIZED_FLAG]);
   const routeLocked = Boolean(selectedRoute?.statsLocked);
@@ -214,7 +216,17 @@ export function AttributeAssignmentView() {
 
                 return (
                   <div key={field.key} className="attribute-assignment__item">
-                    <span>{field.label}</span>
+                    <div className="attribute-assignment__label-wrap">
+                      <span>{field.label}</span>
+                      <AttributeHelpButton
+                        id={`attribute-help-${field.key}`}
+                        label={field.label}
+                        note={field.note ?? `${field.label}说明待补充。`}
+                        open={activeHelpKey === field.key}
+                        onToggle={() => setActiveHelpKey((current) => (current === field.key ? null : field.key))}
+                        buttonClassName="attribute-assignment__help"
+                      />
+                    </div>
                     <div className="attribute-assignment__stepper">
                       <button
                         type="button"

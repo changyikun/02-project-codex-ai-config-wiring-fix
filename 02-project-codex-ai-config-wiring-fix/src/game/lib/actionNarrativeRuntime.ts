@@ -126,9 +126,9 @@ const locationActionNarrativeIdByAction: Record<string, string> = {
   'imperial-garden:listen-rumors': 'location.action.imperial-garden.listen-rumors',
   'zhengyang-gate:watch-court-road': 'location.action.zhengyang-gate.watch-court-road',
   'chonghua-palace:read-lessons': 'location.action.chonghua-palace.read-lessons',
-  'imperial-study:copy-notes': 'location.action.imperial-study.copy-notes',
   'cold-palace:search-old-traces': 'location.action.cold-palace.search-old-traces',
   'yangxin-hall:wait-at-steps': 'location.action.yangxin-hall.wait-at-steps',
+  'yangxin-hall:copy-notes': 'location.action.yangxin-hall.copy-notes',
 };
 
 export function buildLocationActionNarrativeEntry(input: LocationActionNarrativeInput): NarrativeEntry {

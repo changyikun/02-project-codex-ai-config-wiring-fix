@@ -1,39 +1,55 @@
 import { useMemo, useState } from 'react';
 import { ConsortAudiencePanel } from '../consorts/ConsortAudiencePanel';
+import { AudienceInteractionShell, type AudienceMetaRow } from '../consorts/AudienceInteractionShell';
 import { AutoCutoutPortrait } from '../visual/AutoCutoutPortrait';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
 import { buildDuNiangShopCatalog, getInventoryRecyclePrice, type DuNiangShopEntry } from '../../game/data/inventoryPresets';
-import { getConcubineDisplayRankText, getConcubinePortraitPath } from '../../game/data/concubineRoster';
+import { getConcubineDisplayRankText, getConcubinePortraitPath, getConcubineRankWeightByLabel } from '../../game/data/concubineRoster';
+import { getRouteProfileById } from '../../game/data/routeProfiles';
+import { isConsortGiftItem } from '../../game/lib/consortVisitRuntime';
 import { getNpcActivitiesAtLocation } from '../../game/lib/npcActivityRuntime';
+import {
+  DU_NIANG_FRIENDSHIP_PRICE_AFFINITY,
+  DU_NIANG_NPC_ID,
+  DU_NIANG_NPC_NAME,
+  PERMANENT_NPC_INTERACTION_ACTION_LIMIT_PER_XUN,
+  createPermanentNpcRelationship,
+  resolveDuNiangBuyPrice,
+  resolveDuNiangSellPrice,
+} from '../../game/lib/permanentNpcRuntime';
 import { narrativeEntryToDialogueFields } from '../../game/narrative/narrativeDialogueAdapter';
 import { renderNarrativeEntry } from '../../game/narrative/narrativeCatalog';
+import {
+  advanceRandomEventLine,
+  beginRandomEventSession,
+  getRandomEventCurrentLine,
+  getRandomEventCurrentOptions,
+  listEligibleRandomEvents,
+  selectRandomEventOption,
+  type RandomEventSession,
+} from '../../game/random-events/randomEventRuntime';
+import type { RandomEventDefinition, RandomEventLine } from '../../game/random-events/randomEventCatalog';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type { ConcubineProfile } from '../../game/types';
 import { MapSubsceneView, type SubsceneNpcEntry } from './MapSubsceneView';
 
 type GongmenNpcId = 'du-niang' | 'aling';
-type GongmenTradeMode = 'buy' | 'sell';
+type GongmenTradeMode = 'buy' | 'sell' | 'gift';
 
 interface GongmenViewProps {
   concubines: ConcubineProfile[];
 }
 
 const duNiangLine1 = renderNarrativeEntry('gongmen.duniang.line1');
-const duNiangLine2 = renderNarrativeEntry('gongmen.duniang.line2');
+const duNiangFirstMeetLine1 = renderNarrativeEntry('gongmen.duniang.first-meet.line1');
+const duNiangFirstMeetLine2 = renderNarrativeEntry('gongmen.duniang.first-meet.line2');
 const alingLine1 = renderNarrativeEntry('gongmen.aling.line1');
 const alingLine2 = renderNarrativeEntry('gongmen.aling.line2');
-const alingIdleLine = renderNarrativeEntry('gongmen.aling.idle');
 const duNiangLine1Fields = narrativeEntryToDialogueFields(duNiangLine1);
-const duNiangLine2Fields = narrativeEntryToDialogueFields(duNiangLine2);
+const duNiangFirstMeetLine1Fields = narrativeEntryToDialogueFields(duNiangFirstMeetLine1);
+const duNiangFirstMeetLine2Fields = narrativeEntryToDialogueFields(duNiangFirstMeetLine2);
 const alingLine1Fields = narrativeEntryToDialogueFields(alingLine1);
 const alingLine2Fields = narrativeEntryToDialogueFields(alingLine2);
-const alingIdleFields = narrativeEntryToDialogueFields(alingIdleLine);
-const duNiangSmallTalkEntries = [
-  renderNarrativeEntry('gongmen.duniang.line2'),
-  renderNarrativeEntry('gongmen.duniang.line3'),
-  renderNarrativeEntry('gongmen.duniang.line4'),
-] as const;
-
 const npcProfiles: Record<
   GongmenNpcId,
   {
@@ -50,7 +66,7 @@ const npcProfiles: Record<
     identity: duNiangLine1Fields.speakerIdentity,
     name: duNiangLine1Fields.speakerName,
     portrait: '/assets/characters/women/duniang.png',
-    dialogueLines: [duNiangLine1Fields.text, duNiangLine2Fields.text],
+    dialogueLines: [duNiangLine1Fields.text],
     alreadyCutout: true,
   },
   aling: {
@@ -61,30 +77,64 @@ const npcProfiles: Record<
     portraitThreshold: 42,
   },
 };
+const duNiangFirstMeetLines = [duNiangFirstMeetLine1Fields.text, duNiangFirstMeetLine2Fields.text] as const;
 
-const buildDuNiangLocalSmallTalkText = (historyLength: number): string => {
-  const entry = duNiangSmallTalkEntries[Math.max(0, historyLength - 1) % duNiangSmallTalkEntries.length];
-  return narrativeEntryToDialogueFields(entry).text;
+const buildPermanentNpcRelationLabel = (affinity: number): string => {
+  if (affinity >= DU_NIANG_FRIENDSHIP_PRICE_AFFINITY) {
+    return '熟客';
+  }
+  if (affinity >= 30) {
+    return '相熟';
+  }
+  if (affinity > 0) {
+    return '认得';
+  }
+  return '生客';
+};
+
+const drawWeightedRandomEvent = (events: RandomEventDefinition[], random: () => number): RandomEventDefinition | undefined => {
+  const totalWeight = events.reduce((sum, event) => sum + event.weight, 0);
+  if (totalWeight <= 0) {
+    return undefined;
+  }
+  const roll = Math.max(0, Math.min(0.999999999, random())) * totalWeight;
+  let cursor = 0;
+  return events.find((event) => {
+    cursor += event.weight;
+    return roll < cursor;
+  });
 };
 
 export function GongmenView({ concubines }: GongmenViewProps) {
   const {
     state,
+    hiddenStats,
     time,
     inventory,
     merchantLedger,
     customConsorts,
+    selectedRoute,
     buyInventoryItem,
     sellInventoryItem,
+    consumeInventoryItem,
+    permanentNpcRelationships,
+    randomEventProgress,
+    ensurePermanentNpcRelationship,
+    markPermanentNpcMet,
+    recordPermanentNpcInteractionAction,
+    applyPermanentNpcAffinityDelta,
+    applyRandomEventEffectForPermanentNpc,
+    queueRandomEventUnlocks,
+    completeRandomEventById,
     npcActivity,
     resolveNpcActivityEntry,
     enterMapMain,
   } = useGameFlowStore();
   const [activeNpc, setActiveNpc] = useState<GongmenNpcId | null>(null);
   const [activeTradeMode, setActiveTradeMode] = useState<GongmenTradeMode | null>(null);
-  const [feedback, setFeedback] = useState('');
   const [dialogueStep, setDialogueStep] = useState(0);
-  const [smallTalkCount, setSmallTalkCount] = useState(0);
+  const [activeRandomSession, setActiveRandomSession] = useState<RandomEventSession | null>(null);
+  const [activeRandomLine, setActiveRandomLine] = useState<RandomEventLine | null>(null);
   const [activeConsortAudience, setActiveConsortAudience] = useState<{
     entryId: string;
     consortId: string;
@@ -93,6 +143,9 @@ export function GongmenView({ concubines }: GongmenViewProps) {
 
   const allConsorts = useMemo(() => [...concubines, ...customConsorts], [concubines, customConsorts]);
   const gongmenSeed = `${state.routeId}:${time.year}-${time.month}-${time.xun}`;
+  const duNiangRelationship =
+    permanentNpcRelationships[DU_NIANG_NPC_ID] ??
+    createPermanentNpcRelationship(DU_NIANG_NPC_ID, DU_NIANG_NPC_NAME, `${time.year}-${time.month}-${time.xun}`);
   const tradeCatalog = useMemo(() => buildDuNiangShopCatalog(gongmenSeed), [gongmenSeed]);
   const resolvedTradeCatalog = useMemo(
     () =>
@@ -101,16 +154,24 @@ export function GongmenView({ concubines }: GongmenViewProps) {
           const ledgerKey = `${time.year}-${time.month}-${time.xun}:${entry.itemId}`;
           const boughtCount = merchantLedger[ledgerKey] ?? 0;
           const remainingStock = entry.stock == null ? null : Math.max(0, entry.stock - boughtCount);
-          return { ...entry, remainingStock };
+          return {
+            ...entry,
+            price: resolveDuNiangBuyPrice(entry.price, duNiangRelationship),
+            remainingStock,
+          };
         })
         .filter((entry) => entry.remainingStock == null || entry.remainingStock > 0),
-    [merchantLedger, time.month, time.xun, time.year, tradeCatalog],
+    [duNiangRelationship, merchantLedger, time.month, time.xun, time.year, tradeCatalog],
   );
   const sellableInventory = useMemo(
     () =>
       inventory
-        .filter((item) => item.quantity > 0 && item.canRecycle !== false)
+        .filter((item) => item.quantity > 0 && item.canRecycle !== false && !item.isQuestItem)
         .sort((left, right) => left.price - right.price),
+    [inventory],
+  );
+  const giftableInventory = useMemo(
+    () => inventory.filter((item) => isConsortGiftItem(item) && !item.isQuestItem).sort((left, right) => left.price - right.price),
     [inventory],
   );
   const npcButtons = state.routeId === 'chenyuansucuo'
@@ -134,57 +195,173 @@ export function GongmenView({ concubines }: GongmenViewProps) {
     () => allConsorts.find((consort) => consort.id === activeConsortAudience?.consortId) ?? null,
     [activeConsortAudience, allConsorts],
   );
-  const dialogueText = feedback || (activeProfile ? activeProfile.dialogueLines[Math.min(dialogueStep, activeProfile.dialogueLines.length - 1)] ?? '' : '');
-  const showNpcActions = Boolean(activeProfile && (feedback || dialogueStep >= activeProfile.dialogueLines.length));
+  const isDuNiangFirstMeet = activeNpc === 'du-niang' && !duNiangRelationship.met;
+  const activeDialogueLines = isDuNiangFirstMeet ? duNiangFirstMeetLines : activeProfile?.dialogueLines ?? [];
+  const activeRandomOptions = activeRandomSession ? getRandomEventCurrentOptions(activeRandomSession) : [];
+  const playerRankLabel =
+    hiddenStats.initialRank && getConcubineRankWeightByLabel(hiddenStats.initialRank) > 0 ? hiddenStats.initialRank : '宫妃';
+  const entryDialogueActive = Boolean(activeProfile && dialogueStep < activeDialogueLines.length);
+  const randomDialogueActive = Boolean(activeRandomSession);
+  const dialogueActive = entryDialogueActive || randomDialogueActive;
+  const dialogueText =
+    activeRandomLine?.text ||
+    (activeDialogueLines[Math.min(dialogueStep, activeDialogueLines.length - 1)] ?? '');
+  const dialogueIdentity = activeRandomLine?.speakerIdentity ?? activeProfile?.identity ?? '';
+  const dialogueName = activeRandomLine?.speakerName ?? activeProfile?.name ?? '';
+  const playerPortraitSrc = selectedRoute?.portrait ?? getRouteProfileById(state.routeId)?.portrait;
+  const isPlayerRandomLine = Boolean(
+    activeRandomLine &&
+      (activeRandomLine.portraitKey === 'player' ||
+        activeRandomLine.speakerName === state.name ||
+        activeRandomLine.speakerIdentity === playerRankLabel),
+  );
+  const showNpcActions = Boolean(activeProfile && !dialogueActive);
+  const duNiangRemainingInteractionCount = Math.max(
+    0,
+    PERMANENT_NPC_INTERACTION_ACTION_LIMIT_PER_XUN - Number(duNiangRelationship.actionCountThisXun ?? 0),
+  );
 
   const handleOpenNpc = (npcId: GongmenNpcId) => {
+    if (npcId === 'du-niang') {
+      ensurePermanentNpcRelationship(DU_NIANG_NPC_ID, DU_NIANG_NPC_NAME);
+    }
     setActiveNpc(npcId);
     setActiveTradeMode(null);
-    setFeedback('');
     setDialogueStep(0);
+    setActiveRandomSession(null);
+    setActiveRandomLine(null);
   };
 
   const handleCloseNpc = () => {
     setActiveNpc(null);
     setActiveTradeMode(null);
-    setFeedback('');
     setDialogueStep(0);
+    setActiveRandomSession(null);
+    setActiveRandomLine(null);
+  };
+
+  const applyRandomEventOutcome = (effect: Parameters<typeof applyRandomEventEffectForPermanentNpc>[2], unlockEventIds: readonly string[]) => {
+    applyRandomEventEffectForPermanentNpc(DU_NIANG_NPC_ID, DU_NIANG_NPC_NAME, effect);
+    if (unlockEventIds.length > 0) {
+      queueRandomEventUnlocks(unlockEventIds);
+    }
+  };
+
+  const finishRandomEvent = (eventId: string) => {
+    completeRandomEventById(eventId);
+    setActiveRandomSession(null);
+    setActiveRandomLine(null);
   };
 
   const handleDialogueNext = () => {
-    if (feedback) {
-      setFeedback('');
+    if (activeRandomSession) {
+      if (activeRandomSession.stage !== 'lines') {
+        return;
+      }
+      const advanceResult = advanceRandomEventLine(activeRandomSession);
+      applyRandomEventOutcome(advanceResult.effect, advanceResult.unlockEventIds);
+      if (advanceResult.completed) {
+        finishRandomEvent(activeRandomSession.eventId);
+        return;
+      }
+      setActiveRandomSession(advanceResult.session);
+      const nextLine = getRandomEventCurrentLine(advanceResult.session);
+      if (nextLine) {
+        setActiveRandomLine(nextLine);
+      }
       return;
     }
     if (!activeProfile) {
       return;
     }
-    if (dialogueStep < activeProfile.dialogueLines.length - 1) {
+    if (dialogueStep < activeDialogueLines.length - 1) {
       setDialogueStep((current) => current + 1);
       return;
     }
-    setDialogueStep(activeProfile.dialogueLines.length);
+    if (isDuNiangFirstMeet) {
+      markPermanentNpcMet(DU_NIANG_NPC_ID, DU_NIANG_NPC_NAME);
+    }
+    setDialogueStep(activeDialogueLines.length);
   };
 
   const handleSmallTalk = () => {
-    const nextCount = smallTalkCount + 1;
-    setSmallTalkCount(nextCount);
-    setFeedback(buildDuNiangLocalSmallTalkText(nextCount));
+    const actionResult = recordPermanentNpcInteractionAction(DU_NIANG_NPC_ID, DU_NIANG_NPC_NAME, 'talk');
+    if (!actionResult.success) {
+      return;
+    }
+    const pools = [
+      'npc.du-niang.common',
+      duNiangRelationship.affinity >= DU_NIANG_FRIENDSHIP_PRICE_AFFINITY
+        ? 'npc.du-niang.high-affinity'
+        : 'npc.du-niang.low-affinity',
+    ];
+    const candidates = pools.flatMap((poolId) => listEligibleRandomEvents({ poolId, progress: randomEventProgress }));
+    const dedupedCandidates = [...new Map(candidates.map((event) => [event.eventId, event])).values()];
+    const pickedEvent = drawWeightedRandomEvent(dedupedCandidates, Math.random);
+    if (!pickedEvent) {
+      return;
+    }
+    const session = beginRandomEventSession({
+      eventId: pickedEvent.eventId,
+      variables: {
+        playerName: state.name,
+        playerSurname: state.name.slice(0, 1),
+        playerRank: playerRankLabel,
+        playerResidence: state.residenceName,
+        playerAddress: state.name,
+        targetName: DU_NIANG_NPC_NAME,
+        targetSurname: '杜',
+        targetRank: '宫门商贩',
+        targetResidence: '宫门',
+        targetAddress: DU_NIANG_NPC_NAME,
+        locationName: '宫门',
+        timeLabel: time.slot,
+      },
+    });
+    setActiveTradeMode(null);
+    setActiveRandomSession(session);
+    setActiveRandomLine(getRandomEventCurrentLine(session) ?? null);
+  };
+
+  const handleSelectRandomOption = (optionId: string) => {
+    if (!activeRandomSession) {
+      return;
+    }
+    const optionResult = selectRandomEventOption(activeRandomSession, optionId);
+    applyRandomEventOutcome(optionResult.effect, optionResult.unlockEventIds);
+    if (optionResult.completed) {
+      finishRandomEvent(activeRandomSession.eventId);
+      return;
+    }
+    setActiveRandomSession(optionResult.session);
+    setActiveRandomLine(getRandomEventCurrentLine(optionResult.session) ?? activeRandomLine);
   };
 
   const handleTradeModeChange = (mode: GongmenTradeMode) => {
     setActiveTradeMode(mode);
-    setFeedback(narrativeEntryToDialogueFields(renderNarrativeEntry(mode === 'buy' ? 'gongmen.duniang.buy' : 'gongmen.duniang.sell')).text);
   };
 
   const handleBuy = (entry: DuNiangShopEntry & { remainingStock: number | null }) => {
-    const result = buyInventoryItem(entry);
-    setFeedback(result.message);
+    buyInventoryItem(entry, entry.stock);
   };
 
-  const handleSell = (itemId: string) => {
-    const result = sellInventoryItem(itemId);
-    setFeedback(result.message);
+  const handleSell = (itemId: string, recyclePrice: number) => {
+    sellInventoryItem(itemId, recyclePrice);
+  };
+
+  const handleGift = (itemId: string) => {
+    const item = giftableInventory.find((candidate) => candidate.itemId === itemId);
+    if (!item) {
+      return;
+    }
+    const actionResult = recordPermanentNpcInteractionAction(DU_NIANG_NPC_ID, DU_NIANG_NPC_NAME, 'gift');
+    if (!actionResult.success) {
+      return;
+    }
+    if (!consumeInventoryItem(item.itemId)) {
+      return;
+    }
+    applyPermanentNpcAffinityDelta(DU_NIANG_NPC_ID, DU_NIANG_NPC_NAME, item.favorDelta);
   };
 
   const handleStartConsortAudience = (entryId: string) => {
@@ -194,7 +371,6 @@ export function GongmenView({ concubines }: GongmenViewProps) {
     }
     setActiveNpc(null);
     setActiveTradeMode(null);
-    setFeedback('');
     setDialogueStep(0);
     setActiveConsortAudience({
       entryId,
@@ -241,7 +417,7 @@ export function GongmenView({ concubines }: GongmenViewProps) {
           palaceLabel="宫门"
           hallLabel="偶遇"
           concubines={concubines}
-          backLabel="返回宫门"
+          backLabel="返回"
           initialActionLabel="宫门偶遇"
           encounterPlace="public"
           initialActionResult={`宫门处风声嘈杂，内外消息都在此地转手。${activeConsortAudience.summary}你看见${getConcubineDisplayRankText(
@@ -254,124 +430,176 @@ export function GongmenView({ concubines }: GongmenViewProps) {
   }
 
   if (activeProfile) {
-    return (
-      <>
-        <section className="map-main__gongmen-scene" aria-label={`${activeProfile.name} 宫门场景`}>
-          <div className="map-main__gongmen-portrait-stage" aria-label={`${activeProfile.name}常驻立绘`}>
-            <div className="map-main__gongmen-portrait-frame">
-              {activeProfile.alreadyCutout ? (
-                <img
-                  src={activeProfile.portrait}
-                  alt={activeProfile.name}
-                  className="map-main__gongmen-portrait-media global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--gongmen"
-                />
-              ) : (
-                <AutoCutoutPortrait
-                  src={activeProfile.portrait}
-                  alt={activeProfile.name}
-                  className="map-main__gongmen-portrait-media global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--gongmen"
-                  threshold={activeProfile.portraitThreshold}
-                  sampleInset={activeProfile.portraitSampleInset ?? 10}
-                />
-              )}
-            </div>
-          </div>
-          <GlobalDialogueStage
-            sceneLabel={`${activeProfile.name} 宫门对话场景`}
-            portraitLabel={`${activeProfile.name}常驻立绘`}
-            ariaLabel={`${activeProfile.name} 宫门对话`}
-            className="global-dialogue-stage--gongmen global-dialogue-stage--with-side-panel"
-            dialogueClassName="palace-dialogue-box--gongmen-npc"
-            suppressPortrait
-            characterIdentity={activeProfile.identity}
-            characterName={activeProfile.name}
-            content={dialogueText}
-            onNextAction={handleDialogueNext}
-          />
-        </section>
-
-        {showNpcActions ? (
-          <aside className="map-main__gongmen-actions" aria-label={`${activeProfile.name} 操作栏`}>
-            {activeNpc === 'du-niang' ? (
-              <>
-                <button type="button" onClick={handleSmallTalk}>
-                  闲谈
-                </button>
-                <button type="button" className={activeTradeMode === 'buy' ? 'is-active' : ''} onClick={() => handleTradeModeChange('buy')}>
-                  购买
-                </button>
-                <button type="button" className={activeTradeMode === 'sell' ? 'is-active' : ''} onClick={() => handleTradeModeChange('sell')}>
-                  售卖
-                </button>
-              </>
+    const npcMetaRows: AudienceMetaRow[] =
+      activeNpc === 'du-niang'
+        ? [
+            { label: '当前状态', value: duNiangRelationship.met ? '已见过' : '初见' },
+            { label: '对你态度', value: duNiangRelationship.affinity },
+            { label: '关系', value: buildPermanentNpcRelationLabel(duNiangRelationship.affinity) },
+          ]
+        : [
+            { label: '当前状态', value: '旧识' },
+            { label: '对你态度', value: '平稳' },
+            { label: '关系', value: '可叙旧' },
+          ];
+    const npcPortrait = (
+      <div
+        className="harem-palace-view__audience-portrait-stage"
+        aria-label={isPlayerRandomLine ? `${state.name}立绘` : `${activeProfile.name}常驻立绘`}
+      >
+        <div className="harem-palace-view__audience-portrait-frame">
+          {isPlayerRandomLine ? (
+            playerPortraitSrc ? (
+              <img
+                src={playerPortraitSrc}
+                alt={state.name}
+                className="harem-palace-view__audience-portrait global-dialogue-stage__portrait-media--player"
+              />
             ) : (
-              <button type="button" onClick={() => setFeedback(alingIdleFields.text)}>
-                叙旧
-              </button>
-            )}
-            <button type="button" onClick={handleCloseNpc}>
-              返回宫门
-            </button>
-          </aside>
-        ) : null}
-
-        {activeNpc === 'du-niang' && activeTradeMode ? (
-          <section className="map-main__trade-modal" role="dialog" aria-label={activeTradeMode === 'buy' ? '杜娘购买弹窗' : '杜娘售卖弹窗'}>
-            <header className="map-main__trade-header">
-              <div>
-                <strong>{activeTradeMode === 'buy' ? '杜娘货单' : '背包回收'}</strong>
-                <span>{`当前银两：${state.silver}`}</span>
+              <div className="harem-palace-view__audience-portrait harem-palace-view__audience-portrait--placeholder">
+                {state.name}
               </div>
-              <button type="button" onClick={() => setActiveTradeMode(null)}>
-                收起
-              </button>
-            </header>
-
-            <div className="map-main__trade-list">
-              {activeTradeMode === 'buy' ? (
-                resolvedTradeCatalog.length > 0 ? (
-                  resolvedTradeCatalog.map((entry) => (
-                    <article key={entry.itemId} className="map-main__trade-card">
-                      <div>
-                        <h3>{entry.name}</h3>
-                        <p>{entry.description}</p>
-                        <span>{`售价：${entry.price}两`}</span>
-                        <span>{entry.remainingStock == null ? '常备货' : `本旬余量：${entry.remainingStock}`}</span>
-                      </div>
-                      <button
-                        type="button"
-                        aria-label={`购买 ${entry.name}`}
-                        disabled={state.silver < entry.price || entry.remainingStock === 0}
-                        onClick={() => handleBuy(entry)}
-                      >
-                        购买
-                      </button>
-                    </article>
-                  ))
-                ) : (
-                  <div className="map-main__trade-empty-state">杜娘这一旬没带出新的稀有货色，剩下的常备物件你已经看过了。</div>
-                )
-              ) : sellableInventory.length > 0 ? (
-                sellableInventory.map((item) => (
-                  <article key={item.itemId} className="map-main__trade-card">
-                    <div>
-                      <h3>{item.name}</h3>
-                      <p>{item.description}</p>
-                      <span>{`持有：${item.quantity}`}</span>
-                      <span>{`回收价：${getInventoryRecyclePrice(item)}两 / 份`}</span>
-                    </div>
-                    <button type="button" aria-label={`售卖 ${item.name}`} onClick={() => handleSell(item.itemId)}>
-                      售卖
-                    </button>
-                  </article>
+            )
+          ) : activeProfile.alreadyCutout ? (
+            <img src={activeProfile.portrait} alt={activeProfile.name} className="harem-palace-view__audience-portrait" />
+          ) : (
+            <AutoCutoutPortrait
+              src={activeProfile.portrait}
+              alt={activeProfile.name}
+              className="harem-palace-view__audience-portrait"
+              threshold={activeProfile.portraitThreshold}
+              sampleInset={activeProfile.portraitSampleInset ?? 10}
+            />
+          )}
+        </div>
+      </div>
+    );
+    const npcActions = showNpcActions ? (
+      <aside className="harem-palace-view__audience-actions" aria-label="宫内互动操作">
+        {activeNpc === 'du-niang' ? (
+          <>
+            <span className="harem-palace-view__audience-action-note">
+              {`本旬可互动 ${duNiangRemainingInteractionCount}/${PERMANENT_NPC_INTERACTION_ACTION_LIMIT_PER_XUN}`}
+            </span>
+            <button type="button" onClick={handleSmallTalk}>
+              闲谈（耗次）
+            </button>
+            <button type="button" className={activeTradeMode === 'gift' ? 'is-active' : ''} onClick={() => setActiveTradeMode('gift')}>
+              送礼（耗次）
+            </button>
+            <button type="button" className={activeTradeMode === 'buy' ? 'is-active' : ''} onClick={() => handleTradeModeChange('buy')}>
+              购买
+            </button>
+            <button type="button" className={activeTradeMode === 'sell' ? 'is-active' : ''} onClick={() => handleTradeModeChange('sell')}>
+              售卖
+            </button>
+            <button type="button" onClick={handleCloseNpc}>
+              返回
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" disabled>
+              叙旧
+            </button>
+            <button type="button" onClick={handleCloseNpc}>
+              返回
+            </button>
+          </>
+        )}
+      </aside>
+    ) : null;
+    const npcDialogue = dialogueActive ? (
+      <GlobalDialogueStage
+        sceneLabel={`${activeProfile.name} 宫门对话场景`}
+        portraitLabel={`${activeProfile.name}常驻立绘`}
+        ariaLabel={`${activeProfile.name} 宫门对话`}
+        className="global-dialogue-stage--consort global-dialogue-stage--with-side-panel"
+        dialogueClassName="palace-dialogue-box--consort-audience"
+        suppressPortrait
+        characterIdentity={dialogueIdentity}
+        characterName={dialogueName}
+        content={dialogueText}
+        onNextAction={handleDialogueNext}
+        options={activeRandomOptions.map((option) => ({ id: option.optionId, label: option.optionLabel }))}
+        onSelectOption={handleSelectRandomOption}
+        splitQuotedDialogue={false}
+      />
+    ) : undefined;
+    const tradePicker =
+      activeNpc === 'du-niang' && activeTradeMode ? (
+        <section
+          className="harem-palace-view__audience-picker harem-palace-view__audience-picker--gift"
+          role="dialog"
+          aria-label={activeTradeMode === 'buy' ? '杜娘购买弹窗' : activeTradeMode === 'sell' ? '杜娘售卖弹窗' : '杜娘送礼弹窗'}
+        >
+          <header>
+            <strong>{activeTradeMode === 'buy' ? '杜娘货单' : activeTradeMode === 'sell' ? '背包回收' : '赠予杜娘'}</strong>
+            <span>{`当前银两：${state.silver}`}</span>
+            <button type="button" onClick={() => setActiveTradeMode(null)}>
+              收起
+            </button>
+          </header>
+          <div className="harem-palace-view__audience-picker-list">
+            {activeTradeMode === 'buy' ? (
+              resolvedTradeCatalog.length > 0 ? (
+                resolvedTradeCatalog.map((entry) => (
+                  <button
+                    key={entry.itemId}
+                    type="button"
+                    aria-label={`购买 ${entry.name}`}
+                    disabled={state.silver < entry.price || entry.remainingStock === 0}
+                    onClick={() => handleBuy(entry)}
+                  >
+                    <strong>{`${entry.name} · ${entry.price}两`}</strong>
+                    <span>{entry.remainingStock == null ? '常备货' : `本旬余量：${entry.remainingStock}`}</span>
+                    <span>{entry.description}</span>
+                  </button>
                 ))
               ) : (
-                <div className="map-main__trade-empty-state">背包里暂时没有可回收的物件。</div>
-              )}
-            </div>
-          </section>
-        ) : null}
-      </>
+                <p>杜娘这一旬货箱里暂时没有可挑的物件。</p>
+              )
+            ) : activeTradeMode === 'sell' ? (
+              sellableInventory.length > 0 ? (
+                sellableInventory.map((item) => (
+                  <button
+                    key={item.itemId}
+                    type="button"
+                    aria-label={`售卖 ${item.name}`}
+                    onClick={() => handleSell(item.itemId, resolveDuNiangSellPrice(getInventoryRecyclePrice(item), duNiangRelationship))}
+                  >
+                    <strong>{`${item.name} ×${item.quantity}`}</strong>
+                    <span>{`回收价：${resolveDuNiangSellPrice(getInventoryRecyclePrice(item), duNiangRelationship)}两 / 份`}</span>
+                    <span>{item.description}</span>
+                  </button>
+                ))
+              ) : (
+                <p>背包里暂时没有可回收的物件。</p>
+              )
+            ) : giftableInventory.length > 0 ? (
+              giftableInventory.map((item) => (
+                <button key={item.itemId} type="button" aria-label={`赠予杜娘 ${item.name}`} onClick={() => handleGift(item.itemId)}>
+                  <strong>{`${item.name} ×${item.quantity}`}</strong>
+                  <span>{item.description}</span>
+                </button>
+              ))
+            ) : (
+              <p>背包里暂时没有合适的礼物。</p>
+            )}
+          </div>
+        </section>
+      ) : undefined;
+
+    return (
+      <AudienceInteractionShell
+        ariaLabel={`${activeProfile.identity} ${activeProfile.name} 日常对话`}
+        heading={`宫门 · ${activeProfile.name}`}
+        metaRows={npcMetaRows}
+        portrait={npcPortrait}
+        actions={npcActions}
+        picker={tradePicker}
+        dialogue={npcDialogue}
+      />
     );
   }
 

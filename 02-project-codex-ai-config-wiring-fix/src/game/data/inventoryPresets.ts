@@ -13,45 +13,23 @@ export interface DuNiangShopEntry extends InventoryItem {
 const KITCHEN_FOOD_ITEMS: readonly InventoryItem[] = getInventoryItemsByPool('kitchen');
 const DU_NIANG_ALWAYS_AVAILABLE_ITEMS: readonly InventoryItem[] = getInventoryItemsByPool('duniang-always');
 const YETING_POISON_ITEMS: readonly InventoryItem[] = getInventoryItemsByPool('yeting-poison');
-const DU_NIANG_RARE_POOL: readonly InventoryItem[] = getInventoryItemsByPool('duniang-rare');
 const MUSIC_SCORE_LIBRARY: readonly InventoryItem[] = getInventoryItemsByPool('music-score');
 
 const hashSeed = (seed: string): number =>
   seed.split('').reduce((accumulator, char, index) => accumulator + char.charCodeAt(0) * (index + 17), 0);
 
-const DU_NIANG_RARE_SHELF_LIMIT = 2;
 const YETING_POISON_ITEM_IDS = YETING_POISON_ITEMS.map((item) => item.itemId);
 const YETING_POISON_ITEM_ID_BY_NAME: Record<string, string> = Object.fromEntries(
   YETING_POISON_ITEMS.map((item) => [item.name, item.itemId]),
 );
 
-const resolveRareOfferStock = (seed: string, itemId: string): number => {
-  const hash = hashSeed(`${seed}:${itemId}`);
-  if (hash % 100 >= 40) {
-    return 0;
-  }
-  return hash % 2 === 0 ? 1 : 2;
-};
-
-export const buildDuNiangShopCatalog = (seed: string): DuNiangShopEntry[] => {
+export const buildDuNiangShopCatalog = (_seed: string): DuNiangShopEntry[] => {
   const alwaysAvailableEntries = DU_NIANG_ALWAYS_AVAILABLE_ITEMS.map((item) => ({
     ...item,
     stock: null,
   }));
-  const rareTargetCount = hashSeed(`${seed}:rare-target`) % (DU_NIANG_RARE_SHELF_LIMIT + 1);
-  const rareEntries = DU_NIANG_RARE_POOL.map((item) => ({
-    ...item,
-    stock: resolveRareOfferStock(seed, item.itemId),
-    isRareOffer: true,
-  }))
-    .filter((item) => item.stock > 0)
-    .sort(
-      (left, right) =>
-        hashSeed(`${seed}:${left.itemId}:slot`) - hashSeed(`${seed}:${right.itemId}:slot`),
-    )
-    .slice(0, rareTargetCount);
 
-  return [...alwaysAvailableEntries, ...rareEntries];
+  return alwaysAvailableEntries;
 };
 
 export const getInventoryRecyclePrice = (item: InventoryItem): number => {

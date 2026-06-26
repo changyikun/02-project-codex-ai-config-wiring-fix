@@ -15,7 +15,6 @@ export type ActivityId =
 
 export type MapAreaId =
   | '后宫'
-  | '御书房'
   | '御膳房'
   | '建章宫'
   | '御花园'
@@ -306,6 +305,20 @@ export interface NpcPairRelationState {
 
 export type NpcRelationMatrix = Record<string, NpcPairRelationState>;
 
+export type PermanentNpcInteractionActionId = 'talk' | 'gift';
+
+export interface PermanentNpcRelationshipState {
+  npcId: string;
+  npcName: string;
+  met: boolean;
+  affinity: number;
+  xunKey: string;
+  actionCountThisXun: number;
+  lastActionId?: PermanentNpcInteractionActionId;
+}
+
+export type PermanentNpcRelationshipMap = Record<string, PermanentNpcRelationshipState>;
+
 export type SettlementReportKind = 'xun' | 'month' | 'event' | 'promotion';
 
 export interface SettlementReport {
@@ -545,6 +558,7 @@ export interface InventoryItem {
   description: string;
   canSell?: boolean;
   canRecycle?: boolean;
+  isQuestItem?: boolean;
   recyclePriceOverride?: number;
 }
 

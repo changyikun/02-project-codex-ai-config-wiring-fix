@@ -10,7 +10,9 @@ import {
   sortConcubinesByStatus,
 } from '../../game/data/concubineRoster';
 import { getRarityColor } from '../../game/lib/bedchamberRuntime';
+import { getConsortAttributeFieldConfig } from '../../game/numerics/numericCatalog';
 import type { ConcubineProfile, ConcubineStatus } from '../../game/types';
+import { AttributeHelpButton } from '../status/AttributeHelpButton';
 
 const statusTabs: Array<{ id: ConcubineStatus; label: string }> = [
   { id: 'live', label: '后宫' },
@@ -39,6 +41,7 @@ interface MetricDescriptor {
   numericValue?: number;
   range?: readonly [number, number];
   accentColor?: string;
+  note?: string;
 }
 
 const STRESS_SAFE_COLOR = '#5B9158';
@@ -90,109 +93,114 @@ const getMetricAccentColor = (metricKey: string, numericValue?: number, range?: 
   return getRarityColor(numericValue - range[0], range[1] - range[0]);
 };
 
+const buildMetric = (metric: Omit<MetricDescriptor, 'note'>): MetricDescriptor => ({
+  ...metric,
+  note: getConsortAttributeFieldConfig(metric.key)?.note,
+});
+
 const buildMetricRows = (consort: ConcubineProfile): MetricDescriptor[][] => [
   [
-    {
+    buildMetric({
       key: 'prestige',
       label: '声望',
       display: formatMetricValue(consort.stats.prestige),
       numericValue: consort.stats.prestige,
       range: [-2000, 5000],
-    },
+    }),
   ],
   [
-    {
+    buildMetric({
       key: 'favor',
       label: '宠爱',
       display: formatMetricValue(consort.stats.favor),
       numericValue: consort.stats.favor,
       range: [-100, 100],
-    },
-    {
+    }),
+    buildMetric({
       key: 'fortune',
       label: '福德',
       display: formatMetricValue(consort.stats.fortune),
       numericValue: consort.stats.fortune,
       range: [-100, 100],
-    },
-    {
+    }),
+    buildMetric({
       key: 'ambition',
       label: '野心',
       display: formatMetricValue(consort.stats.ambition),
       numericValue: consort.stats.ambition,
       range: [-100, 100],
-    },
+    }),
   ],
   [
-    {
+    buildMetric({
       key: 'stress',
       label: '压力',
       display: formatMetricValue(consort.stats.stress),
       numericValue: consort.stats.stress,
       range: [-100, 100],
-    },
+    }),
   ],
   [
-    {
+    buildMetric({
       key: 'familyBackground',
       label: '家世',
       display: consort.familyBackground,
-    },
+    }),
   ],
   [
-    {
+    buildMetric({
       key: 'health',
       label: '健康',
       display: formatMetricValue(consort.stats.health),
       numericValue: consort.stats.health,
       range: [0, 1000],
-    },
-    {
+    }),
+    buildMetric({
       key: 'intrigue',
       label: '心计',
       display: formatMetricValue(consort.stats.intrigue),
       numericValue: consort.stats.intrigue,
       range: [0, 1000],
-    },
+    }),
   ],
   [
-    {
+    buildMetric({
       key: 'appearance',
       label: '容貌',
       display: formatMetricValue(consort.stats.appearance),
       numericValue: consort.stats.appearance,
       range: [0, 1000],
-    },
-    {
+    }),
+    buildMetric({
       key: 'temperament',
       label: '气质',
       display: formatMetricValue(consort.stats.temperament),
       numericValue: consort.stats.temperament,
       range: [0, 1000],
-    },
+    }),
   ],
   [
-    {
+    buildMetric({
       key: 'relationToPlayer',
       label: '好感',
       display: formatSignedValue(consort.stats.relationToPlayer),
       numericValue: consort.stats.relationToPlayer,
       range: [-100, 100],
-    },
-    {
+    }),
+    buildMetric({
       key: 'affection',
       label: '倾情',
       display: formatMetricValue(consort.stats.affection),
       numericValue: consort.stats.affection,
       range: [0, 100],
-    },
+    }),
   ],
   [
-    {
+    buildMetric({
       key: 'childrenCount',
       label: '子嗣',
       display: String(consort.stats.childrenCount),
-    },
+    }),
   ],
 ];
 
@@ -206,6 +214,7 @@ export function ConcubineListView({ concubines, onClose }: ConcubineListViewProp
   const [selectedId, setSelectedId] = useState<string>('');
   const [actionNote, setActionNote] = useState('');
   const [isSocialPanelOpen, setIsSocialPanelOpen] = useState(false);
+  const [activeMetricHelpKey, setActiveMetricHelpKey] = useState<string | null>(null);
 
   const visibleConsorts = useMemo(() => sortConcubinesByStatus(concubines, activeStatus), [activeStatus, concubines]);
 
@@ -217,6 +226,7 @@ export function ConcubineListView({ concubines, onClose }: ConcubineListViewProp
 
   useEffect(() => {
     setActionNote('');
+    setActiveMetricHelpKey(null);
   }, [activeStatus, selectedId]);
 
   useEffect(() => {
@@ -334,7 +344,21 @@ export function ConcubineListView({ concubines, onClose }: ConcubineListViewProp
                   style={meterStyle}
                 >
                   <div className="concubine-list-view__metric-copy">
-                    <span>{metric.label}</span>
+                    <span className="concubine-list-view__metric-label-wrap">
+                      <span>{metric.label}</span>
+                      {metric.note ? (
+                        <>
+                          <AttributeHelpButton
+                            id={`concubine-metric-help-${metric.key}`}
+                            label={metric.label}
+                            note={metric.note}
+                            open={activeMetricHelpKey === metric.key}
+                            onToggle={() => setActiveMetricHelpKey((current) => (current === metric.key ? null : metric.key))}
+                            buttonClassName="concubine-list-view__metric-help"
+                          />
+                        </>
+                      ) : null}
+                    </span>
                     <strong>{metric.display}</strong>
                   </div>
                   {metric.range ? (

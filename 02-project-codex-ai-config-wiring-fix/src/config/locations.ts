@@ -39,7 +39,6 @@ export const LOCATION_NAME_LIST = [
   '重华宫',
   '冷宫',
   '养心殿',
-  '御书房',
   '御膳房',
   '建章宫',
   '太医院',
@@ -76,8 +75,6 @@ export const LOCATION_OPEN_TIME: Record<LocationName, LocationOpenTimeConfig> = 
   重华宫: { mode: LocationOpenMode.Slots, openSlots: LOCATION_CHONGHUAGONG_OPEN },
   冷宫: { mode: LocationOpenMode.AllDay, openSlots: PALACE_COLD_PALACE_FULL_DAY },
   养心殿: { mode: LocationOpenMode.Slots, openSlots: LOCATION_YANGXINDIAN_OPEN },
-
-  御书房: { mode: LocationOpenMode.AllDay, openSlots: LOCATION_FULL_DAY_OPEN_SLOTS },
   御膳房: { mode: LocationOpenMode.AllDay, openSlots: LOCATION_FULL_DAY_OPEN_SLOTS },
   建章宫: { mode: LocationOpenMode.AllDay, openSlots: LOCATION_FULL_DAY_OPEN_SLOTS },
   太医院: { mode: LocationOpenMode.AllDay, openSlots: LOCATION_FULL_DAY_OPEN_SLOTS },
