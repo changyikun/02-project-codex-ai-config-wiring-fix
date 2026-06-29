@@ -9491,11 +9491,11 @@ button {
 }
 
 [data-dialogue-root='locked'] .chamber-main__skills-strip {
-  left: 35.8%;
-  right: 4.2%;
+  left: 34.4%;
+  right: 3.4%;
   min-height: 0;
-  height: clamp(54px, 6.6vh, 66px);
-  padding: 4px clamp(72px, 6.2vw, 118px) 0 clamp(46px, 4.2vw, 82px);
+  height: clamp(72px, 8.2vh, 84px);
+  padding: 6px clamp(82px, 7vw, 132px) 2px clamp(54px, 4.8vw, 92px);
   border-radius: 0;
   background: url('/assets/routes/buttons/menu/changhengkuang.png') center / auto 100% no-repeat;
   box-shadow: none;
@@ -9505,13 +9505,15 @@ button {
 [data-dialogue-root='locked'] .chamber-main__skills-strip .chamber-main__skill-item {
   align-items: baseline;
   color: #604f43;
-  font-size: clamp(19px, 1.48vw, 24px);
+  font-size: clamp(18px, 1.38vw, 22px);
+  line-height: 1;
   text-shadow: 0 1px 0 rgba(255, 246, 228, 0.72);
 }
 
 [data-dialogue-root='locked'] .chamber-main__skills-strip .chamber-main__skill-item strong {
-  font-size: clamp(23px, 1.78vw, 29px);
+  font-size: clamp(22px, 1.62vw, 26px);
   font-weight: 900;
+  line-height: 1;
   text-shadow: 0 1px 0 rgba(255, 247, 229, 0.82);
 }
 
