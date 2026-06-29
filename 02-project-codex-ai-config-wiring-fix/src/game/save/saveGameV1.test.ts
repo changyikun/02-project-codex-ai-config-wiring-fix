@@ -13,6 +13,7 @@ import {
 import { buildInitialBondProfile } from '../data/bondPresets';
 import { buildInitialConcubineRoster } from '../data/concubineRoster';
 import { cloneInitialInventory } from '../data/inventoryPresets';
+import { createEmperorInteractionProgress } from '../lib/emperorActivityRuntime';
 
 const source: SaveGameV1Source = {
   routeId: 'lanyinxuguo',
@@ -106,8 +107,18 @@ const source: SaveGameV1Source = {
     dangYiAffinity: 0,
   },
   emperorInteraction: {
-    xunKey: '1-2-1',
-    triggeredEncounterIds: [],
+    ...createEmperorInteractionProgress(
+      'lanyinxuguo',
+      {
+        year: 1,
+        month: 2,
+        xun: 1,
+        slotIndex: 0,
+        slot: '清晨',
+        slotProgress: 0,
+      },
+      40,
+    ),
   },
   nightlyService: {
     playerNightFavorGauge: 6,
@@ -260,6 +271,21 @@ describe('SaveGameV1', () => {
     incompatibleSaveGame.relations.consortInteractionMap = {
       'consort-yao': {},
     };
+    localStorage.setItem(SAVE_GAME_STORAGE_KEY, JSON.stringify({ state: { saveGame: incompatibleSaveGame }, version: 0 }));
+
+    expect(readSaveGameV1FromStorage()).toBeUndefined();
+    expect(localStorage.getItem(SAVE_GAME_STORAGE_KEY)).toBeNull();
+  });
+
+  it('clears emperor interaction progress without stored schedule instead of regenerating it', () => {
+    const incompatibleSaveGame = buildSaveGameV1(source, '2026-05-22T05:00:00.000Z') as unknown as {
+      progress: {
+        emperorInteraction: {
+          schedule?: unknown;
+        };
+      };
+    };
+    delete incompatibleSaveGame.progress.emperorInteraction.schedule;
     localStorage.setItem(SAVE_GAME_STORAGE_KEY, JSON.stringify({ state: { saveGame: incompatibleSaveGame }, version: 0 }));
 
     expect(readSaveGameV1FromStorage()).toBeUndefined();

@@ -305,7 +305,14 @@ export interface NpcPairRelationState {
 
 export type NpcRelationMatrix = Record<string, NpcPairRelationState>;
 
-export type PermanentNpcInteractionActionId = 'talk' | 'gift';
+export type PermanentNpcInteractionActionId =
+  | 'talk'
+  | 'gift'
+  | 'dowager-greeting'
+  | 'dowager-gift'
+  | 'dowager-advice'
+  | 'yangxin-request'
+  | 'bribe';
 
 export interface PermanentNpcRelationshipState {
   npcId: string;
@@ -315,6 +322,8 @@ export interface PermanentNpcRelationshipState {
   xunKey: string;
   actionCountThisXun: number;
   lastActionId?: PermanentNpcInteractionActionId;
+  lastDowagerGreetingMonthKey?: string;
+  lastDowagerGreetingXunKey?: string;
 }
 
 export type PermanentNpcRelationshipMap = Record<string, PermanentNpcRelationshipState>;
@@ -347,19 +356,30 @@ export type NightlyServiceGentleBranchId = 'comfort' | 'praise' | 'smear';
 export type EmperorInteractionSource = 'yangxin-request' | 'public-encounter';
 export type EmperorMainInteractionActionId =
   | 'ink'
-  | 'massage'
-  | 'concern'
-  | 'music'
+  | 'tea'
+  | 'greeting'
   | 'chat'
-  | 'coquetry'
-  | 'embrace'
-  | 'chess';
+  | 'chess'
+  | 'advise';
 export type EmperorOptionalInteractionKind = 'gift' | 'praise' | 'complain';
 export type EmperorInteractionOutcomeTier = 'flat' | 'small' | 'big';
 
+export interface EmperorScheduleSlotState {
+  slot: TimeSlot;
+  slotIndex: number;
+  location: MapAreaId;
+}
+
+export interface EmperorScheduleState {
+  xunKey: string;
+  slots: Record<TimeSlot, EmperorScheduleSlotState>;
+}
+
 export interface EmperorInteractionProgressState {
-  xunKey?: string;
+  xunKey: string;
   triggeredEncounterIds: string[];
+  schedule: EmperorScheduleState;
+  mood: number;
 }
 
 export interface NightlyServiceInteractionChoice {
@@ -541,6 +561,7 @@ export type InventoryItemCategory = 'gift' | 'food' | 'medicine' | 'rare' | 'mus
 export type InventoryItemRarity = 'green' | 'blue' | 'purple' | 'red';
 export type CraftWorkType = 'embroidery' | 'painting' | 'incense';
 export type CraftWorkQuality = 'rough' | 'steady' | 'fine';
+export type InventoryItemMetadata = Record<string, string | number | boolean | null>;
 
 export interface InventoryItem {
   id?: string;
@@ -560,9 +581,19 @@ export interface InventoryItem {
   canRecycle?: boolean;
   isQuestItem?: boolean;
   recyclePriceOverride?: number;
+  metadata?: InventoryItemMetadata;
 }
 
-export type ConsortPalaceActionId = 'visit' | 'gift' | 'greet' | 'quarrel' | 'punish' | 'win-over' | 'smear' | 'farewell';
+export type ConsortPalaceActionId =
+  | 'visit'
+  | 'gift'
+  | 'return-earring'
+  | 'greet'
+  | 'quarrel'
+  | 'punish'
+  | 'win-over'
+  | 'smear'
+  | 'farewell';
 
 export interface ConsortDialogueOption {
   id: string;

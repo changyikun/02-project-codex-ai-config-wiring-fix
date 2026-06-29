@@ -6,7 +6,7 @@
 
 - `id` / `key` / `routeId` / `itemId` 是代码引用的稳定标识，不要随意改名。
 - 数值范围用 `min` / `max` 两列，不写 `[1,2]` 这样的字符串。
-- 多值列表用 `|` 分隔，例如 `familyOptions`、`pools`。
+- 多值列表用 `|` 分隔，例如 `familyOptions`、`pools`、`tags`。
 - `statDeltas` 使用 `属性key:数值|属性key:数值`，例如 `talent:2|temperament:3`。
 - 文案策划最常改的是 `label`、`description`、`summary`、`notes`，数值策划最常改的是 `min`、`max`、`defaultValue`、`runtimeMultiplier`、`price`、`quantity`、`Delta` 系列字段。
 
@@ -53,12 +53,27 @@
   - `statDeltas`：属性变化。
   - `stressDelta` / `favorDelta`：压力或宠爱的直接变化。
 
+- `global_numeric_rules.csv`
+  - `dowager_interaction_limit_per_xun`：太后每旬有效互动次数上限。
+  - `dowager_greeting_affinity_delta`：建章宫 `请安` 增加的太后好感。
+  - `dowager_minor_affinity_delta`：`请教规矩` / `闲谈` 等普通太后互动增加的好感。
+  - `dowager_missing_monthly_greeting_prestige_delta`：上月未向太后问安时，次月月初扣除的玩家声望真值。
+
 - `inventory_items.csv`
   - `pools`：物品出现池。常用值：`initial`、`kitchen`、`duniang-always`、`yeting-poison`、`music-score`。当前 `initial` 池应保持为空，玩家开局不带初始背包物品。
+  - `tags`：通用物品标签，用于剧情或随机事件按类别抽取具体物品，例如 `low-quality-food`、`tree-fruit`。它不是某个场景的私有字段，也不等同于商店出现池；同一个 tag 可以被御膳房、杜娘、后续地点事件等不同入口复用。
   - `category`：背包分类，当前可用 `gift`、`food`、`medicine`、`rare`、`music-score`。
   - `rarity` / `color`：品质颜色，当前可用 `green`、`blue`、`purple`、`red`。
   - `isQuestItem`：任务 / 剧情关键物品标记。杜娘和通用回收逻辑不得收购该类物品；毒药、曲谱和主线证物等非普通交易物应显式标记。
   - `favorDelta` / `healthDelta` / `appearanceDelta` / `temperamentDelta`：道具效果数值。
+
+- `kitchen_shop_offers.csv`
+  - `offerId`：御膳房供货行稳定 ID。
+  - `itemId`：对应 `inventory_items.csv` 的物品 ID。
+  - `seasons`：出现季节，用 `|` 分隔；可写 `all`、`spring`、`summer`、`autumn`、`winter`。
+  - `stockPerXun`：每旬限购数量。购买记录写入交易账本，同一旬买满后按钮禁用。
+  - `weight`：非保底商品的随机刷新权重。
+  - `guaranteed`：是否每次刷新都固定出现。常备食物应设为 `true`，季节食物和偶发食材通常设为 `false`。
 
 - `craft_works.csv`
   - `workId`：作品内部 ID，完成品背包 ID 会以 `crafted:{type}:{workId}:{quality}` 生成。
@@ -97,6 +112,10 @@
 
 宫门杜娘货单只读取 `duniang-always` 池，设计口径是中低品质宫外物件，不放毒药、曲谱、红 / 紫高稀有物品或剧情物品。杜娘回收读取背包中所有 `canRecycle !== false` 且 `isQuestItem !== true` 的物品；好感达到友情价阈值后，买入价和回收价由 runtime 按常驻 NPC 关系统一修正。
 
+物品 tag 是全局索引能力，运行时通过 `src/game/lib/inventoryTagRuntime.ts` 查询和稳定抽取。剧情表中出现类似 `【低品质食物】`、`【树上果实】` 的可变占位时，应由入口先根据 tag 抽中具体物品，再把物品名和 `itemId` 作为变量传给随机事件；不要在某个地点组件里临时写一套私有随机列表。
+
+御膳房货单不直接读取整个 `kitchen` 池，而是由 `kitchen_shop_offers.csv` 控制当旬可买项、季节、权重和限购；`inventory_items.csv` 只维护物品本体的价格、效果、分类、说明和通用标签。新增食物时应先补物品表，再按需要把它加入御膳房供货表或打上可供剧情抽取的 tag。
+
 ## 文件职责
 
 - `global_numeric_rules.csv`：全局范围、倍率、体力、熬夜惩罚、家族接济和新局基础参数；`initial_attribute_base_points` 是初始属性可分配点基础值。
@@ -107,6 +126,7 @@
 - `monthly_expense_strategies.csv`：月用度策略。
 - `favor_tiers.csv`：宠爱分层。
 - `rank_prestige_table.csv`：位分声望门槛与颜色标识。
+- `kitchen_shop_offers.csv`：御膳房每旬食物 / 食材供货，包含季节、限购、权重和是否常备。
 - `fixed_consort_roster.csv`：固定妃嫔种子数据中的数值字段。
 - `craft_works.csv`：绣花、字画、调香可制作作品的题材、主 / 辅能力、灵感抽取门槛、难度、基础售价和基础送礼好感；完整进度 / 成色 / 售价 / 送礼公式在 `src/game/numerics/formula-pages/craftWorkFormulaPage.ts`。
 - `palace_strife_*` / `yangxin_verdict_choice_rules.csv`：宫斗严重度、流言严重度、裁断选项倍率和处罚参数；完整公式在 `src/game/numerics/formula-pages/palaceStrifeFormulaPage.ts`。

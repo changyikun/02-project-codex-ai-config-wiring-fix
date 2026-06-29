@@ -10,6 +10,7 @@ import monthlyExpenseStrategiesCsv from './csv/monthly_expense_strategies.csv?ra
 import rankPrestigeTableCsv from './csv/rank_prestige_table.csv?raw';
 import favorTiersCsv from './csv/favor_tiers.csv?raw';
 import inventoryItemsCsv from './csv/inventory_items.csv?raw';
+import kitchenShopOffersCsv from './csv/kitchen_shop_offers.csv?raw';
 import craftWorksCsv from './csv/craft_works.csv?raw';
 import fixedConsortRosterCsv from './csv/fixed_consort_roster.csv?raw';
 import palaceStrifeSeverityRulesCsv from './csv/palace_strife_severity_rules.csv?raw';
@@ -134,6 +135,19 @@ export interface NumericFavorTierConfig {
 
 export interface NumericInventoryItem extends InventoryItem {
   pools: string[];
+  tags: string[];
+}
+
+export type NumericKitchenShopSeason = 'all' | 'spring' | 'summer' | 'autumn' | 'winter';
+
+export interface NumericKitchenShopOfferConfig {
+  offerId: string;
+  itemId: string;
+  seasons: NumericKitchenShopSeason[];
+  stockPerXun: number;
+  weight: number;
+  guaranteed: boolean;
+  notes: string;
 }
 
 export interface NumericCraftWorkConfig {
@@ -222,6 +236,7 @@ const routeIds = new Set<RouteId>(['lanyinxuguo', 'fushengrumeng', 'yingluoyetin
 const colorIds = new Set<string>(Object.values(RarityColorId));
 const inventoryCategories = new Set<InventoryItem['category']>(['gift', 'food', 'medicine', 'rare', 'music-score']);
 const inventoryRarities = new Set<InventoryItem['rarity']>(['green', 'blue', 'purple', 'red']);
+const kitchenShopSeasons = new Set<NumericKitchenShopSeason>(['all', 'spring', 'summer', 'autumn', 'winter']);
 const craftWorkTypes = new Set<CraftWorkType>(['embroidery', 'painting', 'incense']);
 const consortStatuses = new Set<ConcubineStatus>(['live', 'limbo', 'deceased']);
 const playerStatusFieldKeys = new Set<string>(['prestige', 'favor', 'ambition', 'family', 'stress', 'children']);
@@ -637,13 +652,61 @@ export const numericInventoryItems: readonly NumericInventoryItem[] = parseNumer
     isQuestItem: parseOptionalBoolean(row.isQuestItem, `${row.itemId}.isQuestItem`) ?? false,
     recyclePriceOverride: parseOptionalNumber(row.recyclePriceOverride, `${row.itemId}.recyclePriceOverride`),
     pools: splitPipeList(row.pools),
+    tags: splitPipeList(row.tags ?? ''),
   };
 });
 
 export const getInventoryItemsByPool = (pool: string): InventoryItem[] =>
   numericInventoryItems
     .filter((item) => item.pools.includes(pool))
-    .map(({ pools: _pools, ...item }) => ({ ...item }));
+    .map(({ pools: _pools, tags: _tags, ...item }) => ({ ...item }));
+
+export const getInventoryItemsByTag = (tag: string): InventoryItem[] =>
+  numericInventoryItems
+    .filter((item) => item.tags.includes(tag))
+    .map(({ pools: _pools, tags: _tags, ...item }) => ({ ...item }));
+
+const numericInventoryItemIds = new Set(numericInventoryItems.map((item) => item.itemId));
+
+export const numericKitchenShopOffers: readonly NumericKitchenShopOfferConfig[] = parseNumericCsv(
+  kitchenShopOffersCsv,
+  'kitchen_shop_offers.csv',
+  ['offerId', 'itemId', 'seasons', 'stockPerXun', 'weight', 'guaranteed'],
+).map((row) => {
+  if (!numericInventoryItemIds.has(row.itemId)) {
+    throw new Error(`kitchen_shop_offers.csv references unknown itemId "${row.itemId}".`);
+  }
+  const seasons = splitPipeList(row.seasons) as NumericKitchenShopSeason[];
+  if (seasons.length === 0) {
+    throw new Error(`kitchen_shop_offers.csv offer "${row.offerId}" must include at least one season.`);
+  }
+  seasons.forEach((season) => {
+    if (!kitchenShopSeasons.has(season)) {
+      throw new Error(`kitchen_shop_offers.csv offer "${row.offerId}" has invalid season "${season}".`);
+    }
+  });
+
+  const stockPerXun = parseRequiredNumber(row.stockPerXun, `${row.offerId}.stockPerXun`);
+  const weight = parseRequiredNumber(row.weight, `${row.offerId}.weight`);
+  if (!Number.isInteger(stockPerXun) || stockPerXun <= 0) {
+    throw new Error(`kitchen_shop_offers.csv offer "${row.offerId}" stockPerXun must be a positive integer.`);
+  }
+  if (weight <= 0) {
+    throw new Error(`kitchen_shop_offers.csv offer "${row.offerId}" weight must be greater than 0.`);
+  }
+
+  return {
+    offerId: row.offerId,
+    itemId: row.itemId,
+    seasons,
+    stockPerXun,
+    weight,
+    guaranteed: parseBoolean(row.guaranteed, `${row.offerId}.guaranteed`),
+    notes: row.notes,
+  };
+});
+
+assertUniqueIds(numericKitchenShopOffers, (offer) => offer.offerId, 'kitchen shop offer');
 
 export const numericCraftWorks: readonly NumericCraftWorkConfig[] = parseNumericCsv(
   craftWorksCsv,

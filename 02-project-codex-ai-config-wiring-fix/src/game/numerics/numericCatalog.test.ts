@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_MONTHLY_EXPENSE_STRATEGY_ID,
   getInventoryItemsByPool,
+  getInventoryItemsByTag,
   getGeneratedConsortRuleValue,
   getNightlyRuleValue,
   getNumericRuleRange,
@@ -84,6 +85,8 @@ describe('numericCatalog', () => {
     expect(getInventoryItemsByPool('duniang-always').every((item) => item.rarity === 'green' || item.rarity === 'blue')).toBe(true);
     expect(getInventoryItemsByPool('duniang-always').every((item) => !item.isQuestItem)).toBe(true);
     expect(getInventoryItemsByPool('yeting-poison').every((item) => item.isQuestItem)).toBe(true);
+    expect(getInventoryItemsByTag('low-quality-food').map((item) => item.itemId)).toContain('sesame-flatbread');
+    expect(getInventoryItemsByTag('tree-fruit').map((item) => item.itemId)).toContain('fresh-jubube');
     expect(numericCraftWorks.find((work) => work.workId === 'chanmeng-incense')?.type).toBe('incense');
     expect(numericFixedConsortSeeds.find((seed) => seed.name === '姚铃儿')?.stats.prestige).toBe(2180);
   });

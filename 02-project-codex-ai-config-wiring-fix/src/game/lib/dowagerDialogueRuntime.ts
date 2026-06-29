@@ -7,16 +7,21 @@ const selectByXun = <T,>(payload: ConsortDialogueRequestPayload, variants: T[]):
   variants[(payload.timeContext.month + payload.timeContext.xun + payload.history.length) % variants.length];
 
 const buildLocalOptionsByPayload = (payload: ConsortDialogueRequestPayload): ConsortDialogueOption[] => {
-  if (payload.actionId === 'farewell') {
+  if (payload.actionId === 'farewell' || payload.actionId === 'limit') {
     return [];
   }
 
-  if (payload.actionId === 'gift-greet') {
+  if (
+    payload.actionId === 'gift-greet' ||
+    payload.actionId === 'dowager-greeting' ||
+    payload.actionId === 'dowager-advice' ||
+    payload.actionId === 'talk'
+  ) {
     return selectByXun(payload, [
       [
-        { id: 'tribute', label: '依礼进上薄礼', effectHint: '先把礼数与敬意做足。', localToneTag: 'friendly' as const },
-        { id: 'humble', label: '谦声问安自省', effectHint: '以低姿态听她敲打。', localToneTag: 'neutral' as const },
-        { id: 'seek-advice', label: '顺势请教宫规', effectHint: '借她的话摸清这一旬风向。', localToneTag: 'friendly' as const },
+        { id: 'tribute', label: '依礼应下', effectHint: '先把礼数与敬意做足。', localToneTag: 'friendly' as const },
+        { id: 'humble', label: '低声自省', effectHint: '以低姿态听她敲打。', localToneTag: 'neutral' as const },
+        { id: 'seek-advice', label: '顺势请教', effectHint: '借她的话摸清这一旬风向。', localToneTag: 'friendly' as const },
       ],
       [
         { id: 'tribute', label: '先谢太后抬举', effectHint: '把自己放在受教的位置。', localToneTag: 'friendly' as const },
@@ -24,7 +29,7 @@ const buildLocalOptionsByPayload = (payload: ConsortDialogueRequestPayload): Con
         { id: 'seek-advice', label: '请太后示下规矩', effectHint: '让她来定谈话轻重。', localToneTag: 'friendly' as const },
       ],
       [
-        { id: 'tribute', label: '奉礼后静候发落', effectHint: '把主动权先交到她手里。', localToneTag: 'neutral' as const },
+        { id: 'tribute', label: '静候发落', effectHint: '把主动权先交到她手里。', localToneTag: 'neutral' as const },
         { id: 'humble', label: '低声认自己见识浅', effectHint: '先让她看见你的分寸。', localToneTag: 'friendly' as const },
         { id: 'seek-advice', label: '借请安探她心意', effectHint: '顺势摸清她今日真正想说什么。', localToneTag: 'cold' as const },
       ],
@@ -69,6 +74,15 @@ const buildCsvDialogueFields = (
     };
   }
 
+  if (payload.actionId === 'limit') {
+    const entry = renderNarrativeEntry('dowager.audience.limit');
+    return {
+      mode: 'line',
+      phase: 'finish',
+      ...narrativeEntryToDialogueFields(entry),
+    };
+  }
+
   if (payload.topic === 'follow-up') {
     const optionLabel = payload.selectedOptionLabel ?? '回话';
     const entry = renderNarrativeEntry('dowager.audience.follow-up', { openingTag, optionLabel });
@@ -80,7 +94,37 @@ const buildCsvDialogueFields = (
   }
 
   if (payload.actionId === 'gift-greet') {
-    const entry = renderNarrativeEntry('dowager.audience.gift-greet', { openingTag });
+    const entry = renderNarrativeEntry('dowager.audience.gift-greet', {
+      openingTag,
+      itemName: payload.giftItemName ?? '薄礼',
+    });
+    return {
+      mode: 'branch',
+      phase: 'continue',
+      ...narrativeEntryToDialogueFields(entry),
+    };
+  }
+
+  if (payload.actionId === 'dowager-greeting') {
+    const entry = renderNarrativeEntry('dowager.audience.greeting', { openingTag });
+    return {
+      mode: 'branch',
+      phase: 'continue',
+      ...narrativeEntryToDialogueFields(entry),
+    };
+  }
+
+  if (payload.actionId === 'dowager-advice') {
+    const entry = renderNarrativeEntry('dowager.audience.advice', { openingTag });
+    return {
+      mode: 'branch',
+      phase: 'continue',
+      ...narrativeEntryToDialogueFields(entry),
+    };
+  }
+
+  if (payload.actionId === 'talk') {
+    const entry = renderNarrativeEntry('dowager.audience.talk', { openingTag });
     return {
       mode: 'branch',
       phase: 'continue',

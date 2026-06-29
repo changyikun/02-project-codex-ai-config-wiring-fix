@@ -1,0 +1,13 @@
+offerId,itemId,seasons,stockPerXun,weight,guaranteed,notes
+kitchen.osmanthus-milk-custard,osmanthus-milk-custard,all,1,10,true,常备甜点，保留旧流程首旬可买。
+kitchen.lotus-seed-soup,lotus-seed-soup,all,1,8,true,常备汤羹。
+kitchen.jade-shrimp-dumpling,jade-shrimp-dumpling,all,1,6,false,随机热食。
+kitchen.eight-treasure-duck,eight-treasure-duck,all,1,4,false,随机大菜。
+kitchen.snow-pear-broth,snow-pear-broth,autumn|winter,1,5,false,秋冬清润食物。
+kitchen.green-plum,green-plum,spring,2,8,false,春季果品。
+kitchen.loquat,loquat,spring|summer,2,7,false,初夏果品。
+kitchen.fresh-jubube,fresh-jubube,autumn,2,7,false,秋季果品。
+kitchen.honeyed-persimmon,honeyed-persimmon,autumn|winter,2,6,false,秋冬果品。
+kitchen.mulberry,early-mulberry,spring|summer,2,6,false,春夏果品。
+kitchen.wild-honey-jar,wild-honey-jar,all,1,3,false,偶尔能买到的蜂蜜。
+kitchen.steamed-chestnut,steamed-chestnut,autumn|winter,2,6,false,秋冬点心。

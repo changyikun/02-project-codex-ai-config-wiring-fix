@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  createEmperorInteractionProgress,
   isEmperorPublicEncounterAvailable,
   resolveEmperorAudienceRequest,
-  resolveEmperorMainInteraction,
   resolveEmperorScheduledLocation,
   resolveZhengyangGateEncounter,
 } from './emperorActivityRuntime';
+import { resolveEmperorDayAudienceInteraction } from './emperorDayAudienceRuntime';
 import type { GameNumericsState, PalaceTimeState } from '../types';
 
 const buildTime = (slot: PalaceTimeState['slot'], slotIndex: number): PalaceTimeState => ({
@@ -54,6 +55,15 @@ describe('emperorActivityRuntime', () => {
     );
   });
 
+  it('stores the xun schedule in emperor interaction progress', () => {
+    const progress = createEmperorInteractionProgress('lanyinxuguo', buildTime('清晨', 0), 40);
+
+    expect(progress.xunKey).toBe('1-1-1');
+    expect(progress.mood).toBe(40);
+    expect(progress.schedule.slots['清晨'].location).toBe('正阳门');
+    expect(progress.schedule.slots['上午'].location).toBe('养心殿');
+  });
+
   it('allows morning Yangxin requests with lower but non-zero chance', () => {
     const morning = resolveEmperorAudienceRequest({
       routeId: 'lanyinxuguo',
@@ -72,6 +82,27 @@ describe('emperorActivityRuntime', () => {
 
     expect(morning.chance).toBeGreaterThan(0);
     expect(morning.chance).toBeLessThan(afternoon.chance);
+  });
+
+  it('raises Yangxin request chance when the gatekeeper has higher affinity', () => {
+    const cold = resolveEmperorAudienceRequest({
+      routeId: 'lanyinxuguo',
+      time: buildTime('下午', 3),
+      playerFavor: 30,
+      playerTrueHeart: 20,
+      emperorMood: 40,
+      gatekeeperAffinity: 0,
+    });
+    const familiar = resolveEmperorAudienceRequest({
+      routeId: 'lanyinxuguo',
+      time: buildTime('下午', 3),
+      playerFavor: 30,
+      playerTrueHeart: 20,
+      emperorMood: 40,
+      gatekeeperAffinity: 80,
+    });
+
+    expect(familiar.chance).toBeGreaterThan(cold.chance);
   });
 
   it('resolves Zhengyang court-dismissal encounters only in dawn slot', () => {
@@ -94,15 +125,16 @@ describe('emperorActivityRuntime', () => {
 
   it('uses scheduled public locations for public emperor encounters', () => {
     const time = buildTime('中午', 2);
-    const scheduledLocation = resolveEmperorScheduledLocation('lanyinxuguo', time);
+    const progress = createEmperorInteractionProgress('lanyinxuguo', time, 55);
+    const scheduledLocation = progress.schedule.slots[time.slot].location;
 
-    expect(isEmperorPublicEncounterAvailable('lanyinxuguo', time, scheduledLocation)).toBe(
+    expect(isEmperorPublicEncounterAvailable(progress, time, scheduledLocation)).toBe(
       scheduledLocation === '御花园' || scheduledLocation === '建章宫',
     );
   });
 
-  it('resolves one main interaction into flat, small or big effects', () => {
-    const result = resolveEmperorMainInteraction({
+  it('resolves one day audience interaction into flat, small or big effects', () => {
+    const result = resolveEmperorDayAudienceInteraction({
       routeId: 'lanyinxuguo',
       time: buildTime('下午', 3),
       location: '养心殿',

@@ -176,7 +176,12 @@ export function GenericMapLocationView({ locationId, extraNpcs = [], extraAction
           initialActionResult={`${activeConsortAudience.summary}你看见${getConcubineDisplayRankText(activeAudienceConsort)} ${
             activeAudienceConsort.name
           }正在此处，便主动上前搭话。`}
-          onBack={() => setActiveConsortAudience(null)}
+          onBack={(result) => {
+            if (result?.shouldAdvanceTime) {
+              finishTimedLocationAction(beginTimedLocationAction());
+            }
+            setActiveConsortAudience(null);
+          }}
         />
       </section>
     );

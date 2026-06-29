@@ -24,14 +24,15 @@ import {
   beginRandomEventSession,
   getRandomEventCurrentLine,
   getRandomEventCurrentOptions,
-  listEligibleRandomEvents,
+  pickRandomEventFromPoolsBySeed,
   selectRandomEventOption,
   type RandomEventSession,
 } from '../../game/random-events/randomEventRuntime';
-import type { RandomEventDefinition, RandomEventLine } from '../../game/random-events/randomEventCatalog';
+import type { RandomEventLine } from '../../game/random-events/randomEventCatalog';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type { ConcubineProfile } from '../../game/types';
 import { MapSubsceneView, type SubsceneNpcEntry } from './MapSubsceneView';
+import { useLocationActionFlow } from './useLocationActionFlow';
 
 type GongmenNpcId = 'du-niang' | 'aling';
 type GongmenTradeMode = 'buy' | 'sell' | 'gift';
@@ -92,19 +93,6 @@ const buildPermanentNpcRelationLabel = (affinity: number): string => {
   return '生客';
 };
 
-const drawWeightedRandomEvent = (events: RandomEventDefinition[], random: () => number): RandomEventDefinition | undefined => {
-  const totalWeight = events.reduce((sum, event) => sum + event.weight, 0);
-  if (totalWeight <= 0) {
-    return undefined;
-  }
-  const roll = Math.max(0, Math.min(0.999999999, random())) * totalWeight;
-  let cursor = 0;
-  return events.find((event) => {
-    cursor += event.weight;
-    return roll < cursor;
-  });
-};
-
 export function GongmenView({ concubines }: GongmenViewProps) {
   const {
     state,
@@ -130,11 +118,13 @@ export function GongmenView({ concubines }: GongmenViewProps) {
     resolveNpcActivityEntry,
     enterMapMain,
   } = useGameFlowStore();
+  const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [activeNpc, setActiveNpc] = useState<GongmenNpcId | null>(null);
   const [activeTradeMode, setActiveTradeMode] = useState<GongmenTradeMode | null>(null);
   const [dialogueStep, setDialogueStep] = useState(0);
   const [activeRandomSession, setActiveRandomSession] = useState<RandomEventSession | null>(null);
   const [activeRandomLine, setActiveRandomLine] = useState<RandomEventLine | null>(null);
+  const [activeNpcConsumedInteraction, setActiveNpcConsumedInteraction] = useState(false);
   const [activeConsortAudience, setActiveConsortAudience] = useState<{
     entryId: string;
     consortId: string;
@@ -230,14 +220,19 @@ export function GongmenView({ concubines }: GongmenViewProps) {
     setDialogueStep(0);
     setActiveRandomSession(null);
     setActiveRandomLine(null);
+    setActiveNpcConsumedInteraction(false);
   };
 
   const handleCloseNpc = () => {
+    if (activeNpcConsumedInteraction) {
+      finishTimedLocationAction(beginTimedLocationAction());
+    }
     setActiveNpc(null);
     setActiveTradeMode(null);
     setDialogueStep(0);
     setActiveRandomSession(null);
     setActiveRandomLine(null);
+    setActiveNpcConsumedInteraction(false);
   };
 
   const applyRandomEventOutcome = (effect: Parameters<typeof applyRandomEventEffectForPermanentNpc>[2], unlockEventIds: readonly string[]) => {
@@ -289,15 +284,19 @@ export function GongmenView({ concubines }: GongmenViewProps) {
     if (!actionResult.success) {
       return;
     }
+    setActiveNpcConsumedInteraction(true);
     const pools = [
       'npc.du-niang.common',
       duNiangRelationship.affinity >= DU_NIANG_FRIENDSHIP_PRICE_AFFINITY
         ? 'npc.du-niang.high-affinity'
         : 'npc.du-niang.low-affinity',
     ];
-    const candidates = pools.flatMap((poolId) => listEligibleRandomEvents({ poolId, progress: randomEventProgress }));
-    const dedupedCandidates = [...new Map(candidates.map((event) => [event.eventId, event])).values()];
-    const pickedEvent = drawWeightedRandomEvent(dedupedCandidates, Math.random);
+    const nextTalkCount = Number(duNiangRelationship.actionCountThisXun ?? 0) + 1;
+    const pickedEvent = pickRandomEventFromPoolsBySeed({
+      poolIds: pools,
+      progress: randomEventProgress,
+      seed: `${gongmenSeed}:du-niang:talk:${nextTalkCount}:${duNiangRelationship.affinity}`,
+    });
     if (!pickedEvent) {
       return;
     }
@@ -358,6 +357,7 @@ export function GongmenView({ concubines }: GongmenViewProps) {
     if (!actionResult.success) {
       return;
     }
+    setActiveNpcConsumedInteraction(true);
     if (!consumeInventoryItem(item.itemId)) {
       return;
     }
@@ -423,7 +423,12 @@ export function GongmenView({ concubines }: GongmenViewProps) {
           initialActionResult={`宫门处风声嘈杂，内外消息都在此地转手。${activeConsortAudience.summary}你看见${getConcubineDisplayRankText(
             activeAudienceConsort,
           )} ${activeAudienceConsort.name}正在此处，便主动上前搭话。`}
-          onBack={() => setActiveConsortAudience(null)}
+          onBack={(result) => {
+            if (result?.shouldAdvanceTime) {
+              finishTimedLocationAction(beginTimedLocationAction());
+            }
+            setActiveConsortAudience(null);
+          }}
         />
       </section>
     );

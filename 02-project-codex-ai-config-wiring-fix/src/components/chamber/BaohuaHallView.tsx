@@ -97,6 +97,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
   const [actionResultText, setActionResultText] = useState('');
   const [pendingTimedActionOutcome, setPendingTimedActionOutcome] = useState<TimedLocationActionOutcome | null>(null);
   const [pendingEncounterSendOff, setPendingEncounterSendOff] = useState<ConsortSendOffNarrative | null>(null);
+  const [encounterConsumedInteraction, setEncounterConsumedInteraction] = useState(false);
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const dialogueOptions = dialogueTurn?.options ?? [];
@@ -209,6 +210,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     setSceneHint('');
     setActiveEncounterLabel(actionLabel);
     setPendingEncounterSendOff(null);
+    setEncounterConsumedInteraction(false);
 
     try {
       await runNarrativeTurn(actor, 'visit', actionId, actionLabel, {
@@ -240,6 +242,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
 
   const closeEncounter = () => {
     const outcome = pendingTimedActionOutcome;
+    const interactionOutcome = encounterConsumedInteraction && !outcome ? beginTimedLocationAction() : null;
     finalizeDangYiUnlockIfNeeded();
     setActiveActor(null);
     setDialogueTurn(null);
@@ -248,7 +251,8 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     setBusy(false);
     setPendingTimedActionOutcome(null);
     setPendingEncounterSendOff(null);
-    finishTimedLocationAction(outcome);
+    setEncounterConsumedInteraction(false);
+    finishTimedLocationAction(outcome ?? interactionOutcome);
   };
 
   const handleWorship = async () => {
@@ -420,6 +424,9 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
 
       if (activeActor.actorKind === 'consort' && activeActor.consortId) {
         const summary = applyConsortRelationshipJudgement(activeActor.consortId, 'greet', judgement);
+        if (!summary.actionLimitHit) {
+          setEncounterConsumedInteraction(true);
+        }
         const nextActor = {
           ...activeActor,
           currentGoodwill: clampToRange(activeActor.currentGoodwill + summary.appliedFavorDelta, -100, 100),

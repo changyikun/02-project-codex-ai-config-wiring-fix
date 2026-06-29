@@ -1,9 +1,8 @@
 import type {
-  EmperorInteractionOutcomeTier,
+  EmperorInteractionProgressState,
   EmperorInteractionSource,
-  EmperorMainInteractionActionId,
-  GameNumericsState,
-  InventoryItem,
+  EmperorScheduleSlotState,
+  EmperorScheduleState,
   MapAreaId,
   PalaceTimeState,
   RouteId,
@@ -19,7 +18,24 @@ const seededRoll = (seed: string, salt: string): number => (hashSeed(`${seed}:${
 
 const getXunKey = (time: PalaceTimeState): string => `${time.year}-${time.month}-${time.xun}`;
 
-const getMoodModifier = (mood: number): number => {
+export const EMPEROR_SCHEDULE_SLOTS: readonly TimeSlot[] = ['清晨', '上午', '中午', '下午', '傍晚', '夜晚', '深夜'] as const;
+
+const slotIndexes = EMPEROR_SCHEDULE_SLOTS.reduce(
+  (acc, slot, index) => ({
+    ...acc,
+    [slot]: index,
+  }),
+  {} as Record<TimeSlot, number>,
+);
+
+const buildSlotTime = (time: PalaceTimeState, slot: TimeSlot): PalaceTimeState => ({
+  ...time,
+  slot,
+  slotIndex: slotIndexes[slot],
+  slotProgress: 0,
+});
+
+export const getMoodModifier = (mood: number): number => {
   if (mood < 0) return -10;
   if (mood <= 20) return -5;
   if (mood <= 50) return 0;
@@ -40,16 +56,6 @@ const getSlotAudienceModifier = (slot: TimeSlot): number => {
     default:
       return -999;
   }
-};
-
-const normalizeSkill = (value: number | undefined): number => {
-  const numeric = Number(value ?? 0);
-  return numeric > 10 ? numeric : numeric * 10;
-};
-
-const normalizeMainStat = (value: number | undefined): number => {
-  const numeric = Number(value ?? 0);
-  return numeric > 100 ? numeric / 10 : numeric * 10;
 };
 
 export const EMPEROR_AUDIENCE_OPEN_SLOTS: readonly TimeSlot[] = ['上午', '中午', '下午', '傍晚'] as const;
@@ -79,11 +85,64 @@ export const resolveEmperorScheduledLocation = (routeId: RouteId, time: PalaceTi
   return '养心殿';
 };
 
-export const isEmperorPublicEncounterAvailable = (
+export const createEmperorSchedule = (routeId: RouteId, time: PalaceTimeState): EmperorScheduleState => {
+  const xunKey = getXunKey(time);
+  const slots = EMPEROR_SCHEDULE_SLOTS.reduce((acc, slot) => {
+    const slotTime = buildSlotTime(time, slot);
+    acc[slot] = {
+      slot,
+      slotIndex: slotIndexes[slot],
+      location: resolveEmperorScheduledLocation(routeId, slotTime),
+    };
+    return acc;
+  }, {} as Record<TimeSlot, EmperorScheduleSlotState>);
+
+  return {
+    xunKey,
+    slots,
+  };
+};
+
+export const createEmperorInteractionProgress = (
   routeId: RouteId,
   time: PalaceTimeState,
+  mood: number,
+): EmperorInteractionProgressState => ({
+  xunKey: getXunKey(time),
+  triggeredEncounterIds: [],
+  schedule: createEmperorSchedule(routeId, time),
+  mood,
+});
+
+export const ensureEmperorInteractionProgress = (
+  progress: EmperorInteractionProgressState,
+  routeId: RouteId,
+  time: PalaceTimeState,
+  mood = progress.mood,
+): EmperorInteractionProgressState => {
+  const xunKey = getXunKey(time);
+  if (progress.xunKey !== xunKey || progress.schedule.xunKey !== xunKey) {
+    return createEmperorInteractionProgress(routeId, time, mood);
+  }
+  if (progress.mood !== mood) {
+    return {
+      ...progress,
+      mood,
+    };
+  }
+  return progress;
+};
+
+export const getEmperorScheduledLocation = (
+  progress: EmperorInteractionProgressState,
+  time: PalaceTimeState,
+): MapAreaId => progress.schedule.slots[time.slot]?.location ?? '养心殿';
+
+export const isEmperorPublicEncounterAvailable = (
+  progress: EmperorInteractionProgressState,
+  time: PalaceTimeState,
   location: MapAreaId,
-): boolean => EMPEROR_PUBLIC_SLOTS.includes(time.slot) && resolveEmperorScheduledLocation(routeId, time) === location;
+): boolean => EMPEROR_PUBLIC_SLOTS.includes(time.slot) && getEmperorScheduledLocation(progress, time) === location;
 
 export interface EmperorAudienceRequestInput {
   routeId: RouteId;
@@ -91,6 +150,7 @@ export interface EmperorAudienceRequestInput {
   playerFavor: number;
   playerTrueHeart: number;
   emperorMood: number;
+  gatekeeperAffinity?: number;
 }
 
 export interface EmperorAudienceRequestResult {
@@ -114,10 +174,16 @@ export const resolveEmperorAudienceRequest = (input: EmperorAudienceRequestInput
   }
 
   const seed = `${input.routeId}:${getXunKey(input.time)}:${input.time.slot}:yangxin-request`;
+  const gatekeeperModifier = clamp((input.gatekeeperAffinity ?? 0) * 0.25, 0, 24);
   const chance = clamp(
-    18 + input.playerFavor * 0.35 + Math.max(0, input.playerTrueHeart) * 0.25 + getMoodModifier(input.emperorMood) + slotModifier,
+    18 +
+      input.playerFavor * 0.35 +
+      Math.max(0, input.playerTrueHeart) * 0.25 +
+      getMoodModifier(input.emperorMood) +
+      slotModifier +
+      gatekeeperModifier,
     5,
-    88,
+    92,
   );
   const roll = seededRoll(seed, 'request');
   return {
@@ -160,241 +226,5 @@ export const resolveZhengyangGateEncounter = (input: ZhengyangGateEncounterInput
       : input.time.slot === '清晨'
         ? '你在正阳门外等到散朝，銮驾却从侧门转入内廷，只余宫人低声催你避让。'
         : '正阳门此刻已非散朝时分，宫人只劝你莫在门前久候。',
-  };
-};
-
-export const EMPEROR_MAIN_INTERACTION_ACTIONS: Array<{
-  id: EmperorMainInteractionActionId;
-  label: string;
-  requiredFavor?: number;
-  statLabel: string;
-  primaryEffect: 'favor' | 'prestige' | 'trueHeart';
-  secondaryEffect?: 'favor' | 'prestige' | 'trueHeart';
-  feedback: Record<EmperorInteractionOutcomeTier, string>;
-}> = [
-  {
-    id: 'ink',
-    label: '研墨',
-    statLabel: '政治',
-    primaryEffect: 'prestige',
-    secondaryEffect: 'trueHeart',
-    feedback: {
-      flat: '你执墨在侧，分寸不差，却也未能真正接上容安此刻的政务心思。',
-      small: '你研墨的轻重正合他下笔节奏。容安看过折子，随口问了你一句朝中风向。',
-      big: '你不只研墨，也在他停笔时补上一句恰到好处的话。容安眼中笑意深了些，像是重新估量了你。',
-    },
-  },
-  {
-    id: 'massage',
-    label: '按摩',
-    statLabel: '药理/气质',
-    primaryEffect: 'favor',
-    secondaryEffect: 'trueHeart',
-    feedback: {
-      flat: '你替他按揉肩颈，力道略显生涩。容安温声道了句辛苦，便让你坐回下首。',
-      small: '你的指尖避开僵处，慢慢替他舒开疲意。容安合眼片刻，语气比方才缓和。',
-      big: '你按得极稳，连他紧绷的指节都松了下来。容安睁眼看你，低声道：“有劳了。”',
-    },
-  },
-  {
-    id: 'concern',
-    label: '关心',
-    statLabel: '气质',
-    primaryEffect: 'trueHeart',
-    secondaryEffect: 'favor',
-    feedback: {
-      flat: '你问起他的起居，话语妥帖，却也像宫中人人都会说的体面话。',
-      small: '你没有急着邀宠，只把担忧说得很轻。容安笑了笑，未曾打断你。',
-      big: '你把话说到他最不愿示人的疲处，又及时收住。容安沉默片刻，终于应了一声“朕明白”。',
-    },
-  },
-  {
-    id: 'music',
-    label: '抚琴',
-    statLabel: '乐理',
-    primaryEffect: 'favor',
-    secondaryEffect: 'prestige',
-    feedback: {
-      flat: '琴音落在殿中，尚算清稳，只是未能压过案上政务留下的冷意。',
-      small: '你拢弦一转，曲意清润。容安听完半阙，指尖在案上轻轻点了两下。',
-      big: '你的曲子起落有度，收音时殿中静了许久。容安抬眼，像是终于从折子里抽身。',
-    },
-  },
-  {
-    id: 'chat',
-    label: '闲聊',
-    statLabel: '诗词/政治',
-    primaryEffect: 'favor',
-    secondaryEffect: 'trueHeart',
-    feedback: {
-      flat: '你拣了几句宫中闲话，容安听得温和，却没有顺势多问。',
-      small: '你把话题绕得轻巧，既不冒进，也不无趣。容安顺着你的话笑了一声。',
-      big: '你几句话便把殿中沉闷拆开。容安搁下朱笔，竟多留你坐了一盏茶。',
-    },
-  },
-  {
-    id: 'coquetry',
-    label: '撒娇',
-    statLabel: '容貌/气质',
-    primaryEffect: 'favor',
-    secondaryEffect: 'trueHeart',
-    feedback: {
-      flat: '你把语气放软，容安仍是含笑听着，只没有给出更多回应。',
-      small: '你进退有度地放轻话尾，容安眼底笑意一闪，准了你一句小小讨巧。',
-      big: '你把亲近拿捏得正好，不轻浮，也不生硬。容安伸手扶了你一下，语气难得纵容。',
-    },
-  },
-  {
-    id: 'embrace',
-    label: '入怀',
-    requiredFavor: 51,
-    statLabel: '容貌/宠爱',
-    primaryEffect: 'favor',
-    secondaryEffect: 'trueHeart',
-    feedback: {
-      flat: '你靠近一步，容安并未斥退，却也只虚扶了你一把，让你坐稳。',
-      small: '你顺势近前，容安没有避开，袖底的手停了停，像是默许这一刻亲近。',
-      big: '你靠入他怀中时，容安低声笑了笑，掌心在你肩上停得比平日更久。',
-    },
-  },
-  {
-    id: 'chess',
-    label: '对弈',
-    statLabel: '心计',
-    primaryEffect: 'prestige',
-    secondaryEffect: 'trueHeart',
-    feedback: {
-      flat: '你落子谨慎，却被容安三步拆尽。棋局收得体面，未见锋芒。',
-      small: '你在中盘藏了一手，容安看破时反而笑了，称你比上回更有章法。',
-      big: '你逼得他多思了半盏茶。容安拈着棋子看你，温声道：“这一步，有意思。”',
-    },
-  },
-];
-
-const getActionAbility = (actionId: EmperorMainInteractionActionId, state: GameNumericsState): number => {
-  switch (actionId) {
-    case 'ink':
-      return normalizeSkill(state.stats.politics);
-    case 'massage':
-      return Math.round((normalizeSkill(state.stats.medicine) + normalizeMainStat(state.stats.temperament)) / 2);
-    case 'concern':
-      return normalizeMainStat(state.stats.temperament);
-    case 'music':
-      return normalizeSkill(state.stats.talent);
-    case 'chat':
-      return Math.round((normalizeSkill(state.stats.poetry) + normalizeSkill(state.stats.politics)) / 2);
-    case 'coquetry':
-      return Math.round((normalizeMainStat(state.stats.appearance) + normalizeMainStat(state.stats.temperament)) / 2);
-    case 'embrace':
-      return Math.round((normalizeMainStat(state.stats.appearance) + Math.max(0, state.favor)) / 2);
-    case 'chess':
-      return normalizeMainStat(state.stats.intrigue);
-    default:
-      return 0;
-  }
-};
-
-const applyDelta = (
-  effects: { favorDelta: number; prestigeDelta: number; trueHeartDelta: number },
-  key: 'favor' | 'prestige' | 'trueHeart',
-  value: number,
-) => {
-  if (key === 'favor') {
-    effects.favorDelta += value;
-  } else if (key === 'prestige') {
-    effects.prestigeDelta += value;
-  } else {
-    effects.trueHeartDelta += value;
-  }
-};
-
-export interface EmperorMainInteractionInput {
-  routeId: RouteId;
-  time: PalaceTimeState;
-  location: MapAreaId;
-  source: EmperorInteractionSource;
-  actionId: EmperorMainInteractionActionId;
-  state: GameNumericsState;
-  emperorMood: number;
-}
-
-export interface EmperorMainInteractionResult {
-  success: boolean;
-  actionId: EmperorMainInteractionActionId;
-  label: string;
-  tier: EmperorInteractionOutcomeTier;
-  score: number;
-  effects: {
-    favorDelta: number;
-    prestigeDelta: number;
-    trueHeartDelta: number;
-  };
-  line: string;
-}
-
-export const resolveEmperorMainInteraction = (input: EmperorMainInteractionInput): EmperorMainInteractionResult => {
-  const action = EMPEROR_MAIN_INTERACTION_ACTIONS.find((item) => item.id === input.actionId) ?? EMPEROR_MAIN_INTERACTION_ACTIONS[0];
-  if (action.requiredFavor != null && input.state.favor < action.requiredFavor) {
-    return {
-      success: false,
-      actionId: input.actionId,
-      label: action.label,
-      tier: 'flat',
-      score: 0,
-      effects: { favorDelta: 0, prestigeDelta: 0, trueHeartDelta: 0 },
-      line: '你尚未得他这般纵容，殿中宫人也不敢让你再近一步。',
-    };
-  }
-
-  const ability = getActionAbility(input.actionId, input.state);
-  const roll = seededRoll(getEmperorInteractionSeed(input.routeId, input.time, input.location, input.source), input.actionId);
-  const variance = roll - 50;
-  const score = clamp(
-    ability * 0.68 + Math.max(0, input.state.favor) * 0.18 + Math.max(0, input.state.trueHeart) * 0.22 + getMoodModifier(input.emperorMood) + variance * 0.35,
-    0,
-    120,
-  );
-  const tier: EmperorInteractionOutcomeTier = score >= 86 ? 'big' : score >= 56 ? 'small' : 'flat';
-  const effects = { favorDelta: 0, prestigeDelta: 0, trueHeartDelta: 0 };
-  if (tier === 'small') {
-    applyDelta(effects, action.primaryEffect, 2);
-    if (action.secondaryEffect) applyDelta(effects, action.secondaryEffect, 1);
-  } else if (tier === 'big') {
-    applyDelta(effects, action.primaryEffect, 4);
-    if (action.secondaryEffect) applyDelta(effects, action.secondaryEffect, 3);
-  }
-
-  return {
-    success: true,
-    actionId: input.actionId,
-    label: action.label,
-    tier,
-    score,
-    effects,
-    line: action.feedback[tier],
-  };
-};
-
-export const resolveEmperorGiftEffects = (
-  item: InventoryItem,
-): { favorDelta: number; prestigeDelta: number; trueHeartDelta: number; line: string } => {
-  const rarityValue: Record<string, number> = {
-    green: 1,
-    blue: 2,
-    purple: 3,
-    red: 4,
-  };
-  const magnitude = rarityValue[item.rarity] ?? 1;
-  const categoryLine =
-    item.category === 'food'
-      ? '你将食盒奉上，容安命人收下，笑说你倒记得这些细处。'
-      : item.name.includes('画') || item.name.includes('帖') || item.name.includes('卷')
-        ? '你将字画呈上，容安展开看了两眼，语气比方才多了几分兴味。'
-        : '你将绣品奉上，针脚与配色都挑不出错处，正合御前体面。';
-  return {
-    favorDelta: magnitude,
-    prestigeDelta: item.rarity === 'red' ? 2 : 0,
-    trueHeartDelta: item.rarity === 'purple' || item.rarity === 'red' ? 1 : 0,
-    line: categoryLine,
   };
 };

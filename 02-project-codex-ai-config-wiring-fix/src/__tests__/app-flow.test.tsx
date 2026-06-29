@@ -1447,7 +1447,7 @@ describe('App 主流程切换', () => {
     });
   });
 
-  it('外部地点侧栏可返回地图，也可直接回宫', async () => {
+  it('外部地点场景内离开返回地图，左侧回宫直接回寝殿', async () => {
     useGameFlowStore.setState((state) => ({
       ...state,
       currentView: 'bedchamber',
@@ -1468,10 +1468,10 @@ describe('App 主流程切换', () => {
     render(<App />);
 
     const sidebar = screen.getByRole('navigation', { name: '寝殿左侧功能栏' });
-    expect(within(sidebar).getByRole('button', { name: '外出' })).toBeInTheDocument();
     expect(within(sidebar).getByRole('button', { name: '回宫' })).toBeInTheDocument();
+    expect(within(sidebar).queryByRole('button', { name: '外出' })).not.toBeInTheDocument();
 
-    fireEvent.click(within(sidebar).getByRole('button', { name: '外出' }));
+    fireEvent.click(await screen.findByRole('button', { name: '离开' }));
 
     expect(useGameFlowStore.getState().currentView).toBe('map-main');
     expect(useGameFlowStore.getState().activeMapLocation).toBe('妙音堂');
@@ -1523,10 +1523,10 @@ describe('App 主流程切换', () => {
       expect(useGameFlowStore.getState().currentView).toBe('bedchamber');
     });
     expect(useGameFlowStore.getState().time.slot).toBe('清晨');
-    expect(screen.getByText('1年1月1旬（清晨）')).toBeInTheDocument();
+    expect(screen.getByLabelText('一年一月一旬')).toBeInTheDocument();
+    expect(screen.getByLabelText('清晨')).toBeInTheDocument();
 
-    const sidebar = await screen.findByRole('navigation', { name: '寝殿左侧功能栏' });
-    fireEvent.click(within(sidebar).getByRole('button', { name: '外出' }));
+    fireEvent.click(await screen.findByRole('button', { name: '离开' }));
 
     expect(useGameFlowStore.getState().currentView).toBe('map-main');
     await waitFor(() => expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined());
@@ -1572,21 +1572,13 @@ describe('App 主流程切换', () => {
     expect(screen.queryByLabelText('寝殿对白')).not.toBeInTheDocument();
 
     const locationPanel = await screen.findByLabelText('养心殿行动');
-    expect(within(locationPanel).getByRole('button', { name: '抄读' })).toBeInTheDocument();
-    expect(within(locationPanel).getByRole('button', { name: '朝堂事务' })).toBeInTheDocument();
-
-    fireEvent.click(within(locationPanel).getByRole('button', { name: '抄读' }));
-
-    expect(await screen.findByLabelText('养心殿行动结果')).toBeInTheDocument();
-    expect(locationPanel).not.toContainElement(screen.getByLabelText('养心殿行动结果舞台'));
-    expect(screen.queryByLabelText('寝殿对白')).not.toBeInTheDocument();
-    expect(screen.queryByText(/行至养心殿前/)).not.toBeInTheDocument();
-    expect(await screen.findByText(/养心殿外书气沉沉/)).toBeInTheDocument();
-    expect(useGameFlowStore.getState().state.stats.politics).toBe(11);
-    expect(useGameFlowStore.getState().time.slot).toBe('上午');
+    expect(within(locationPanel).getByRole('button', { name: /李公公/ })).toBeInTheDocument();
+    expect(within(locationPanel).queryByRole('button', { name: '抄读' })).not.toBeInTheDocument();
+    expect(within(locationPanel).queryByRole('button', { name: '朝堂事务' })).not.toBeInTheDocument();
+    expect(useGameFlowStore.getState().time.slot).toBe('清晨');
   });
 
-  it('后宫侧栏外出返回地图，回宫才返回寝殿', async () => {
+  it('后宫场景内离开返回地图，左侧回宫返回寝殿', async () => {
     const defaultFavorTier = getFavorTierByValue(50);
     useGameFlowStore.setState((state) => ({
       ...state,
@@ -1641,13 +1633,22 @@ describe('App 主流程切换', () => {
     expect(useGameFlowStore.getState().activeMapLocation).toBe('后宫');
     const sidebar = screen.getByRole('navigation', { name: '寝殿左侧功能栏' });
     expect(within(sidebar).getByRole('button', { name: '回宫' })).toBeInTheDocument();
+    expect(within(sidebar).queryByRole('button', { name: '外出' })).not.toBeInTheDocument();
 
-    fireEvent.click(within(sidebar).getByRole('button', { name: '外出' }));
+    fireEvent.click(screen.getByRole('button', { name: '离开' }));
 
     expect(useGameFlowStore.getState().currentView).toBe('map-main');
     expect(useGameFlowStore.getState().activeMapLocation).toBe('后宫');
     await waitFor(() => expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined());
     expect(screen.queryByLabelText('寝殿对白')).not.toBeInTheDocument();
+
+    act(() => {
+      useGameFlowStore.getState().enterMainChamber('后宫');
+      useGameFlowStore.setState({ activeChamberPanel: 'harem' });
+    });
+    fireEvent.click(within(await screen.findByRole('navigation', { name: '寝殿左侧功能栏' })).getByRole('button', { name: '回宫' }));
+    expect(useGameFlowStore.getState().currentView).toBe('bedchamber');
+    expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined();
   });
 
   it('普通进入养心殿时使用地点背景并直接展示地点行动', async () => {
@@ -1685,10 +1686,127 @@ describe('App 主流程切换', () => {
     const { container } = render(<App />);
 
     expect(await screen.findByLabelText('养心殿行动')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /李公公/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '求见皇上' })).not.toBeInTheDocument();
     expect(screen.queryByText(/行至养心殿前/)).not.toBeInTheDocument();
     expect(container.querySelector('.chamber-main__background--current')?.getAttribute('style')).toContain(
       '/assets/routes/backgrounds/yangxindian_outside_daytime.png',
     );
+  });
+
+  it('养心殿通过李公公求见皇帝并进入日间皇帝交互页', async () => {
+    const defaultFavorTier = getFavorTierByValue(80);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '养心殿',
+      activeMapLocationEntryTime: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 1,
+        slot: '上午',
+        slotProgress: 0,
+      },
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        favor: 90,
+        trueHeart: 80,
+        silver: 1000,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 90,
+        trueHeart: 80,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      nightlyService: {
+        ...state.nightlyService,
+        emperorMood: 80,
+      },
+      emperorInteraction: {
+        ...state.emperorInteraction,
+        mood: 80,
+      },
+      pendingYangxinVerdict: undefined,
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /李公公/ }));
+    expect(await screen.findByLabelText('李公公 养心殿对话')).toBeInTheDocument();
+    await clickDialogueAdvance();
+
+    fireEvent.click(await screen.findByRole('button', { name: '求见皇帝（耗次）' }));
+    expect(await screen.findByText(/皇上准了/)).toBeInTheDocument();
+    await clickDialogueAdvance();
+
+    expect(await screen.findByLabelText('皇帝 日间会面')).toBeInTheDocument();
+    expect(screen.getByText('养心殿 · 容安')).toBeInTheDocument();
+    expect(screen.getByText('本次可互动 2/2')).toBeInTheDocument();
+  });
+
+  it('李公公打点银两会提高好感并扣除银两', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '养心殿',
+      activeMapLocationEntryTime: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 1,
+        slot: '上午',
+        slotProgress: 0,
+      },
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        silver: 100,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        ...state.hiddenStats,
+        silver: 100,
+        initialRank: '皇后',
+      },
+      permanentNpcRelationships: {},
+      pendingYangxinVerdict: undefined,
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /李公公/ }));
+    await clickDialogueAdvance();
+    fireEvent.click(await screen.findByRole('button', { name: '打点银两（50两，耗次）' }));
+
+    expect(await screen.findByText(/奴才记着您的体面/)).toBeInTheDocument();
+    await waitFor(() => {
+      const state = useGameFlowStore.getState();
+      expect(state.state.silver).toBe(50);
+      expect(state.permanentNpcRelationships['li-gonggong']?.affinity).toBe(8);
+    });
   });
 
   it('后宫内左侧工具面板关闭后会回到后宫，而不是空白外景', async () => {
@@ -1741,7 +1859,9 @@ describe('App 主流程切换', () => {
 
     fireEvent.click(within(screen.getByRole('navigation', { name: '寝殿左侧功能栏' })).getByRole('button', { name: '查看' }));
     expect(await screen.findByLabelText('个人属性面板')).toBeInTheDocument();
-    fireEvent.click(within(screen.getByRole('navigation', { name: '寝殿左侧功能栏' })).getByRole('button', { name: '外出' }));
+    fireEvent.click(screen.getByRole('button', { name: '返回' }));
+    expect(await screen.findByLabelText('后宫宫殿总览')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '离开' }));
 
     expect(useGameFlowStore.getState().currentView).toBe('map-main');
     expect(useGameFlowStore.getState().activeMapLocation).toBe('后宫');
@@ -1781,7 +1901,7 @@ describe('App 主流程切换', () => {
     expect(await screen.findByLabelText('宫廷地图')).toBeInTheDocument();
   });
 
-  it('外景左侧面板内点击外出仍返回地图而不是寝殿', async () => {
+  it('外景左侧面板内点击回宫会返回寝殿', async () => {
     useGameFlowStore.setState((state) => ({
       ...state,
       currentView: 'bedchamber',
@@ -1808,11 +1928,10 @@ describe('App 主流程切换', () => {
     expect(useGameFlowStore.getState().activeMapLocation).toBe('御膳房');
     expect(await screen.findByLabelText('个人属性面板')).toBeInTheDocument();
 
-    fireEvent.click(within(screen.getByRole('navigation', { name: '寝殿左侧功能栏' })).getByRole('button', { name: '外出' }));
+    fireEvent.click(within(screen.getByRole('navigation', { name: '寝殿左侧功能栏' })).getByRole('button', { name: '回宫' }));
 
-    expect(useGameFlowStore.getState().currentView).toBe('map-main');
-    expect(useGameFlowStore.getState().activeMapLocation).toBe('御膳房');
-    await waitFor(() => expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined());
+    expect(useGameFlowStore.getState().currentView).toBe('bedchamber');
+    expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined();
   });
 
   it('局内个人属性面板可查看属性说明', async () => {
@@ -2710,8 +2829,6 @@ describe('App 主流程切换', () => {
     }));
 
     render(<App />);
-    vi.spyOn(Math, 'random').mockReturnValue(0);
-
     fireEvent.click(await screen.findByRole('button', { name: '宫门' }));
     fireEvent.click(await screen.findByRole('button', { name: '进入此处' }));
     fireEvent.click(await screen.findByRole('button', { name: '杜娘' }));
@@ -2721,7 +2838,7 @@ describe('App 主流程切换', () => {
     fireEvent.click(smallTalkButton);
 
     await advanceDialoguePages();
-    expect(await screen.findByText(/哟，您闻见没/)).toBeInTheDocument();
+    expect(await screen.findByText(/西六宫那边新来了个教养嬷嬷/)).toBeInTheDocument();
     await clickDialogueOnce();
     await clickDialogueOnce();
     await clickDialogueOnce();
@@ -2730,7 +2847,7 @@ describe('App 主流程切换', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '闲谈（耗次）' }));
     await advanceDialoguePages();
-    expect(await screen.findByText(/哟，您闻见没/)).toBeInTheDocument();
+    expect(await screen.findByText(/西六宫那边新来了个教养嬷嬷/)).toBeInTheDocument();
     await clickDialogueOnce();
     await clickDialogueOnce();
     await clickDialogueOnce();
@@ -2780,7 +2897,7 @@ describe('App 主流程切换', () => {
           npcName: '杜娘',
           met: true,
           affinity: 80,
-          xunKey: '1-1-1',
+          xunKey: '1-1-2',
           actionCountThisXun: 0,
         },
       },
@@ -2792,7 +2909,7 @@ describe('App 主流程切换', () => {
       time: {
         year: 1,
         month: 1,
-        xun: 1,
+        xun: 2,
         slotIndex: 1,
         slot: '上午',
         slotProgress: 0,
@@ -2800,7 +2917,6 @@ describe('App 主流程切换', () => {
     }));
 
     render(<App />);
-    vi.spyOn(Math, 'random').mockReturnValue(0.67);
 
     fireEvent.click(await screen.findByRole('button', { name: '宫门' }));
     fireEvent.click(await screen.findByRole('button', { name: '进入此处' }));
@@ -2808,12 +2924,12 @@ describe('App 主流程切换', () => {
     await clickDialogueAdvance();
 
     fireEvent.click(await screen.findByRole('button', { name: '闲谈（耗次）' }));
-    expect(await screen.findByText(/御花园好看/)).toBeInTheDocument();
+    expect(await screen.findByText(/我在外头守门/)).toBeInTheDocument();
     await clickDialogueOnce();
     await clickDialogueOnce();
     fireEvent.click(await screen.findByRole('button', { name: '愿意说说' }));
 
-    expect(await screen.findByText(/走快了一盏茶/)).toBeInTheDocument();
+    expect(await screen.findByText(/也就那几样/)).toBeInTheDocument();
     expect(screen.getByLabelText('谢令仪立绘')).toBeInTheDocument();
     expect(screen.getByAltText('谢令仪')).toHaveAttribute('src', '/assets/player/lanyinxuguo-cutout.png');
   });
@@ -3195,7 +3311,7 @@ describe('App 主流程切换', () => {
     expect(screen.getByRole('button', { name: '叙旧' })).toBeInTheDocument();
   });
 
-  it('地图热点可直达现有朝堂事务面板', async () => {
+  it('养心殿主场景不再提供朝堂事务直达按钮', async () => {
     const defaultFavorTier = getFavorTierByValue(50);
     useGameFlowStore.setState((state) => ({
       ...state,
@@ -3245,10 +3361,11 @@ describe('App 主流程切换', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: '养心殿' }));
     fireEvent.click(screen.getByRole('button', { name: '进入此处' }));
-    fireEvent.click(await screen.findByRole('button', { name: '朝堂事务' }));
 
-    expect(await screen.findByText('朝堂事务')).toBeInTheDocument();
-    expect(useGameFlowStore.getState().activeAffairsSource).toBe('朝堂事务');
+    const locationPanel = await screen.findByLabelText('养心殿行动');
+    expect(within(locationPanel).getByRole('button', { name: /李公公/ })).toBeInTheDocument();
+    expect(within(locationPanel).queryByRole('button', { name: '朝堂事务' })).not.toBeInTheDocument();
+    expect(useGameFlowStore.getState().activeAffairsSource).toBe('宫斗事务');
   });
 
   it('地图后宫与冷宫弹窗不提供宫斗事务发起入口', async () => {
@@ -3595,7 +3712,7 @@ describe('App 主流程切换', () => {
     expect(screen.queryByRole('button', { name: '椒房殿' })).not.toBeInTheDocument();
   });
 
-  it('外景场景左侧保留外出回地图，并提供独立回宫入口', async () => {
+  it('外景场景左侧回宫直接回寝殿，场景离开返回地图', async () => {
     const defaultFavorTier = getFavorTierByValue(50);
     useGameFlowStore.setState((state) => ({
       ...state,
@@ -3644,10 +3761,10 @@ describe('App 主流程切换', () => {
     render(<App />);
 
     const sidebar = screen.getByRole('navigation', { name: '寝殿左侧功能栏' });
-    expect(within(sidebar).getByRole('button', { name: '外出' })).toBeInTheDocument();
     expect(within(sidebar).getByRole('button', { name: '回宫' })).toBeInTheDocument();
+    expect(within(sidebar).queryByRole('button', { name: '外出' })).not.toBeInTheDocument();
 
-    fireEvent.click(within(sidebar).getByRole('button', { name: '外出' }));
+    fireEvent.click(await screen.findByRole('button', { name: '离开' }));
 
     expect(useGameFlowStore.getState().currentView).toBe('map-main');
     expect(useGameFlowStore.getState().activeMapLocation).toBe('御膳房');
@@ -5684,19 +5801,25 @@ describe('App 主流程切换', () => {
 
     render(<EmperorAudiencePanel source="public-encounter" location="御花园" concubines={concubines} onLeave={onLeave} />);
 
+    expect(document.querySelector('.nightly-service-event')).toBeNull();
     expect(await screen.findByText(/你在御花园见到容安/)).toBeInTheDocument();
-    expect(screen.getByLabelText('容安立绘')).toBeInTheDocument();
+    expect(screen.getByLabelText('皇帝 日间会面')).toBeInTheDocument();
+    expect(screen.getByText('本次可互动 2/2')).toBeInTheDocument();
     await clickDialogueAdvance();
-    fireEvent.click(await screen.findByRole('button', { name: '闲聊' }));
+    fireEvent.click(screen.getByText('闲谈').closest('button') as HTMLButtonElement);
 
-    expect(await screen.findByText(/你拣了几句宫中闲话|你把话题绕得轻巧|你几句话便把殿中沉闷拆开/)).toBeInTheDocument();
+    expect(await screen.findByText(/你拣了几句闲话|你把话题绕得轻巧|你几句话便把殿中沉闷拆开/)).toBeInTheDocument();
     expect(screen.queryByText(/恭送/)).not.toBeInTheDocument();
     await clickDialogueAdvance();
-
-    expect(await screen.findByText(/不能强留圣驾/)).toBeInTheDocument();
-    expect(screen.getAllByLabelText('皇帝互动告退').length).toBeGreaterThan(0);
-    expect(screen.getByLabelText('容安立绘')).toBeInTheDocument();
+    expect(screen.getByText('本次可互动 1/2')).toBeInTheDocument();
     expect(onLeave).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText('问安').closest('button') as HTMLButtonElement);
+    expect(await screen.findByText(/你依礼问安|你没有急着邀宠|你把话说到他的疲处/)).toBeInTheDocument();
+    await clickDialogueAdvance();
+    expect(await screen.findByText(/不能强留圣驾/)).toBeInTheDocument();
+    await clickDialogueAdvance();
+    expect(onLeave).toHaveBeenCalledWith({ shouldAdvanceTime: true });
   });
 
   it('正阳门等待下朝会推进时辰', async () => {
@@ -7299,13 +7422,13 @@ describe('App 主流程切换', () => {
     const latestReport = flow.settlementReports.at(-1);
 
     expect(flow.state.silver).toBe(1120);
-    expect(flow.state.prestige).toBe(995);
-    expect(flow.hiddenStats.prestige).toBe(995);
+    expect(flow.state.prestige).toBe(975);
+    expect(flow.hiddenStats.prestige).toBe(975);
     expect(flow.state.stats.health).toBe(49);
     expect(flow.state.monthlyExpenseStrategy).toBe('luxury');
     expect(flow.state.nextMonthlyExpenseStrategy).toBeUndefined();
     expect(latestReport?.lines).toContain('当前位份：婕好');
-    expect(latestReport?.lines).toContain('当前声望：995 / 1100');
+    expect(latestReport?.lines).toContain('当前声望：975 / 1100');
     expect(latestReport?.summary).not.toContain('位分复核');
     expect(latestReport?.summary).not.toContain('下月提点');
   });
@@ -7356,8 +7479,8 @@ describe('App 主流程切换', () => {
       return useGameFlowStore.getState();
     };
 
-    expect(runMonthlySettlement('镇国公嫡女').state.prestige).toBe(1013);
-    expect(runMonthlySettlement('罪臣之后').state.prestige).toBe(995);
+    expect(runMonthlySettlement('镇国公嫡女').state.prestige).toBe(993);
+    expect(runMonthlySettlement('罪臣之后').state.prestige).toBe(975);
   });
 
   it('家族接济花费银两并在季度结算额外声望', () => {
@@ -7399,8 +7522,8 @@ describe('App 主流程切换', () => {
 
     useGameFlowStore.getState().advanceTime(1);
 
-    expect(useGameFlowStore.getState().state.prestige).toBe(1012);
-    expect(useGameFlowStore.getState().hiddenStats.prestige).toBe(1012);
+    expect(useGameFlowStore.getState().state.prestige).toBe(992);
+    expect(useGameFlowStore.getState().hiddenStats.prestige).toBe(992);
     expect(useGameFlowStore.getState().state.familyAidBonus).toBe(0);
   });
 
@@ -7595,7 +7718,7 @@ describe('App 主流程切换', () => {
     expect(flow.hiddenStats.initialRank).toBe('德妃 / 淑妃 / 贤妃');
     expect(flow.state.residenceName).toBe('长春宫');
     expect(latestReport?.summary).toContain('当前位份：德妃 / 淑妃 / 贤妃');
-    expect(latestReport?.summary).toContain('当前声望：1800 / 2100');
+    expect(latestReport?.summary).toContain('当前声望：1780 / 2100');
   });
 
   it('跨月晋升会先显示太监晋升通报，再显示普通月初通报', async () => {
@@ -7948,7 +8071,7 @@ describe('App 主流程切换', () => {
     expect(within(chamberDialogue).queryByText(/回到椒房殿/)).not.toBeInTheDocument();
   });
 
-  it('进入建章宫后先显示空闲入口，选择拜见太后后进入太后交互', async () => {
+  it('进入建章宫后选择拜见太后会进入统一交互页，并把请安记入月度义务', async () => {
     const defaultFavorTier = getFavorTierByValue(50);
     useGameFlowStore.setState((state) => ({
       ...state,
@@ -7980,27 +8103,73 @@ describe('App 主流程切换', () => {
     expect(await screen.findByLabelText('建章宫场景')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '拜见太后' }));
 
-    expect(await screen.findByText('建章宫 · 拜见太后')).toBeInTheDocument();
+    expect(await screen.findByText('建章宫 · 太后')).toBeInTheDocument();
     expect((container.querySelector('.chamber-main__background') as HTMLElement).style.backgroundImage).toContain(
       '/assets/routes/backgrounds/jianzhanggong_daytime.png',
     );
+    expect(screen.getByRole('button', { name: '请安' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '送礼问安' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '起身告辞' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '请教规矩' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '闲谈' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '告退' })).toBeInTheDocument();
     expect(screen.getByLabelText('太后常驻立绘')).toBeInTheDocument();
-    expect(screen.getByText(/你需先依礼问安/)).toBeInTheDocument();
+    expect(screen.getByText('本旬可互动 2/2')).toBeInTheDocument();
+    expect(screen.getByText('本月请安')).toBeInTheDocument();
+    expect(screen.getByText('未请')).toBeInTheDocument();
     expect(screen.queryByLabelText('建章宫太后对话框')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '送礼问安' }));
+    fireEvent.click(screen.getByRole('button', { name: '请安' }));
 
     const dowagerDialogue = await screen.findByLabelText('建章宫太后对话框');
     expect(dowagerDialogue).toBeInTheDocument();
     expect(screen.getByLabelText('太后常驻立绘')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '请安' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '送礼问安' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: '起身告辞' })).toBeDisabled();
-    await screen.findByText(/你上前奉礼问安后/);
-    await clickDialogueOnce();
+    expect(screen.getByRole('button', { name: '告退' })).toBeDisabled();
+    await screen.findByText(/你依礼请安后/);
     await waitFor(() => {
-      expect(screen.getByText(/肯记得来建章宫尽礼，是好事/)).toBeInTheDocument();
+      const relation = useGameFlowStore.getState().permanentNpcRelationships.dowager;
+      expect(relation?.affinity).toBeGreaterThanOrEqual(2);
+      expect(relation?.lastDowagerGreetingMonthKey).toBe('1-1');
+      expect(relation?.lastDowagerGreetingXunKey).toBe('1-1-1');
     });
+  });
+
+  it('夜间在建章宫拜见太后只显示通传，不进入太后交互也不消耗次数', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '建章宫',
+      activeMapLocationEntryTime: {
+        ...state.time,
+        slot: '夜晚',
+        slotIndex: 4,
+      },
+      state: {
+        ...state.state,
+        flags: {
+          ...state.state.flags,
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      time: {
+        ...state.time,
+        slot: '夜晚',
+        slotIndex: 4,
+      },
+    }));
+
+    render(<App />);
+
+    expect(await screen.findByLabelText('建章宫场景')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '拜见太后' }));
+
+    expect((await screen.findAllByLabelText('建章宫通传')).length).toBeGreaterThan(0);
+    expect(screen.getByText(/宫人守在阶前/)).toBeInTheDocument();
+    expect(screen.queryByText('建章宫 · 太后')).not.toBeInTheDocument();
+    expect(useGameFlowStore.getState().permanentNpcRelationships.dowager?.actionCountThisXun ?? 0).toBe(0);
   });
 });

@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
-import { buildKitchenFoodCatalog } from '../../game/data/inventoryPresets';
+import { buildKitchenFoodCatalog, type KitchenFoodShopEntry } from '../../game/data/inventoryPresets';
 import {
   getConcubineDisplayRankText,
   getConcubinePortraitPath,
 } from '../../game/data/concubineRoster';
+import { getRouteProfileById } from '../../game/data/routeProfiles';
 import {
   requestKitchenLocalDialogue,
   type KitchenDialogueActor,
@@ -18,12 +19,23 @@ import {
 } from '../../game/lib/consortVisitRuntime';
 import { getNpcActivitiesAtLocation } from '../../game/lib/npcActivityRuntime';
 import { requestRelationshipJudgementLocal } from '../../game/lib/relationshipJudgeRuntime';
+import { pickInventoryItemByTag } from '../../game/lib/inventoryTagRuntime';
+import {
+  advanceRandomEventLine,
+  beginRandomEventSession,
+  createSeededRandomEventRandom,
+  getRandomEventCurrentLine,
+  getRandomEventCurrentOptions,
+  pickRandomEventBySeed,
+  selectRandomEventOption,
+  type RandomEventSession,
+} from '../../game/random-events/randomEventRuntime';
+import type { RandomEventLine } from '../../game/random-events/randomEventCatalog';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type {
   ConcubineProfile,
   ConsortDialogueOption,
   ConsortDialogueTurn,
-  InventoryItem,
 } from '../../game/types';
 import { LocationActionResultStage } from './LocationActionResultStage';
 import { MapSubsceneView, type SubsceneActionEntry, type SubsceneNpcEntry } from './MapSubsceneView';
@@ -44,6 +56,8 @@ interface KitchenSceneActor extends KitchenDialogueActor {
 }
 
 const BU_ZIYOU_PORTRAIT_SRC = '/assets/characters/men/bu-ziyou.png';
+const KITCHEN_STROLL_RANDOM_EVENT_POOL_ID = 'location.kitchen.stroll';
+const SILVER_LEAF_EARRING_TEMPLATE_ITEM_ID = 'silver-leaf-earring';
 
 const buildBuZiyouActor = (favor: number, affection: number): KitchenSceneActor => ({
   id: 'buziyou',
@@ -74,15 +88,39 @@ const buildConsortActor = (consort: ConcubineProfile): KitchenSceneActor => ({
   consortId: consort.id,
 });
 
+const pickConsortBySeed = (consorts: readonly ConcubineProfile[], seed: string): ConcubineProfile | undefined => {
+  const candidates = consorts.filter((consort) => consort.status === 'live');
+  if (candidates.length === 0) {
+    return undefined;
+  }
+  const random = createSeededRandomEventRandom(seed);
+  return candidates[Math.floor(random() * candidates.length)] ?? candidates[0];
+};
+
+const pickNameMarkBySeed = (name: string | undefined, seed: string): string => {
+  const characters = Array.from(name ?? '').filter((character) => character.trim().length > 0);
+  if (characters.length === 0) {
+    return '宁';
+  }
+  const random = createSeededRandomEventRandom(seed);
+  return characters[Math.floor(random() * characters.length)] ?? characters[0];
+};
+
 export function KitchenView({ concubines }: KitchenViewProps) {
   const {
     state,
     hiddenStats,
     time,
     kitchenProgress,
+    merchantLedger,
+    randomEventProgress,
+    selectedRoute,
     buyInventoryItem,
     patchKitchenProgress,
     applyConsortRelationshipJudgement,
+    applyRandomEventEffectForPlayer,
+    queueRandomEventUnlocks,
+    completeRandomEventById,
     npcActivity,
     resolveNpcActivityEntry,
     enterMapMain,
@@ -99,10 +137,23 @@ export function KitchenView({ concubines }: KitchenViewProps) {
   const [actionResultText, setActionResultText] = useState('');
   const [pendingTimedActionOutcome, setPendingTimedActionOutcome] = useState<TimedLocationActionOutcome | null>(null);
   const [pendingEncounterSendOff, setPendingEncounterSendOff] = useState<ConsortSendOffNarrative | null>(null);
+  const [encounterConsumedInteraction, setEncounterConsumedInteraction] = useState(false);
+  const [activeRandomSession, setActiveRandomSession] = useState<RandomEventSession | null>(null);
+  const [activeRandomLine, setActiveRandomLine] = useState<RandomEventLine | null>(null);
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
-  const kitchenCatalog = useMemo(() => buildKitchenFoodCatalog(), []);
+  const xunKey = `${time.year}-${time.month}-${time.xun}`;
+  const kitchenSeed = `${state.routeId}:${xunKey}`;
+  const kitchenCatalog = useMemo(() => buildKitchenFoodCatalog(kitchenSeed, time.month), [kitchenSeed, time.month]);
   const dialogueOptions = dialogueTurn?.options ?? [];
+  const activeRandomOptions = activeRandomSession ? getRandomEventCurrentOptions(activeRandomSession) : [];
+  const playerPortraitSrc = selectedRoute?.portrait ?? getRouteProfileById(state.routeId)?.portrait;
+  const isPlayerRandomLine = Boolean(
+    activeRandomLine &&
+      (activeRandomLine.portraitKey === 'player' ||
+        activeRandomLine.speakerName === state.name ||
+        activeRandomLine.speakerIdentity === playerRankLabel),
+  );
   const scheduledConsortActivity = useMemo(() => {
     const scheduledEntries = getNpcActivitiesAtLocation(npcActivity, '御膳房');
     const entry = scheduledEntries.find((candidate) => concubines.some((consort) => consort.id === candidate.actorConsortId));
@@ -204,6 +255,7 @@ export function KitchenView({ concubines }: KitchenViewProps) {
     setSceneHint('');
     setActiveEncounterLabel(actionLabel);
     setPendingEncounterSendOff(null);
+    setEncounterConsumedInteraction(false);
 
     try {
       await runNarrativeTurn(actor, 'visit', actionId, actionLabel, {
@@ -235,6 +287,7 @@ export function KitchenView({ concubines }: KitchenViewProps) {
 
   const closeEncounter = () => {
     const outcome = pendingTimedActionOutcome;
+    const interactionOutcome = encounterConsumedInteraction && !outcome ? beginTimedLocationAction() : null;
     setActiveActor(null);
     setDialogueTurn(null);
     setHistory([]);
@@ -242,11 +295,15 @@ export function KitchenView({ concubines }: KitchenViewProps) {
     setBusy(false);
     setPendingTimedActionOutcome(null);
     setPendingEncounterSendOff(null);
-    finishTimedLocationAction(outcome);
+    setEncounterConsumedInteraction(false);
+    finishTimedLocationAction(outcome ?? interactionOutcome);
   };
 
-  const handleBuyFood = (item: InventoryItem) => {
-    const result = buyInventoryItem(item);
+  const getKitchenShopRemainingStock = (item: KitchenFoodShopEntry): number =>
+    Math.max(0, item.stockLimit - Number(merchantLedger[`${xunKey}:${item.itemId}`] ?? 0));
+
+  const handleBuyFood = (item: KitchenFoodShopEntry) => {
+    const result = buyInventoryItem(item, item.stockLimit);
     setSystemMessage(
       buildLocationActionNarrative({
         locationId: 'kitchen',
@@ -255,6 +312,104 @@ export function KitchenView({ concubines }: KitchenViewProps) {
         resultText: result.message,
       }),
     );
+  };
+
+  const applyKitchenRandomEventOutcome = (
+    effect: Parameters<typeof applyRandomEventEffectForPlayer>[0],
+    unlockEventIds: readonly string[],
+  ) => {
+    applyRandomEventEffectForPlayer(effect);
+    if (unlockEventIds.length > 0) {
+      queueRandomEventUnlocks(unlockEventIds);
+    }
+  };
+
+  const finishKitchenRandomEvent = (eventId: string) => {
+    const outcome = pendingTimedActionOutcome;
+    completeRandomEventById(eventId);
+    setActiveRandomSession(null);
+    setActiveRandomLine(null);
+    setPendingTimedActionOutcome(null);
+    finishTimedLocationAction(outcome);
+  };
+
+  const handleRandomDialogueNext = () => {
+    if (!activeRandomSession || activeRandomSession.stage !== 'lines') {
+      return;
+    }
+
+    const advanceResult = advanceRandomEventLine(activeRandomSession);
+    applyKitchenRandomEventOutcome(advanceResult.effect, advanceResult.unlockEventIds);
+    if (advanceResult.completed) {
+      finishKitchenRandomEvent(activeRandomSession.eventId);
+      return;
+    }
+
+    setActiveRandomSession(advanceResult.session);
+    setActiveRandomLine(getRandomEventCurrentLine(advanceResult.session) ?? activeRandomLine);
+  };
+
+  const handleRandomOptionSelect = (optionId: string) => {
+    if (!activeRandomSession) {
+      return;
+    }
+    const optionResult = selectRandomEventOption(activeRandomSession, optionId);
+    applyKitchenRandomEventOutcome(optionResult.effect, optionResult.unlockEventIds);
+    if (optionResult.completed) {
+      finishKitchenRandomEvent(activeRandomSession.eventId);
+      return;
+    }
+    setActiveRandomSession(optionResult.session);
+    setActiveRandomLine(getRandomEventCurrentLine(optionResult.session) ?? activeRandomLine);
+  };
+
+  const beginKitchenStrollRandomEvent = (outcome: TimedLocationActionOutcome, nextCount: number): boolean => {
+    const event = pickRandomEventBySeed({
+      poolId: KITCHEN_STROLL_RANDOM_EVENT_POOL_ID,
+      progress: randomEventProgress,
+      seed: `${kitchenSeed}:stroll:${nextCount}`,
+    });
+    if (!event) {
+      return false;
+    }
+
+    const variableSeed = `${kitchenSeed}:stroll:${nextCount}:${event.eventId}`;
+    const earringOwner = pickConsortBySeed(concubines, `${variableSeed}:earring-owner`);
+    const earringMark = pickNameMarkBySeed(earringOwner?.name, `${variableSeed}:earring-mark`);
+    const earringInstanceSuffix = Math.floor(createSeededRandomEventRandom(`${variableSeed}:earring-item`)() * 1_000_000).toString(36);
+    const lowQualityFood = pickInventoryItemByTag('low-quality-food', variableSeed)?.item;
+    const treeFruit = pickInventoryItemByTag('tree-fruit', variableSeed)?.item;
+    const session = beginRandomEventSession({
+      eventId: event.eventId,
+      variables: {
+        playerName: state.name,
+        playerSurname: state.name.slice(0, 1),
+        playerRank: playerRankLabel,
+        playerResidence: state.residenceName,
+        playerAddress: state.name,
+        targetName: '',
+        targetSurname: '',
+        targetRank: '',
+        targetResidence: '',
+        targetAddress: '',
+        randomConsortChar: earringMark,
+        earringMark,
+        earringOwnerConsortId: earringOwner?.id ?? '',
+        earringItemId: `${SILVER_LEAF_EARRING_TEMPLATE_ITEM_ID}-${nextCount}-${earringInstanceSuffix}`,
+        lowQualityFoodName: lowQualityFood?.name ?? '芝麻饼',
+        lowQualityFoodItemId: lowQualityFood?.itemId ?? 'sesame-flatbread',
+        treeFruitName: treeFruit?.name ?? '鲜枣',
+        treeFruitItemId: treeFruit?.itemId ?? 'fresh-jubube',
+        locationName: '御膳房',
+        timeLabel: time.slot,
+      },
+    });
+
+    setActionResultText('');
+    setPendingTimedActionOutcome(outcome.shouldSleep ? outcome : null);
+    setActiveRandomSession(session);
+    setActiveRandomLine(getRandomEventCurrentLine(session) ?? null);
+    return true;
   };
 
   const handleStroll = async () => {
@@ -288,6 +443,10 @@ export function KitchenView({ concubines }: KitchenViewProps) {
         '布自游结识',
         '你在御膳房连着闲逛到第四次，终于在灶后见到了布自游。',
       );
+      return;
+    }
+
+    if (beginKitchenStrollRandomEvent(actionOutcome, nextCount)) {
       return;
     }
 
@@ -354,6 +513,9 @@ export function KitchenView({ concubines }: KitchenViewProps) {
 
       if (activeActor.actorKind === 'consort' && activeActor.consortId) {
         const summary = applyConsortRelationshipJudgement(activeActor.consortId, 'greet', judgement);
+        if (!summary.actionLimitHit) {
+          setEncounterConsumedInteraction(true);
+        }
         const nextActor = {
           ...activeActor,
           currentGoodwill: clampToRange(activeActor.currentGoodwill + summary.appliedFavorDelta, -100, 100),
@@ -510,7 +672,7 @@ export function KitchenView({ concubines }: KitchenViewProps) {
           locationId="御膳房"
           npcs={subsceneNpcEntries}
           actions={subsceneActions}
-          busy={busy}
+          busy={busy || Boolean(activeRandomSession)}
           onLeave={enterMapMain}
         />
       ) : (
@@ -559,6 +721,35 @@ export function KitchenView({ concubines }: KitchenViewProps) {
         />
       ) : null}
 
+      {!activeActor && activeRandomLine ? (
+        <GlobalDialogueStage
+          sceneLabel="御膳房闲逛事件场景"
+          portraitLabel={isPlayerRandomLine ? `${state.name}立绘` : `${activeRandomLine.speakerName || activeRandomLine.speakerIdentity}立绘`}
+          portrait={
+            isPlayerRandomLine && playerPortraitSrc ? (
+              <img
+                src={playerPortraitSrc}
+                alt={state.name}
+                className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--player"
+              />
+            ) : undefined
+          }
+          ariaLabel="御膳房闲逛事件"
+          className="global-dialogue-stage--kitchen"
+          dialogueClassName="palace-dialogue-box--kitchen-encounter"
+          suppressPortrait={!isPlayerRandomLine && !activeRandomLine.portraitKey}
+          characterIdentity={activeRandomLine.speakerIdentity || '场景旁白'}
+          characterName={activeRandomLine.speakerName || activeRandomLine.narrationName || '御膳房'}
+          narrationName={activeRandomLine.narrationName || '御膳房'}
+          content={activeRandomLine.text}
+          options={activeRandomOptions.map((option) => ({ id: option.optionId, label: option.optionLabel }))}
+          onSelectOption={handleRandomOptionSelect}
+          onNextAction={activeRandomOptions.length === 0 ? handleRandomDialogueNext : undefined}
+          splitQuotedDialogue={false}
+          busy={busy}
+        />
+      ) : null}
+
       {shopOpen ? (
         <section className="kitchen-view__shop-modal" role="dialog" aria-label="御膳房购买美食弹窗">
           <header className="kitchen-view__shop-header">
@@ -571,23 +762,26 @@ export function KitchenView({ concubines }: KitchenViewProps) {
             </button>
           </header>
           <div className="kitchen-view__shop-list">
-            {kitchenCatalog.map((item) => (
-              <article key={item.itemId} className="kitchen-view__shop-card">
-                <div>
-                  <h3>{item.name}</h3>
-                  <p>{item.description}</p>
-                  <span>{`售价：${item.price}两`}</span>
-                </div>
-                <button
-                  type="button"
-                  aria-label={`购买 ${item.name}`}
-                  disabled={state.silver < item.price}
-                  onClick={() => handleBuyFood(item)}
-                >
-                  购买
-                </button>
-              </article>
-            ))}
+            {kitchenCatalog.map((item) => {
+              const remainingStock = getKitchenShopRemainingStock(item);
+              return (
+                <article key={item.offerId} className="kitchen-view__shop-card">
+                  <div>
+                    <h3>{item.name}</h3>
+                    <p>{item.description}</p>
+                    <span>{`${item.seasonLabel} · 售价：${item.price}两 · 本旬余量：${remainingStock}`}</span>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label={`购买 ${item.name}`}
+                    disabled={state.silver < item.price || remainingStock <= 0}
+                    onClick={() => handleBuyFood(item)}
+                  >
+                    购买
+                  </button>
+                </article>
+              );
+            })}
           </div>
         </section>
       ) : null}

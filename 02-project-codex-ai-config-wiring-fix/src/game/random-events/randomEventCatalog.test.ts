@@ -60,9 +60,17 @@ describe('randomEventCatalog', () => {
 
   it('validates effect json shape', () => {
     expect(parseRandomEventEffectJson('{"player":{"silver":3},"inventory":{"gain":[{"itemId":"plain","quantity":1}]}}')?.player?.silver).toBe(3);
+    expect(
+      parseRandomEventEffectJson(
+        '{"inventory":{"gain":[{"itemId":"plain-1","templateItemId":"plain","quantity":1,"description":"带字","metadata":{"owner":"a"}}]}}',
+      )?.inventory?.gain?.[0].templateItemId,
+    ).toBe('plain');
     expect(() => parseRandomEventEffectJson('{"flags":{"x":true}}')).toThrow(/unsupported root field/);
     expect(() => parseRandomEventEffectJson('{"player":{"unknown":1}}')).toThrow(/unsupported player field/);
     expect(() => parseRandomEventEffectJson('{"inventory":{"gain":[{"itemId":"x","quantity":0}]}}')).toThrow(/positive integer/);
+    expect(() => parseRandomEventEffectJson('{"inventory":{"gain":[{"itemId":"x","quantity":1,"metadata":{"bad":{}}}]}}')).toThrow(
+      /must be a string, number, boolean or null/,
+    );
   });
 
   it('renders templates and keeps missing variables visible', () => {

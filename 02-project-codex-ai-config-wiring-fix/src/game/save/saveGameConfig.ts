@@ -7,12 +7,15 @@ import type {
   NightlyServiceState,
   PalaceBanquetProgressState,
   PermanentNpcRelationshipMap,
+  PalaceTimeState,
+  RouteId,
   TempleProgressState,
 } from '../types';
 import type { RandomEventProgress } from '../random-events/randomEventRuntime';
 import { getNumericRuleValue } from '../numerics/numericCatalog';
+import { createEmperorInteractionProgress } from '../lib/emperorActivityRuntime';
 
-export const SAVE_GAME_SCHEMA_VERSION = 5;
+export const SAVE_GAME_SCHEMA_VERSION = 6;
 export const SAVE_GAME_STORAGE_KEY = 'palace-galgame-flow';
 
 export const SAVE_GAME_REQUIRED_SECTIONS = ['route', 'player', 'world', 'roster', 'inventory', 'relations', 'cases', 'progress'] as const;
@@ -88,9 +91,25 @@ export const createInitialRandomEventProgress = (): RandomEventProgress => ({
   pendingUnlocks: [],
 });
 
-export const createInitialEmperorInteractionProgress = (): EmperorInteractionProgressState => ({
-  triggeredEncounterIds: [],
-});
+const defaultInitialTime: PalaceTimeState = {
+  year: 1,
+  month: 1,
+  xun: 1,
+  slotIndex: 0,
+  slot: '清晨',
+  slotProgress: 0,
+};
+
+export const createInitialEmperorInteractionProgress = (
+  routeId: RouteId = 'lanyinxuguo',
+  time: PalaceTimeState = defaultInitialTime,
+  mood = getNumericRuleValue('initial_emperor_mood'),
+): EmperorInteractionProgressState =>
+  createEmperorInteractionProgress(
+    routeId,
+    time,
+    mood,
+  );
 
 export const createInitialNightlyService = (): NightlyServiceState => ({
   playerNightFavorGauge: getNumericRuleValue('initial_player_night_favor_gauge'),

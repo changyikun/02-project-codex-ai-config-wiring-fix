@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PRESTIGE_RANGE } from '../../config/constants';
 import { numericInventoryItems } from '../numerics/numericCatalog';
 import { CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN } from '../lib/consortVisitRuntime';
+import { createEmperorInteractionProgress } from '../lib/emperorActivityRuntime';
 import { PLAYER_PALACE_STRIFE_TARGET_ID } from '../lib/palaceStrifeRuntime';
 import { YINGLUOYETING_STORY_FLAGS } from '../lib/yingluoyetingStoryRuntime';
 import { SAVE_GAME_SCHEMA_VERSION, SAVE_GAME_STORAGE_KEY } from '../save/saveGameV1';
@@ -112,17 +113,18 @@ describe('gameFlowStore SaveGameV1 integration', () => {
   });
 
   it('resolves daytime emperor audience without advancing time again', () => {
+    const entryTime = {
+      year: 2,
+      month: 3,
+      xun: 2,
+      slotIndex: 1,
+      slot: '上午' as const,
+      slotProgress: 0,
+    };
     useGameFlowStore.setState((state) => ({
       ...state,
       activeMapLocation: '养心殿',
-      activeMapLocationEntryTime: {
-        year: 2,
-        month: 3,
-        xun: 2,
-        slotIndex: 1,
-        slot: '上午',
-        slotProgress: 0,
-      },
+      activeMapLocationEntryTime: entryTime,
       state: {
         ...state.state,
         favor: 80,
@@ -141,6 +143,7 @@ describe('gameFlowStore SaveGameV1 integration', () => {
         ...state.nightlyService,
         emperorMood: 70,
       },
+      emperorInteraction: createEmperorInteractionProgress(state.state.routeId, entryTime, 70),
     }));
 
     const beforeTime = useGameFlowStore.getState().time;
@@ -152,6 +155,48 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     expect(interaction.success).toBe(true);
     expect(flow.time).toEqual(beforeTime);
     expect(flow.emperorInteraction.triggeredEncounterIds.some((id) => id.includes('养心殿:yangxin-request'))).toBe(true);
+  });
+
+  it('uses the stored emperor schedule instead of regenerating Yangxin availability', () => {
+    const entryTime = {
+      year: 2,
+      month: 3,
+      xun: 2,
+      slotIndex: 1,
+      slot: '上午' as const,
+      slotProgress: 0,
+    };
+    const progress = createEmperorInteractionProgress('lanyinxuguo', entryTime, 70);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      activeMapLocation: '养心殿',
+      activeMapLocationEntryTime: entryTime,
+      state: {
+        ...state.state,
+        favor: 80,
+        trueHeart: 60,
+      },
+      emperorInteraction: {
+        ...progress,
+        schedule: {
+          ...progress.schedule,
+          slots: {
+            ...progress.schedule.slots,
+            上午: {
+              ...progress.schedule.slots['上午'],
+              location: '御花园',
+            },
+          },
+        },
+      },
+    }));
+
+    const request = useGameFlowStore.getState().requestEmperorAudience('养心殿', 'yangxin-request', {
+      requireEmperorAtLocation: true,
+    });
+
+    expect(request.success).toBe(false);
+    expect(request.message).toContain('不在养心殿');
   });
 
   it('consumes a real inventory gift during emperor gift interaction', () => {
@@ -1232,7 +1277,7 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     useGameFlowStore.getState().advanceTime(7);
 
     const afterNextXun = useGameFlowStore.getState();
-    expect(afterNextXun.state.prestige).toBe(-650);
+    expect(afterNextXun.state.prestige).toBe(-670);
     expect(afterNextXun.state.favor).toBe(40);
     expect(afterNextXun.state.stress).toBe(30);
   });
@@ -1317,18 +1362,19 @@ describe('gameFlowStore SaveGameV1 integration', () => {
 
     const flow = useGameFlowStore.getState();
     const latestReport = flow.settlementReports.at(-1);
-    expect(flow.state.prestige).toBe(1000);
+    expect(flow.state.prestige).toBe(980);
     expect(['summon', 'player-choice']).toContain(flow.pendingYangxinVerdict?.stage);
     expect(flow.hiddenStats.initialRank).toBe('嫔');
     expect(latestReport?.kind).toBe('month');
     expect(latestReport?.summary).toContain('当前位份：嫔');
-    expect(latestReport?.summary).toContain('当前声望：1000 / 750');
+    expect(latestReport?.summary).toContain('当前声望：980 / 750');
+    expect(latestReport?.summary).toContain('上月未见娘娘入宫问安');
     expect(latestReport?.summary).not.toContain('扣声望750');
 
     completePendingYangxinVerdict('palace-strife-heavy-month-end');
 
     const afterVerdict = useGameFlowStore.getState();
-    expect(afterVerdict.state.prestige).toBe(250);
+    expect(afterVerdict.state.prestige).toBe(230);
     expect(afterVerdict.palaceStrifeCases[0].outcome).toBe('convicted');
   });
 

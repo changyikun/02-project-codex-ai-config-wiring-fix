@@ -8,6 +8,8 @@ export const DU_NIANG_NPC_NAME = '杜娘';
 export const DU_NIANG_FRIENDSHIP_PRICE_AFFINITY = 60;
 export const DU_NIANG_FRIENDSHIP_BUY_RATE = 0.85;
 export const DU_NIANG_FRIENDSHIP_SELL_RATE = 1.1;
+export const LI_GONGGONG_NPC_ID = 'li-gonggong';
+export const LI_GONGGONG_NPC_NAME = '李公公';
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, Math.floor(value)));
 
@@ -58,8 +60,9 @@ export const applyPermanentNpcAffinityDelta = (
 export const recordPermanentNpcInteractionAction = (
   relationship: PermanentNpcRelationshipState,
   actionId: PermanentNpcInteractionActionId,
+  limit = PERMANENT_NPC_INTERACTION_ACTION_LIMIT_PER_XUN,
 ): { relationship: PermanentNpcRelationshipState; success: boolean; actionCountThisXun: number; actionLimitHit: boolean } => {
-  if (relationship.actionCountThisXun >= PERMANENT_NPC_INTERACTION_ACTION_LIMIT_PER_XUN) {
+  if (relationship.actionCountThisXun >= limit) {
     return {
       relationship,
       success: false,

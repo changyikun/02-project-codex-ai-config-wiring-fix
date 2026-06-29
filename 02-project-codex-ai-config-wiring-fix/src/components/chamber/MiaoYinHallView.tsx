@@ -140,6 +140,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
   const [actionResultText, setActionResultText] = useState('');
   const [pendingTimedActionOutcome, setPendingTimedActionOutcome] = useState<TimedLocationActionOutcome | null>(null);
   const [pendingEncounterSendOff, setPendingEncounterSendOff] = useState<ConsortSendOffNarrative | null>(null);
+  const [encounterConsumedInteraction, setEncounterConsumedInteraction] = useState(false);
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const saveId = useMemo(() => `local:${state.routeId}:${encodeURIComponent(state.name)}`, [state.name, state.routeId]);
@@ -306,6 +307,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     setActiveEncounterLabel(actionLabel);
     setActiveEncounterKind(encounterKind);
     setPendingEncounterSendOff(null);
+    setEncounterConsumedInteraction(false);
 
     try {
       await runNarrativeTurn(actor, 'visit', actionId, actionLabel, {
@@ -337,6 +339,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
 
   const closeEncounter = () => {
     const outcome = pendingTimedActionOutcome;
+    const interactionOutcome = encounterConsumedInteraction && !outcome ? beginTimedLocationAction() : null;
     finalizeLianQiaoUnlockIfNeeded();
     setActiveActor(null);
     setDialogueTurn(null);
@@ -346,7 +349,8 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     setBusy(false);
     setPendingTimedActionOutcome(null);
     setPendingEncounterSendOff(null);
-    finishTimedLocationAction(outcome);
+    setEncounterConsumedInteraction(false);
+    finishTimedLocationAction(outcome ?? interactionOutcome);
   };
 
   useEffect(() => {
@@ -694,6 +698,9 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
 
       if (activeActor.actorKind === 'consort') {
         const summary = applyConsortRelationshipJudgement(activeActor.id, 'greet', judgement);
+        if (!summary.actionLimitHit) {
+          setEncounterConsumedInteraction(true);
+        }
         const nextActor = {
           ...activeActor,
           currentGoodwill: clampToRange(activeActor.currentGoodwill + summary.appliedFavorDelta, -100, 100),

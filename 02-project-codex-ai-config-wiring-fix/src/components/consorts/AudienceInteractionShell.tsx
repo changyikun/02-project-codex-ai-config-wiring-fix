@@ -5,10 +5,14 @@ export interface AudienceMetaRow {
   value: ReactNode;
 }
 
+export interface AudienceExitResult {
+  shouldAdvanceTime?: boolean;
+}
+
 interface AudienceInteractionShellProps {
   ariaLabel: string;
   heading: string;
-  onBack?: () => void;
+  onBack?: (result?: AudienceExitResult) => void;
   backLabel?: string;
   className?: string;
   headerActions?: ReactNode;
@@ -45,7 +49,7 @@ export function AudienceInteractionShell({
           <div className="harem-palace-view__header-actions">{headerActions}</div>
         ) : onBack ? (
           <div className="harem-palace-view__header-actions">
-            <button type="button" className="harem-palace-view__utility-button" onClick={onBack}>
+            <button type="button" className="harem-palace-view__utility-button" onClick={() => onBack()}>
               {backLabel}
             </button>
           </div>

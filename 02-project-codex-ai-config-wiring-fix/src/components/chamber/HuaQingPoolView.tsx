@@ -119,6 +119,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
   const [actionResultText, setActionResultText] = useState('');
   const [pendingTimedActionOutcome, setPendingTimedActionOutcome] = useState<TimedLocationActionOutcome | null>(null);
   const [pendingEncounterSendOff, setPendingEncounterSendOff] = useState<ConsortSendOffNarrative | null>(null);
+  const [encounterConsumedInteraction, setEncounterConsumedInteraction] = useState(false);
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const dialogueOptions = dialogueTurn?.options ?? [];
@@ -268,6 +269,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
     setHistory([]);
     setSceneHint('');
     setPendingEncounterSendOff(null);
+    setEncounterConsumedInteraction(false);
 
     try {
       await runNarrativeTurn(actor, 'visit', actionId, actionLabel, {
@@ -299,6 +301,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
 
   const closeEncounter = () => {
     const outcome = pendingTimedActionOutcome;
+    const interactionOutcome = encounterConsumedInteraction && !outcome ? beginTimedLocationAction() : null;
     setActiveActor(null);
     setDialogueTurn(null);
     setHistory([]);
@@ -306,7 +309,8 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
     setBusy(false);
     setPendingTimedActionOutcome(null);
     setPendingEncounterSendOff(null);
-    finishTimedLocationAction(outcome);
+    setEncounterConsumedInteraction(false);
+    finishTimedLocationAction(outcome ?? interactionOutcome);
   };
 
   const handleSoloBath = () => {
@@ -465,6 +469,9 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
 
       if (activeActor.consortId) {
         const summary = applyConsortRelationshipJudgement(activeActor.consortId, 'greet', judgement);
+        if (!summary.actionLimitHit) {
+          setEncounterConsumedInteraction(true);
+        }
         const nextActor = {
           ...activeActor,
           currentGoodwill: clampToRange(activeActor.currentGoodwill + summary.appliedFavorDelta, -100, 100),

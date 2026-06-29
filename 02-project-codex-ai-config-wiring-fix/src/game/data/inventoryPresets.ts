@@ -1,5 +1,10 @@
 import type { InventoryItem } from '../types';
-import { getInventoryItemsByPool } from '../numerics/numericCatalog';
+import {
+  getInventoryItemsByPool,
+  numericInventoryItems,
+  numericKitchenShopOffers,
+  type NumericKitchenShopSeason,
+} from '../numerics/numericCatalog';
 
 export const INITIAL_PALACE_INVENTORY: readonly InventoryItem[] = getInventoryItemsByPool('initial');
 
@@ -10,10 +15,18 @@ export interface DuNiangShopEntry extends InventoryItem {
   isRareOffer?: boolean;
 }
 
-const KITCHEN_FOOD_ITEMS: readonly InventoryItem[] = getInventoryItemsByPool('kitchen');
+export interface KitchenFoodShopEntry extends InventoryItem {
+  offerId: string;
+  stockLimit: number;
+  seasonLabel: string;
+}
+
 const DU_NIANG_ALWAYS_AVAILABLE_ITEMS: readonly InventoryItem[] = getInventoryItemsByPool('duniang-always');
 const YETING_POISON_ITEMS: readonly InventoryItem[] = getInventoryItemsByPool('yeting-poison');
 const MUSIC_SCORE_LIBRARY: readonly InventoryItem[] = getInventoryItemsByPool('music-score');
+const KITCHEN_ITEM_TEMPLATES = new Map(
+  numericInventoryItems.map(({ pools: _pools, tags: _tags, ...item }) => [item.itemId, item] as const),
+);
 
 const hashSeed = (seed: string): number =>
   seed.split('').reduce((accumulator, char, index) => accumulator + char.charCodeAt(0) * (index + 17), 0);
@@ -40,10 +53,93 @@ export const getInventoryRecyclePrice = (item: InventoryItem): number => {
   return Math.max(0, Math.floor(item.price * 0.8));
 };
 
-export const buildKitchenFoodCatalog = (): InventoryItem[] =>
-  KITCHEN_FOOD_ITEMS.map((item) => ({
+const getKitchenSeason = (month: number): NumericKitchenShopSeason => {
+  const normalizedMonth = Math.max(1, Math.min(12, Math.floor(month || 1)));
+  if (normalizedMonth <= 3) {
+    return 'spring';
+  }
+  if (normalizedMonth <= 6) {
+    return 'summer';
+  }
+  if (normalizedMonth <= 9) {
+    return 'autumn';
+  }
+  return 'winter';
+};
+
+const seasonLabels: Record<NumericKitchenShopSeason, string> = {
+  all: '常备',
+  spring: '春令',
+  summer: '夏令',
+  autumn: '秋令',
+  winter: '冬令',
+};
+
+const isKitchenOfferAvailableInSeason = (
+  offer: (typeof numericKitchenShopOffers)[number],
+  season: NumericKitchenShopSeason,
+): boolean => offer.seasons.includes('all') || offer.seasons.includes(season);
+
+const selectWeightedKitchenOffers = <T extends { weight: number; offerId: string }>(
+  offers: readonly T[],
+  seed: string,
+  count: number,
+): T[] => {
+  const remaining = [...offers].sort((left, right) => left.offerId.localeCompare(right.offerId));
+  const selected: T[] = [];
+
+  for (let slot = 0; slot < count && remaining.length > 0; slot += 1) {
+    const totalWeight = remaining.reduce((sum, offer) => sum + offer.weight, 0);
+    if (totalWeight <= 0) {
+      break;
+    }
+    const roll = (hashSeed(`${seed}:kitchen:${slot}`) % 10000) / 10000 * totalWeight;
+    let cursor = 0;
+    const selectedIndex = remaining.findIndex((offer) => {
+      cursor += offer.weight;
+      return roll < cursor;
+    });
+    selected.push(remaining.splice(Math.max(0, selectedIndex), 1)[0]);
+  }
+
+  return selected;
+};
+
+const buildKitchenShopEntry = (
+  offer: (typeof numericKitchenShopOffers)[number],
+  season: NumericKitchenShopSeason,
+): KitchenFoodShopEntry => {
+  const item = KITCHEN_ITEM_TEMPLATES.get(offer.itemId);
+  if (!item) {
+    throw new Error(`Unknown kitchen shop item "${offer.itemId}".`);
+  }
+  const offerSeasonLabel = offer.seasons.includes('all')
+    ? seasonLabels.all
+    : offer.seasons.includes(season)
+      ? seasonLabels[season]
+      : offer.seasons.map((entry) => seasonLabels[entry]).join(' / ');
+
+  return {
     ...item,
-  }));
+    offerId: offer.offerId,
+    stockLimit: offer.stockPerXun,
+    seasonLabel: offerSeasonLabel,
+  };
+};
+
+export const buildKitchenFoodCatalog = (seed = 'kitchen', month = 1): KitchenFoodShopEntry[] => {
+  const season = getKitchenSeason(month);
+  const eligibleOffers = numericKitchenShopOffers.filter((offer) => isKitchenOfferAvailableInSeason(offer, season));
+  const guaranteedOffers = eligibleOffers.filter((offer) => offer.guaranteed);
+  const randomOffers = selectWeightedKitchenOffers(
+    eligibleOffers.filter((offer) => !offer.guaranteed),
+    `${seed}:${season}`,
+    5,
+  );
+  const offers = [...guaranteedOffers, ...randomOffers];
+
+  return offers.map((offer) => buildKitchenShopEntry(offer, season));
+};
 
 export const buildYetingPoisonCatalog = (): InventoryItem[] =>
   YETING_POISON_ITEMS.filter((item) => YETING_POISON_ITEM_IDS.includes(item.itemId)).map((item) => ({

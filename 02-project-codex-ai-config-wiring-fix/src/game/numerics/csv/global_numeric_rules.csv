@@ -38,3 +38,7 @@ initial_slot_index,0,,,,新局时间段序号
 initial_slot_progress,0,,,,新局时间段进度
 initial_emperor_mood,40,,,,皇帝初始心情
 initial_player_night_favor_gauge,0,,,,玩家侍寝初始兴趣槽
+dowager_interaction_limit_per_xun,2,,,,太后每旬有效互动次数上限
+dowager_greeting_affinity_delta,2,,,,建章宫请安增加的太后好感
+dowager_minor_affinity_delta,1,,,,太后闲谈/请教等普通互动增加的太后好感
+dowager_missing_monthly_greeting_prestige_delta,-20,,,,上月未向太后请安时月初扣除的玩家声望

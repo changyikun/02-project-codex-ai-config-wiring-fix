@@ -15,12 +15,14 @@ import {
 import { getNpcVisitAtResidence, isNpcAtOwnResidence } from '../../game/lib/npcActivityRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type { ConcubineProfile } from '../../game/types';
+import { useLocationActionFlow } from '../chamber/useLocationActionFlow';
 
 interface HaremPalaceViewProps {
   concubines: ConcubineProfile[];
   playerResidenceName: string;
   playerName: string;
   playerRankLabel: string;
+  onLeave?: () => void;
 }
 
 interface HallOccupancy {
@@ -58,8 +60,9 @@ const getResidencePresenceLabel = (
   return '';
 };
 
-export function HaremPalaceView({ concubines, playerResidenceName, playerName, playerRankLabel }: HaremPalaceViewProps) {
+export function HaremPalaceView({ concubines, playerResidenceName, playerName, playerRankLabel, onLeave }: HaremPalaceViewProps) {
   const { state, time, npcActivity, consortInteractionMap, resolveNpcActivityEntry, enterMainChamber } = useGameFlowStore();
+  const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [selectedPalaceId, setSelectedPalaceId] = useState<HaremPalaceId | null>(null);
   const [selectedHallId, setSelectedHallId] = useState<string | null>(null);
   const [activeResidentId, setActiveResidentId] = useState<string | null>(null);
@@ -264,7 +267,15 @@ export function HaremPalaceView({ concubines, playerResidenceName, playerName, p
           </div>
         </header>
       ) : (
-        <header className="harem-palace-view__header harem-palace-view__header--overview" aria-hidden="true" />
+        <header className="harem-palace-view__header harem-palace-view__header--overview">
+          {onLeave ? (
+            <div className="harem-palace-view__header-actions">
+              <button type="button" className="harem-palace-view__utility-button" onClick={onLeave}>
+                离开
+              </button>
+            </div>
+          ) : null}
+        </header>
       )}
 
       {selectedPalace && activeResident && selectedHall ? (
@@ -273,7 +284,10 @@ export function HaremPalaceView({ concubines, playerResidenceName, playerName, p
           palaceLabel={selectedPalace.label}
           hallLabel={selectedHall.suffix}
           concubines={concubines}
-          onBack={() => {
+          onBack={(result) => {
+            if (result?.shouldAdvanceTime) {
+              finishTimedLocationAction(beginTimedLocationAction());
+            }
             const activeResidenceVisit = activeResident ? getNpcVisitAtResidence(npcActivity, activeResident.id) : undefined;
             if (activeResidenceVisit) {
               resolveNpcActivityEntry(activeResidenceVisit.id);

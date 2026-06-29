@@ -1,4 +1,4 @@
-itemId,name,category,rarity,quantity,price,favorDelta,healthDelta,appearanceDelta,temperamentDelta,canSell,canRecycle,isQuestItem,recyclePriceOverride,color,pools,description
+itemId,name,category,rarity,quantity,price,favorDelta,healthDelta,appearanceDelta,temperamentDelta,canSell,canRecycle,isQuestItem,recyclePriceOverride,color,pools,description,tags
 embroidered-sachet,缠枝香囊,gift,green,2,70,5,0,0,0,true,true,false,,green,,绣样秀雅，最适合日常探望时送作人情。
 embroidered-sachet,缠枝香囊,gift,green,1,70,5,0,0,0,true,true,false,,green,duniang-always,绿色绣品，最适合日常探望时送作人情。
 pine-wind-scroll,松风小幅,gift,blue,1,140,10,0,0,0,true,true,false,,blue,,一卷清雅字画，落款不显，却胜在意趣干净，适合御前奉礼。
@@ -14,6 +14,18 @@ lotus-seed-soup,莲子银耳羹,food,green,1,58,4,18,0,0,true,true,false,,green,
 jade-shrimp-dumpling,水晶虾饺,food,blue,1,76,5,16,0,0,true,true,false,,blue,kitchen,皮薄馅鲜，若趁热送去，总显得你待人更周到些。
 eight-treasure-duck,八宝鸭,food,blue,1,96,6,24,0,0,true,true,false,,blue,kitchen,膳房压轴的大菜，拿去做人情最体面，也最费银子。
 snow-pear-broth,雪梨燕窝盏,food,purple,1,128,8,30,6,0,true,true,false,,purple,kitchen,清润养身，既能补气色，也适合拿去做一份细致人情。
+green-plum,青梅,food,green,1,18,1,4,0,0,true,true,false,,green,kitchen,春日里送进膳房的青梅，酸口醒神。,tree-fruit
+loquat,枇杷,food,green,1,24,2,6,0,0,true,true,false,,green,kitchen,初夏果子，润喉清甜。,tree-fruit
+fresh-jubube,鲜枣,food,green,1,22,2,5,0,0,true,true,false,,green,kitchen,秋日新打下来的鲜枣，脆甜耐放。,tree-fruit
+honeyed-persimmon,蜜柿,food,green,1,28,2,6,0,0,true,true,false,,green,kitchen,软甜的熟柿子，最怕磕碰。,tree-fruit
+early-mulberry,桑葚,food,green,1,26,2,5,0,0,true,true,false,,green,kitchen,紫红果粒，入口带一点酸甜。,tree-fruit
+wild-honey-jar,野蜜小罐,food,blue,1,64,4,10,2,0,true,true,false,,blue,kitchen,小陶罐封着的野蜜，甜香很正。
+steamed-chestnut,蒸栗子,food,green,1,30,2,7,0,0,true,true,false,,green,kitchen,刚蒸出来的栗子，热气里带着一点焦甜。
+sesame-flatbread,芝麻饼,food,green,1,12,1,3,0,0,true,true,false,,green,,油纸一包的旧饼，填肚子还算顶用。,low-quality-food
+cold-steamed-bun,冷馒头,food,green,1,10,1,2,0,0,true,true,false,,green,,已经冷掉的白馒头，胜在能填肚子。,low-quality-food
+plain-rice-cake,米糕边角,food,green,1,14,1,3,0,0,true,true,false,,green,,切剩下的米糕边角，口感粗些但还能入口。,low-quality-food
+silver-leaf-earring,银叶耳坠,gift,green,1,35,8,0,0,0,true,true,false,,green,,一枚银叶形耳坠，背面刻着细小字痕。
+kitchen-lost-letter,未送出的家书,gift,green,1,0,0,0,0,0,false,false,true,,green,,夹在蒸笼缝里的家书，像是还没来得及送出去。
 brocade-handkerchief,霁月绣帕,gift,blue,1,130,10,0,0,0,true,true,false,,blue,duniang-always,蓝色绣品，针脚细密，适合拿去做顺水人情。
 plum-blossom-scroll,寒梅照雪,gift,blue,1,150,10,0,0,0,true,true,false,,blue,duniang-always,蓝色字画，寒梅一枝，胜在风骨清简，拿到御前也不显俗气。
 running-script-copybook,行草小帖,gift,purple,1,260,14,0,0,0,true,true,true,,purple,,紫色字帖，笔意藏锋，懂书法的人看了会多留一眼。

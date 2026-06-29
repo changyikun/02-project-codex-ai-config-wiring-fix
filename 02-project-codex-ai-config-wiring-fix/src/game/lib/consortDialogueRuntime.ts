@@ -44,7 +44,7 @@ const buildCsvDialogueFields = (
     residenceName: consort.residence,
     speakerIdentity: buildSpeakerIdentity(consort),
     speakerLead,
-    targetName: payload.smearTargetName ?? '旁人',
+    targetName: payload.smearTargetName ?? consort.name,
     visitOpening: actionResult ? `${actionResult}\n` : '',
     visitPlace: payload.playerResidence === consort.residence ? '殿中' : '看我',
   };
@@ -58,6 +58,10 @@ const buildCsvDialogueFields = (
 
   if (actionId === 'gift') {
     return renderCsvEntry('consort.audience.gift');
+  }
+
+  if (actionId === 'return-earring') {
+    return renderCsvEntry('consort.audience.return-earring');
   }
 
   if (actionId === 'greet') {

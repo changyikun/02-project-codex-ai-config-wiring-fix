@@ -118,6 +118,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
   const [actionResultText, setActionResultText] = useState('');
   const [pendingTimedActionOutcome, setPendingTimedActionOutcome] = useState<TimedLocationActionOutcome | null>(null);
   const [pendingEncounterSendOff, setPendingEncounterSendOff] = useState<ConsortSendOffNarrative | null>(null);
+  const [encounterConsumedInteraction, setEncounterConsumedInteraction] = useState(false);
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const saveId = useMemo(() => `local:${state.routeId}:${encodeURIComponent(state.name)}`, [state.name, state.routeId]);
@@ -253,6 +254,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     setSceneHint('你已在药廊下把人拦住，对方正在接这句话。');
     setActiveEncounterLabel(actionLabel);
     setPendingEncounterSendOff(null);
+    setEncounterConsumedInteraction(false);
 
     try {
       await runNarrativeTurn(actor, 'visit', actionId, actionLabel, {
@@ -284,6 +286,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
 
   const closeEncounter = () => {
     const outcome = pendingTimedActionOutcome;
+    const interactionOutcome = encounterConsumedInteraction && !outcome ? beginTimedLocationAction() : null;
     finalizeJianNingUnlockIfNeeded();
     setActiveActor(null);
     setDialogueTurn(null);
@@ -292,7 +295,8 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     setBusy(false);
     setPendingTimedActionOutcome(null);
     setPendingEncounterSendOff(null);
-    finishTimedLocationAction(outcome);
+    setEncounterConsumedInteraction(false);
+    finishTimedLocationAction(outcome ?? interactionOutcome);
   };
 
   const handleStroll = async () => {
@@ -438,6 +442,9 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
 
       if (activeActor.actorKind === 'consort' && activeActor.consortId) {
         const summary = applyConsortRelationshipJudgement(activeActor.consortId, 'greet', judgement);
+        if (!summary.actionLimitHit) {
+          setEncounterConsumedInteraction(true);
+        }
         const nextActor = {
           ...activeActor,
           currentGoodwill: clampToRange(activeActor.currentGoodwill + summary.appliedFavorDelta, -100, 100),

@@ -133,6 +133,21 @@ const hasConsortInteractionActionCounts = (value: SaveGameV1): boolean =>
     (progress) => typeof progress.actionCountThisXun === 'number',
   );
 
+const hasEmperorInteractionSchedule = (value: SaveGameV1): boolean => {
+  const progress = value.progress?.emperorInteraction;
+  return Boolean(
+    progress &&
+      typeof progress.xunKey === 'string' &&
+      typeof progress.mood === 'number' &&
+      progress.schedule &&
+      progress.schedule.xunKey === progress.xunKey &&
+      progress.schedule.slots &&
+      ['清晨', '上午', '中午', '下午', '傍晚', '夜晚', '深夜'].every(
+        (slot) => typeof progress.schedule.slots[slot as keyof typeof progress.schedule.slots]?.location === 'string',
+      ),
+  );
+};
+
 export const isSaveGameV1 = (value: unknown): value is SaveGameV1 =>
   Boolean(
     value &&
@@ -143,6 +158,7 @@ export const isSaveGameV1 = (value: unknown): value is SaveGameV1 =>
       hasRequiredSaveRelations((value as SaveGameV1).relations) &&
       hasRequiredSaveProgress((value as SaveGameV1).progress) &&
       Array.isArray((value as SaveGameV1).progress?.emperorInteraction?.triggeredEncounterIds) &&
+      hasEmperorInteractionSchedule(value as SaveGameV1) &&
       hasConsortInteractionActionCounts(value as SaveGameV1) &&
       hasV051PalaceStrifeCases(value as SaveGameV1),
   );

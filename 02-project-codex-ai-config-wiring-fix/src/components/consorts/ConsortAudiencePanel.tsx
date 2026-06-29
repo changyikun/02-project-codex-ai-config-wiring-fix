@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
-import { AudienceInteractionShell, type AudienceMetaRow } from './AudienceInteractionShell';
+import { AudienceInteractionShell, type AudienceExitResult, type AudienceMetaRow } from './AudienceInteractionShell';
 import {
   getConcubineConditionLabel,
   getConcubineDisplayRankText,
@@ -10,6 +10,10 @@ import {
 import { clampToRange, createDialogueId, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
 import { requestConsortLocalDialogue } from '../../game/lib/consortDialogueRuntime';
 import { traceDialogue } from '../../game/lib/dialogueTrace';
+import {
+  isEarringReturnForConsort,
+  resolveEarringGiftRelationDelta,
+} from '../../game/lib/earringReturnRuntime';
 import {
   CONSORT_AUDIENCE_FIXED_ACTIONS,
   CONSORT_AUDIENCE_FOLLOW_UP_LIMIT_PER_TOPIC,
@@ -38,7 +42,7 @@ interface ConsortAudiencePanelProps {
   palaceLabel: string;
   hallLabel: string;
   concubines: ConcubineProfile[];
-  onBack: () => void;
+  onBack: (result?: AudienceExitResult) => void;
   backLabel?: string;
   initialActionResult?: string;
   initialActionLabel?: string;
@@ -140,6 +144,7 @@ export function ConsortAudiencePanel({
   const [followUpCount, setFollowUpCount] = useState(0);
   const [closeAfterDialogue, setCloseAfterDialogue] = useState(false);
   const [sendOffAfterDialogue, setSendOffAfterDialogue] = useState<ConsortSendOffNarrative | null>(null);
+  const [hasConsumedInteractionThisSession, setHasConsumedInteractionThisSession] = useState(false);
   const [chenFirstMeetResultText, setChenFirstMeetResultText] = useState('');
   const [chenFirstMeetFinished, setChenFirstMeetFinished] = useState(false);
   const saveId = useMemo(() => `local:${state.routeId}:${encodeURIComponent(state.name)}`, [state.name, state.routeId]);
@@ -184,6 +189,9 @@ export function ConsortAudiencePanel({
     encounterPlace === 'public'
       ? buildConsortPublicEncounterSendOffNarrativeEntry(consortTitle, palaceLabel)
       : buildConsortAudienceSendOffNarrativeEntry(consortTitle);
+  const exitAudience = () => {
+    onBack({ shouldAdvanceTime: hasConsumedInteractionThisSession });
+  };
   const persistentConsortPortrait = (
     <div className="harem-palace-view__audience-portrait-stage" aria-label={`${consort.name}常驻立绘`}>
       <div className="harem-palace-view__audience-portrait-frame">
@@ -329,6 +337,7 @@ export function ConsortAudiencePanel({
       setCloseAfterDialogue(false);
       setSendOffAfterDialogue(null);
       setHistory([]);
+      setHasConsumedInteractionThisSession(false);
       try {
         await runNarrativeTurn(consort, 'visit', 'visit', initialActionLabel, {
           actionResult: initialActionResult ?? `你已步入${palaceLabel}${hallLabel}，与${displayRank} ${consort.name}正面相见。`,
@@ -429,6 +438,7 @@ export function ConsortAudiencePanel({
       setPickerMode(null);
       return;
     }
+    setHasConsumedInteractionThisSession(true);
     const consumed = consumeInventoryItem(item.itemId);
     if (!consumed) {
       setSceneHint(`${item.name}已不在当前背包中。`);
@@ -436,11 +446,13 @@ export function ConsortAudiencePanel({
       return;
     }
 
+    const isEarringReturn = isEarringReturnForConsort(item, consort.id);
+    const relationDelta = resolveEarringGiftRelationDelta(item, consort.id);
     const nextConsort: ConcubineProfile = {
       ...consort,
       stats: {
         ...consort.stats,
-        relationToPlayer: clampToRange(consort.stats.relationToPlayer + item.favorDelta, -100, 100),
+        relationToPlayer: clampToRange(consort.stats.relationToPlayer + relationDelta, -100, 100),
         health: clampToRange(consort.stats.health + item.healthDelta, 0, 1000),
         appearance: clampToRange(consort.stats.appearance + item.appearanceDelta, 0, 1000),
         temperament: clampToRange(consort.stats.temperament + item.temperamentDelta, 0, 1000),
@@ -449,17 +461,20 @@ export function ConsortAudiencePanel({
 
     patchConcubineById(consort.id, () => nextConsort);
     const shouldSendOff = actionRecord.actionCountThisXun >= CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN;
+    const narrativeActionId: ConsortPalaceActionId = isEarringReturn ? 'return-earring' : 'gift';
     setBusy(true);
     setPickerMode(null);
-    setActionId('gift');
+    setActionId(narrativeActionId);
     setActionLabel('送礼');
     setFollowUpCount(0);
     setCloseAfterDialogue(shouldSendOff);
     setSendOffAfterDialogue(shouldSendOff ? buildSendOffEntry() : null);
 
     try {
-      await runNarrativeTurn(nextConsort, 'action', 'gift', '送礼', {
-        actionResult: `${item.name}已送出。系统按礼物规则结算：对玩家好感 ${item.favorDelta >= 0 ? '+' : ''}${item.favorDelta}。`,
+      await runNarrativeTurn(nextConsort, 'action', narrativeActionId, '送礼', {
+        actionResult: isEarringReturn
+          ? ''
+          : `${item.name}已送出。系统按礼物规则结算：对玩家好感 ${item.favorDelta >= 0 ? '+' : ''}${item.favorDelta}。`,
         giftItemName: item.name,
       });
     } finally {
@@ -490,6 +505,7 @@ export function ConsortAudiencePanel({
       setSceneHint(CONSORT_INTERACTION_LIMIT_TEXT);
       return;
     }
+    setHasConsumedInteractionThisSession(true);
 
     const shouldSendOff = actionRecord.actionCountThisXun >= CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN;
     setBusy(true);
@@ -556,7 +572,7 @@ export function ConsortAudiencePanel({
       setDialogueTurn(null);
       setSceneHint('');
       setCloseAfterDialogue(false);
-      onBack();
+      exitAudience();
       return;
     }
 
@@ -610,7 +626,7 @@ export function ConsortAudiencePanel({
             {action.label}
           </button>
         ))}
-        <button type="button" onClick={onBack} disabled={busy}>
+        <button type="button" onClick={exitAudience} disabled={busy}>
           返回
         </button>
       </aside>
@@ -660,7 +676,7 @@ export function ConsortAudiencePanel({
     <AudienceInteractionShell
       ariaLabel={`${displayRank} ${consort.name} 日常对话`}
       heading={`${palaceLabel} · ${hallLabel}`}
-      onBack={onBack}
+      onBack={exitAudience}
       backLabel={backLabel}
       metaRows={metaRows}
       portrait={persistentConsortPortrait}

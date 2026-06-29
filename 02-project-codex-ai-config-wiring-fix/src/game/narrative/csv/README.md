@@ -14,7 +14,7 @@
 | `relationship_audiences.csv` | 妃嫔会面、太后会面、NPC 拜访玩家、送客 / 偶遇收束 |
 | `emperor_yangxin_dialogues.csv` | 皇帝日间互动、养心殿求见、侍寝演出固定剧情 |
 | `palace_strife_verdict.csv` | 宫斗调查、养心殿裁断、求情 / 旁听固定发言 |
-| `npc_tools_dialogues.csv` | 宫门杜娘、阿翎等工具型 NPC 对话 |
+| `npc_tools_dialogues.csv` | 宫门杜娘、阿翎、养心殿李公公等工具型 NPC 对话 |
 
 新增剧情时先选择最接近的系统域文件，不要一段剧情新建一个 CSV，也不要把不同系统的剧情合并到一张大表。
 

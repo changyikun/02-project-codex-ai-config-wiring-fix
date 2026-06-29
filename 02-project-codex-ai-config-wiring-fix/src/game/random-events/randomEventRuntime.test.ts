@@ -11,6 +11,9 @@ import {
   getRandomEventCurrentLine,
   getRandomEventCurrentOptions,
   listEligibleRandomEvents,
+  listEligibleRandomEventsByPools,
+  pickRandomEventFromPoolsBySeed,
+  pickRandomEventBySeed,
   pickRandomEvent,
   queueRandomEventUnlocks,
   releaseAvailableRandomEventUnlocks,
@@ -110,6 +113,66 @@ describe('randomEventRuntime', () => {
     });
   });
 
+  it('picks DuNiang events from merged pools through the shared seeded picker', () => {
+    const progress = createInitialRandomEventProgress();
+    const poolIds = ['npc.du-niang.common', 'npc.du-niang.low-affinity'];
+
+    const mergedEvents = listEligibleRandomEventsByPools({ poolIds, progress });
+    expect(mergedEvents).toHaveLength(16);
+
+    const pickedIds = [1, 2, 3, 4, 5, 6].map(
+      (count) =>
+        pickRandomEventFromPoolsBySeed({
+          poolIds,
+          progress,
+          seed: `yingluoyeting:1-1-1:du-niang:talk:${count}:0`,
+        })?.eventId,
+    );
+
+    expect(pickedIds.every((eventId) => eventId?.startsWith('du-niang.'))).toBe(true);
+    expect(new Set(pickedIds).size).toBeGreaterThanOrEqual(3);
+  });
+
+  it('loads kitchen stroll events with guaranteed stress relief and occasional item gains', () => {
+    const kitchenEvents = Object.values(randomEventCatalog.events).filter(
+      (event) => event.poolId === 'location.kitchen.stroll',
+    );
+    expect(kitchenEvents).toHaveLength(19);
+    kitchenEvents.forEach((event) => {
+      const hasStressRelief = event.branches.start.lines.some((line) => Number(line.effect?.player?.stress ?? 0) <= -2);
+      expect(hasStressRelief).toBe(true);
+    });
+    const inventoryGainOptions = kitchenEvents.flatMap((event) =>
+      event.branches.start.options.filter((option) => (option.effect?.inventory?.gain?.length ?? 0) > 0),
+    );
+    expect(inventoryGainOptions.length).toBeGreaterThanOrEqual(4);
+
+    const effects = kitchenEvents.flatMap((event) =>
+      Object.values(event.branches).flatMap((branch) => [
+        ...branch.lines.map((line) => line.effect),
+        ...branch.options.map((option) => option.effect),
+      ]),
+    );
+    expect(effects.filter((effect) => Number(effect?.player?.prestige ?? 0) > 0).length).toBeGreaterThanOrEqual(4);
+    expect(
+      effects.filter((effect) => Object.keys(effect?.player?.stats ?? {}).length > 0).length,
+    ).toBeGreaterThanOrEqual(6);
+  });
+
+  it('varies kitchen stroll picks across sequential deterministic seeds', () => {
+    const progress = createInitialRandomEventProgress();
+    const pickedIds = [1, 2, 3, 5, 6, 7, 8, 9, 10].map(
+      (count) =>
+        pickRandomEventBySeed({
+          poolId: 'location.kitchen.stroll',
+          progress,
+          seed: `yingluoyeting:1-1-1:stroll:${count}`,
+        })?.eventId,
+    );
+
+    expect(new Set(pickedIds).size).toBeGreaterThanOrEqual(4);
+  });
+
   it('filters eligible events by prerequisites, repeat policy and option unlocks', () => {
     const progress = createInitialRandomEventProgress();
     expect(listEligibleRandomEvents({ poolId: 'pool', progress, catalog }).map((event) => event.eventId)).toEqual([
@@ -178,6 +241,28 @@ describe('randomEventRuntime', () => {
     expect(progress.triggerCounts.first).toBe(1);
   });
 
+  it('renders inventory item ids inside effects from session variables', () => {
+    const effectCatalog = parseRandomEventCsv(`${header}
+effect-item,event,pool,1,repeatable,,,,,,,,,,,,,,,,
+effect-item,line,,,,,start,1,旁白,,,,,"得到{{itemName}}",,,,,,
+effect-item,option,,,,,start,,,,,,,,,take,收下,done,"{""inventory"":{""gain"":[{""itemId"":""{{itemId}}"",""templateItemId"":""test-gift"",""quantity"":1,""description"":""写着{{mark}}"",""metadata"":{""owner"":""{{ownerId}}"",""mark"":""{{mark}}""}}]}}",,
+effect-item,line,,,,,done,1,旁白,,,,,收下了,,,,,,`);
+    const session = beginRandomEventSession({
+      eventId: 'effect-item',
+      variables: { itemId: 'fresh-jubube-instance', itemName: '鲜枣', ownerId: 'consort-a', mark: '宁' },
+      catalog: effectCatalog,
+    });
+    const awaitingOption = advanceRandomEventLine(session, effectCatalog).session;
+    const optionResult = selectRandomEventOption(awaitingOption, 'take', effectCatalog);
+    expect(optionResult.effect?.inventory?.gain?.[0]).toEqual({
+      itemId: 'fresh-jubube-instance',
+      templateItemId: 'test-gift',
+      quantity: 1,
+      description: '写着宁',
+      metadata: { owner: 'consort-a', mark: '宁' },
+    });
+  });
+
   it('returns line effects when leaving the line', () => {
     const session = beginRandomEventSession({ eventId: 'daily', catalog });
     const result = advanceRandomEventLine(session, catalog);
@@ -214,6 +299,47 @@ describe('randomEventRuntime', () => {
     expect(result.target?.stats.relationToPlayer).toBe(3);
     expect(result.target?.stats.stress).toBe(7);
     expect(result.inventory.find((entry) => entry.itemId === 'test-gift')?.quantity).toBe(2);
+  });
+
+  it('creates inventory instances from a template item when event effects provide metadata', () => {
+    const item: InventoryItem = {
+      itemId: 'silver-leaf-earring',
+      name: '银叶耳坠',
+      category: 'gift',
+      rarity: 'green',
+      quantity: 1,
+      price: 35,
+      favorDelta: 8,
+      healthDelta: 0,
+      appearanceDelta: 0,
+      temperamentDelta: 0,
+      description: '一枚银叶形耳坠。',
+    };
+    const result = applyRandomEventEffect(
+      {
+        inventory: {
+          gain: [
+            {
+              itemId: 'silver-leaf-earring-1-a',
+              templateItemId: 'silver-leaf-earring',
+              quantity: 1,
+              description: '背面刻着细小的“宁”字。',
+              metadata: { earringOwnerConsortId: 'consort-a', earringMark: '宁' },
+            },
+          ],
+        },
+      },
+      { player, inventory: [], itemCatalog: [item] },
+    );
+
+    expect(result.inventory[0]).toMatchObject({
+      itemId: 'silver-leaf-earring-1-a',
+      id: 'silver-leaf-earring-1-a',
+      name: '银叶耳坠',
+      favorDelta: 8,
+      description: '背面刻着细小的“宁”字。',
+      metadata: { earringOwnerConsortId: 'consort-a', earringMark: '宁' },
+    });
   });
 
   it('maps target relation effects to permanent NPC affinity when targetKind is npc', () => {

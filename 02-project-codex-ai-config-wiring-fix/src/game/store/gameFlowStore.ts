@@ -73,6 +73,12 @@ import {
   normalizePermanentNpcRelationshipForXun,
   recordPermanentNpcInteractionAction as resolvePermanentNpcInteractionAction,
 } from '../lib/permanentNpcRuntime';
+import {
+  DOWAGER_NPC_ID,
+  DOWAGER_NPC_NAME,
+  markDowagerGreetingOnRelationship,
+  resolveDowagerMissedGreetingPenalty,
+} from '../lib/dowagerAudienceRuntime';
 import { resolveNpcRelationMatrixForActivities } from '../lib/npcRelationRuntime';
 import { resolveNightlyService, resolvePlayerNightlyServiceEvent } from '../lib/nightlyServiceRuntime';
 import {
@@ -82,11 +88,15 @@ import {
   type CraftWorkAdvanceResolution,
 } from '../lib/craftWorkRuntime';
 import {
+  ensureEmperorInteractionProgress,
+  getEmperorScheduledLocation,
   resolveEmperorAudienceRequest,
-  resolveEmperorGiftEffects,
-  resolveEmperorMainInteraction,
   resolveZhengyangGateEncounter,
 } from '../lib/emperorActivityRuntime';
+import {
+  resolveEmperorDayAudienceInteraction,
+  resolveEmperorGiftEffects,
+} from '../lib/emperorDayAudienceRuntime';
 import { resolvePalaceBanquet } from '../lib/palaceBanquetRuntime';
 import {
   didCrossPalaceBanquetEvent,
@@ -310,7 +320,11 @@ export interface GameFlowStore {
   inspireCraftWork: (type: CraftWorkType) => { success: boolean; message: string; instance?: CraftWorkInstanceState };
   advanceCraftWork: (instanceId: string) => { success: boolean; message: string; resolution?: CraftWorkAdvanceResolution };
   patchTempleProgress: (patch: Partial<TempleProgressState>) => void;
-  requestEmperorAudience: (location: MapAreaId, source: EmperorInteractionSource) => EmperorAudienceRequestStoreResult;
+  requestEmperorAudience: (
+    location: MapAreaId,
+    source: EmperorInteractionSource,
+    options?: { gatekeeperAffinity?: number; requireEmperorAtLocation?: boolean },
+  ) => EmperorAudienceRequestStoreResult;
   completeEmperorMainInteraction: (
     actionId: EmperorMainInteractionActionId,
     location: MapAreaId,
@@ -338,13 +352,16 @@ export interface GameFlowStore {
     npcId: string,
     npcName: string,
     actionId: PermanentNpcInteractionActionId,
+    limit?: number,
   ) => {
     success: boolean;
     actionCountThisXun: number;
     actionLimitHit: boolean;
   };
+  markDowagerMonthlyGreeting: () => void;
   applyPermanentNpcAffinityDelta: (npcId: string, npcName: string, delta: number) => void;
   applyRandomEventEffectForPermanentNpc: (npcId: string, npcName: string, effect?: RandomEventEffect) => void;
+  applyRandomEventEffectForPlayer: (effect?: RandomEventEffect) => void;
   queueRandomEventUnlocks: (unlockEventIds: readonly string[]) => void;
   completeRandomEventById: (eventId: string) => void;
   consumeInventoryItem: (itemId: string) => boolean;
@@ -885,6 +902,7 @@ const buildSettlementReport = ({
   nightlyServiceLines,
   lateNightPenaltyLines,
   palaceStrifeLines,
+  dowagerLines,
   reportIndex,
 }: {
   currentState: GameNumericsState;
@@ -897,6 +915,7 @@ const buildSettlementReport = ({
   nightlyServiceLines: string[];
   lateNightPenaltyLines: string[];
   palaceStrifeLines: string[];
+  dowagerLines: string[];
   reportIndex: number;
 }): SettlementReport | null => {
   if (xunTransitions <= 0) {
@@ -925,6 +944,9 @@ const buildSettlementReport = ({
     lines.push(`当前银两：${nextState.silver}`);
     lines.push(`当前位份：${currentRank}`);
     lines.push(`当前声望：${nextState.prestige} / ${nextRankRequiredPrestige ?? '已达顶位'}`);
+    if (dowagerLines.length > 0) {
+      lines.push(...dowagerLines);
+    }
     if (palaceStrifeLines.length > 0) {
       lines.push(`宫斗案件：本月有${palaceStrifeLines.length}条变动。`);
       lines.push(...palaceStrifeLines);
@@ -1484,7 +1506,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             musicHallProgress: createInitialMusicHallProgress(),
             palaceBanquetProgress: createInitialPalaceBanquetProgress(),
             templeProgress: createInitialTempleProgress(),
-            emperorInteraction: createInitialEmperorInteractionProgress(),
+            emperorInteraction: createInitialEmperorInteractionProgress(routeId, current.time, current.emperorInteraction.mood),
             nightlyService: createInitialNightlyService(),
             npcRelationMatrix,
             randomEventProgress: createInitialRandomEventProgress(),
@@ -1561,7 +1583,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             musicHallProgress: createInitialMusicHallProgress(),
             palaceBanquetProgress: createInitialPalaceBanquetProgress(),
             templeProgress: createInitialTempleProgress(),
-            emperorInteraction: createInitialEmperorInteractionProgress(),
+            emperorInteraction: createInitialEmperorInteractionProgress(profile.id, initialTime),
             nightlyService: createInitialNightlyService(),
             npcRelationMatrix,
             randomEventProgress: createInitialRandomEventProgress(),
@@ -1938,9 +1960,18 @@ export const useGameFlowStore = create<GameFlowStore>()(
             ...patch,
           },
         })),
-      requestEmperorAudience: (location, source) => {
+      requestEmperorAudience: (location, source, options) => {
         const current = get();
         const entryTime = current.activeMapLocationEntryTime ?? current.time;
+        const emperorInteraction = ensureEmperorInteractionProgress(
+          current.emperorInteraction,
+          current.state.routeId,
+          entryTime,
+          current.emperorInteraction.mood,
+        );
+        if (emperorInteraction !== current.emperorInteraction) {
+          set({ emperorInteraction });
+        }
         if (location !== '养心殿' || source !== 'yangxin-request') {
           return {
             success: true,
@@ -1949,12 +1980,21 @@ export const useGameFlowStore = create<GameFlowStore>()(
             message: '已在外景遇见皇上。',
           };
         }
+        if (options?.requireEmperorAtLocation && getEmperorScheduledLocation(emperorInteraction, entryTime) !== '养心殿') {
+          return {
+            success: false,
+            chance: 0,
+            roll: 100,
+            message: '李公公入殿问过，回来时只低声道：“皇上此刻不在养心殿，娘娘今日怕是见不着圣驾。”',
+          };
+        }
         const resolution = resolveEmperorAudienceRequest({
           routeId: current.state.routeId,
           time: entryTime,
           playerFavor: current.state.favor,
           playerTrueHeart: current.state.trueHeart,
-          emperorMood: current.nightlyService.emperorMood,
+          emperorMood: emperorInteraction.mood,
+          gatekeeperAffinity: options?.gatekeeperAffinity,
         });
         return {
           success: resolution.success,
@@ -1971,14 +2011,20 @@ export const useGameFlowStore = create<GameFlowStore>()(
         };
         set((current) => {
           const entryTime = current.activeMapLocationEntryTime ?? current.time;
-          const resolution = resolveEmperorMainInteraction({
+          const emperorInteraction = ensureEmperorInteractionProgress(
+            current.emperorInteraction,
+            current.state.routeId,
+            entryTime,
+            current.emperorInteraction.mood,
+          );
+          const resolution = resolveEmperorDayAudienceInteraction({
             routeId: current.state.routeId,
             time: entryTime,
             location,
             source,
             actionId,
             state: current.state,
-            emperorMood: current.nightlyService.emperorMood,
+            emperorMood: emperorInteraction.mood,
           });
           if (!resolution.success) {
             result = {
@@ -1986,7 +2032,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
               message: resolution.line,
               effects: resolution.effects,
             };
-            return current;
+            return emperorInteraction !== current.emperorInteraction ? { emperorInteraction } : current;
           }
           const nextState = {
             ...current.state,
@@ -1997,7 +2043,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
           const xunKey = getCurrentXunKey(entryTime);
           const encounterId = `${xunKey}:${entryTime.slot}:${location}:${source}`;
           const currentEncounterIds =
-            current.emperorInteraction.xunKey === xunKey ? current.emperorInteraction.triggeredEncounterIds : [];
+            emperorInteraction.xunKey === xunKey ? emperorInteraction.triggeredEncounterIds : [];
           result = {
             success: true,
             message: resolution.line,
@@ -2013,6 +2059,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
               ...resolveFavorPresentation(nextState.favor),
             },
             emperorInteraction: {
+              ...emperorInteraction,
               xunKey,
               triggeredEncounterIds: currentEncounterIds.includes(encounterId)
                 ? currentEncounterIds
@@ -2129,11 +2176,17 @@ export const useGameFlowStore = create<GameFlowStore>()(
         };
         set((current) => {
           const entryTime = current.activeMapLocationEntryTime ?? current.time;
+          const emperorInteraction = ensureEmperorInteractionProgress(
+            current.emperorInteraction,
+            current.state.routeId,
+            entryTime,
+            current.emperorInteraction.mood,
+          );
           const resolution = resolveZhengyangGateEncounter({
             routeId: current.state.routeId,
             time: entryTime,
             playerFavor: current.state.favor,
-            emperorMood: current.nightlyService.emperorMood,
+            emperorMood: emperorInteraction.mood,
           });
           const nextState = resolution.favorDelta
             ? {
@@ -2144,7 +2197,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
           const xunKey = getCurrentXunKey(entryTime);
           const encounterId = `${xunKey}:${entryTime.slot}:正阳门:court-dismissal`;
           const currentEncounterIds =
-            current.emperorInteraction.xunKey === xunKey ? current.emperorInteraction.triggeredEncounterIds : [];
+            emperorInteraction.xunKey === xunKey ? emperorInteraction.triggeredEncounterIds : [];
           result = {
             success: resolution.success,
             message: resolution.line,
@@ -2153,7 +2206,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             roll: resolution.roll,
           };
           if (!resolution.favorDelta) {
-            return current;
+            return emperorInteraction !== current.emperorInteraction ? { emperorInteraction } : current;
           }
           return {
             state: nextState,
@@ -2163,6 +2216,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
               ...resolveFavorPresentation(nextState.favor),
             },
             emperorInteraction: {
+              ...emperorInteraction,
               xunKey,
               triggeredEncounterIds: currentEncounterIds.includes(encounterId)
                 ? currentEncounterIds
@@ -2289,7 +2343,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             },
           };
         }),
-      recordPermanentNpcInteractionAction: (npcId, npcName, actionId) => {
+      recordPermanentNpcInteractionAction: (npcId, npcName, actionId, limit) => {
         let result = {
           success: false,
           actionCountThisXun: 0,
@@ -2303,7 +2357,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             npcName,
             xunKey,
           );
-          const resolution = resolvePermanentNpcInteractionAction(relationship, actionId);
+          const resolution = resolvePermanentNpcInteractionAction(relationship, actionId, limit);
           result = {
             success: resolution.success,
             actionCountThisXun: resolution.actionCountThisXun,
@@ -2318,6 +2372,22 @@ export const useGameFlowStore = create<GameFlowStore>()(
         });
         return result;
       },
+      markDowagerMonthlyGreeting: () =>
+        set((current) => {
+          const xunKey = getCurrentXunKey(current.time);
+          const relationship = normalizePermanentNpcRelationshipForXun(
+            current.permanentNpcRelationships[DOWAGER_NPC_ID],
+            DOWAGER_NPC_ID,
+            DOWAGER_NPC_NAME,
+            xunKey,
+          );
+          return {
+            permanentNpcRelationships: {
+              ...current.permanentNpcRelationships,
+              [DOWAGER_NPC_ID]: markDowagerGreetingOnRelationship(relationship, current.time),
+            },
+          };
+        }),
       applyPermanentNpcAffinityDelta: (npcId, npcName, delta) =>
         set((current) => {
           const xunKey = getCurrentXunKey(current.time);
@@ -2367,6 +2437,36 @@ export const useGameFlowStore = create<GameFlowStore>()(
               ...current.permanentNpcRelationships,
               [npcId]: result.npcRelationship ?? relationship,
             },
+            ...(shouldSignal
+              ? {
+                  numericFeedbackSignal: {
+                    sequence: current.numericFeedbackSignal.sequence + 1,
+                    bucket: current.currentView === 'map-main' ? 'map-event' : 'chamber-action',
+                  },
+                }
+              : {}),
+          };
+        }),
+      applyRandomEventEffectForPlayer: (effect) =>
+        set((current) => {
+          const result = applyRandomEventEffect(effect, {
+            player: current.state,
+            inventory: current.inventory,
+          });
+          const nextState = result.player;
+          const shouldSignal = Boolean(effect?.player || effect?.inventory);
+          return {
+            state: nextState,
+            hiddenStats: {
+              ...current.hiddenStats,
+              silver: nextState.silver,
+              prestige: nextState.prestige,
+              stress: nextState.stress,
+              favor: nextState.favor,
+              trueHeart: nextState.trueHeart,
+              ...resolveFavorPresentation(nextState.favor),
+            },
+            inventory: result.inventory,
             ...(shouldSignal
               ? {
                   numericFeedbackSignal: {
@@ -2821,6 +2921,14 @@ export const useGameFlowStore = create<GameFlowStore>()(
           const monthlyExpensePrestigeDelta = economy ? economy.strategy.prestigeDelta * monthTransitions : 0;
           const monthlyFamilyPrestigeDelta =
             monthTransitions > 0 ? resolveMonthlyFamilyPrestigeDelta(current.state.family).total * monthTransitions : 0;
+          const dowagerGreetingPenalty =
+            monthTransitions > 0
+              ? resolveDowagerMissedGreetingPenalty({
+                  relationship: current.permanentNpcRelationships[DOWAGER_NPC_ID],
+                  previousTime,
+                  monthTransitions,
+                })
+              : { missedMonthCount: 0, prestigeDelta: 0, lines: [] };
           const familyQuarterSettlements =
             monthTransitions > 0 ? countFamilyQuarterSettlements(current.time, monthTransitions) : 0;
           const quarterlyFamilyAidPrestigeDelta =
@@ -2889,7 +2997,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
                     pregnant: Boolean(current.state.flags.pregnant),
                   },
                   concubines: [...current.concubines, ...current.customConsorts],
-                  emperorMood: current.nightlyService.emperorMood,
+                  emperorMood: current.emperorInteraction.mood,
                   playerNightFavorGauge: current.nightlyService.playerNightFavorGauge,
                   deferPlayerService: true,
                   rolls: current.nightlyService.queuedRolls,
@@ -2939,6 +3047,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
               monthlyExpensePrestigeDelta +
               monthlyFamilyPrestigeDelta +
               quarterlyFamilyAidPrestigeDelta +
+              dowagerGreetingPenalty.prestigeDelta +
               convictionPenaltyTotals.prestigeDelta +
               (palaceBanquetSettlement?.result.prestigeDelta ?? 0) +
               (nightlyServiceSettlement?.effects.playerPrestigeDelta ?? 0),
@@ -3059,6 +3168,12 @@ export const useGameFlowStore = create<GameFlowStore>()(
                 )
               : undefined);
           const shouldForceYangxinVerdict = Boolean(nextPendingYangxinVerdict && !current.pendingYangxinVerdict);
+          const nextEmperorInteraction = ensureEmperorInteractionProgress(
+            current.emperorInteraction,
+            nextState.routeId,
+            nextTime,
+            nightlyServiceSettlement?.nextEmperorMood ?? current.emperorInteraction.mood,
+          );
           const nextNpcActivity =
             xunTransitions > 0
               ? generateNpcActivities({
@@ -3103,6 +3218,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
                 nightlyServiceLines,
                 lateNightPenaltyLines,
                 palaceStrifeLines,
+                dowagerLines: dowagerGreetingPenalty.lines,
                 reportIndex: current.settlementReports.length + reportIndexOffset + 1,
               });
           const registrationReport = registrationNotice.shouldShow
@@ -3149,6 +3265,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             customConsorts: nextCustomConsorts,
             npcRelationMatrix: npcRelationSettlement.matrix,
             npcActivity: nextNpcActivity,
+            emperorInteraction: nextEmperorInteraction,
             randomEventProgress: nextRandomEventProgress,
             pendingYangxinVerdict: nextPendingYangxinVerdict,
             palaceBanquetProgress: {
@@ -3232,7 +3349,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
                 resolvePlayerRankByPrestige(current.state.prestige),
               stats: current.state.stats,
             },
-            emperorMood: current.nightlyService.emperorMood,
+            emperorMood: current.emperorInteraction.mood,
             actionIds: actionChoices.map((choice) => choice.actionId),
             actionChoices,
             concubines: [...current.concubines, ...current.customConsorts],
@@ -3259,6 +3376,12 @@ export const useGameFlowStore = create<GameFlowStore>()(
               result.thirdPartyEffect?.favorDelta ?? 0,
             );
           const nextTime = getNextXunMorning(current.time);
+          const nextEmperorInteraction = ensureEmperorInteractionProgress(
+            current.emperorInteraction,
+            nextState.routeId,
+            nextTime,
+            result.nextEmperorMood,
+          );
           const settlementReport = buildSettlementReport({
             currentState: current.state,
             nextState,
@@ -3270,6 +3393,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             nightlyServiceLines: result.lines,
             lateNightPenaltyLines: [],
             palaceStrifeLines: [],
+            dowagerLines: [],
             reportIndex: current.settlementReports.length + 1,
           });
           const shouldAppendSettlementReport = !isDuplicateSettlementReport(current.settlementReports.at(-1), settlementReport);
@@ -3296,6 +3420,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
               pendingNotice: undefined,
               pendingMorningLines: undefined,
             },
+            emperorInteraction: nextEmperorInteraction,
             concubines: nextConcubines,
             customConsorts: nextCustomConsorts,
             time: nextTime,

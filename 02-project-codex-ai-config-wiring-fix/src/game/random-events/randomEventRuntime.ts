@@ -10,6 +10,7 @@ import type { PermanentNpcRelationshipState } from '../types';
 import {
   getRandomEvent,
   randomEventCatalog,
+  renderRandomEventEffect,
   renderRandomEventLine,
   type RandomEventCatalog,
   type RandomEventDefinition,
@@ -77,6 +78,21 @@ export interface RandomEventEffectResult {
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 
+export const createSeededRandomEventRandom = (seed: string): (() => number) => {
+  let state = 2166136261;
+  for (let index = 0; index < seed.length; index += 1) {
+    state ^= seed.charCodeAt(index);
+    state = Math.imul(state, 16777619);
+  }
+  return () => {
+    state = Math.imul(state + 0x6d2b79f5, 1);
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
 const addUnique = (values: string[], additions: readonly string[]): string[] => {
   const next = new Set(values);
   additions.forEach((value) => next.add(value));
@@ -125,6 +141,38 @@ export const listEligibleRandomEvents = ({
     .filter((event): event is RandomEventDefinition => Boolean(event))
     .filter((event) => isEventEligible(event, progress, catalog));
 
+export const listEligibleRandomEventsByPools = ({
+  poolIds,
+  progress,
+  catalog = randomEventCatalog,
+}: {
+  poolIds: readonly string[];
+  progress: RandomEventProgress;
+  catalog?: RandomEventCatalog;
+}): RandomEventDefinition[] => [
+  ...new Map(
+    poolIds
+      .flatMap((poolId) => listEligibleRandomEvents({ poolId, progress, catalog }))
+      .map((event) => [event.eventId, event] as const),
+  ).values(),
+];
+
+const pickWeightedRandomEvent = (
+  eligibleEvents: readonly RandomEventDefinition[],
+  random: () => number,
+): RandomEventDefinition | undefined => {
+  const totalWeight = eligibleEvents.reduce((sum, event) => sum + event.weight, 0);
+  if (totalWeight <= 0) {
+    return undefined;
+  }
+  const roll = clamp(random(), 0, 0.999999999) * totalWeight;
+  let cursor = 0;
+  return eligibleEvents.find((event) => {
+    cursor += event.weight;
+    return roll < cursor;
+  });
+};
+
 export const pickRandomEvent = ({
   poolId,
   progress,
@@ -137,16 +185,40 @@ export const pickRandomEvent = ({
   catalog?: RandomEventCatalog;
 }): RandomEventDefinition | undefined => {
   const eligibleEvents = listEligibleRandomEvents({ poolId, progress, catalog });
-  const totalWeight = eligibleEvents.reduce((sum, event) => sum + event.weight, 0);
-  if (totalWeight <= 0) {
-    return undefined;
-  }
-  const roll = clamp(random(), 0, 0.999999999) * totalWeight;
-  let cursor = 0;
-  return eligibleEvents.find((event) => {
-    cursor += event.weight;
-    return roll < cursor;
+  return pickWeightedRandomEvent(eligibleEvents, random);
+};
+
+export const pickRandomEventBySeed = ({
+  poolId,
+  progress,
+  seed,
+  catalog = randomEventCatalog,
+}: {
+  poolId: string;
+  progress: RandomEventProgress;
+  seed: string;
+  catalog?: RandomEventCatalog;
+}): RandomEventDefinition | undefined =>
+  pickRandomEvent({
+    poolId,
+    progress,
+    random: createSeededRandomEventRandom(seed),
+    catalog,
   });
+
+export const pickRandomEventFromPoolsBySeed = ({
+  poolIds,
+  progress,
+  seed,
+  catalog = randomEventCatalog,
+}: {
+  poolIds: readonly string[];
+  progress: RandomEventProgress;
+  seed: string;
+  catalog?: RandomEventCatalog;
+}): RandomEventDefinition | undefined => {
+  const eligibleEvents = listEligibleRandomEventsByPools({ poolIds, progress, catalog });
+  return pickWeightedRandomEvent(eligibleEvents, createSeededRandomEventRandom(seed));
 };
 
 export const beginRandomEventSession = ({
@@ -298,7 +370,7 @@ export const advanceRandomEventLine = (
   return {
     session: nextSession,
     line: renderRandomEventLine(sourceLine, session.variables),
-    effect: shouldApplyLineEffect ? sourceLine.effect : undefined,
+    effect: shouldApplyLineEffect ? renderRandomEventEffect(sourceLine.effect, session.variables) : undefined,
     unlockEventIds: shouldApplyLineEffect ? sourceLine.unlockEventIds : [],
     awaitingOptions: nextStage === 'options',
     completed: nextStage === 'done',
@@ -335,7 +407,7 @@ export const selectRandomEventOption = (
   return {
     session: nextSession,
     option,
-    effect: option.effect,
+    effect: renderRandomEventEffect(option.effect, session.variables),
     unlockEventIds: option.unlockEventIds,
     completed: nextSession.stage === 'done',
   };
@@ -354,7 +426,7 @@ const buildItemTemplateMap = (itemCatalog: readonly InventoryItem[]): Map<string
   new Map(itemCatalog.map((item) => [item.itemId, { ...item }]));
 
 const defaultItemCatalog = (): InventoryItem[] =>
-  numericInventoryItems.map(({ pools: _pools, ...item }) => ({
+  numericInventoryItems.map(({ pools: _pools, tags: _tags, ...item }) => ({
     ...item,
   }));
 
@@ -387,11 +459,19 @@ const applyInventoryEffect = (
       nextInventory[existingIndex] = { ...existing, quantity: existing.quantity + delta.quantity };
       return;
     }
-    const template = itemTemplates.get(delta.itemId);
+    const templateId = delta.templateItemId ?? delta.itemId;
+    const template = itemTemplates.get(templateId);
     if (!template) {
-      throw new Error(`Cannot gain unknown inventory item "${delta.itemId}".`);
+      throw new Error(`Cannot gain unknown inventory item "${templateId}".`);
     }
-    nextInventory.push({ ...template, quantity: delta.quantity });
+    nextInventory.push({
+      ...template,
+      itemId: delta.itemId,
+      id: delta.itemId,
+      description: delta.description ?? template.description,
+      metadata: delta.metadata ? { ...(template.metadata ?? {}), ...delta.metadata } : template.metadata,
+      quantity: delta.quantity,
+    });
   });
 
   return nextInventory;

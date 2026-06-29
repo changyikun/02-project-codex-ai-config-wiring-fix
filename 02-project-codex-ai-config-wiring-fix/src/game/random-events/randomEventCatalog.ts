@@ -29,9 +29,14 @@ export interface RandomEventTargetEffect {
   health?: number;
 }
 
+export type RandomEventInventoryMetadata = Record<string, string | number | boolean | null>;
+
 export interface RandomEventInventoryDelta {
   itemId: string;
+  templateItemId?: string;
   quantity: number;
+  description?: string;
+  metadata?: RandomEventInventoryMetadata;
 }
 
 export interface RandomEventInventoryEffect {
@@ -171,6 +176,28 @@ const assertFiniteDelta = (value: unknown, fieldName: string): number => {
   return value;
 };
 
+const parseInventoryMetadata = (value: unknown, fieldName: string): RandomEventInventoryMetadata | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isPlainObject(value)) {
+    throw new Error(`random_events effect field "${fieldName}" must be an object.`);
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, rawValue]) => {
+      if (
+        rawValue !== null &&
+        typeof rawValue !== 'string' &&
+        typeof rawValue !== 'number' &&
+        typeof rawValue !== 'boolean'
+      ) {
+        throw new Error(`random_events effect field "${fieldName}.${key}" must be a string, number, boolean or null.`);
+      }
+      return [key, rawValue];
+    }),
+  );
+};
+
 const parseInventoryDeltas = (value: unknown, fieldName: string): RandomEventInventoryDelta[] | undefined => {
   if (value === undefined) {
     return undefined;
@@ -182,15 +209,35 @@ const parseInventoryDeltas = (value: unknown, fieldName: string): RandomEventInv
     if (!isPlainObject(entry)) {
       throw new Error(`random_events effect field "${fieldName}[${index}]" must be an object.`);
     }
+    const unsupportedDeltaKeys = Object.keys(entry).filter(
+      (key) => !['itemId', 'templateItemId', 'quantity', 'description', 'metadata'].includes(key),
+    );
+    if (unsupportedDeltaKeys.length > 0) {
+      throw new Error(`random_events effect field "${fieldName}[${index}]" has unsupported field "${unsupportedDeltaKeys[0]}".`);
+    }
     const itemId = entry.itemId;
     const quantity = entry.quantity;
+    const templateItemId = entry.templateItemId;
+    const description = entry.description;
     if (typeof itemId !== 'string' || !itemId.trim()) {
       throw new Error(`random_events effect field "${fieldName}[${index}].itemId" must be a non-empty string.`);
+    }
+    if (templateItemId !== undefined && (typeof templateItemId !== 'string' || !templateItemId.trim())) {
+      throw new Error(`random_events effect field "${fieldName}[${index}].templateItemId" must be a non-empty string.`);
+    }
+    if (description !== undefined && typeof description !== 'string') {
+      throw new Error(`random_events effect field "${fieldName}[${index}].description" must be a string.`);
     }
     if (typeof quantity !== 'number' || !Number.isInteger(quantity) || quantity <= 0) {
       throw new Error(`random_events effect field "${fieldName}[${index}].quantity" must be a positive integer.`);
     }
-    return { itemId: itemId.trim(), quantity };
+    return {
+      itemId: itemId.trim(),
+      templateItemId: templateItemId?.trim(),
+      quantity,
+      description,
+      metadata: parseInventoryMetadata(entry.metadata, `${fieldName}[${index}].metadata`),
+    };
   });
 };
 
@@ -554,6 +601,49 @@ export const renderRandomEventTemplate = (template: string, variables: RandomEve
     const value = variables[key];
     return value === undefined || value === null ? match : String(value);
   });
+
+const renderInventoryDeltas = (
+  deltas: RandomEventInventoryDelta[] | undefined,
+  variables: RandomEventVariables,
+): RandomEventInventoryDelta[] | undefined =>
+  deltas?.map((delta) => ({
+    ...delta,
+    itemId: renderRandomEventTemplate(delta.itemId, variables),
+    templateItemId: delta.templateItemId ? renderRandomEventTemplate(delta.templateItemId, variables) : undefined,
+    description: delta.description ? renderRandomEventTemplate(delta.description, variables) : undefined,
+    metadata: delta.metadata
+      ? Object.fromEntries(
+          Object.entries(delta.metadata).map(([key, value]) => [
+            key,
+            typeof value === 'string' ? renderRandomEventTemplate(value, variables) : value,
+          ]),
+        )
+      : undefined,
+  }));
+
+export const renderRandomEventEffect = (
+  effect: RandomEventEffect | undefined,
+  variables: RandomEventVariables = {},
+): RandomEventEffect | undefined => {
+  if (!effect) {
+    return undefined;
+  }
+  return {
+    player: effect.player
+      ? {
+          ...effect.player,
+          stats: effect.player.stats ? { ...effect.player.stats } : undefined,
+        }
+      : undefined,
+    target: effect.target ? { ...effect.target } : undefined,
+    inventory: effect.inventory
+      ? {
+          gain: renderInventoryDeltas(effect.inventory.gain, variables),
+          lose: renderInventoryDeltas(effect.inventory.lose, variables),
+        }
+      : undefined,
+  };
+};
 
 export const renderRandomEventLine = (line: RandomEventLine, variables: RandomEventVariables = {}): RandomEventLine => ({
   ...line,
