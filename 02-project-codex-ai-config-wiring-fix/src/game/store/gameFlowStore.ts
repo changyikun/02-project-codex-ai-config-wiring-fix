@@ -26,6 +26,7 @@ import { cloneInitialInventory, getInventoryRecyclePrice } from '../data/invento
 import { buildInitialBondProfile } from '../data/bondPresets';
 import {
   applyConcubinePressureHealthPenalty,
+  assignLimitedNineConsortRanks,
   buildInitialConcubineRoster,
   enforceConcubineFavorTierCaps,
   normalizeConcubineProfile,
@@ -828,9 +829,17 @@ const baseMonthlyStipendByRank: Record<string, number> = {
   贵妃: 210,
   '德妃 / 淑妃 / 贤妃': 200,
   妃: 190,
-  九嫔: 180,
+  昭仪: 180,
+  昭容: 180,
+  昭媛: 180,
+  修仪: 180,
+  修容: 180,
+  修媛: 180,
+  充仪: 180,
+  充容: 180,
+  充媛: 180,
   贵嫔: 170,
-  婕好: 160,
+  婕妤: 160,
   容华: 150,
   嫔: 140,
   贵人: 130,
@@ -1075,7 +1084,7 @@ const buildPalaceBanquetResultReport = ({
 });
 
 const enforceRosterFavorCaps = (concubines: ConcubineProfile[], playerFavor: number): ConcubineProfile[] =>
-  enforceConcubineFavorTierCaps(concubines, [playerFavor]);
+  assignLimitedNineConsortRanks(enforceConcubineFavorTierCaps(concubines, [playerFavor]));
 
 const applyConcubineUpdater = (
   list: ConcubineProfile[],
@@ -1369,9 +1378,8 @@ const restoreSaveGameV1Fields = (saveGame: SaveGameV1): Partial<GameFlowStore> =
   selectedRoute: saveGame.route.selectedRoute,
   bondProfile: saveGame.relations.bondProfile,
   concubineRouteId: saveGame.roster.concubineRouteId,
-  concubines: enforceConcubineFavorTierCaps(
-    saveGame.roster.concubines.map(normalizeConcubineProfile),
-    [saveGame.player.state.favor],
+  concubines: assignLimitedNineConsortRanks(
+    enforceConcubineFavorTierCaps(saveGame.roster.concubines.map(normalizeConcubineProfile), [saveGame.player.state.favor]),
   ),
   customConsorts: saveGame.roster.customConsorts.map(normalizeConcubineProfile),
   inventory: saveGame.inventory.items,

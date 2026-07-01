@@ -126,7 +126,7 @@ export const CHAMBER_HOME_ACTION_LAYOUTS: readonly ChamberSceneButtonLayout[] = 
   { id: 'music', label: '习舞奏乐', top: '41.8%', left: '73.8%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
   { id: 'painting', label: '泼墨作画', top: '51.2%', left: '83.3%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
   { id: 'pulse', label: '请平安脉', top: '67.6%', left: '92.7%', width: '3.6%', height: '20.8%', orientation: 'vertical' },
-  { id: 'end-xun', label: '结束本旬', top: '43.9%', left: '82.6%', width: '12.6%', height: '5.8%', orientation: 'horizontal' },
+  { id: 'end-xun', label: '结束本旬', top: '40.4%', left: '82.6%', width: '12.6%', height: '5.8%', orientation: 'horizontal' },
 ] as const;
 
 export const JIAOJIAO_COMMAND_LAYOUTS: readonly ChamberSceneButtonLayout[] = [

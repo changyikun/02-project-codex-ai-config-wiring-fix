@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
 import { AudienceInteractionShell, type AudienceExitResult, type AudienceMetaRow } from '../consorts/AudienceInteractionShell';
-import { AutoCutoutPortrait } from '../visual/AutoCutoutPortrait';
 import { isConsortGiftItem } from '../../game/lib/consortVisitRuntime';
 import { trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
 import { requestDowagerLocalDialogue } from '../../game/lib/dowagerDialogueRuntime';
@@ -432,11 +431,9 @@ export function DowagerAudiencePanel({ onLeave }: DowagerAudiencePanelProps) {
   const portrait = (
     <div className="harem-palace-view__audience-portrait-stage" aria-label="太后常驻立绘">
       <div className="harem-palace-view__audience-portrait-frame">
-        <AutoCutoutPortrait
+        <img
           src={DOWAGER_PORTRAIT_SRC}
           alt="太后"
-          threshold={34}
-          sampleInset={8}
           className="harem-palace-view__audience-portrait dowager-audience-view__portrait"
         />
       </div>

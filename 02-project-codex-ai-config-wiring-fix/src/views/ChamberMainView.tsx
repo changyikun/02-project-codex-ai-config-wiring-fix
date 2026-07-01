@@ -27,7 +27,6 @@ import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage'
 import { PromotionEdictStage } from '../components/dialogue/PromotionEdictStage';
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
 import { PlayerStatsView } from '../components/status/PlayerStatsView';
-import { AutoCutoutPortrait } from '../components/visual/AutoCutoutPortrait';
 import type { ChamberPanelId } from '../config/bedchamber';
 import {
   CHAMBER_ACTION_BUTTONS,
@@ -104,7 +103,7 @@ const ASSISTANT_PORTRAIT_SRC = '/assets/characters/women/jiaojiao.png';
 const EUNUCH_PORTRAIT_SRC = '/assets/characters/men/taijian.png';
 const EMPEROR_PORTRAIT_SRC = '/assets/characters/men/rongan.png';
 const JIAOJIAO_COMMAND_PROMPT = '娘娘，有何吩咐？';
-const LIANQIAO_PORTRAIT_SRC = '/assets/characters/women/yueshi.png';
+const LIANQIAO_PORTRAIT_SRC = '/assets/characters/men/yueshi.png';
 const EXPENSE_EXPLANATION_OPTION_ID = 'expense-explanation';
 const CHAMBER_BACKGROUND_CROSSFADE_MS = 680;
 const chamberCraftWorkTypes: Partial<Record<string, CraftWorkType>> = {
@@ -591,11 +590,9 @@ export function ChamberMainView() {
         return {
           label: `${consort.name}立绘`,
           portrait: (
-            <AutoCutoutPortrait
+            <img
               src={getConcubinePortraitPath(consort.portraitId)}
               alt={consort.name}
-              threshold={18}
-              sampleInset={16}
               className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--consort"
             />
           ),
@@ -1614,11 +1611,9 @@ export function ChamberMainView() {
             sceneLabel="妃嫔拜访寝殿场景"
             portraitLabel={`${pendingNpcPlayerVisitor.name}立绘`}
             portrait={
-              <AutoCutoutPortrait
+              <img
                 src={getConcubinePortraitPath(pendingNpcPlayerVisitor.portraitId)}
                 alt={pendingNpcPlayerVisitor.name}
-                threshold={18}
-                sampleInset={16}
                 className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--consort"
               />
             }
@@ -1677,23 +1672,21 @@ export function ChamberMainView() {
 
         {bedchamberGiftItemName && !isNightlyOverlayActive && !showSettlementReport && activeChamberPanel === 'main' && !isOutsideScene ? (
           <GlobalDialogueStage
-            sceneLabel="寝殿连翘赠礼场景"
-            portraitLabel="连翘立绘"
+            sceneLabel="寝殿凌萧赠礼场景"
+            portraitLabel="凌萧立绘"
             portrait={
-              <AutoCutoutPortrait
+              <img
                 src={LIANQIAO_PORTRAIT_SRC}
-                alt="连翘"
-                threshold={22}
-                sampleInset={18}
+                alt="凌萧"
                 className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--miaoyin global-dialogue-stage__portrait-media--lianqiao"
               />
             }
-            ariaLabel="连翘寝殿赠礼"
+            ariaLabel="凌萧寝殿赠礼"
             className="global-dialogue-stage--miaoyin"
             dialogueClassName="palace-dialogue-box--miaoyin-encounter"
             characterIdentity="妙音堂伶人"
-            characterName="连翘"
-            content={`连翘托宫人把一卷新谱送到了寝殿门前。她只留下一句话：这折《${bedchamberGiftItemName}》你若肯细听，想来不会白费。`}
+            characterName="凌萧"
+            content={`凌萧托宫人把一卷新谱送到了寝殿门前。他只留下一句话：这折《${bedchamberGiftItemName}》你若肯细听，想来不会白费。`}
             onNextAction={() => setBedchamberGiftItemName('')}
           />
         ) : null}

@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ConsortAudiencePanel } from '../consorts/ConsortAudiencePanel';
 import { AudienceInteractionShell, type AudienceMetaRow } from '../consorts/AudienceInteractionShell';
-import { AutoCutoutPortrait } from '../visual/AutoCutoutPortrait';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
 import { buildDuNiangShopCatalog, getInventoryRecyclePrice, type DuNiangShopEntry } from '../../game/data/inventoryPresets';
 import { getConcubineDisplayRankText, getConcubinePortraitPath, getConcubineRankWeightByLabel } from '../../game/data/concubineRoster';
@@ -58,9 +57,6 @@ const npcProfiles: Record<
     name: string;
     portrait: string;
     dialogueLines: string[];
-    alreadyCutout?: boolean;
-    portraitThreshold?: number;
-    portraitSampleInset?: number;
   }
 > = {
   'du-niang': {
@@ -68,14 +64,12 @@ const npcProfiles: Record<
     name: duNiangLine1Fields.speakerName,
     portrait: '/assets/characters/women/duniang.png',
     dialogueLines: [duNiangLine1Fields.text],
-    alreadyCutout: true,
   },
   aling: {
     identity: alingLine1Fields.speakerIdentity,
     name: alingLine1Fields.speakerName,
     portrait: '/assets/characters/women/feizi1.png',
     dialogueLines: [alingLine1Fields.text, alingLine2Fields.text],
-    portraitThreshold: 42,
   },
 };
 const duNiangFirstMeetLines = [duNiangFirstMeetLine1Fields.text, duNiangFirstMeetLine2Fields.text] as const;
@@ -465,16 +459,8 @@ export function GongmenView({ concubines }: GongmenViewProps) {
                 {state.name}
               </div>
             )
-          ) : activeProfile.alreadyCutout ? (
-            <img src={activeProfile.portrait} alt={activeProfile.name} className="harem-palace-view__audience-portrait" />
           ) : (
-            <AutoCutoutPortrait
-              src={activeProfile.portrait}
-              alt={activeProfile.name}
-              className="harem-palace-view__audience-portrait"
-              threshold={activeProfile.portraitThreshold}
-              sampleInset={activeProfile.portraitSampleInset ?? 10}
-            />
+            <img src={activeProfile.portrait} alt={activeProfile.name} className="harem-palace-view__audience-portrait" />
           )}
         </div>
       </div>

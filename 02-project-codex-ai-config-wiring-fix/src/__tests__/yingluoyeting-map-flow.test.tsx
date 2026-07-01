@@ -126,7 +126,7 @@ describe('影落掖庭地图主线体验', () => {
     expect(mapBackground.style.backgroundImage).toContain('/assets/routes/backgrounds/lenggong_daytime.png');
     expect(await screen.findByLabelText('冷宫主线剧情')).toBeInTheDocument();
     expect(await screen.findByText(/冷宫门前的铜锁早已生锈/)).toBeInTheDocument();
-    expect(screen.queryByLabelText('老宫人剪影')).not.toBeInTheDocument();
+    expect(screen.getByAltText('老宫人')).toHaveAttribute('src', '/assets/characters/women/laogongren.png');
     expect(screen.queryByText(/姑娘又来了/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '承诺替她遮掩此事' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '继续' })).not.toBeInTheDocument();

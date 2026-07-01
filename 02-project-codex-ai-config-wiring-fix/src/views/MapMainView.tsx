@@ -29,6 +29,7 @@ const MAP_GUIDE_LINE_IDS = ['map.guide.line1', 'map.guide.line2'] as const;
 type MapUtilityPanelId = Extract<ChamberPanelId, 'consorts' | 'stats' | 'chronicle' | 'bond' | 'harem' | 'affairs'>;
 const ASSISTANT_PORTRAIT_SRC = '/assets/characters/women/jiaojiao.png';
 const CHEN_WANNING_PORTRAIT_SRC = getConcubinePortraitPath('陈婉宁');
+const OLD_PALACE_MAID_PORTRAIT_SRC = '/assets/characters/women/laogongren.png';
 
 const renderHotspotLabel = (label: string, vertical?: boolean) => {
   if (!vertical) {
@@ -84,6 +85,16 @@ const resolveYingluoyetingEventPortrait = (event: YingluoyetingMapEvent, isResul
     );
   }
 
+  if (event.eventId === YINGLUOYETING_EVENT_IDS.coldPalaceClue) {
+    return (
+      <img
+        src={OLD_PALACE_MAID_PORTRAIT_SRC}
+        alt={event.speakerName}
+        className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--attendant"
+      />
+    );
+  }
+
   return <div className="global-dialogue-stage__portrait-placeholder">{event.speakerName}</div>;
 };
 
@@ -92,7 +103,15 @@ const resolveYingluoyetingEventPortraitLabel = (event: YingluoyetingMapEvent, is
     return `${event.speakerName}剪影`;
   }
 
-  return event.speakerName === '陈婉宁' ? '陈婉宁立绘' : `${event.speakerName}剪影`;
+  if (event.speakerName === '陈婉宁') {
+    return '陈婉宁立绘';
+  }
+
+  if (event.eventId === YINGLUOYETING_EVENT_IDS.coldPalaceClue) {
+    return `${event.speakerName}立绘`;
+  }
+
+  return `${event.speakerName}剪影`;
 };
 
 export function MapMainView() {
@@ -149,8 +168,12 @@ export function MapMainView() {
   const mapBackgroundImage = activeYingluoyetingBackground ?? resolveMapBackgroundImage(time.slot);
   const locationSceneActive = Boolean(activeYingluoyetingEvent);
   const activeYingluoyetingDialogueIsResult = Boolean(yingluoyetingResultText);
+  const activeYingluoyetingDialogueUsesOldPalaceMaid =
+    !activeYingluoyetingDialogueIsResult && activeYingluoyetingEvent?.eventId === YINGLUOYETING_EVENT_IDS.coldPalaceClue;
   const activeYingluoyetingDialogueIdentity = activeYingluoyetingDialogueIsResult
     ? '场景旁白'
+    : activeYingluoyetingDialogueUsesOldPalaceMaid
+      ? activeYingluoyetingEvent?.speakerName ?? '老宫人'
     : activeYingluoyetingEvent?.speakerIdentity ?? '场景旁白';
   const activeYingluoyetingDialogueName = activeYingluoyetingDialogueIsResult
     ? activeYingluoyetingEvent?.locationId ?? '主线剧情'
@@ -586,6 +609,7 @@ export function MapMainView() {
             narrationName={activeYingluoyetingEvent.locationId}
             quotedSpeakerIdentity={activeYingluoyetingEvent.speakerIdentity}
             quotedSpeakerName={activeYingluoyetingEvent.speakerName}
+            splitQuotedDialogue={!activeYingluoyetingDialogueUsesOldPalaceMaid}
             ariaLabel={`${activeYingluoyetingEvent.locationId}主线剧情`}
             className="global-dialogue-stage--yingluoyeting"
             dialogueClassName="palace-dialogue-box--yingluoyeting"

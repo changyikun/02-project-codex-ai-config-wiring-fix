@@ -3000,11 +3000,11 @@ describe('App 主流程切换', () => {
 
     expect(await screen.findByRole('button', { name: '宴席报名' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '闲逛' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '连翘' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '凌萧' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '学谱' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '连翘' }));
-    expect(await screen.findByLabelText('连翘 妙音堂对话')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '凌萧' }));
+    expect(await screen.findByLabelText('凌萧 妙音堂对话')).toBeInTheDocument();
     await clickDialogueAdvance();
 
     fireEvent.click(screen.getByRole('button', { name: '请求指导（耗次）' }));
@@ -3189,7 +3189,7 @@ describe('App 主流程切换', () => {
     expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined();
   });
 
-  it('深夜时华清池双人沐浴邀请列表会出现连翘', async () => {
+  it('深夜时华清池双人沐浴邀请列表会出现凌萧', async () => {
     const defaultFavorTier = getFavorTierByValue(50);
     useGameFlowStore.setState((state) => {
       const nextConcubines = state.concubines.map((consort, index) =>
@@ -3232,7 +3232,7 @@ describe('App 主流程切换', () => {
           trueHeart: 35,
           favorLabel: defaultFavorTier.label,
           favorColor: defaultFavorTier.color,
-          initialRank: '婕好',
+          initialRank: '婕妤',
         },
         concubines: nextConcubines,
         musicHallProgress: {
@@ -3260,7 +3260,7 @@ describe('App 主流程切换', () => {
     fireEvent.click(await screen.findByRole('button', { name: '双人沐浴' }));
 
     expect(await screen.findByRole('dialog', { name: '华清池邀请列表' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /连翘/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /凌萧/ })).toBeInTheDocument();
   });
 
   it('尘缘夙错线的宫门会显示杜娘与阿翎入口', async () => {
@@ -6912,7 +6912,7 @@ describe('App 主流程切换', () => {
     ]);
     const names = roster.map((consort) => consort.name);
 
-    expect(names).not.toContain('连翘');
+    expect(names).not.toContain('凌萧');
     expect(names).not.toContain('杜娘');
     expect(names).not.toContain('娇娇');
     expect(names.some((name) => name.includes('太后'))).toBe(false);
@@ -7446,7 +7446,7 @@ describe('App 主流程切换', () => {
     expect(flow.state.stats.health).toBe(49);
     expect(flow.state.monthlyExpenseStrategy).toBe('luxury');
     expect(flow.state.nextMonthlyExpenseStrategy).toBeUndefined();
-    expect(latestReport?.lines).toContain('当前位份：婕好');
+    expect(latestReport?.lines).toContain('当前位份：婕妤');
     expect(latestReport?.lines).toContain('当前声望：975 / 1100');
     expect(latestReport?.summary).not.toContain('位分复核');
     expect(latestReport?.summary).not.toContain('下月提点');
@@ -7521,7 +7521,7 @@ describe('App 主流程切换', () => {
         prestige: 1000,
         favorLabel: defaultFavorTier.label,
         favorColor: defaultFavorTier.color,
-        initialRank: '婕好',
+        initialRank: '婕妤',
       },
       time: {
         year: 1,
@@ -7844,12 +7844,12 @@ describe('App 主流程切换', () => {
           month: 2,
           xun: 1,
           title: '1年2月月初通报',
-          summary: '本月月俸：160 本月用度：80 当前银两：1080 当前位份：婕好 当前声望：1000 / 1100 宫斗案件：本月暂无结案或新调查。',
+          summary: '本月月俸：160 本月用度：80 当前银两：1080 当前位份：婕妤 当前声望：1000 / 1100 宫斗案件：本月暂无结案或新调查。',
           lines: [
             '本月月俸：160',
             '本月用度：80',
             '当前银两：1080',
-            '当前位份：婕好',
+            '当前位份：婕妤',
             '当前声望：1000 / 1100',
             '宫斗案件：本月暂无结案或新调查。',
           ],
@@ -7860,7 +7860,7 @@ describe('App 主流程切换', () => {
     render(<App />);
 
     const reportList = screen.getByRole('list', { name: '月报明细' });
-    expect(within(reportList).getByText('当前位份：婕好')).toBeInTheDocument();
+    expect(within(reportList).getByText('当前位份：婕妤')).toBeInTheDocument();
     expect(within(reportList).getByText('当前声望：1000 / 1100')).toBeInTheDocument();
     expect(within(reportList).getByText('宫斗案件：本月暂无结案或新调查。')).toBeInTheDocument();
   });

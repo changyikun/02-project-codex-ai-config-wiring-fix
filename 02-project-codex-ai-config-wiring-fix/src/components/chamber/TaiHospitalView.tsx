@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
-import { AutoCutoutPortrait } from '../visual/AutoCutoutPortrait';
 import {
   getConcubineDisplayRankText,
   getConcubinePortraitPath,
@@ -632,29 +631,13 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
             sceneLabel={`${activeActor.name} 太医院对话场景`}
             portraitLabel={`${activeActor.name} 立绘`}
             portrait={
-              activeActor.actorKind === 'jianning' ? (
-                <AutoCutoutPortrait
-                  src={activeActor.portraitSrc}
-                  alt={activeActor.name}
-                  threshold={18}
-                  sampleInset={20}
-                  className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--taiyi global-dialogue-stage__portrait-media--jianning"
-                />
-              ) : activeActor.actorKind === 'dowager' ? (
-                <AutoCutoutPortrait
-                  src={activeActor.portraitSrc}
-                  alt={activeActor.name}
-                  threshold={34}
-                  sampleInset={8}
-                  className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--taiyi"
-                />
-              ) : (
-                <img
-                  src={activeActor.portraitSrc}
-                  alt={activeActor.name}
-                  className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--taiyi"
-                />
-              )
+              <img
+                src={activeActor.portraitSrc}
+                alt={activeActor.name}
+                className={`global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--taiyi ${
+                  activeActor.actorKind === 'jianning' ? 'global-dialogue-stage__portrait-media--jianning' : ''
+                }`}
+              />
             }
             ariaLabel="太医院对话框"
             className="global-dialogue-stage--taiyi global-dialogue-stage--with-side-panel"

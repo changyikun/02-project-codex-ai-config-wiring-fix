@@ -25,7 +25,7 @@ interface YangxinHallViewProps {
   onStartEmperorAudience: (source: EmperorInteractionSource, location: MapAreaId, options?: { skipRequest?: boolean }) => void;
 }
 
-const LI_GONGGONG_PORTRAIT_SRC = '/assets/characters/men/taijian.png';
+export const LI_GONGGONG_PORTRAIT_SRC = '/assets/characters/men/ligonggong.png';
 const BRIBE_COST = 50;
 const BRIBE_AFFINITY_DELTA = 8;
 const TALK_AFFINITY_DELTA = 1;

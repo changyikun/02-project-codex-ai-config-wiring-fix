@@ -30,7 +30,6 @@ import type {
   ConsortDialogueTurn,
 } from '../../game/types';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
-import { AutoCutoutPortrait } from '../visual/AutoCutoutPortrait';
 import { LocationActionResultStage } from './LocationActionResultStage';
 import { MapSubsceneView, type SubsceneActionEntry, type SubsceneNpcEntry } from './MapSubsceneView';
 import { useLocationActionFlow, type TimedLocationActionOutcome } from './useLocationActionFlow';
@@ -63,16 +62,16 @@ interface HuaqingSceneActor extends HuaqingDialogueActor {
   consortId?: string;
 }
 
-const LIANQIAO_PORTRAIT_SRC = '/assets/characters/women/yueshi.png';
+const LIANQIAO_PORTRAIT_SRC = '/assets/characters/men/yueshi.png';
 
 const isSpecialSlot = (slot: string): boolean => slot === '深夜';
 
 const buildLianQiaoActor = (favor: number, affection: number): HuaqingSceneActor => ({
   id: 'lianqiao',
-  name: '连翘',
+  name: '凌萧',
   identity: '妙音堂伶人',
   residence: '妙音堂',
-  personality: '她最懂收音与留白，越是近处相见，越会把一句话里真正的停顿听得清清楚楚。',
+  personality: '他最懂收音与留白，越是近处相见，越会把一句话里真正的停顿听得清清楚楚。',
   summary: '妙音堂伶人。对曲意与人心都极敏感，愿意赴你的深夜之约，已不是寻常分寸。',
   currentGoodwill: favor,
   currentAffection: affection,
@@ -156,7 +155,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
     if (deepNightActive && state.flags.isLianQiaoMet && musicHallProgress.lianQiaoAffection >= HOT_SPRING_SHARED_AFFECTION_REQUIREMENT) {
       eligibleConsorts.push({
         id: 'lianqiao',
-        name: '连翘',
+        name: '凌萧',
         identity: '妙音堂伶人',
         portraitSrc: LIANQIAO_PORTRAIT_SRC,
         actorKind: 'lianqiao',
@@ -337,7 +336,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
     if (inviteOptions.length === 0) {
       setSystemMessage(
         deepNightActive
-          ? `眼下能赴华清池之约的人还没有。至少要有一位倾情达到${HOT_SPRING_SHARED_AFFECTION_REQUIREMENT}的对象，深夜时连翘才可能出现在名单里。`
+          ? `眼下能赴华清池之约的人还没有。至少要有一位倾情达到${HOT_SPRING_SHARED_AFFECTION_REQUIREMENT}的对象，深夜时凌萧才可能出现在名单里。`
           : `眼下还没有谁与你亲近到能同入华清池。至少要有一位倾情达到${HOT_SPRING_SHARED_AFFECTION_REQUIREMENT}。`,
       );
       return;
@@ -367,8 +366,8 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
         deepNightActive ? 'late-night-shared-bath' : 'shared-bath',
         deepNightActive ? '深夜共浴' : '双人沐浴',
         deepNightActive
-          ? '你在深夜的华清池里等到了连翘，她隔着水雾与你相对而立。'
-          : '你邀连翘同入华清池，池边灯影与水雾把距离都压得更近了。',
+          ? '你在深夜的华清池里等到了凌萧，他隔着水雾与你相对而立。'
+          : '你邀凌萧同入华清池，池边灯影与水雾把距离都压得更近了。',
       );
       return;
     }
@@ -459,7 +458,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
         setActiveActor(nextActor);
 
         await runNarrativeTurn(nextActor, 'follow-up', 'shared-bath-follow-up', '双人沐浴', {
-          actionResult: `${judgement.reason} 连翘把你这一句收进了水雾里。`,
+          actionResult: `${judgement.reason} 凌萧把你这一句收进了水雾里。`,
           selectedOptionId: option.id,
           selectedOptionLabel: option.label,
           historyOverride: nextHistory,
@@ -486,7 +485,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
 
         const settlementNotice = summary.actionLimitHit
           ? '本旬与她的互动回合已用尽，关系不再变化。'
-          : '这一句已经落进她心里了。';
+          : '这一句已经落进他心里了。';
 
         await runNarrativeTurn(nextActor, 'follow-up', 'shared-bath-follow-up', '双人沐浴', {
           actionResult: `${judgement.reason} ${settlementNotice}`,
@@ -604,21 +603,13 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
             sceneLabel={`${activeActor.name} 华清池对话场景`}
             portraitLabel={`${activeActor.name} 立绘`}
             portrait={
-              activeActor.actorKind === 'lianqiao' ? (
-                <AutoCutoutPortrait
-                  src={activeActor.portraitSrc}
-                  alt={activeActor.name}
-                  threshold={22}
-                  sampleInset={18}
-                  className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--huaqing global-dialogue-stage__portrait-media--lianqiao"
-                />
-              ) : (
-                <img
-                  src={activeActor.portraitSrc}
-                  alt={activeActor.name}
-                  className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--huaqing"
-                />
-              )
+              <img
+                src={activeActor.portraitSrc}
+                alt={activeActor.name}
+                className={`global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--huaqing ${
+                  activeActor.actorKind === 'lianqiao' ? 'global-dialogue-stage__portrait-media--lianqiao' : ''
+                }`}
+              />
             }
             ariaLabel="华清池对话框"
             className="global-dialogue-stage--huaqing global-dialogue-stage--with-side-panel"
@@ -659,7 +650,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
             <h3>选择同浴对象</h3>
             <p>
               {deepNightActive
-                ? `当前为深夜，可邀请倾情达到${HOT_SPRING_SHARED_AFFECTION_REQUIREMENT}的妃嫔；若已结识连翘且她的倾情达标，她也会出现在名单里。`
+                ? `当前为深夜，可邀请倾情达到${HOT_SPRING_SHARED_AFFECTION_REQUIREMENT}的妃嫔；若已结识凌萧且他的倾情达标，他也会出现在名单里。`
                 : `仅可邀请倾情达到${HOT_SPRING_SHARED_AFFECTION_REQUIREMENT}的对象。`}
             </p>
             <div className="huaqing-view__picker-list">

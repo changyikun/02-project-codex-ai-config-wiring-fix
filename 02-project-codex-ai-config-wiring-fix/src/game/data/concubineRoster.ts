@@ -9,11 +9,15 @@ import {
   PLAYER_INTRIGUE_RANGE,
   PLAYER_STRESS_RANGE,
   PLAYER_TEMPERAMENT_RANGE,
+  NINE_CONSORT_RANK_LABELS,
+  PRESTIGE_RANK_TABLE,
   PRESTIGE_RANGE,
+  SPECIAL_PRESTIGE_RANK_TABLE,
   STRESS_THRESHOLD_LIFESPAN_LOSS,
   getFavorTierByValue,
   type FavorTierDefinition,
 } from '../../config/constants';
+import { RarityColorId } from '../../config/types';
 import type { ConcubineProfile, ConcubineStatus, RouteId } from '../types';
 import {
   getGeneratedConsortRuleValue,
@@ -158,57 +162,66 @@ interface ConcubineRankRule {
   weight: number;
 }
 
-const CONCUBINE_PRESTIGE_RULES: readonly ConcubineRankRule[] = [
-  { rankLabel: '皇后', minPrestige: 2500, maxPrestige: PRESTIGE_RANGE[1], paletteKey: 'sovereign', weight: 180 },
-  { rankLabel: '皇贵妃', minPrestige: 2400, maxPrestige: 2499, paletteKey: 'sovereign', weight: 172 },
-  { rankLabel: '贵妃', minPrestige: 2100, maxPrestige: 2399, paletteKey: 'high', weight: 166 },
-  { rankLabel: '淑妃', minPrestige: 1800, maxPrestige: 2099, paletteKey: 'high', weight: 160 },
-  { rankLabel: '德妃', minPrestige: 1800, maxPrestige: 2099, paletteKey: 'high', weight: 160 },
-  { rankLabel: '贤妃', minPrestige: 1800, maxPrestige: 2099, paletteKey: 'high', weight: 160 },
-  { rankLabel: '妃', minPrestige: 1500, maxPrestige: 1799, paletteKey: 'high', weight: 152 },
-  { rankLabel: '昭仪', minPrestige: 1300, maxPrestige: 1499, paletteKey: 'high', weight: 146 },
-  { rankLabel: '昭容', minPrestige: 1200, maxPrestige: 1299, paletteKey: 'high', weight: 142 },
-  { rankLabel: '贵嫔', minPrestige: 1100, maxPrestige: 1199, paletteKey: 'high', weight: 138 },
-  { rankLabel: '婕妤', minPrestige: 900, maxPrestige: 1099, paletteKey: 'middle', weight: 130 },
-  { rankLabel: '容华', minPrestige: 750, maxPrestige: 899, paletteKey: 'middle', weight: 122 },
-  { rankLabel: '嫔', minPrestige: 600, maxPrestige: 749, paletteKey: 'middle', weight: 116 },
-  { rankLabel: '贵人', minPrestige: 450, maxPrestige: 599, paletteKey: 'low', weight: 108 },
-  { rankLabel: '美人', minPrestige: 350, maxPrestige: 449, paletteKey: 'low', weight: 102 },
-  { rankLabel: '才人', minPrestige: 250, maxPrestige: 349, paletteKey: 'low', weight: 96 },
-  { rankLabel: '常在', minPrestige: 200, maxPrestige: 249, paletteKey: 'base', weight: 90 },
-  { rankLabel: '御女', minPrestige: 150, maxPrestige: 199, paletteKey: 'base', weight: 88 },
-  { rankLabel: '选侍', minPrestige: 100, maxPrestige: 149, paletteKey: 'base', weight: 86 },
-  { rankLabel: '答应', minPrestige: 60, maxPrestige: 99, paletteKey: 'base', weight: 84 },
-  { rankLabel: '更衣', minPrestige: 30, maxPrestige: 59, paletteKey: 'base', weight: 82 },
-  { rankLabel: '官女子', minPrestige: 0, maxPrestige: 29, paletteKey: 'base', weight: 80 },
-  { rankLabel: '庶人', minPrestige: PRESTIGE_RANGE[0], maxPrestige: -1, paletteKey: 'base', weight: 20 },
-] as const;
+const rankPaletteKeyByColorId: Record<RarityColorId, RankPaletteKey> = {
+  [RarityColorId.Legendary]: 'sovereign',
+  [RarityColorId.Epic]: 'high',
+  [RarityColorId.Rare]: 'middle',
+  [RarityColorId.Common]: 'low',
+  [RarityColorId.Neutral]: 'base',
+};
 
-const canonicalRanks = [
-  '皇后',
-  '皇贵妃',
-  '贵妃',
-  '淑妃',
-  '德妃',
-  '贤妃',
-  '妃',
-  '昭仪',
-  '昭容',
-  '贵嫔',
-  '婕妤',
-  '容华',
-  '嫔',
-  '贵人',
-  '美人',
-  '才人',
-  '常在',
-  '御女',
-  '选侍',
-  '答应',
-  '更衣',
-  '官女子',
-  '庶人',
-] as const;
+const splitRankLabels = (rankLabel: string): string[] =>
+  rankLabel
+    .split('/')
+    .map((label) => label.trim())
+    .filter((label) => label.length > 0);
+const NINE_CONSORT_RANK_LABEL_SET = new Set<string>(NINE_CONSORT_RANK_LABELS);
+const NINE_CONSORT_PRESTIGE_MIN = 1300;
+const NINE_CONSORT_PRESTIGE_MAX = 1499;
+const NINE_CONSORT_FALLBACK_RANK_LABEL = '贵嫔';
+
+const isNineConsortRankLabel = (rankLabel: string): boolean => NINE_CONSORT_RANK_LABEL_SET.has(rankLabel);
+const isNineConsortPrestige = (prestige: number): boolean =>
+  prestige >= NINE_CONSORT_PRESTIGE_MIN && prestige <= NINE_CONSORT_PRESTIGE_MAX;
+
+const buildConcubinePrestigeRules = (): readonly ConcubineRankRule[] => {
+  const rankEntries = [...PRESTIGE_RANK_TABLE, ...SPECIAL_PRESTIGE_RANK_TABLE].sort(
+    (left, right) => left.所需声望值 - right.所需声望值,
+  );
+
+  const prestigeRules = rankEntries.flatMap((entry, index) => {
+    const nextEntry = rankEntries[index + 1];
+    const minPrestige = entry.所需声望值;
+    const maxPrestige = nextEntry ? nextEntry.所需声望值 - 1 : PRESTIGE_RANGE[1];
+    const paletteKey = rankPaletteKeyByColorId[entry.对应颜色标识];
+    const weight = Math.round(entry.所需声望值 / 20) + 80;
+    return splitRankLabels(entry.位分名称).map((rankLabel) => ({
+      rankLabel,
+      minPrestige,
+      maxPrestige,
+      paletteKey,
+      weight,
+    }));
+  });
+
+  return [
+    ...prestigeRules,
+    {
+      rankLabel: '庶人',
+      minPrestige: PRESTIGE_RANGE[0],
+      maxPrestige: -1,
+      paletteKey: 'base',
+      weight: 20,
+    },
+  ];
+};
+
+const CONCUBINE_PRESTIGE_RULES: readonly ConcubineRankRule[] = buildConcubinePrestigeRules();
+
+const canonicalRanks = [...PRESTIGE_RANK_TABLE, ...SPECIAL_PRESTIGE_RANK_TABLE]
+  .sort((left, right) => left.等级 - right.等级)
+  .flatMap((entry) => splitRankLabels(entry.位分名称))
+  .concat('庶人');
 
 const liveStatusIllHealthThreshold = getGeneratedConsortRuleValue('live_status_ill_health_threshold');
 // Special NPCs and authority figures should never be treated as concubine-list members.
@@ -225,6 +238,9 @@ const isConcubineRosterMember = (entity: { name: string; portraitId: string }): 
 
 const getCanonicalRankLabel = (label: string): string => {
   const normalized = String(label ?? '').trim();
+  if (normalized === '九嫔') {
+    return NINE_CONSORT_RANK_LABELS[0];
+  }
   for (const rank of canonicalRanks) {
     if (normalized === rank || normalized.endsWith(rank)) {
       return rank;
@@ -284,21 +300,70 @@ const getPrestigeRuleByRankLabel = (rankLabel: string): ConcubineRankRule | unde
   CONCUBINE_PRESTIGE_RULES.find((rule) => rule.rankLabel === getCanonicalRankLabel(rankLabel));
 
 const getPrestigeRuleByValue = (prestige: number, preferredRankLabel?: string): ConcubineRankRule => {
-  const matchedRule = CONCUBINE_PRESTIGE_RULES.find((rule) => prestige >= rule.minPrestige && prestige <= rule.maxPrestige);
-  if (!matchedRule) {
+  const matchedRules = CONCUBINE_PRESTIGE_RULES.filter((rule) => prestige >= rule.minPrestige && prestige <= rule.maxPrestige);
+  if (matchedRules.length === 0) {
     return CONCUBINE_PRESTIGE_RULES[CONCUBINE_PRESTIGE_RULES.length - 1];
   }
 
   const preferredRule = preferredRankLabel ? getPrestigeRuleByRankLabel(preferredRankLabel) : undefined;
+  const firstMatchedRule = matchedRules[0];
   if (
     preferredRule &&
-    preferredRule.minPrestige === matchedRule.minPrestige &&
-    preferredRule.maxPrestige === matchedRule.maxPrestige
+    preferredRule.minPrestige === firstMatchedRule.minPrestige &&
+    preferredRule.maxPrestige === firstMatchedRule.maxPrestige
   ) {
     return preferredRule;
   }
 
-  return matchedRule;
+  const matchedNineConsortRule = matchedRules.find((rule) => isNineConsortRankLabel(rule.rankLabel));
+  if (matchedNineConsortRule) {
+    return getPrestigeRuleByRankLabel(NINE_CONSORT_FALLBACK_RANK_LABEL) ?? matchedNineConsortRule;
+  }
+
+  return matchedRules[0];
+};
+
+export const assignLimitedNineConsortRanks = (roster: ConcubineProfile[]): ConcubineProfile[] => {
+  const occupiedRankLabels = new Set<string>();
+  const assignedRankLabels = new Map<string, string>();
+
+  roster.forEach((consort) => {
+    const prestige = Number(consort.stats.prestige ?? 0);
+    const currentRankLabel = getCanonicalRankLabel(consort.rankLabel);
+    if (consort.status !== 'live' || !isNineConsortPrestige(prestige) || !isNineConsortRankLabel(currentRankLabel)) {
+      return;
+    }
+    if (occupiedRankLabels.has(currentRankLabel)) {
+      return;
+    }
+    occupiedRankLabels.add(currentRankLabel);
+    assignedRankLabels.set(consort.id, currentRankLabel);
+  });
+
+  roster.forEach((consort) => {
+    const prestige = Number(consort.stats.prestige ?? 0);
+    if (consort.status !== 'live' || !isNineConsortPrestige(prestige) || assignedRankLabels.has(consort.id)) {
+      return;
+    }
+    const availableRankLabel = NINE_CONSORT_RANK_LABELS.find((rankLabel) => !occupiedRankLabels.has(rankLabel));
+    if (!availableRankLabel) {
+      assignedRankLabels.set(consort.id, NINE_CONSORT_FALLBACK_RANK_LABEL);
+      return;
+    }
+    occupiedRankLabels.add(availableRankLabel);
+    assignedRankLabels.set(consort.id, availableRankLabel);
+  });
+
+  return roster.map((consort) => {
+    const assignedRankLabel = assignedRankLabels.get(consort.id);
+    if (!assignedRankLabel || getCanonicalRankLabel(consort.rankLabel) === assignedRankLabel) {
+      return consort;
+    }
+    return normalizeConcubineProfile({
+      ...consort,
+      rankLabel: assignedRankLabel,
+    });
+  });
 };
 
 const resolveGeneratedPrestige = (rankLabel: string, random: () => number): number => {
@@ -705,7 +770,7 @@ export const buildInitialConcubineRoster = (
     .map((consort, index) => normalizeCustomConsort(consort, index));
 
   const roster = [...fixed, ...specials, ...generated, ...availableCustomConsorts].filter(isConcubineRosterMember);
-  return attachRelations(enforceConcubineFavorTierCaps(roster, occupiedFavorValues));
+  return attachRelations(assignLimitedNineConsortRanks(enforceConcubineFavorTierCaps(roster, occupiedFavorValues)));
 };
 
 export const sortConcubinesByStatus = (

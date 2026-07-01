@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
-import { AutoCutoutPortrait } from '../visual/AutoCutoutPortrait';
 import {
   getConcubineDisplayRankText,
   getConcubinePortraitPath,
@@ -617,23 +616,13 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
             sceneLabel={`${activeActor.name} 宝华殿对话场景`}
             portraitLabel={`${activeActor.name} 立绘`}
             portrait={
-              activeActor.actorKind === 'dowager' ? (
-                <AutoCutoutPortrait
-                  src={activeActor.portraitSrc}
-                  alt={activeActor.name}
-                  threshold={34}
-                  sampleInset={8}
-                  className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--baohua"
-                />
-              ) : (
-                <img
-                  src={activeActor.portraitSrc}
-                  alt={activeActor.name}
-                  className={`global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--baohua ${
-                    activeActor.actorKind === 'dangyi' ? 'global-dialogue-stage__portrait-media--dangyi' : ''
-                  }`}
-                />
-              )
+              <img
+                src={activeActor.portraitSrc}
+                alt={activeActor.name}
+                className={`global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--baohua ${
+                  activeActor.actorKind === 'dangyi' ? 'global-dialogue-stage__portrait-media--dangyi' : ''
+                }`}
+              />
             }
             ariaLabel="宝华殿对话框"
             className="global-dialogue-stage--baohua global-dialogue-stage--with-side-panel"

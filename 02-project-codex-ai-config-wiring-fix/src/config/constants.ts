@@ -169,10 +169,11 @@ export const PALACE_MAX_RESIDENTS = 6 as const;
 export const PALACE_MAIN_HALL_COUNT = 1 as const;
 export const PALACE_SIDE_HALL_COUNT = 2 as const;
 export const PALACE_MINOR_HALL_COUNT = 3 as const;
-export const PALACE_MAIN_HALL_MIN_RANK_NAME = '婕好' as const;
+export const PALACE_MAIN_HALL_MIN_RANK_NAME = '婕妤' as const;
 export const PALACE_SIDE_HALL_MIN_RANK_NAME = '美人' as const;
 
 export const HOT_SPRING_MIN_RANK_NAME = '容华' as const;
+export const NINE_CONSORT_RANK_LABELS = ['昭仪', '昭容', '昭媛', '修仪', '修容', '修媛', '充仪', '充容', '充媛'] as const;
 export const HOT_SPRING_SOLO_STAMINA_RECOVER = 3 as const;
 export const HOT_SPRING_SOLO_STRESS_REDUCE = 3 as const;
 export const HOT_SPRING_SHARED_AFFECTION_REQUIREMENT = 40 as const;

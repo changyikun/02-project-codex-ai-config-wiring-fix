@@ -1,14 +1,23 @@
-import { HOT_SPRING_MIN_RANK_NAME, PRESTIGE_RANK_TABLE, SPECIAL_PRESTIGE_RANK_TABLE } from '../../config/constants';
+import {
+  HOT_SPRING_MIN_RANK_NAME,
+  NINE_CONSORT_RANK_LABELS,
+  PRESTIGE_RANK_TABLE,
+  SPECIAL_PRESTIGE_RANK_TABLE,
+} from '../../config/constants';
 import { YINGLUOYETING_INITIAL_RESIDENCE } from '../../config/haremPalaces';
 import type { PlayerResidenceName, RouteId } from '../types';
 
 const ALL_PLAYER_RANKS = [...SPECIAL_PRESTIGE_RANK_TABLE, ...PRESTIGE_RANK_TABLE];
+const NINE_CONSORT_RANK_GROUP_LABEL = NINE_CONSORT_RANK_LABELS.join(' / ');
+const normalizePlayerRankName = (rankName: string): string =>
+  rankName === '九嫔' || rankName === NINE_CONSORT_RANK_GROUP_LABEL ? NINE_CONSORT_RANK_LABELS[0] : rankName;
 const PLAYER_RANK_PROGRESS_ORDER = [...ALL_PLAYER_RANKS]
   .sort((left, right) => left.等级 - right.等级)
-  .map((entry) => entry.位分名称);
+  .map((entry) => normalizePlayerRankName(entry.位分名称));
 const SPECIAL_TRACKED_RANK_ALIAS: Record<string, string> = {
   和亲入宫: '妃',
   公主: '妃',
+  九嫔: NINE_CONSORT_RANK_LABELS[0],
 };
 const PLAYER_RESIDENCE_PLAN_BY_ROUTE: Record<
   RouteId,
@@ -46,7 +55,12 @@ const PLAYER_RESIDENCE_PLAN_BY_ROUTE: Record<
 };
 
 export const PLAYER_RANK_WEIGHT_LIST = Object.fromEntries(
-  ALL_PLAYER_RANKS.map((entry) => [entry.位分名称, entry.等级]),
+  ALL_PLAYER_RANKS.flatMap((entry) => {
+    if (entry.位分名称 === NINE_CONSORT_RANK_GROUP_LABEL) {
+      return [['九嫔', entry.等级], ...NINE_CONSORT_RANK_LABELS.map((label) => [label, entry.等级] as const)];
+    }
+    return [[entry.位分名称, entry.等级] as const];
+  }),
 ) as Record<string, number>;
 
 export const resolvePlayerRankByPrestige = (prestige: number): string => {
@@ -55,7 +69,7 @@ export const resolvePlayerRankByPrestige = (prestige: number): string => {
     .sort((left, right) => right.所需声望值 - left.所需声望值)
     .find((entry) => numericPrestige >= entry.所需声望值);
 
-  return matched?.位分名称 ?? '官女子';
+  return matched ? normalizePlayerRankName(matched.位分名称) : '官女子';
 };
 
 export const resolveNextPlayerRankPrestigeRequirement = (rankName: string): number | undefined => {
@@ -85,7 +99,7 @@ export const normalizeTrackedPlayerRankLabel = (rankName?: string): string | und
   }
 
   if (rankName in PLAYER_RANK_WEIGHT_LIST) {
-    return rankName;
+    return normalizePlayerRankName(rankName);
   }
 
   return SPECIAL_TRACKED_RANK_ALIAS[rankName];

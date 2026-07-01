@@ -20,13 +20,13 @@ export interface HuaqingDialogueActor {
 
 const buildLianQiaoOptions = (): ConsortDialogueOption[] => [
   { id: 'soft', label: '顺着水声轻轻应她', effectHint: '更容易把这一场气氛稳稳接住。', localToneTag: 'friendly' },
-  { id: 'tease', label: '借雾气试她一句', effectHint: '若她肯接，最容易把话往暧昧处引。', localToneTag: 'flirt' },
+  { id: 'tease', label: '借雾气试他一句', effectHint: '若他肯接，最容易把话往暧昧处引。', localToneTag: 'flirt' },
   { id: 'hold', label: '只把分寸守住', effectHint: '不急着把心思露得太快。', localToneTag: 'neutral' },
 ];
 
 const buildConsortOptions = (): ConsortDialogueOption[] => [
   { id: 'warm', label: '先放柔声线寒暄', effectHint: '更适合把池边的气氛放缓。', localToneTag: 'friendly' },
-  { id: 'probe', label: '借这一池雾气探她', effectHint: '试试看她愿不愿意把真心话往外递。', localToneTag: 'neutral' },
+  { id: 'probe', label: '借这一池雾气探他', effectHint: '试试看他愿不愿意把真心话往外递。', localToneTag: 'neutral' },
   { id: 'hold', label: '只把礼数做稳', effectHint: '先守着分寸，不急着表态。', localToneTag: 'cold' },
 ];
 

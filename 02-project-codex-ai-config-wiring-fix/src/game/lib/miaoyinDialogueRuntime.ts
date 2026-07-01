@@ -22,31 +22,31 @@ export interface MiaoYinDialogueActor {
 const buildLianQiaoLocalOptions = (phase: 'first' | 'unlock' | 'gift' | 'regular'): ConsortDialogueOption[] => {
   if (phase === 'gift') {
     return [
-      { id: 'receive', label: '收下并谢她记挂', effectHint: '把这一份心意稳稳接住。', localToneTag: 'friendly' },
-      { id: 'tease', label: '借曲意轻轻逗她', effectHint: '若她愿接，情分更容易往前走。', localToneTag: 'flirt' },
+      { id: 'receive', label: '收下并谢他记挂', effectHint: '把这一份心意稳稳接住。', localToneTag: 'friendly' },
+      { id: 'tease', label: '借曲意轻轻逗他', effectHint: '若他愿接，情分更容易往前走。', localToneTag: 'flirt' },
       { id: 'hold', label: '只按礼谢过', effectHint: '把分寸守得更稳。', localToneTag: 'neutral' },
     ];
   }
 
   if (phase === 'unlock') {
     return [
-      { id: 'admire', label: '夸她收音极稳', effectHint: '更合她对真懂曲人的偏好。', localToneTag: 'friendly' },
-      { id: 'join', label: '借曲意试探更近一步', effectHint: '若她心软，最容易留下余韵。', localToneTag: 'flirt' },
+      { id: 'admire', label: '夸他收音极稳', effectHint: '更合他对真懂曲人的偏好。', localToneTag: 'friendly' },
+      { id: 'join', label: '借曲意试探更近一步', effectHint: '若他心软，最容易留下余韵。', localToneTag: 'flirt' },
       { id: 'observe', label: '只说自己想再多听几回', effectHint: '把话留住，不急着靠近。', localToneTag: 'neutral' },
     ];
   }
 
   if (phase === 'first') {
     return [
-      { id: 'listen', label: '先顺着曲理请教', effectHint: '更容易换来她一句真回话。', localToneTag: 'friendly' },
-      { id: 'probe', label: '借琴心试探她', effectHint: '看看她愿不愿意把话说深。', localToneTag: 'neutral' },
+      { id: 'listen', label: '先顺着曲理请教', effectHint: '更容易换来他一句真回话。', localToneTag: 'friendly' },
+      { id: 'probe', label: '借琴心试探他', effectHint: '看看他愿不愿意把话说深。', localToneTag: 'neutral' },
       { id: 'hold', label: '只按礼留一句称赞', effectHint: '不把心思露得太快。', localToneTag: 'cold' },
     ];
   }
 
   return [
-    { id: 'warm', label: '顺着曲意寒暄', effectHint: '先把场面放软，再慢慢探她心思。', localToneTag: 'friendly' },
-    { id: 'tease', label: '借一折旧曲试她', effectHint: '若她肯接，最容易露出情绪。', localToneTag: 'flirt' },
+    { id: 'warm', label: '顺着曲意寒暄', effectHint: '先把场面放软，再慢慢探他心思。', localToneTag: 'friendly' },
+    { id: 'tease', label: '借一折旧曲试他', effectHint: '若他肯接，最容易露出情绪。', localToneTag: 'flirt' },
     { id: 'hold', label: '只把礼数做满', effectHint: '先稳住，不急着把话说透。', localToneTag: 'neutral' },
   ];
 };

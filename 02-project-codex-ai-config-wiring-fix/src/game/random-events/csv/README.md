@@ -118,4 +118,4 @@
 
 御膳房闲逛的事件抽取必须走随机事件 runtime 的 seeded 抽取 helper，入口只提供 `routeId + xunKey + strollCount` 等种子信息；不要在地点组件里自建简单 hash 或手写权重抽取。连续闲逛计数必须能落到多个事件，不能因为相邻种子过近而长期卡在同一个权重区间。
 
-妙音堂闲逛从 `location.miaoyin.common`、`location.miaoyin.music`、`location.miaoyin.dance` 三个池合并抽取，入口固定先结算压力 `-2`，事件表只维护额外剧情与可能拾取的物品。乐曲池和舞蹈池的触发次数会被妙音堂入口读取，用于解锁乐师连翘和舞者凌袖在场景 NPC 区出现；这个解锁只依赖 `progress.randomEvents.triggerCounts`，不要在 CSV 里写额外 flag 或条件系统。妙音堂同样必须使用随机事件 runtime 的多池 seeded helper，不得在地点组件里另写私有权重抽取器。
+妙音堂闲逛从 `location.miaoyin.common`、`location.miaoyin.music`、`location.miaoyin.dance` 三个池合并抽取，入口固定先结算压力 `-2`，事件表只维护额外剧情与可能拾取的物品。乐曲池和舞蹈池的触发次数会被妙音堂入口读取，用于解锁乐师凌萧和舞者凌袖在场景 NPC 区出现；这个解锁只依赖 `progress.randomEvents.triggerCounts`，不要在 CSV 里写额外 flag 或条件系统。妙音堂同样必须使用随机事件 runtime 的多池 seeded helper，不得在地点组件里另写私有权重抽取器。

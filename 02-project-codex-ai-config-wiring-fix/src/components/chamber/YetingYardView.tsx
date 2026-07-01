@@ -2,8 +2,10 @@ import { useMemo, useState } from 'react';
 import { buildYetingPoisonCatalog } from '../../game/data/inventoryPresets';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type { InventoryItem } from '../../game/types';
-import { LocationActionResultStage } from './LocationActionResultStage';
+import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
 import { MapSubsceneView, type SubsceneActionEntry, type SubsceneNpcEntry } from './MapSubsceneView';
+
+export const YUE_GUGU_PORTRAIT_SRC = '/assets/characters/women/duyaoshangren.png';
 
 export function YetingYardView() {
   const state = useGameFlowStore((store) => store.state);
@@ -36,6 +38,7 @@ export function YetingYardView() {
         kind: 'fixed',
         name: '月姑姑',
         identityLabel: '掖庭掌事',
+        portraitSrc: YUE_GUGU_PORTRAIT_SRC,
         onClick: () =>
           setNpcIntroText(
             '月姑姑把手里一串旧钥匙慢慢拢进袖中，抬眼只问你一句：“娘娘来此，是问旧档，还是问那些不该摆上台面的东西？”',
@@ -69,10 +72,21 @@ export function YetingYardView() {
       />
 
       {npcIntroText ? (
-        <LocationActionResultStage
-          locationName="掖庭院"
+        <GlobalDialogueStage
+          sceneLabel="月姑姑掖庭院对话场景"
+          portraitLabel="月姑姑立绘"
+          ariaLabel="掖庭院行动结果"
           className="global-dialogue-stage--chamber"
           dialogueClassName="palace-dialogue-box--chamber"
+          portrait={
+            <img
+              src={YUE_GUGU_PORTRAIT_SRC}
+              alt="月姑姑"
+              className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--consort"
+            />
+          }
+          characterIdentity="掖庭掌事"
+          characterName="月姑姑"
           content={npcIntroText}
           onNextAction={() => setNpcIntroText('')}
         />

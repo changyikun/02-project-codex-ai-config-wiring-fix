@@ -45,7 +45,6 @@ import type { ConcubineProfile, InventoryItem, PermanentNpcRelationshipState } f
 import { ConsortAudiencePanel } from '../consorts/ConsortAudiencePanel';
 import { AudienceInteractionShell, type AudienceMetaRow } from '../consorts/AudienceInteractionShell';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
-import { AutoCutoutPortrait } from '../visual/AutoCutoutPortrait';
 import { LocationActionResultStage } from './LocationActionResultStage';
 import { MapSubsceneView, type SubsceneActionEntry, type SubsceneNpcEntry } from './MapSubsceneView';
 import { useLocationActionFlow, type TimedLocationActionOutcome } from './useLocationActionFlow';
@@ -62,7 +61,6 @@ interface MiaoYinNpcProfile {
   name: string;
   identity: string;
   portrait: string;
-  alreadyCutout?: boolean;
   firstMeetNarrativeId: string;
   idleNarrativeId: string;
   talkNarrativeId: string;
@@ -79,8 +77,8 @@ const MIAOYIN_STROLL_STRESS_DELTA = -2;
 const MIAOYIN_DANCE_GUIDANCE_GAIN = 18;
 const MIAOYIN_GUIDANCE_AFFINITY_GAIN = 2;
 const MIAOYIN_TALK_AFFINITY_GAIN = 1;
-const MIAOYIN_DANCER_PORTRAIT_SRC = '/assets/characters/women/feizi7.png';
-const MIAOYIN_MUSICIAN_PORTRAIT_SRC = '/assets/characters/women/yueshi.png';
+export const MIAOYIN_DANCER_PORTRAIT_SRC = '/assets/characters/women/wuzhe.png';
+export const MIAOYIN_MUSICIAN_PORTRAIT_SRC = '/assets/characters/men/yueshi.png';
 
 const MIAOYIN_NPC_PROFILES: Record<MiaoYinNpcId, MiaoYinNpcProfile> = {
   [MIAOYIN_MUSICIAN_NPC_ID]: {
@@ -686,16 +684,8 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
                 {state.name}
               </div>
             )
-          ) : activeNpcProfile.alreadyCutout ? (
-            <img src={activeNpcProfile.portrait} alt={activeNpcProfile.name} className="harem-palace-view__audience-portrait" />
           ) : (
-            <AutoCutoutPortrait
-              src={activeNpcProfile.portrait}
-              alt={activeNpcProfile.name}
-              className="harem-palace-view__audience-portrait"
-              threshold={28}
-              sampleInset={12}
-            />
+            <img src={activeNpcProfile.portrait} alt={activeNpcProfile.name} className="harem-palace-view__audience-portrait" />
           )}
         </div>
       </div>

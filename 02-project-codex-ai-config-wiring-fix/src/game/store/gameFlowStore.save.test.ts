@@ -1396,7 +1396,7 @@ describe('gameFlowStore SaveGameV1 integration', () => {
         prestige: 900,
         favor: 45,
         stress: 18,
-        initialRank: '婕好',
+        initialRank: '婕妤',
       },
       time: {
         year: 2,
@@ -1467,7 +1467,7 @@ describe('gameFlowStore SaveGameV1 integration', () => {
         prestige: 900,
         favor: 45,
         stress: 72,
-        initialRank: '婕好',
+        initialRank: '婕妤',
       },
       time: {
         year: 2,
