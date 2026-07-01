@@ -73,6 +73,8 @@ export const createInitialMusicHallProgress = (): MusicHallProgressState => ({
   lianQiaoFavor: 0,
   lianQiaoAffection: 0,
   musicScoreMastery: {},
+  dancePracticeProgress: 0,
+  dancePracticeCount: 0,
 });
 
 export const createInitialPalaceBanquetProgress = (): PalaceBanquetProgressState => ({

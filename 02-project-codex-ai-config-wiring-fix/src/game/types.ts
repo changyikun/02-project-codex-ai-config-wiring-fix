@@ -312,7 +312,8 @@ export type PermanentNpcInteractionActionId =
   | 'dowager-gift'
   | 'dowager-advice'
   | 'yangxin-request'
-  | 'bribe';
+  | 'bribe'
+  | 'guidance';
 
 export interface PermanentNpcRelationshipState {
   npcId: string;
@@ -762,6 +763,9 @@ export interface MusicHallProgressState {
   lastSubmittedMusicScoreId?: string;
   lastPracticedMusicScoreId?: string;
   musicScoreMastery?: Record<string, MusicScoreMasteryState>;
+  dancePracticeProgress?: number;
+  dancePracticeCount?: number;
+  lastDanceGuidanceAt?: PalaceTimeState;
 }
 
 export interface MusicScoreMasteryState {

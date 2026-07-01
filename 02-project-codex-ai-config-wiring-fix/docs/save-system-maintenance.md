@@ -87,12 +87,12 @@
 当前长期进度字段补充：
 
 - `progress.palaceBanquet`：系统宫宴真值。保存当前宫宴季、曲谱报名快照、报名开启提醒去重标记、已结算宫宴季和最近一次宫宴结果；缺失则视为不兼容存档。
-- `progress.musicHall.musicScoreMastery`：曲谱长期学习真值。按曲谱 `itemId` 保存难度、完成度、练习次数、表现上限、最近一次练习预演表现分和最近练习时间；若后续结构变化，清旧档而不是反向推断。
+- `progress.musicHall.musicScoreMastery`：曲谱长期学习真值。按曲谱 `itemId` 保存难度、完成度、练习次数、表现上限、最近一次练习预演表现分和最近练习时间；舞者指导的舞曲长期练习进度保存为 `dancePracticeProgress` / `dancePracticeCount`。若后续结构变化，清旧档而不是反向推断。
 - `progress.craftWorks`：绣花 / 字画 / 调香作品真值。`SaveGameV1` schema `4` 起为必需字段；缺失则视为不兼容存档，不从背包或寝殿行动反推。
 - `progress.randomEvents`：随机事件真值。`SaveGameV1` schema `5` 起为必需字段；缺失则视为不兼容存档，不从已播放剧情或关系状态反推。
 - `progress.emperorInteraction.schedule` / `progress.emperorInteraction.mood`：皇帝日间行程与心情真值。`SaveGameV1` schema `6` 起为必需字段；缺失则视为不兼容存档，不从 `routeId + time` 或 `nightlyService.emperorMood` 反推旧档。
 - `progress.npcActivity`：当前旬 NPC 行动表。缺失则视为不兼容存档，不能在恢复阶段临时生成来迁移旧档。
 - `relations.npcRelationMatrix`：NPC-NPC 双向关系矩阵。缺失则视为不兼容存档，不能在恢复阶段补 `{}` 来迁移旧档。
-- `relations.permanentNpcRelationships`：常驻 NPC 与玩家的长期关系。`SaveGameV1` schema `5` 起为必需字段；缺失则视为不兼容存档，不能把旧工具 NPC 进度补成默认关系。太后使用 `dowager` key，并额外保存 `lastDowagerGreetingMonthKey` / `lastDowagerGreetingXunKey`，用于月初问安扣声望与每旬请安限制；养心殿李公公使用 `li-gonggong` key，其好感影响求见皇帝的通传成功率。
+- `relations.permanentNpcRelationships`：常驻 NPC 与玩家的长期关系。`SaveGameV1` schema `5` 起为必需字段；缺失则视为不兼容存档，不能把旧工具 NPC 进度补成默认关系。太后使用 `dowager` key，并额外保存 `lastDowagerGreetingMonthKey` / `lastDowagerGreetingXunKey`，用于月初问安扣声望与每旬请安限制；养心殿李公公使用 `li-gonggong` key，其好感影响求见皇帝的通传成功率；妙音堂乐师 / 舞者使用常驻 NPC 关系 key 保存初见、好感和本旬指导 / 闲聊 / 送礼次数。
 - `cases.palaceStrifeCases[].suspects`：宫斗调查嫌疑人列表。缺失则视为不兼容存档，不能把旧 `convictionRate` 反推成单一嫌疑人来迁移旧档。
 - `cases.pendingYangxinVerdict`：当前养心殿裁断事件。`SaveGameV1` schema `2` 起为必需字段，可为 `null`；缺失则视为不兼容存档。

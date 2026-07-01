@@ -10,6 +10,10 @@ export const DU_NIANG_FRIENDSHIP_BUY_RATE = 0.85;
 export const DU_NIANG_FRIENDSHIP_SELL_RATE = 1.1;
 export const LI_GONGGONG_NPC_ID = 'li-gonggong';
 export const LI_GONGGONG_NPC_NAME = '李公公';
+export const MIAOYIN_MUSICIAN_NPC_ID = 'miaoyin-musician';
+export const MIAOYIN_MUSICIAN_NPC_NAME = '连翘';
+export const MIAOYIN_DANCER_NPC_ID = 'miaoyin-dancer';
+export const MIAOYIN_DANCER_NPC_NAME = '凌袖';
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, Math.floor(value)));
 

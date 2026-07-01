@@ -105,6 +105,8 @@ const resetFlowStore = () => {
       lianQiaoMet: false,
       lianQiaoFavor: 0,
       lianQiaoAffection: 0,
+      dancePracticeProgress: 0,
+      dancePracticeCount: 0,
     },
     palaceBanquetProgress: {
       submissionCount: 0,
@@ -2179,7 +2181,7 @@ describe('App 主流程切换', () => {
       });
     });
 
-    fireEvent.click(await screen.findByRole('button', { name: '听曲' }));
+    fireEvent.click(await screen.findByRole('button', { name: '闲逛' }));
 
     await waitFor(() => {
       const flow = useGameFlowStore.getState();
@@ -2246,10 +2248,13 @@ describe('App 主流程切换', () => {
       expect(useGameFlowStore.getState().time.slot).toBe('深夜');
     });
 
-    fireEvent.click(await screen.findByRole('button', { name: '听曲' }));
+    fireEvent.click(await screen.findByRole('button', { name: '闲逛' }));
 
-    expect(await screen.findByLabelText('妙音堂行动结果')).toBeInTheDocument();
+    expect(await screen.findByLabelText('妙音堂闲逛事件')).toBeInTheDocument();
     await clickDialogueAdvance();
+    if (screen.queryByLabelText('妙音堂闲逛事件')) {
+      await clickDialogueAdvance();
+    }
 
     const reminder = await screen.findByLabelText('寝殿对白');
     expect(within(reminder).getByText(/夜已经深了/)).toBeInTheDocument();
@@ -2259,7 +2264,8 @@ describe('App 主流程切换', () => {
     expect(await screen.findByLabelText('一夜过去')).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText('1年1月2旬（清晨）')).toBeInTheDocument();
+      expect(screen.getByLabelText('一年一月二旬')).toBeInTheDocument();
+        expect(screen.getByLabelText('清晨')).toBeInTheDocument();
     });
 
     if (screen.queryAllByLabelText('夜晚侍寝通报').length > 0) {
@@ -2934,7 +2940,7 @@ describe('App 主流程切换', () => {
     expect(screen.getByAltText('谢令仪')).toHaveAttribute('src', '/assets/player/lanyinxuguo-cutout.png');
   });
 
-  it('妙音堂会显示基础按钮，并在结识连翘后开放曲谱报名', async () => {
+  it('妙音堂会显示基础按钮，乐师解锁后可指导曲谱并登记宴席报名', async () => {
     const defaultFavorTier = getFavorTierByValue(50);
     const score = buildMusicScoreItem('score-phoenix-return');
     expect(score).not.toBeNull();
@@ -2977,6 +2983,8 @@ describe('App 主流程切换', () => {
         lianQiaoMet: true,
         lianQiaoFavor: 2,
         lianQiaoAffection: 2,
+        dancePracticeProgress: 0,
+        dancePracticeCount: 0,
       },
       time: {
         year: 1,
@@ -2990,14 +2998,17 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('button', { name: '报名' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '听曲' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '学谱' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '宴席报名' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '闲逛' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '连翘' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '学谱' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '学谱' }));
-    expect(await screen.findByRole('dialog', { name: '连翘学谱' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '连翘' }));
+    expect(await screen.findByLabelText('连翘 妙音堂对话')).toBeInTheDocument();
+    await clickDialogueAdvance();
+
+    fireEvent.click(screen.getByRole('button', { name: '请求指导（耗次）' }));
+    expect(await screen.findByRole('dialog', { name: '乐师指导曲谱' })).toBeInTheDocument();
     const talentBeforePractice = Number(useGameFlowStore.getState().state.stats.talent ?? 0);
     fireEvent.click(screen.getByRole('button', { name: /凤归云阙谱/ }));
 
@@ -3007,8 +3018,9 @@ describe('App 主流程切换', () => {
     });
     expect(await within(screen.getByLabelText('数值变化提示')).findByText('乐理 +2')).toBeInTheDocument();
     await clickDialogueAdvance();
+    fireEvent.click(screen.getByRole('button', { name: '返回' }));
 
-    fireEvent.click(screen.getByRole('button', { name: '报名' }));
+    fireEvent.click(screen.getByRole('button', { name: '宴席报名' }));
     expect(await screen.findByRole('dialog', { name: '妙音堂曲谱报名' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /凤归云阙谱/ }));
@@ -3021,7 +3033,7 @@ describe('App 主流程切换', () => {
     });
   });
 
-  it('妙音堂听曲的压力变化会随本次行动显示 toast', async () => {
+  it('妙音堂闲逛的压力变化会随本次行动显示 toast', async () => {
     useGameFlowStore.setState((state) => ({
       ...state,
       currentView: 'bedchamber',
@@ -3055,17 +3067,17 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: '听曲' }));
+    fireEvent.click(await screen.findByRole('button', { name: '闲逛' }));
 
     const toastLayer = await screen.findByLabelText('数值变化提示');
     expect(await within(toastLayer).findByText(/压力 -/)).toBeInTheDocument();
     expect(screen.queryByText(/第2旬清晨通报/)).not.toBeInTheDocument();
 
-    const actionResult = await screen.findByLabelText('妙音堂行动结果');
-    await advanceDialoguePages();
-    expect(actionResult).toHaveTextContent(/压力-/);
-
+    expect(await screen.findByLabelText('妙音堂闲逛事件')).toBeInTheDocument();
     await clickDialogueAdvance();
+    if (screen.queryByLabelText('妙音堂闲逛事件')) {
+      await clickDialogueAdvance();
+    }
 
     expect(await screen.findByLabelText('寝殿对白')).toHaveTextContent(/夜已经深了/);
 
@@ -3079,7 +3091,7 @@ describe('App 主流程切换', () => {
     expect(await screen.findByText(/1年1月第2旬清晨通报/)).toBeInTheDocument();
   }, 8000);
 
-  it('妙音堂普通听曲会保留行动结果对白，收起后仍停留在妙音堂', async () => {
+  it('妙音堂普通闲逛会播放事件，收起后仍停留在妙音堂', async () => {
     useGameFlowStore.setState((state) => ({
       ...state,
       currentView: 'bedchamber',
@@ -3106,6 +3118,8 @@ describe('App 主流程切换', () => {
         lianQiaoMet: false,
         lianQiaoFavor: 0,
         lianQiaoAffection: 0,
+        dancePracticeProgress: 0,
+        dancePracticeCount: 0,
       },
       time: {
         year: 1,
@@ -3119,14 +3133,15 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: '听曲' }));
+    fireEvent.click(await screen.findByRole('button', { name: '闲逛' }));
 
-    const actionResult = await screen.findByLabelText('妙音堂行动结果');
-    expect(actionResult).toHaveTextContent(/妙音堂|丝竹|余音/);
-
+    expect(await screen.findByLabelText('妙音堂闲逛事件')).toBeInTheDocument();
     await clickDialogueAdvance();
+    if (screen.queryByLabelText('妙音堂闲逛事件')) {
+      await clickDialogueAdvance();
+    }
 
-    expect(screen.queryByLabelText('妙音堂行动结果')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('妙音堂闲逛事件')).not.toBeInTheDocument();
     expect(useGameFlowStore.getState().currentView).toBe('bedchamber');
     expect(useGameFlowStore.getState().activeMapLocation).toBe('妙音堂');
   });
@@ -6956,7 +6971,8 @@ describe('App 主流程切换', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByText('1年1月2旬（清晨）')).toBeInTheDocument();
+        expect(screen.getByLabelText('一年一月二旬')).toBeInTheDocument();
+        expect(screen.getByLabelText('清晨')).toBeInTheDocument();
         expect(screen.getByText(`体力：${STAMINA_INITIAL_PER_XUN}`)).toBeInTheDocument();
         expect(screen.getByText(/1年1月第2旬清晨通报/)).toBeInTheDocument();
         expect(screen.queryByLabelText('一夜过去')).not.toBeInTheDocument();
@@ -7118,7 +7134,8 @@ describe('App 主流程切换', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByText('1年1月2旬（清晨）')).toBeInTheDocument();
+        expect(screen.getByLabelText('一年一月二旬')).toBeInTheDocument();
+        expect(screen.getByLabelText('清晨')).toBeInTheDocument();
         expect(screen.getByText(/1年1月第2旬清晨通报/)).toBeInTheDocument();
         expect(screen.queryByLabelText('一夜过去')).not.toBeInTheDocument();
         expect((container.querySelector('.chamber-main__background') as HTMLElement).style.backgroundImage).toContain(
@@ -7209,7 +7226,8 @@ describe('App 主流程切换', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByText('1年1月2旬（清晨）')).toBeInTheDocument();
+        expect(screen.getByLabelText('一年一月二旬')).toBeInTheDocument();
+        expect(screen.getByLabelText('清晨')).toBeInTheDocument();
         expect(screen.getByText(/1年1月第2旬清晨通报/)).toBeInTheDocument();
         expect(screen.queryByLabelText('一夜过去')).not.toBeInTheDocument();
       },
@@ -7301,7 +7319,8 @@ describe('App 主流程切换', () => {
 
       await waitFor(
         () => {
-          expect(screen.getByText('1年1月2旬（清晨）')).toBeInTheDocument();
+          expect(screen.getByLabelText('一年一月二旬')).toBeInTheDocument();
+        expect(screen.getByLabelText('清晨')).toBeInTheDocument();
           expect(screen.getByText(/1年1月第2旬清晨通报/)).toBeInTheDocument();
           expect(screen.queryByLabelText('一夜过去')).not.toBeInTheDocument();
         },

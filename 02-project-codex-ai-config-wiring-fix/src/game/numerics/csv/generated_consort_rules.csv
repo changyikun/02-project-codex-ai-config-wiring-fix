@@ -14,8 +14,8 @@ jitter_ambition,10,野心浮动范围
 jitter_stress,12,压力浮动范围
 jitter_intrigue,55,心计浮动范围
 jitter_temperament,50,气质浮动范围
-jitter_affection,12,情分浮动范围
+jitter_affection,0,情分浮动范围
 jitter_fortune,10,福德浮动范围
-relation_to_player_min,-100,与玩家关系下限
-relation_to_player_max,100,与玩家关系上限
+relation_to_player_min,0,与玩家关系下限
+relation_to_player_max,0,与玩家关系上限
 live_status_ill_health_threshold,400,妃嫔健康低于该值视为病中

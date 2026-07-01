@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { AffairsPanelView, BondPanelView, ChroniclePanelView } from '../components/chamber/ChamberUtilityViews';
 import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
 import { PromotionEdictStage } from '../components/dialogue/PromotionEdictStage';
@@ -40,6 +40,33 @@ const renderHotspotLabel = (label: string, vertical?: boolean) => {
       {char}
     </span>
   ));
+};
+
+const parsePercentRatio = (value: string): number | null => {
+  const trimmed = value.trim();
+  if (!trimmed.endsWith('%')) {
+    return null;
+  }
+  const parsed = Number.parseFloat(trimmed.slice(0, -1));
+  return Number.isFinite(parsed) ? parsed / 100 : null;
+};
+
+const buildHotspotStyle = (hotspot: MapHotspotConfig): CSSProperties => {
+  const style: CSSProperties & { '--map-hotspot-height-ratio'?: string } = {
+    top: hotspot.top,
+    left: hotspot.left,
+    width: hotspot.width,
+    height: hotspot.height,
+  };
+
+  if (hotspot.vertical) {
+    const heightRatio = parsePercentRatio(hotspot.height);
+    if (heightRatio !== null) {
+      style['--map-hotspot-height-ratio'] = String(heightRatio);
+    }
+  }
+
+  return style;
 };
 
 const resolveYingluoyetingEventPortrait = (event: YingluoyetingMapEvent, isResult: boolean) => {
@@ -477,12 +504,7 @@ export function MapMainView() {
                 }`}
                 aria-label={hotspot.label}
                 data-label-length={Array.from(hotspot.label).length}
-                style={{
-                  top: hotspot.top,
-                  left: hotspot.left,
-                  width: hotspot.width,
-                  height: hotspot.height,
-                }}
+                style={buildHotspotStyle(hotspot)}
                 onClick={() => handleHotspot(hotspot.id)}
               >
                 <span>{renderHotspotLabel(hotspot.label, hotspot.vertical)}</span>

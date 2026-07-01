@@ -112,7 +112,7 @@ interface SaveGameV1 {
 - 启动页“回溯”会读取上一次 `SaveGameV1`，并根据 durable state 推断恢复到路线选择、属性页、地图或寝殿。
 - 当前游戏仍处开发阶段，存档结构不做跨版本迁移；缺少当前必需字段、schema 不匹配或 envelope 解析失败时，直接删除旧存档并让回溯显示无可用存档。
 - 系统宫宴进度保存于 `progress.palaceBanquet`，包括当前宫宴季、已提交曲谱快照、报名提醒标记、已结算宫宴季和最近一次宫宴结果。
-- 妙音堂曲谱学习进度保存于 `progress.musicHall.musicScoreMastery`，按曲谱 ID 记录难度、完成度、练习次数、表现上限、最近一次练习预演表现分和最近练习时间；后续若字段结构变化，必须清旧档或提升 schema，不做旧字段 fallback。
+- 妙音堂曲谱学习进度保存于 `progress.musicHall.musicScoreMastery`，按曲谱 ID 记录难度、完成度、练习次数、表现上限、最近一次练习预演表现分和最近练习时间；舞者指导产生的舞曲练习进度保存于 `progress.musicHall.dancePracticeProgress` / `dancePracticeCount`。后续若字段结构变化，必须清旧档或提升 schema，不做旧字段 fallback。
 - 绣花、字画、调香作品进度保存于 `progress.craftWorks.activeWorks`。作品由点击寝殿对应行动进入对应类别面板后创建和推进，记录作品 ID、类别、进度、制作次数、成色评分、开始时间和最近制作时间；完成后从进行中列表移除并生成 `gift` 背包物品。当前 schema 为 `6`，缺少 `progress.craftWorks` 的旧存档按开发期规则直接清除。
 - 随机事件进度保存于 `progress.randomEvents`。`triggerCounts` 记录已触发次数，`unlockedEventIds` 记录已经进入可抽池的后续事件，`pendingUnlocks` 记录已经由剧情行或选项解锁但要到下一旬清晨才释放的事件。
 - 妃嫔旬级行动保存于 `progress.npcActivity`，记录当前旬每名 live 且非冷宫妃嫔的主行动、地点、目的、目标与是否已被玩家看见 / 触发。
@@ -120,7 +120,7 @@ interface SaveGameV1 {
 - 公共外出 NPC 在 `resolved=true` 后仍应保留在原目的地展示，只禁用重复交互；这里的 `resolved` 表示玩家已交谈，不表示 NPC 离开地点。
 - 未收束的 `visit-consort.targetConsortId` 是被拜访者本旬寝宫会客的真值；即使该目标自己的条目仍是公共外出，UI 也必须按目标在寝宫会客处理，并从公共地点可交互名单中排除。玩家结束殿内会客后，`visit-consort.resolved=true` 表示会客收束：来访者回自己的寝宫，被拜访者不再显示“会客中”。
 - NPC-NPC 真实关系保存于 `relations.npcRelationMatrix`，展示用 `allies / rivals` 只作为初始倾向；旬末送礼、试探、拉拢、传话、施压等变化以关系矩阵为准。
-- 常驻 NPC 与玩家的关系保存于 `relations.permanentNpcRelationships`。当前用于宫门杜娘、阿翎、建章宫太后和养心殿李公公，记录是否初见、长期好感、当前旬交互次数和最后一次互动；常驻 NPC 的买卖不耗次数，闲谈 / 送礼 / 打点银两 / 太后有效互动耗次数，缺少该关系块的旧存档不做默认补齐迁移。太后关系额外保存 `lastDowagerGreetingMonthKey` 与 `lastDowagerGreetingXunKey`，用于判断月度问安义务和每旬 `请安` 限制。
+- 常驻 NPC 与玩家的关系保存于 `relations.permanentNpcRelationships`。当前用于宫门杜娘、阿翎、建章宫太后、养心殿李公公、妙音堂乐师连翘和妙音堂舞者凌袖，记录是否初见、长期好感、当前旬交互次数和最后一次互动；常驻 NPC 的买卖不耗次数，闲谈 / 送礼 / 打点银两 / 太后有效互动 / 妙音堂指导耗次数，缺少该关系块的旧存档不做默认补齐迁移。太后关系额外保存 `lastDowagerGreetingMonthKey` 与 `lastDowagerGreetingXunKey`，用于判断月度问安义务和每旬 `请安` 限制。
 - 玩家与妃嫔的普通互动进度保存于 `relations.consortInteractionMap`。每个 `ConsortInteractionProgress` 以 `consortId + xunKey` 记录本旬好感 / 倾情变化量和 `actionCountThisXun`；玩家主动会面、公共地点对妃嫔的关系判定每旬每人最多 `3` 次，次数用尽后不得再写入普通关系变化。NPC 拜访玩家不走此计数，而由 `npcActivity.triggeredVisitIds` 保证每条拜访只触发一次。
 - 互动计数触顶是剧情节奏状态，不是单纯 UI 禁用状态。最后一次主动会面互动后必须进入送客对白并退出场景；同旬再次拜访不得扣体力 / 推进时间，只显示宫人婉拒。
 - 人物会面退出时，时间推进取决于“本次会面是否实际消耗过交互次数 / 主行动”。若妃嫔、公共地点偶遇妃嫔、常驻 NPC、太后或皇帝日间互动在本次页面内至少耗次一次，则主动返回或送客退出时推进 `1` 个时间格，并走地点行动同一套深夜睡觉收束；买卖、选礼、夜间拒见和单纯进入退出不推进时间。

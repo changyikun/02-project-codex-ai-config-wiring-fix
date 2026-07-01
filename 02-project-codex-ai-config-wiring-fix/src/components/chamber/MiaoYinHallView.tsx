@@ -1,26 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  buildMusicScoreRewardBundle,
-  buildRandomMusicScoreItem,
-  isMusicScoreItem,
-} from '../../game/data/inventoryPresets';
+import { useMemo, useState } from 'react';
+import { isMusicScoreItem } from '../../game/data/inventoryPresets';
 import {
   getConcubineDisplayRankText,
   getConcubinePortraitPath,
+  getConcubineRankWeightByLabel,
 } from '../../game/data/concubineRoster';
-import {
-  requestMiaoYinLocalDialogue,
-  type MiaoYinDialogueActor,
-} from '../../game/lib/miaoyinDialogueRuntime';
+import { getRouteProfileById } from '../../game/data/routeProfiles';
 import { buildLocationActionNarrative } from '../../game/lib/actionNarrativeRuntime';
-import { clampToRange, createDialogueId, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
-import { traceDialogue } from '../../game/lib/dialogueTrace';
-import { requestMiaoYinAmbientLocal } from '../../game/lib/miaoyinAmbientRuntime';
-import {
-  CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN,
-  buildConsortPublicEncounterSendOffNarrativeEntry,
-  type ConsortSendOffNarrative,
-} from '../../game/lib/consortVisitRuntime';
+import { isConsortGiftItem } from '../../game/lib/consortVisitRuntime';
 import {
   resolveMusicScoreMastery,
   resolveMusicScorePractice,
@@ -28,19 +15,35 @@ import {
 } from '../../game/lib/musicScoreRuntime';
 import { getNpcActivitiesAtLocation } from '../../game/lib/npcActivityRuntime';
 import {
+  MIAOYIN_DANCER_NPC_ID,
+  MIAOYIN_DANCER_NPC_NAME,
+  MIAOYIN_MUSICIAN_NPC_ID,
+  MIAOYIN_MUSICIAN_NPC_NAME,
+  PERMANENT_NPC_INTERACTION_ACTION_LIMIT_PER_XUN,
+  createPermanentNpcRelationship,
+} from '../../game/lib/permanentNpcRuntime';
+import {
   getPalaceBanquetEventTime,
   isPalaceBanquetRegistrationOpen,
   resolvePalaceBanquetSeasonKeyForTime,
   resolvePalaceBanquetYearForTime,
 } from '../../game/lib/palaceBanquetSchedule';
-import { requestRelationshipJudgementLocal } from '../../game/lib/relationshipJudgeRuntime';
+import { renderNarrativeEntry } from '../../game/narrative/narrativeCatalog';
+import { narrativeEntryToDialogueFields } from '../../game/narrative/narrativeDialogueAdapter';
+import {
+  advanceRandomEventLine,
+  beginRandomEventSession,
+  getRandomEventCurrentLine,
+  getRandomEventCurrentOptions,
+  pickRandomEventFromPoolsBySeed,
+  selectRandomEventOption,
+  type RandomEventSession,
+} from '../../game/random-events/randomEventRuntime';
+import { randomEventCatalog, type RandomEventLine } from '../../game/random-events/randomEventCatalog';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
-import type {
-  ConcubineProfile,
-  ConsortDialogueOption,
-  ConsortDialogueTurn,
-  InventoryItem,
-} from '../../game/types';
+import type { ConcubineProfile, InventoryItem, PermanentNpcRelationshipState } from '../../game/types';
+import { ConsortAudiencePanel } from '../consorts/ConsortAudiencePanel';
+import { AudienceInteractionShell, type AudienceMetaRow } from '../consorts/AudienceInteractionShell';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
 import { AutoCutoutPortrait } from '../visual/AutoCutoutPortrait';
 import { LocationActionResultStage } from './LocationActionResultStage';
@@ -51,60 +54,76 @@ interface MiaoYinHallViewProps {
   concubines: ConcubineProfile[];
 }
 
-interface HistoryEntry {
-  speaker: string;
-  text: string;
+type MiaoYinNpcId = typeof MIAOYIN_MUSICIAN_NPC_ID | typeof MIAOYIN_DANCER_NPC_ID;
+type MiaoYinGiftMode = 'gift';
+
+interface MiaoYinNpcProfile {
+  id: MiaoYinNpcId;
+  name: string;
+  identity: string;
+  portrait: string;
+  alreadyCutout?: boolean;
+  firstMeetNarrativeId: string;
+  idleNarrativeId: string;
+  talkNarrativeId: string;
+  giftNarrativeId: string;
+  guidanceNarrativeId: string;
 }
 
-type EncounterKind = 'first-meet' | 'unlock' | 'gift-event' | 'emperor' | 'consort' | 'regular';
+const MIAOYIN_COMMON_POOL_ID = 'location.miaoyin.common';
+const MIAOYIN_MUSIC_POOL_ID = 'location.miaoyin.music';
+const MIAOYIN_DANCE_POOL_ID = 'location.miaoyin.dance';
+const MIAOYIN_STROLL_POOLS = [MIAOYIN_COMMON_POOL_ID, MIAOYIN_MUSIC_POOL_ID, MIAOYIN_DANCE_POOL_ID] as const;
+const MIAOYIN_NPC_UNLOCK_EVENT_COUNT = 2;
+const MIAOYIN_STROLL_STRESS_DELTA = -2;
+const MIAOYIN_DANCE_GUIDANCE_GAIN = 18;
+const MIAOYIN_GUIDANCE_AFFINITY_GAIN = 2;
+const MIAOYIN_TALK_AFFINITY_GAIN = 1;
+const MIAOYIN_DANCER_PORTRAIT_SRC = '/assets/characters/women/feizi7.png';
+const MIAOYIN_MUSICIAN_PORTRAIT_SRC = '/assets/characters/women/yueshi.png';
 
-interface MiaoYinSceneActor extends MiaoYinDialogueActor {
-  portraitSrc?: string;
-}
+const MIAOYIN_NPC_PROFILES: Record<MiaoYinNpcId, MiaoYinNpcProfile> = {
+  [MIAOYIN_MUSICIAN_NPC_ID]: {
+    id: MIAOYIN_MUSICIAN_NPC_ID,
+    name: MIAOYIN_MUSICIAN_NPC_NAME,
+    identity: '妙音堂乐师',
+    portrait: MIAOYIN_MUSICIAN_PORTRAIT_SRC,
+    firstMeetNarrativeId: 'miaoyin.musician.first-meet',
+    idleNarrativeId: 'miaoyin.musician.idle',
+    talkNarrativeId: 'miaoyin.musician.talk',
+    giftNarrativeId: 'miaoyin.musician.gift',
+    guidanceNarrativeId: 'miaoyin.musician.guidance',
+  },
+  [MIAOYIN_DANCER_NPC_ID]: {
+    id: MIAOYIN_DANCER_NPC_ID,
+    name: MIAOYIN_DANCER_NPC_NAME,
+    identity: '妙音堂舞者',
+    portrait: MIAOYIN_DANCER_PORTRAIT_SRC,
+    firstMeetNarrativeId: 'miaoyin.dancer.first-meet',
+    idleNarrativeId: 'miaoyin.dancer.idle',
+    talkNarrativeId: 'miaoyin.dancer.talk',
+    giftNarrativeId: 'miaoyin.dancer.gift',
+    guidanceNarrativeId: 'miaoyin.dancer.guidance',
+  },
+};
 
-const LIANQIAO_PORTRAIT_SRC = '/assets/characters/women/yueshi.png';
-const EMPEROR_PORTRAIT_SRC = '/assets/characters/men/rongan.png';
+const countTriggeredEventsInPool = (triggerCounts: Record<string, number>, poolId: string): number =>
+  (randomEventCatalog.eventsByPool[poolId] ?? []).reduce((sum, eventId) => sum + Number(triggerCounts[eventId] ?? 0), 0);
 
-const hashSeed = (seed: string): number =>
-  seed.split('').reduce((sum, char, index) => sum + char.charCodeAt(0) * (index + 27), 0);
-const toXunIndex = (year: number, month: number, xun: number): number => year * 36 + (month - 1) * 3 + xun;
+const buildRelationLabel = (affinity: number): string => {
+  if (affinity >= 60) {
+    return '相熟';
+  }
+  if (affinity >= 30) {
+    return '常来';
+  }
+  if (affinity > 0) {
+    return '认得';
+  }
+  return '初识';
+};
 
-const buildLianQiaoActor = (favor: number, affection: number): MiaoYinSceneActor => ({
-  id: 'lianqiao',
-  name: '连翘',
-  identity: '妙音堂伶人',
-  residence: '妙音堂',
-  personality: '最懂收音与留白，语气轻柔却不浮，善听人心里的停顿，也极在意谁是真懂曲、谁只是看热闹。',
-  summary: '妙音堂中的伶人，擅长行腔、定板与看人情绪。她对曲意与人心都极敏感，愿亲近谁，往往不会说得太明。',
-  currentGoodwill: favor,
-  currentAffection: affection,
-  actorKind: 'lianqiao',
-});
-
-const buildEmperorActor = (): MiaoYinSceneActor => ({
-  id: 'rongan',
-  name: '容安',
-  identity: '皇帝',
-  residence: '养心殿',
-  personality: '帝王心术极深，喜怒不轻露，即便起了兴趣，先显出来的也总是试探与裁量。',
-  summary: '当今皇帝。看人先看分寸，再看胆量，最后才轮到情意本身。',
-  currentGoodwill: 0,
-  currentAffection: 0,
-  actorKind: 'emperor',
-});
-
-const buildConsortActor = (consort: ConcubineProfile): MiaoYinSceneActor => ({
-  id: consort.id,
-  name: consort.name,
-  identity: getConcubineDisplayRankText(consort),
-  residence: consort.residence,
-  personality: consort.personality,
-  summary: consort.summary,
-  currentGoodwill: consort.stats.relationToPlayer,
-  currentAffection: consort.stats.affection,
-  actorKind: 'consort',
-  portraitSrc: getConcubinePortraitPath(consort.portraitId),
-});
+const toXunKey = (year: number, month: number, xun: number): string => `${year}-${month}-${xun}`;
 
 export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
   const {
@@ -112,52 +131,66 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     hiddenStats,
     time,
     inventory,
+    selectedRoute,
+    customConsorts,
     musicHallProgress,
     palaceBanquetProgress,
+    permanentNpcRelationships,
+    randomEventProgress,
     patchMusicHallProgress,
     patchPalaceBanquetProgress,
     applyStoryEffects,
-    applyConsortRelationshipJudgement,
-    grantInventoryItem,
     markNumericFeedbackEvent,
+    ensurePermanentNpcRelationship,
+    markPermanentNpcMet,
+    recordPermanentNpcInteractionAction,
+    applyPermanentNpcAffinityDelta,
+    applyRandomEventEffectForPlayer,
+    queueRandomEventUnlocks,
+    completeRandomEventById,
+    consumeInventoryItem,
     npcActivity,
     resolveNpcActivityEntry,
     enterMapMain,
   } = useGameFlowStore();
   const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
-  const [activeActor, setActiveActor] = useState<MiaoYinSceneActor | null>(null);
-  const [dialogueTurn, setDialogueTurn] = useState<ConsortDialogueTurn | null>(null);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [sceneHint, setSceneHint] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [systemMessage, setSystemMessage] = useState('丝竹与板眼一层层压下去，妙音堂里最热闹的，反而常是没说出口的心思。');
-  const [activeEncounterLabel, setActiveEncounterLabel] = useState('妙音堂偶遇');
-  const [activeEncounterKind, setActiveEncounterKind] = useState<EncounterKind>('regular');
-  const [pendingLianQiaoUnlock, setPendingLianQiaoUnlock] = useState(false);
-  const [pendingUnlockReward, setPendingUnlockReward] = useState<InventoryItem[]>([]);
+  const [activeNpcId, setActiveNpcId] = useState<MiaoYinNpcId | null>(null);
+  const [activeGiftMode, setActiveGiftMode] = useState<MiaoYinGiftMode | null>(null);
+  const [activeRandomSession, setActiveRandomSession] = useState<RandomEventSession | null>(null);
+  const [activeRandomLine, setActiveRandomLine] = useState<RandomEventLine | null>(null);
+  const [activeNpcDialogue, setActiveNpcDialogue] = useState<ReturnType<typeof narrativeEntryToDialogueFields> | null>(null);
+  const [activeNpcConsumedInteraction, setActiveNpcConsumedInteraction] = useState(false);
   const [showSignUpPicker, setShowSignUpPicker] = useState(false);
   const [showPracticePicker, setShowPracticePicker] = useState(false);
   const [actionResultText, setActionResultText] = useState('');
   const [pendingTimedActionOutcome, setPendingTimedActionOutcome] = useState<TimedLocationActionOutcome | null>(null);
-  const [pendingEncounterSendOff, setPendingEncounterSendOff] = useState<ConsortSendOffNarrative | null>(null);
-  const [encounterConsumedInteraction, setEncounterConsumedInteraction] = useState(false);
+  const [activeConsortAudience, setActiveConsortAudience] = useState<{
+    entryId: string;
+    consortId: string;
+    summary: string;
+  } | null>(null);
 
-  const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
-  const saveId = useMemo(() => `local:${state.routeId}:${encodeURIComponent(state.name)}`, [state.name, state.routeId]);
-  const dialogueOptions = dialogueTurn?.options ?? [];
-  const isLianQiaoMet = Boolean(state.flags.isLianQiaoMet || musicHallProgress.lianQiaoMet);
-  const scheduledConsortActivity = useMemo(() => {
-    const scheduledEntries = getNpcActivitiesAtLocation(npcActivity, '妙音堂');
-    const entry = scheduledEntries.find((candidate) => concubines.some((consort) => consort.id === candidate.actorConsortId));
-    const consort = entry ? concubines.find((candidate) => candidate.id === entry.actorConsortId) : undefined;
-    return entry && consort ? { entry, consort } : null;
-  }, [concubines, npcActivity]);
-  const currentSeed = `${state.routeId}:${time.year}-${time.month}-${time.xun}:${time.slotIndex}`;
-  const currentXunIndex = toXunIndex(time.year, time.month, time.xun);
+  const xunKey = toXunKey(time.year, time.month, time.xun);
+  const playerRankLabel =
+    hiddenStats.initialRank && getConcubineRankWeightByLabel(hiddenStats.initialRank) > 0 ? hiddenStats.initialRank : '宫妃';
+  const playerPortraitSrc = selectedRoute?.portrait ?? getRouteProfileById(state.routeId)?.portrait;
+  const allConsorts = useMemo(() => [...concubines, ...customConsorts], [concubines, customConsorts]);
+  const activeNpcProfile = activeNpcId ? MIAOYIN_NPC_PROFILES[activeNpcId] : null;
+  const activeNpcRelationship = activeNpcProfile
+    ? permanentNpcRelationships[activeNpcProfile.id] ??
+      createPermanentNpcRelationship(activeNpcProfile.id, activeNpcProfile.name, xunKey)
+    : undefined;
+
+  const musicPoolTriggerCount = countTriggeredEventsInPool(randomEventProgress.triggerCounts, MIAOYIN_MUSIC_POOL_ID);
+  const dancePoolTriggerCount = countTriggeredEventsInPool(randomEventProgress.triggerCounts, MIAOYIN_DANCE_POOL_ID);
+  const isMusicianUnlocked =
+    Boolean(state.flags.isLianQiaoMet || musicHallProgress.lianQiaoMet) ||
+    musicPoolTriggerCount >= MIAOYIN_NPC_UNLOCK_EVENT_COUNT;
+  const isDancerUnlocked = dancePoolTriggerCount >= MIAOYIN_NPC_UNLOCK_EVENT_COUNT;
+  const canSignUp = isPalaceBanquetRegistrationOpen(time);
   const banquetYear = resolvePalaceBanquetYearForTime(time);
   const banquetEventTime = getPalaceBanquetEventTime(banquetYear);
   const palaceBanquetSeasonKey = resolvePalaceBanquetSeasonKeyForTime(time);
-  const canSignUp = isPalaceBanquetRegistrationOpen(time);
   const submittedScore =
     palaceBanquetProgress.submittedScore?.seasonKey === palaceBanquetSeasonKey ? palaceBanquetProgress.submittedScore : undefined;
   const ownedMusicScores = useMemo(
@@ -172,161 +205,197 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
       })),
     [musicHallProgress, ownedMusicScores],
   );
-  const submittedScoreMastery = submittedScore
-    ? musicHallProgress.musicScoreMastery?.[submittedScore.itemId]
-    : undefined;
+  const giftableInventory = useMemo(
+    () => inventory.filter((item) => isConsortGiftItem(item) && !item.isQuestItem).sort((left, right) => left.price - right.price),
+    [inventory],
+  );
+  const publicConsortEntries = useMemo(
+    () =>
+      getNpcActivitiesAtLocation(npcActivity, '妙音堂', { includeResolved: true })
+        .map((entry) => {
+          const consort = allConsorts.find((candidate) => candidate.id === entry.actorConsortId);
+          return consort ? { entry, consort } : null;
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
+    [allConsorts, npcActivity],
+  );
+  const activeAudienceConsort = useMemo(
+    () => allConsorts.find((consort) => consort.id === activeConsortAudience?.consortId) ?? null,
+    [activeConsortAudience, allConsorts],
+  );
+  const randomOptions = activeRandomSession ? getRandomEventCurrentOptions(activeRandomSession) : [];
+  const isPlayerRandomLine = Boolean(
+    activeRandomLine &&
+      (activeRandomLine.portraitKey === 'player' ||
+        activeRandomLine.speakerName === state.name ||
+        activeRandomLine.speakerIdentity === playerRankLabel),
+  );
 
-  const buildPayload = (
-    actor: MiaoYinSceneActor,
-    topic: 'visit' | 'follow-up',
-    actionId: string,
-    actionLabel: string,
-    overrides?: {
-      actionResult?: string;
-      selectedOptionId?: string;
-      selectedOptionLabel?: string;
-      historyOverride?: HistoryEntry[];
-    },
-  ) => {
-    const activeHistory = trimDialogueHistory(overrides?.historyOverride ?? history);
-
-    return {
-      saveId,
-      sessionId: `session:miaoyin:${actor.id}:${state.routeId}:${encodeURIComponent(state.name)}`,
-      requestId: createDialogueId(`request-miaoyin-${actor.id}`),
-      sceneId: `miaoyin:${actor.id}`,
-      routeId: state.routeId,
-      playerName: state.name,
-      playerRank: playerRankLabel,
-      playerResidence: state.residenceName,
-      playerOpeningTendency: state.openingTendency,
-      canPunish: false,
-      topic,
-      actionId,
-      actionLabel,
-      actionResult: overrides?.actionResult,
-      selectedOptionId: overrides?.selectedOptionId,
-      selectedOptionLabel: overrides?.selectedOptionLabel,
-      history: activeHistory,
-      recentContext: activeHistory.map((entry) => `${entry.speaker}：${entry.text}`),
-      playerContext: {
-        favor: state.favor,
-        stress: state.stress,
-        prestige: state.prestige,
-        trueHeart: state.trueHeart,
-        silver: state.silver,
-        stamina: state.stamina,
-        stats: state.stats,
-      },
-      consortContext: {
-        id: actor.id,
-        name: actor.name,
-        rank: actor.identity,
-        residence: actor.residence,
-        stateLabel: '寻常',
-        personality: actor.personality,
-        summary: actor.summary,
-        currentGoodwill: actor.currentGoodwill,
-        currentAffection: actor.currentAffection,
-        emperorFavor: actor.actorKind === 'emperor' ? state.favor : 0,
-        stress: 0,
-        allies: [] as string[],
-        rivals: [] as string[],
-      },
-      timeContext: time,
-    } as const;
-  };
-
-  const runNarrativeTurn = async (
-    actor: MiaoYinSceneActor,
-    topic: 'visit' | 'follow-up',
-    actionId: string,
-    actionLabel: string,
-    overrides?: {
-      actionResult?: string;
-      selectedOptionId?: string;
-      selectedOptionLabel?: string;
-      historyOverride?: HistoryEntry[];
-    },
-  ) => {
-    const payload = buildPayload(actor, topic, actionId, actionLabel, overrides);
-    const nextTurn = await requestMiaoYinLocalDialogue(payload, actor);
-    const speakerLabel = `${nextTurn.speakerIdentity} · ${nextTurn.speakerName}`;
-    traceDialogue({
-      npcId: actor.id,
-      sceneId: payload.sceneId,
-      sessionId: payload.sessionId,
-      turnsRead: nextTurn.sessionMemory?.readTurnCount ?? 0,
-      candidatesRead: nextTurn.sessionMemory?.readMemoryCandidateCount ?? 0,
-      candidatesWritten: nextTurn.sessionMemory?.writtenMemoryCandidateCount ?? nextTurn.memoryCandidates?.length ?? 0,
-      relationCandidatesRead: nextTurn.sessionMemory?.readRelationCandidateCount ?? 0,
-      relationCandidatesWritten:
-        nextTurn.sessionMemory?.writtenRelationCandidateCount ?? nextTurn.relationCandidates?.length ?? 0,
-      relationPromotedCount: nextTurn.relationMemory?.promotedCount ?? 0,
-      relationRejectedCount: nextTurn.relationMemory?.rejectedCount ?? 0,
-      relationEntryCount: nextTurn.relationMemory?.totalEntryCount ?? 0,
-      source: 'local',
-    });
-
-    setDialogueTurn(nextTurn);
-    setSceneHint(nextTurn.sceneHint ?? '');
-    setHistory((currentHistory) =>
-      trimDialogueHistory([...(overrides?.historyOverride ?? currentHistory), { speaker: speakerLabel, text: nextTurn.text }]),
+  const renderNpcDialogue = (
+    narrativeId: string,
+    variables: Record<string, string | number> = {},
+  ): ReturnType<typeof narrativeEntryToDialogueFields> =>
+    narrativeEntryToDialogueFields(
+      renderNarrativeEntry(narrativeId, {
+        playerName: state.name,
+        playerRank: playerRankLabel,
+        playerResidence: state.residenceName,
+        targetName: activeNpcProfile?.name ?? '',
+        targetRank: activeNpcProfile?.identity ?? '',
+        itemName: variables.itemName ?? '',
+        progress: variables.progress ?? '',
+      }),
     );
+
+  const markMusicianKnown = () => {
+    applyStoryEffects({ flags: { isLianQiaoMet: true, 'bondNpcUnlocked:lianqiao': true } });
+    patchMusicHallProgress({ lianQiaoFirstMet: true, lianQiaoMet: true });
   };
 
-  const finalizeLianQiaoUnlockIfNeeded = () => {
-    if (!pendingLianQiaoUnlock) {
+  const openNpc = (npcId: MiaoYinNpcId) => {
+    const profile = MIAOYIN_NPC_PROFILES[npcId];
+    const wasMet = Boolean(permanentNpcRelationships[profile.id]?.met);
+    ensurePermanentNpcRelationship(profile.id, profile.name);
+    markPermanentNpcMet(profile.id, profile.name);
+    if (npcId === MIAOYIN_MUSICIAN_NPC_ID) {
+      markMusicianKnown();
+    }
+    setActiveNpcId(npcId);
+    setActiveGiftMode(null);
+    setActiveNpcConsumedInteraction(false);
+    setActiveNpcDialogue(narrativeEntryToDialogueFields(renderNarrativeEntry(wasMet ? profile.idleNarrativeId : profile.firstMeetNarrativeId)));
+  };
+
+  const closeNpc = () => {
+    if (activeNpcConsumedInteraction) {
+      finishTimedLocationAction(beginTimedLocationAction());
+    }
+    setActiveNpcId(null);
+    setActiveGiftMode(null);
+    setActiveNpcDialogue(null);
+    setActiveNpcConsumedInteraction(false);
+    setShowPracticePicker(false);
+  };
+
+  const adjustNpcAffinity = (npcId: MiaoYinNpcId, npcName: string, delta: number) => {
+    applyPermanentNpcAffinityDelta(npcId, npcName, delta);
+    if (npcId === MIAOYIN_MUSICIAN_NPC_ID) {
+      patchMusicHallProgress({
+        lianQiaoFavor: Math.max(0, musicHallProgress.lianQiaoFavor + delta),
+        lianQiaoAffection: Math.max(0, musicHallProgress.lianQiaoAffection + Math.max(0, Math.floor(delta / 2))),
+      });
+    }
+  };
+
+  const runNpcInteraction = (actionId: 'talk' | 'gift' | 'guidance'): boolean => {
+    if (!activeNpcProfile) {
+      return false;
+    }
+    const result = recordPermanentNpcInteractionAction(activeNpcProfile.id, activeNpcProfile.name, actionId);
+    if (!result.success) {
+      setActiveNpcDialogue(renderNpcDialogue('miaoyin.npc.limit'));
+      return false;
+    }
+    setActiveNpcConsumedInteraction(true);
+    return true;
+  };
+
+  const handleNpcTalk = () => {
+    if (!activeNpcProfile || !runNpcInteraction('talk')) {
+      return;
+    }
+    adjustNpcAffinity(activeNpcProfile.id, activeNpcProfile.name, MIAOYIN_TALK_AFFINITY_GAIN);
+    setActiveGiftMode(null);
+    setActiveNpcDialogue(renderNpcDialogue(activeNpcProfile.talkNarrativeId));
+  };
+
+  const handleOpenGift = () => {
+    setActiveGiftMode('gift');
+    setActiveNpcDialogue(null);
+  };
+
+  const handleGift = (item: InventoryItem) => {
+    if (!activeNpcProfile || !runNpcInteraction('gift')) {
+      return;
+    }
+    if (!consumeInventoryItem(item.itemId)) {
+      return;
+    }
+    adjustNpcAffinity(activeNpcProfile.id, activeNpcProfile.name, Math.max(1, item.favorDelta));
+    setActiveGiftMode(null);
+    setActiveNpcDialogue(renderNpcDialogue(activeNpcProfile.giftNarrativeId, { itemName: item.name }));
+  };
+
+  const handleGuidance = () => {
+    if (!activeNpcProfile) {
+      return;
+    }
+    if (activeNpcProfile.id === MIAOYIN_MUSICIAN_NPC_ID) {
+      if (ownedMusicScores.length === 0) {
+        setActiveGiftMode(null);
+        setActiveNpcDialogue(renderNpcDialogue('miaoyin.musician.no-score'));
+        return;
+      }
+      setActiveGiftMode(null);
+      setShowPracticePicker(true);
+      setActiveNpcDialogue(null);
       return;
     }
 
-    const rewardBundle = pendingUnlockReward.length > 0 ? pendingUnlockReward : buildMusicScoreRewardBundle(`${currentSeed}:default-reward`, 1);
-    for (const item of rewardBundle) {
-      grantInventoryItem(item);
+    if (!runNpcInteraction('guidance')) {
+      return;
     }
-
-    applyStoryEffects({ flags: { isLianQiaoMet: true, 'bondNpcUnlocked:lianqiao': true } });
-    patchMusicHallProgress({ lianQiaoMet: true });
-    setPendingLianQiaoUnlock(false);
-    setPendingUnlockReward([]);
-    setSystemMessage(`你已在妙音堂正式结识连翘。她替你留下了${rewardBundle.length}张曲谱。`);
+    const previousProgress = Number(musicHallProgress.dancePracticeProgress ?? 0);
+    const nextProgress = Math.min(200, previousProgress + MIAOYIN_DANCE_GUIDANCE_GAIN);
+    patchMusicHallProgress({
+      dancePracticeProgress: nextProgress,
+      dancePracticeCount: Number(musicHallProgress.dancePracticeCount ?? 0) + 1,
+      lastDanceGuidanceAt: time,
+    });
+    adjustNpcAffinity(activeNpcProfile.id, activeNpcProfile.name, MIAOYIN_GUIDANCE_AFFINITY_GAIN);
+    applyStoryEffects({ stats: { temperament: 1 } });
+    markNumericFeedbackEvent('chamber-action');
+    setActiveGiftMode(null);
+    setActiveNpcDialogue(renderNpcDialogue(activeNpcProfile.guidanceNarrativeId, { progress: nextProgress }));
   };
 
-  const beginEncounter = async (
-    actor: MiaoYinSceneActor,
-    actionId: string,
-    actionLabel: string,
-    actionResult: string,
-    encounterKind: EncounterKind,
-  ) => {
-    setBusy(true);
-    setActiveActor(actor);
-    setDialogueTurn(null);
-    setHistory([]);
-    setSceneHint('');
-    setActiveEncounterLabel(actionLabel);
-    setActiveEncounterKind(encounterKind);
-    setPendingEncounterSendOff(null);
-    setEncounterConsumedInteraction(false);
-
-    try {
-      await runNarrativeTurn(actor, 'visit', actionId, actionLabel, {
-        actionResult,
-        historyOverride: [],
-      });
-    } finally {
-      setBusy(false);
+  const handlePracticeMusicScore = (itemId: string) => {
+    if (!activeNpcProfile || activeNpcProfile.id !== MIAOYIN_MUSICIAN_NPC_ID) {
+      return;
     }
+    const selectedItem = ownedMusicScores.find((item) => item.itemId === itemId);
+    if (!selectedItem) {
+      setShowPracticePicker(false);
+      return;
+    }
+    if (!runNpcInteraction('guidance')) {
+      setShowPracticePicker(false);
+      return;
+    }
+
+    const resolution = resolveMusicScorePractice({
+      item: selectedItem,
+      state,
+      musicHallProgress,
+      time,
+      seed: `${state.routeId}:${time.year}-${time.month}-${time.xun}:${time.slotIndex}:miaoyin-guidance`,
+    });
+    applyStoryEffects({ stats: { talent: 2 } });
+    patchMusicHallProgress({
+      lastPracticedMusicScoreId: itemId,
+      musicScoreMastery: {
+        ...(musicHallProgress.musicScoreMastery ?? {}),
+        [itemId]: resolution.next,
+      },
+    });
+    adjustNpcAffinity(activeNpcProfile.id, activeNpcProfile.name, MIAOYIN_GUIDANCE_AFFINITY_GAIN);
+    markNumericFeedbackEvent('chamber-action');
+    setShowPracticePicker(false);
+    setActiveNpcDialogue(renderNpcDialogue(activeNpcProfile.guidanceNarrativeId, { progress: resolution.next.masteryPercent }));
   };
 
   const showActionResult = (text: string, outcome: TimedLocationActionOutcome) => {
-    setSystemMessage(text);
     setActionResultText(text);
-    setPendingTimedActionOutcome(outcome.shouldSleep ? outcome : null);
-  };
-
-  const holdTimedActionOutcome = (outcome: TimedLocationActionOutcome) => {
-    setActionResultText('');
     setPendingTimedActionOutcome(outcome.shouldSleep ? outcome : null);
   };
 
@@ -337,289 +406,129 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     finishTimedLocationAction(outcome);
   };
 
-  const closeEncounter = () => {
+  const finishRandomEvent = (eventId: string) => {
+    completeRandomEventById(eventId);
     const outcome = pendingTimedActionOutcome;
-    const interactionOutcome = encounterConsumedInteraction && !outcome ? beginTimedLocationAction() : null;
-    finalizeLianQiaoUnlockIfNeeded();
-    setActiveActor(null);
-    setDialogueTurn(null);
-    setHistory([]);
-    setSceneHint('');
-    setActiveEncounterKind('regular');
-    setBusy(false);
+    setActiveRandomSession(null);
+    setActiveRandomLine(null);
     setPendingTimedActionOutcome(null);
-    setPendingEncounterSendOff(null);
-    setEncounterConsumedInteraction(false);
-    finishTimedLocationAction(outcome ?? interactionOutcome);
+    finishTimedLocationAction(outcome);
   };
 
-  useEffect(() => {
-    if (activeActor || busy || showSignUpPicker || showPracticePicker || !isLianQiaoMet || musicHallProgress.lianQiaoAffection <= 60) {
+  const handleRandomDialogueNext = () => {
+    if (!activeRandomSession) {
       return;
     }
-
-    const lastGiftXunIndex = musicHallProgress.lastGiftXunIndex ?? -999999;
-    if (currentXunIndex - lastGiftXunIndex < 3) {
+    if (activeRandomSession.stage !== 'lines') {
       return;
     }
-
-    const giftItem = buildRandomMusicScoreItem(`${currentSeed}:lianqiao-gift:${currentXunIndex}`);
-    patchMusicHallProgress({ lastGiftXunIndex: currentXunIndex });
-    grantInventoryItem(giftItem);
-    setSystemMessage(`连翘托人送来了一张${giftItem.color ?? giftItem.rarity}色曲谱《${giftItem.name}》。`);
-    void beginEncounter(
-      buildLianQiaoActor(musicHallProgress.lianQiaoFavor, musicHallProgress.lianQiaoAffection),
-      'gift-event',
-      '连翘赠礼',
-      `连翘隔了三旬又托人送来一张${giftItem.name}。`,
-      'gift-event',
-    );
-  }, [
-    activeActor,
-    busy,
-    currentSeed,
-    currentXunIndex,
-    grantInventoryItem,
-    isLianQiaoMet,
-    musicHallProgress.lianQiaoAffection,
-    musicHallProgress.lianQiaoFavor,
-    musicHallProgress.lastGiftXunIndex,
-    patchMusicHallProgress,
-    showPracticePicker,
-    showSignUpPicker,
-  ]);
-
-  const handleListen = async () => {
-    if (busy) {
+    const advanceResult = advanceRandomEventLine(activeRandomSession);
+    applyRandomEventEffectForPlayer(advanceResult.effect);
+    if (advanceResult.unlockEventIds.length > 0) {
+      queueRandomEventUnlocks(advanceResult.unlockEventIds);
+    }
+    if (advanceResult.completed) {
+      finishRandomEvent(activeRandomSession.eventId);
       return;
     }
-
-    setBusy(true);
-    const nextCount = musicHallProgress.listenCount + 1;
-    const stressRelief = (hashSeed(`${currentSeed}:listen-stress:${nextCount}`) % 2) + 1;
-    const actionOutcome = beginTimedLocationAction();
-    patchMusicHallProgress({ listenCount: nextCount });
-    applyStoryEffects({ stress: -stressRelief });
-
-    try {
-      const ambient = await requestMiaoYinAmbientLocal({
-        routeId: state.routeId,
-        playerName: state.name,
-        playerRank: playerRankLabel,
-        location: '妙音堂',
-        action: 'listen',
-        stateHint: `累计听曲${nextCount}次`,
-        timeContext: time,
-      });
-      const resultText = buildLocationActionNarrative({
-          locationId: 'miaoyin-hall',
-          actionId: 'listen',
-          actionLabel: '听曲',
-          resultText: `${ambient} 压力-${stressRelief}。`,
-      });
-
-      if (!musicHallProgress.lianQiaoFirstMet && nextCount >= 3) {
-        patchMusicHallProgress({ lianQiaoFirstMet: true, lastEncounterNpcId: 'lianqiao' });
-        setSystemMessage(resultText);
-        holdTimedActionOutcome(actionOutcome);
-        await beginEncounter(
-          buildLianQiaoActor(musicHallProgress.lianQiaoFavor, musicHallProgress.lianQiaoAffection),
-          'first-meet',
-          '连翘初见',
-          '你在妙音堂听曲至第三回时，第一次与连翘正面撞见。',
-          'first-meet',
-        );
-        return;
-      }
-
-      if (!isLianQiaoMet && nextCount >= 6) {
-        patchMusicHallProgress({ lastEncounterNpcId: 'lianqiao' });
-        setPendingLianQiaoUnlock(true);
-        setSystemMessage(resultText);
-        holdTimedActionOutcome(actionOutcome);
-        await beginEncounter(
-          buildLianQiaoActor(musicHallProgress.lianQiaoFavor, musicHallProgress.lianQiaoAffection),
-          'meet-lianqiao',
-          '连翘结识',
-          '你在妙音堂听曲到第六回后，连翘终于主动将话递给了你。',
-          'unlock',
-        );
-        return;
-      }
-
-      const emperorRoll = hashSeed(`${currentSeed}:emperor-listen:${nextCount}`) % 100 < 20;
-      if (state.favor > 40 && emperorRoll) {
-        setSystemMessage(resultText);
-        holdTimedActionOutcome(actionOutcome);
-        await beginEncounter(
-          buildEmperorActor(),
-          'emperor-invite',
-          '皇帝邀约',
-          '你在妙音堂听曲时，被皇帝容安留意到了。',
-          'emperor',
-        );
-        return;
-      }
-
-      showActionResult(resultText, actionOutcome);
-    } finally {
-      setBusy(false);
-    }
+    setActiveRandomSession(advanceResult.session);
+    setActiveRandomLine(getRandomEventCurrentLine(advanceResult.session) ?? null);
   };
 
-  const handleStroll = async () => {
-    if (busy) {
+  const handleRandomOptionSelect = (optionId: string) => {
+    if (!activeRandomSession) {
       return;
     }
+    const optionResult = selectRandomEventOption(activeRandomSession, optionId);
+    applyRandomEventEffectForPlayer(optionResult.effect);
+    if (optionResult.unlockEventIds.length > 0) {
+      queueRandomEventUnlocks(optionResult.unlockEventIds);
+    }
+    if (optionResult.completed) {
+      finishRandomEvent(activeRandomSession.eventId);
+      return;
+    }
+    setActiveRandomSession(optionResult.session);
+    setActiveRandomLine(getRandomEventCurrentLine(optionResult.session) ?? activeRandomLine);
+  };
 
-    setBusy(true);
+  const handleStroll = () => {
     const actionOutcome = beginTimedLocationAction();
     const nextCount = musicHallProgress.strollCount + 1;
     patchMusicHallProgress({ strollCount: nextCount });
-
-    try {
-      {
-        const ambient = await requestMiaoYinAmbientLocal({
-          routeId: state.routeId,
-          playerName: state.name,
-          playerRank: playerRankLabel,
-          location: '妙音堂',
-          action: 'stroll-idle',
-          stateHint: `闲逛第${nextCount}次`,
-          timeContext: time,
-        });
-        patchMusicHallProgress({ lastAmbientText: ambient });
-        showActionResult(
-          buildLocationActionNarrative({
-            locationId: 'miaoyin-hall',
-            actionId: 'stroll',
-            actionLabel: '闲逛',
-            resultText: ambient,
-          }),
-          actionOutcome,
-        );
-        return;
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleOpenLianQiao = async () => {
-    if (busy) {
-      return;
-    }
-
-    patchMusicHallProgress({ lastEncounterNpcId: 'lianqiao' });
-    await beginEncounter(
-      buildLianQiaoActor(musicHallProgress.lianQiaoFavor, musicHallProgress.lianQiaoAffection),
-      'chat-lianqiao',
-      '与连翘说话',
-      '你拨开半幅珠帘，主动朝连翘走了过去。',
-      'regular',
-    );
-  };
-
-  const handleOpenPractice = () => {
-    if (busy) {
-      return;
-    }
-
-    if (!isLianQiaoMet) {
-      setSystemMessage('你还没有正式结识连翘，暂时无人能替你细拆谱中关窍。');
-      return;
-    }
-
-    if (ownedMusicScores.length === 0) {
-      setSystemMessage('你手里还没有可学的曲谱。');
-      return;
-    }
-
-    setShowPracticePicker(true);
-  };
-
-  const handlePracticeMusicScore = (itemId: string) => {
-    if (busy) {
-      return;
-    }
-
-    const selectedItem = ownedMusicScores.find((item) => item.itemId === itemId);
-    if (!selectedItem) {
-      setSystemMessage('这张曲谱已经不在手里了。');
-      setShowPracticePicker(false);
-      return;
-    }
-
-    const actionOutcome = beginTimedLocationAction();
-    const resolution = resolveMusicScorePractice({
-      item: selectedItem,
-      state,
-      musicHallProgress,
-      time,
-      seed: `${currentSeed}:practice`,
-    });
-    applyStoryEffects({ stats: { talent: 2 } });
-    patchMusicHallProgress({
-      lastPracticedMusicScoreId: itemId,
-      musicScoreMastery: {
-        ...(musicHallProgress.musicScoreMastery ?? {}),
-        [itemId]: resolution.next,
-      },
-    });
-    setShowPracticePicker(false);
-    showActionResult(
-      buildLocationActionNarrative({
-        locationId: 'miaoyin-hall',
-        actionId: 'practice',
-        actionLabel: '学谱',
-        resultText: `《${selectedItem.name}》完成度由${resolution.previous.masteryPercent}%升至${resolution.next.masteryPercent}%，难度${resolution.next.difficulty}，表现上限${resolution.next.performanceCap ?? 0}。`,
-      }),
-      actionOutcome,
-    );
+    applyStoryEffects({ stress: MIAOYIN_STROLL_STRESS_DELTA });
     markNumericFeedbackEvent('chamber-action');
-  };
 
-  const handleOpenSignUp = () => {
-    if (busy) {
-      return;
-    }
+    const pickedEvent = pickRandomEventFromPoolsBySeed({
+      poolIds: MIAOYIN_STROLL_POOLS,
+      progress: randomEventProgress,
+      seed: `${state.routeId}:${time.year}-${time.month}-${time.xun}:${time.slotIndex}:miaoyin-stroll:${nextCount}`,
+    });
 
-    if (!canSignUp) {
-      setSystemMessage(
-        `宫宴报名册尚未开启。本届宫宴定于${banquetEventTime.month}月第${banquetEventTime.xun}旬${banquetEventTime.slot}，妙音堂会在宫宴前一个月收谱。`,
+    if (!pickedEvent) {
+      showActionResult(
+        buildLocationActionNarrative({
+          locationId: 'miaoyin-hall',
+          actionId: 'stroll',
+          actionLabel: '闲逛',
+          resultText: '你在妙音堂里走了一圈，听见几处排演声断续传来。压力-2。',
+        }),
+        actionOutcome,
       );
       return;
     }
 
+    const session = beginRandomEventSession({
+      eventId: pickedEvent.eventId,
+      variables: {
+        playerName: state.name,
+        playerSurname: state.name.slice(0, 1),
+        playerRank: playerRankLabel,
+        playerResidence: state.residenceName,
+        playerAddress: state.name,
+        locationName: '妙音堂',
+        timeLabel: time.slot,
+      },
+    });
+    setPendingTimedActionOutcome(actionOutcome.shouldSleep ? actionOutcome : null);
+    setActiveRandomSession(session);
+    setActiveRandomLine(getRandomEventCurrentLine(session) ?? null);
+  };
+
+  const handleOpenSignUp = () => {
+    if (!canSignUp) {
+      showActionResult(
+        `宫宴报名册尚未开启。本届宫宴定于${banquetEventTime.month}月第${banquetEventTime.xun}旬${banquetEventTime.slot}，妙音堂会在宫宴前一个月收谱。`,
+        { previousTime: time, shouldSleep: false, reason: 'deep-night' },
+      );
+      return;
+    }
     if (submittedScore) {
-      setSystemMessage(`你本届宫宴已经递交《${submittedScore.name}》，掌册宫人说名录暂不重复改写。`);
+      showActionResult(`你本届宫宴已经递交《${submittedScore.name}》，名录暂不重复改写。`, {
+        previousTime: time,
+        shouldSleep: false,
+        reason: 'deep-night',
+      });
       return;
     }
-
     if (ownedMusicScores.length === 0) {
-      setSystemMessage('你手里还没有可用的曲谱，先去攒下几张，再来妙音堂报名。');
+      showActionResult('你手里还没有可用的曲谱。', {
+        previousTime: time,
+        shouldSleep: false,
+        reason: 'deep-night',
+      });
       return;
     }
-
     setShowSignUpPicker(true);
   };
 
-  const handleSubmitMusicScore = async (itemId: string) => {
-    if (busy) {
-      return;
-    }
-
+  const handleSubmitMusicScore = (itemId: string) => {
     const selectedItem = ownedMusicScores.find((item) => item.itemId === itemId);
     if (!selectedItem) {
-      setSystemMessage('这张曲谱已经不在手里了。');
       setShowSignUpPicker(false);
       return;
     }
-
-    setShowSignUpPicker(false);
     const mastery = resolveMusicScoreMastery(selectedItem, musicHallProgress);
-
-    setBusy(true);
     patchMusicHallProgress({
       signUpCount: musicHallProgress.signUpCount + 1,
       lastSubmittedMusicScoreId: itemId,
@@ -637,342 +546,279 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
         seasonKey: palaceBanquetSeasonKey,
       },
     });
-
-    try {
-      const ambient = await requestMiaoYinAmbientLocal({
-        routeId: state.routeId,
-        playerName: state.name,
-        playerRank: playerRankLabel,
-        location: '妙音堂',
-        action: 'sign-up',
-        stateHint: `提交曲谱${selectedItem.name}`,
-        timeContext: time,
-      });
-      setSystemMessage(
-        buildLocationActionNarrative({
-          locationId: 'miaoyin-hall',
-          actionId: 'sign-up',
-          actionLabel: '报名',
-          resultText: `${ambient} 你本回登记的曲谱是${selectedItem.name}，当前完成度${mastery.masteryPercent}%。曲谱仍留在手中，后续还可继续向连翘学谱。`,
-        }),
-      );
-    } finally {
-      setBusy(false);
-    }
+    setShowSignUpPicker(false);
+    showActionResult(
+      buildLocationActionNarrative({
+        locationId: 'miaoyin-hall',
+        actionId: 'sign-up',
+        actionLabel: '宴席报名',
+        resultText: `你递交《${selectedItem.name}》，当前完成度${mastery.masteryPercent}%。曲谱仍留在手中。`,
+      }),
+      { previousTime: time, shouldSleep: false, reason: 'deep-night' },
+    );
   };
 
-  const handleOptionSelect = async (optionId: string) => {
-    if (busy || !dialogueTurn || !activeActor) {
+  const handleStartConsortAudience = (entryId: string) => {
+    const activity = publicConsortEntries.find((item) => item.entry.id === entryId);
+    if (!activity || activity.entry.resolved) {
       return;
     }
-
-    const option = dialogueOptions.find((item) => item.id === optionId);
-    if (!option) {
-      return;
-    }
-
-    const nextHistory = trimDialogueHistory([
-      ...history,
-      {
-        speaker: `${playerRankLabel} · ${state.name}`,
-        text: option.label,
-      },
-    ]);
-
-    setBusy(true);
-
-    try {
-      const judgement = await requestRelationshipJudgementLocal(
-        {
-          routeId: state.routeId,
-          npcId: activeActor.id,
-          sceneType: `妙音堂·${activeEncounterLabel}`,
-          optionText: option.label,
-          npcProfile: `${activeActor.identity} ${activeActor.name}。${activeActor.summary}。性格：${activeActor.personality}`,
-          currentFavor: activeActor.currentGoodwill,
-          currentAffection: activeActor.currentAffection,
-          recentContext: nextHistory.map((entry) => `${entry.speaker}：${entry.text}`),
-        },
-        option.localToneTag,
-      );
-
-      if (activeActor.actorKind === 'consort') {
-        const summary = applyConsortRelationshipJudgement(activeActor.id, 'greet', judgement);
-        if (!summary.actionLimitHit) {
-          setEncounterConsumedInteraction(true);
-        }
-        const nextActor = {
-          ...activeActor,
-          currentGoodwill: clampToRange(activeActor.currentGoodwill + summary.appliedFavorDelta, -100, 100),
-          currentAffection: clampToRange(activeActor.currentAffection + summary.appliedAffectionDelta, 0, 100),
-        };
-        setActiveActor(nextActor);
-        if (summary.actionCountThisXun >= CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN) {
-          setPendingEncounterSendOff(
-            buildConsortPublicEncounterSendOffNarrativeEntry(`${nextActor.identity} ${nextActor.name}`, '妙音堂'),
-          );
-        }
-
-        const settlementNotice = summary.actionLimitHit
-          ? '本旬与她的互动回合已用尽，关系不再变化。'
-          : '本地关系结算已落地。';
-
-        await runNarrativeTurn(nextActor, 'follow-up', 'miaoyin-follow-up', activeEncounterLabel, {
-          actionResult: `${judgement.reason} ${settlementNotice}`,
-          selectedOptionId: option.id,
-          selectedOptionLabel: option.label,
-          historyOverride: nextHistory,
-        });
-        return;
-      }
-
-      if (activeActor.actorKind === 'lianqiao') {
-      const nextFavor = clampToRange(musicHallProgress.lianQiaoFavor + judgement.favorDelta, -100, 100);
-      const nextAffection = clampToRange(musicHallProgress.lianQiaoAffection + judgement.affectionDelta, 0, 100);
-        patchMusicHallProgress({
-          lianQiaoFavor: nextFavor,
-          lianQiaoAffection: nextAffection,
-          lastToneTag: judgement.toneTag,
-          lastEncounterNpcId: activeActor.id,
-        });
-        if (activeEncounterKind === 'unlock') {
-          const rewardCount = judgement.toneTag === 'friendly' || judgement.toneTag === 'flirt' ? 3 : 1;
-          setPendingUnlockReward(buildMusicScoreRewardBundle(`${currentSeed}:lianqiao-unlock:${option.id}`, rewardCount));
-        }
-
-        const nextActor = {
-          ...activeActor,
-          currentGoodwill: nextFavor,
-          currentAffection: nextAffection,
-        };
-        setActiveActor(nextActor);
-
-        await runNarrativeTurn(
-          nextActor,
-          'follow-up',
-          activeEncounterKind === 'gift-event' ? 'gift-follow-up' : 'lianqiao-follow-up',
-          activeEncounterLabel,
-          {
-            actionResult:
-              activeEncounterKind === 'unlock'
-                ? `${judgement.reason} 连翘已经记住了你这一轮的回应。`
-                : `${judgement.reason} 连翘把你的态度收进了这一折余音里。`,
-            selectedOptionId: option.id,
-            selectedOptionLabel: option.label,
-            historyOverride: nextHistory,
-          },
-        );
-        return;
-      }
-
-      const emperorFavorDelta = clampToRange(judgement.favorDelta + judgement.affectionDelta, -1, 1);
-      applyStoryEffects({ favor: emperorFavorDelta });
-      await runNarrativeTurn(activeActor, 'follow-up', 'emperor-follow-up', activeEncounterLabel, {
-        actionResult: `${judgement.reason} 这一句已落进圣意里。`,
-        selectedOptionId: option.id,
-        selectedOptionLabel: option.label,
-        historyOverride: nextHistory,
-      });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleNextAction = async () => {
-    if (busy || !dialogueTurn || !activeActor || dialogueOptions.length > 0) {
-      return;
-    }
-
-    if (dialogueTurn.phase !== 'continue' || dialogueTurn.mode !== 'line') {
-      if (pendingEncounterSendOff) {
-        setDialogueTurn({
-          ...dialogueTurn,
-          mode: 'line',
-          phase: 'finish',
-          speakerIdentity: pendingEncounterSendOff.speakerIdentity || '场景旁白',
-          speakerName: pendingEncounterSendOff.speakerName || pendingEncounterSendOff.narrationName || '妙音堂偶遇',
-          text: pendingEncounterSendOff.text,
-          options: [],
-          sceneHint: pendingEncounterSendOff.sceneHint || '偶遇已经收束，不宜在外景强留。',
-        });
-        setSceneHint(pendingEncounterSendOff.sceneHint || '偶遇已经收束，不宜在外景强留。');
-        setPendingEncounterSendOff(null);
-        return;
-      }
-      closeEncounter();
-      return;
-    }
-
-    setBusy(true);
-
-    try {
-      await runNarrativeTurn(activeActor, 'follow-up', 'keep-talking', activeEncounterLabel, {
-        actionResult: '你没有急着表态，只把这句话轻轻接住，等对方继续往下说。',
-      });
-    } finally {
-      setBusy(false);
-    }
+    setActiveConsortAudience({
+      entryId,
+      consortId: activity.consort.id,
+      summary: activity.entry.summary,
+    });
+    resolveNpcActivityEntry(entryId);
   };
 
   const subsceneNpcEntries = useMemo<SubsceneNpcEntry[]>(() => {
     const entries: SubsceneNpcEntry[] = [];
-
-    if (isLianQiaoMet) {
+    if (isMusicianUnlocked) {
+      const profile = MIAOYIN_NPC_PROFILES[MIAOYIN_MUSICIAN_NPC_ID];
       entries.push({
-        id: 'fixed:lianqiao',
+        id: `fixed:${profile.id}`,
         kind: 'fixed',
-        name: '连翘',
-        identityLabel: '妙音堂伶人',
-        portraitSrc: LIANQIAO_PORTRAIT_SRC,
-        onClick: () => {
-          void handleOpenLianQiao();
-        },
+        name: profile.name,
+        identityLabel: profile.identity,
+        portraitSrc: profile.portrait,
+        onClick: () => openNpc(profile.id),
       });
     }
-
-    if (scheduledConsortActivity) {
-      const { entry, consort } = scheduledConsortActivity;
+    if (isDancerUnlocked) {
+      const profile = MIAOYIN_NPC_PROFILES[MIAOYIN_DANCER_NPC_ID];
+      entries.push({
+        id: `fixed:${profile.id}`,
+        kind: 'fixed',
+        name: profile.name,
+        identityLabel: profile.identity,
+        portraitSrc: profile.portrait,
+        onClick: () => openNpc(profile.id),
+      });
+    }
+    publicConsortEntries.forEach(({ entry, consort }) => {
       entries.push({
         id: `consort:${entry.id}`,
         kind: 'consort',
         name: consort.name,
         identityLabel: getConcubineDisplayRankText(consort),
+        ariaLabel: entry.resolved
+          ? `${getConcubineDisplayRankText(consort)} ${consort.name}仍在此处`
+          : `与${getConcubineDisplayRankText(consort)} ${consort.name}交谈`,
         portraitSrc: getConcubinePortraitPath(consort.portraitId),
         interactableState: entry.resolved ? 'spent' : 'available',
         disabledReason: entry.resolved ? '本旬已交谈过' : undefined,
-        onClick: entry.resolved
-          ? undefined
-          : () => {
-              resolveNpcActivityEntry(entry.id);
-              void beginEncounter(
-                buildConsortActor(consort),
-                'scheduled-consort',
-                '妙音堂偶遇',
-                `${entry.summary}你看见${getConcubineDisplayRankText(consort)} ${consort.name}正停在曲声尽处，便主动上前搭话。`,
-                'consort',
-              );
-            },
+        onClick: entry.resolved ? undefined : () => handleStartConsortAudience(entry.id),
       });
-    }
-
+    });
     return entries;
-  }, [beginEncounter, handleOpenLianQiao, isLianQiaoMet, resolveNpcActivityEntry, scheduledConsortActivity]);
+  }, [isDancerUnlocked, isMusicianUnlocked, publicConsortEntries]);
 
   const subsceneActions = useMemo<SubsceneActionEntry[]>(
     () => [
       {
-        id: 'sign-up',
-        label: '报名',
+        id: 'banquet-sign-up',
+        label: '宴席报名',
         onClick: handleOpenSignUp,
       },
       {
-        id: 'listen',
-        label: '听曲',
-        onClick: () => {
-          void handleListen();
-        },
-      },
-      ...(isLianQiaoMet
-        ? [
-            {
-              id: 'practice',
-              label: '学谱',
-              onClick: handleOpenPractice,
-            },
-          ]
-        : []),
-      {
         id: 'stroll',
         label: '闲逛',
-        onClick: () => {
-          void handleStroll();
-        },
+        onClick: handleStroll,
       },
     ],
-    [handleListen, handleOpenPractice, handleOpenSignUp, handleStroll, isLianQiaoMet],
+    [handleOpenSignUp, handleStroll],
   );
+
+  if (activeConsortAudience && activeAudienceConsort) {
+    return (
+      <section className="miaoyin-view" aria-label={`${activeAudienceConsort.name} 妙音堂偶遇场景`}>
+        <ConsortAudiencePanel
+          consort={activeAudienceConsort}
+          palaceLabel="妙音堂"
+          hallLabel="偶遇"
+          concubines={concubines}
+          backLabel="返回"
+          initialActionLabel="妙音堂偶遇"
+          encounterPlace="public"
+          initialActionResult={`${activeConsortAudience.summary}你看见${getConcubineDisplayRankText(
+            activeAudienceConsort,
+          )} ${activeAudienceConsort.name}正在此处，便主动上前搭话。`}
+          onBack={(result) => {
+            if (result?.shouldAdvanceTime) {
+              finishTimedLocationAction(beginTimedLocationAction());
+            }
+            setActiveConsortAudience(null);
+          }}
+        />
+      </section>
+    );
+  }
+
+  if (activeNpcProfile && activeNpcRelationship) {
+    const remainingInteractionCount = Math.max(
+      0,
+      PERMANENT_NPC_INTERACTION_ACTION_LIMIT_PER_XUN - Number(activeNpcRelationship.actionCountThisXun ?? 0),
+    );
+    const metaRows: AudienceMetaRow[] = [
+      { label: '当前状态', value: activeNpcRelationship.met ? '已见过' : '初见' },
+      { label: '对你态度', value: activeNpcRelationship.affinity },
+      { label: '关系', value: buildRelationLabel(activeNpcRelationship.affinity) },
+    ];
+    if (activeNpcProfile.id === MIAOYIN_DANCER_NPC_ID) {
+      metaRows.push({ label: '舞曲进度', value: `${musicHallProgress.dancePracticeProgress ?? 0}%` });
+    }
+
+    const portrait = (
+      <div
+        className="harem-palace-view__audience-portrait-stage"
+        aria-label={isPlayerRandomLine ? `${state.name}立绘` : `${activeNpcProfile.name}常驻立绘`}
+      >
+        <div className="harem-palace-view__audience-portrait-frame">
+          {isPlayerRandomLine ? (
+            playerPortraitSrc ? (
+              <img
+                src={playerPortraitSrc}
+                alt={state.name}
+                className="harem-palace-view__audience-portrait global-dialogue-stage__portrait-media--player"
+              />
+            ) : (
+              <div className="harem-palace-view__audience-portrait harem-palace-view__audience-portrait--placeholder">
+                {state.name}
+              </div>
+            )
+          ) : activeNpcProfile.alreadyCutout ? (
+            <img src={activeNpcProfile.portrait} alt={activeNpcProfile.name} className="harem-palace-view__audience-portrait" />
+          ) : (
+            <AutoCutoutPortrait
+              src={activeNpcProfile.portrait}
+              alt={activeNpcProfile.name}
+              className="harem-palace-view__audience-portrait"
+              threshold={28}
+              sampleInset={12}
+            />
+          )}
+        </div>
+      </div>
+    );
+    const dialogue = activeNpcDialogue ? (
+      <GlobalDialogueStage
+        sceneLabel={`${activeNpcProfile.name} 妙音堂对话场景`}
+        portraitLabel={`${activeNpcProfile.name}常驻立绘`}
+        ariaLabel={`${activeNpcProfile.name} 妙音堂对话`}
+        className="global-dialogue-stage--consort global-dialogue-stage--with-side-panel"
+        dialogueClassName="palace-dialogue-box--consort-audience"
+        suppressPortrait
+        characterIdentity={activeNpcDialogue.speakerIdentity}
+        characterName={activeNpcDialogue.speakerName}
+        content={activeNpcDialogue.text}
+        onNextAction={() => setActiveNpcDialogue(null)}
+        splitQuotedDialogue={false}
+      />
+    ) : undefined;
+    const actions = !activeNpcDialogue ? (
+      <aside className="harem-palace-view__audience-actions" aria-label="妙音堂互动操作">
+        <span className="harem-palace-view__audience-action-note">
+          {`本旬可互动 ${remainingInteractionCount}/${PERMANENT_NPC_INTERACTION_ACTION_LIMIT_PER_XUN}`}
+        </span>
+        <button type="button" onClick={handleNpcTalk}>
+          闲聊（耗次）
+        </button>
+        <button type="button" className={activeGiftMode === 'gift' ? 'is-active' : ''} onClick={handleOpenGift}>
+          送礼（耗次）
+        </button>
+        <button type="button" onClick={handleGuidance}>
+          请求指导（耗次）
+        </button>
+        <button type="button" onClick={closeNpc}>
+          返回
+        </button>
+      </aside>
+    ) : null;
+    const giftPicker =
+      activeGiftMode === 'gift' ? (
+        <section className="harem-palace-view__audience-picker harem-palace-view__audience-picker--gift" role="dialog" aria-label="妙音堂送礼">
+          <header>
+            <strong>挑选礼物</strong>
+            <span>{`当前银两：${state.silver}`}</span>
+            <button type="button" onClick={() => setActiveGiftMode(null)}>
+              收起
+            </button>
+          </header>
+          <div className="harem-palace-view__audience-picker-list">
+            {giftableInventory.length > 0 ? (
+              giftableInventory.map((item) => (
+                <button key={item.itemId} type="button" aria-label={`赠予${activeNpcProfile.name} ${item.name}`} onClick={() => handleGift(item)}>
+                  <strong>{`${item.name} ×${item.quantity}`}</strong>
+                  <span>{item.description}</span>
+                </button>
+              ))
+            ) : (
+              <p>背包里暂时没有合适的礼物。</p>
+            )}
+          </div>
+        </section>
+      ) : undefined;
+    const practicePicker =
+      showPracticePicker && activeNpcProfile.id === MIAOYIN_MUSICIAN_NPC_ID ? (
+        <section className="harem-palace-view__audience-picker harem-palace-view__audience-picker--gift" role="dialog" aria-label="乐师指导曲谱">
+          <header>
+            <strong>请乐师指点</strong>
+            <span>{`可选曲谱：${ownedMusicScores.length}`}</span>
+            <button type="button" onClick={() => setShowPracticePicker(false)}>
+              收起
+            </button>
+          </header>
+          <div className="harem-palace-view__audience-picker-list">
+            {ownedMusicScoreMastery.map(({ item, mastery }) => (
+              <button key={item.itemId} type="button" onClick={() => handlePracticeMusicScore(item.itemId)}>
+                {`${item.name}｜难度 ${mastery.difficulty}｜完成度 ${mastery.masteryPercent}%｜已学 ${mastery.practiceCount} 次`}
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : undefined;
+
+    return (
+      <AudienceInteractionShell
+        ariaLabel={`${activeNpcProfile.identity} ${activeNpcProfile.name} 日常对话`}
+        heading={`妙音堂 · ${activeNpcProfile.name}`}
+        metaRows={metaRows}
+        portrait={portrait}
+        actions={actions}
+        picker={giftPicker ?? practicePicker}
+        dialogue={dialogue}
+      />
+    );
+  }
 
   return (
     <section className="miaoyin-view" aria-label="妙音堂场景">
-      {!activeActor ? (
-        <MapSubsceneView
-          locationId="妙音堂"
-          npcs={subsceneNpcEntries}
-          actions={subsceneActions}
-          busy={busy}
-          onLeave={enterMapMain}
-        />
-      ) : (
-        <section className="miaoyin-view__encounter" aria-label={`${activeActor.name} 妙音堂对话`}>
-          <aside className="miaoyin-view__actions" aria-label="妙音堂对话操作">
-            <button type="button" onClick={closeEncounter} disabled={busy}>
-              返回妙音堂
-            </button>
-            <p>{sceneHint || '丝竹声一起，很多话看似轻，其实都被人记得极深。'}</p>
-          </aside>
+      <MapSubsceneView locationId="妙音堂" npcs={subsceneNpcEntries} actions={subsceneActions} onLeave={enterMapMain} />
 
-          <GlobalDialogueStage
-            sceneLabel={`${activeActor.name} 妙音堂对话场景`}
-            portraitLabel={`${activeActor.name} 立绘`}
-            portrait={
-              activeActor.actorKind === 'lianqiao' ? (
-                <AutoCutoutPortrait
-                  src={LIANQIAO_PORTRAIT_SRC}
-                  alt={activeActor.name}
-                  threshold={22}
-                  sampleInset={18}
-                  className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--miaoyin global-dialogue-stage__portrait-media--lianqiao"
-                />
-              ) : activeActor.actorKind === 'emperor' ? (
-                <AutoCutoutPortrait
-                  src={EMPEROR_PORTRAIT_SRC}
-                  alt={activeActor.name}
-                  threshold={22}
-                  sampleInset={18}
-                  className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--miaoyin global-dialogue-stage__portrait-media--emperor"
-                />
-              ) : (
-                <img
-                  src={activeActor.portraitSrc ?? ''}
-                  alt={activeActor.name}
-                  className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--miaoyin"
-                />
-              )
-            }
-            ariaLabel="妙音堂对话框"
-            className={`global-dialogue-stage--miaoyin global-dialogue-stage--with-side-panel ${
-              activeActor.actorKind === 'emperor' ? 'global-dialogue-stage--emperor' : ''
-            }`}
-            dialogueClassName={`palace-dialogue-box--miaoyin-encounter ${
-              activeActor.actorKind === 'emperor' ? 'palace-dialogue-box--emperor-encounter' : ''
-            }`}
-            characterIdentity={dialogueTurn?.speakerIdentity ?? activeActor.identity}
-            characterName={dialogueTurn?.speakerName ?? activeActor.name}
-            content={dialogueTurn?.text ?? '帘影与余音都还没散，对方像是在等你先把这一句落下来。'}
-            options={dialogueOptions as ConsortDialogueOption[]}
-            onSelectOption={(optionId) => {
-              void handleOptionSelect(optionId);
-            }}
-            onNextAction={
-              dialogueOptions.length === 0
-                ? () => {
-                    void handleNextAction();
-                  }
-                : undefined
-            }
-            busy={busy}
-          />
-        </section>
-      )}
-
-      {!activeActor && actionResultText ? (
+      {actionResultText ? (
         <LocationActionResultStage
           locationName="妙音堂"
           className="global-dialogue-stage--miaoyin"
           dialogueClassName="palace-dialogue-box--miaoyin-encounter"
           content={actionResultText}
           onNextAction={closeActionResult}
-          busy={busy}
+        />
+      ) : null}
+
+      {activeRandomSession && activeRandomLine ? (
+        <GlobalDialogueStage
+          sceneLabel="妙音堂闲逛"
+          portraitLabel={isPlayerRandomLine ? `${state.name}立绘` : '妙音堂场景立绘'}
+          ariaLabel="妙音堂闲逛事件"
+          className="global-dialogue-stage--miaoyin"
+          dialogueClassName="palace-dialogue-box--miaoyin-encounter"
+          characterIdentity={activeRandomLine.speakerIdentity}
+          characterName={activeRandomLine.speakerName}
+          content={activeRandomLine.text}
+          options={randomOptions.map((option) => ({ id: option.optionId, label: option.optionLabel }))}
+          onSelectOption={handleRandomOptionSelect}
+          onNextAction={randomOptions.length === 0 ? handleRandomDialogueNext : undefined}
+          splitQuotedDialogue={false}
         />
       ) : null}
 
@@ -980,37 +826,36 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
         <div className="miaoyin-view__picker-backdrop" role="dialog" aria-label="妙音堂曲谱报名">
           <div className="miaoyin-view__picker">
             <h3>登记曲谱报名</h3>
-            <p>{`本届宫宴定于${banquetEventTime.month}月第${banquetEventTime.xun}旬${banquetEventTime.slot}。请选择一张曲谱登记，登记后本届不再重复改写，曲谱不会从手中消失。`}</p>
+            <p>{`本届宫宴定于${banquetEventTime.month}月第${banquetEventTime.xun}旬${banquetEventTime.slot}。请选择一张曲谱登记。`}</p>
             <div className="miaoyin-view__picker-list">
               {ownedMusicScoreMastery.map(({ item, mastery }) => (
-                <button key={item.itemId} type="button" onClick={() => void handleSubmitMusicScore(item.itemId)} disabled={busy}>
+                <button key={item.itemId} type="button" onClick={() => handleSubmitMusicScore(item.itemId)}>
                   {`${item.name}｜${resolveMusicScoreQualityLabel(item.color, item.rarity)}｜完成度 ${mastery.masteryPercent}%｜表现上限 ${
                     mastery.performanceCap ?? 0
                   }`}
                 </button>
               ))}
             </div>
-            <button type="button" className="miaoyin-view__picker-cancel" onClick={() => setShowSignUpPicker(false)} disabled={busy}>
+            <button type="button" className="miaoyin-view__picker-cancel" onClick={() => setShowSignUpPicker(false)}>
               暂不提交
             </button>
           </div>
         </div>
       ) : null}
 
-      {showPracticePicker ? (
-        <div className="miaoyin-view__picker-backdrop" role="dialog" aria-label="连翘学谱">
+      {showPracticePicker && !activeNpcProfile ? (
+        <div className="miaoyin-view__picker-backdrop" role="dialog" aria-label="乐师指导曲谱">
           <div className="miaoyin-view__picker">
-            <h3>向连翘学谱</h3>
-            <p>选择一张手中曲谱。学习进度受你的乐理、曲谱难度，以及连翘对你的关系影响。</p>
+            <h3>请乐师指点</h3>
             <div className="miaoyin-view__picker-list">
               {ownedMusicScoreMastery.map(({ item, mastery }) => (
-                <button key={item.itemId} type="button" onClick={() => handlePracticeMusicScore(item.itemId)} disabled={busy}>
+                <button key={item.itemId} type="button" onClick={() => handlePracticeMusicScore(item.itemId)}>
                   {`${item.name}｜难度 ${mastery.difficulty}｜完成度 ${mastery.masteryPercent}%｜已学 ${mastery.practiceCount} 次`}
                 </button>
               ))}
             </div>
-            <button type="button" className="miaoyin-view__picker-cancel" onClick={() => setShowPracticePicker(false)} disabled={busy}>
-              暂不学谱
+            <button type="button" className="miaoyin-view__picker-cancel" onClick={() => setShowPracticePicker(false)}>
+              暂不请教
             </button>
           </div>
         </div>

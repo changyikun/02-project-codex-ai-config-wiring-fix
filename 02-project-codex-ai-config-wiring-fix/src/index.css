@@ -2259,7 +2259,7 @@ button {
   transition: transform 180ms ease, box-shadow 180ms ease;
 }
 
-.map-main__hotspot span {
+.map-main__hotspot > span {
   display: grid;
   place-items: center;
   width: 100%;
@@ -2271,12 +2271,12 @@ button {
   letter-spacing: 0;
 }
 
-.map-main__hotspot.is-vertical span {
+.map-main__hotspot.is-vertical > span {
   writing-mode: vertical-rl;
   text-orientation: upright;
 }
 
-.map-main__hotspot.is-large span {
+.map-main__hotspot.is-large > span {
   font-size: 28px;
 }
 
@@ -4092,24 +4092,30 @@ button {
   padding: 0;
   border: none;
   border-radius: 0;
-  background: url('/assets/routes/buttons/menu/shukuang1.png') center / contain no-repeat;
+  background: transparent;
   box-shadow: none;
-  filter: drop-shadow(0 8px 12px rgba(69, 35, 41, 0.16));
+  filter: none;
   overflow: visible;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .map-main__hotspot::before {
   content: none;
 }
 
-.map-main__hotspot span {
+.map-main__hotspot > span {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   height: 100%;
+  aspect-ratio: 125 / 624;
   padding: 10px 4px;
+  box-sizing: border-box;
+  background: url('/assets/routes/buttons/menu/shukuang1.png') center / 100% 100% no-repeat;
   color: #53131d;
   text-align: center;
   line-height: 1.1;
@@ -4118,54 +4124,71 @@ button {
   font-weight: 700;
   letter-spacing: 0;
   text-shadow: 0 1px 0 rgba(255, 244, 224, 0.72);
+  filter: drop-shadow(0 8px 12px rgba(69, 35, 41, 0.16));
 }
 
-.map-main__hotspot.is-vertical span {
+.map-main__hotspot.is-vertical > span {
   flex-direction: column;
   writing-mode: horizontal-tb;
   padding: 12px 0;
 }
 
-.map-main__hotspot.is-vertical[data-label-length='2'] span {
+.map-main__hotspot.is-vertical[data-label-length='2'] > span {
   gap: 1em;
 }
 
 .map-main__hotspot-char {
   display: block;
   width: 1.2em;
+  height: auto;
+  padding: 0;
+  flex: 0 0 auto;
   line-height: 1;
   text-align: center;
 }
 
-.map-main__hotspot.is-large span {
+.map-main__hotspot.is-large > span {
   font-size: 19px;
 }
 
 .map-main__hotspot.is-vertical {
-  width: min(4.4vw, 7.822dvh) !important;
-  background-image: url('/assets/routes/buttons/menu/shukuang1.png');
+  width: calc(var(--map-hotspot-height-ratio, 0.18) * 100dvh * 125 / 624) !important;
 }
 
 .map-main__hotspot:hover,
 .map-main__hotspot.is-active {
   transform: translateY(-2px);
+  filter: none;
+  box-shadow: none;
+  outline: none;
+}
+
+.map-main__hotspot:focus,
+.map-main__hotspot:focus-visible,
+.map-main__hotspot:active {
+  outline: none;
+  box-shadow: none;
+}
+
+.map-main__hotspot:hover > span,
+.map-main__hotspot.is-active > span {
   filter: saturate(1.08) brightness(1.03) drop-shadow(0 12px 16px rgba(69, 35, 41, 0.2));
 }
 
 .map-main__hotspot.is-active {
-  background-image: url('/assets/routes/buttons/menu/shukuang1.png');
+  background: transparent;
 }
 
 .map-main__hotspot.is-vertical.is-active {
-  background-image: url('/assets/routes/buttons/menu/shukuang1.png');
+  background: transparent;
 }
 
 .map-main__hotspot.is-player-residence {
-  background-image: url('/assets/routes/buttons/menu/shukuang1.png');
+  background: transparent;
 }
 
 .map-main__hotspot.is-vertical.is-player-residence {
-  background-image: url('/assets/routes/buttons/menu/shukuang1.png');
+  background: transparent;
 }
 
 .map-main__event-card--gongmen {
