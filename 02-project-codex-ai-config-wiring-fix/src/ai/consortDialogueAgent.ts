@@ -28,6 +28,7 @@ export interface ConsortDialogueRequestPayload {
   selectedOptionId?: string;
   selectedOptionLabel?: string;
   giftItemName?: string;
+  narrativeId?: string;
   smearTargetName?: string;
   history: Array<{
     speaker: string;

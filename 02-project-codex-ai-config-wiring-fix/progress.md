@@ -1,5 +1,80 @@
 Original prompt: 添加存档系统，回溯可以读取上一次存档，开始游戏会清空存档并新建存档（有二级确认）；关于存档功能的维护，需要把这部分写到全局文档里，以便更好的同步，之前已经做出的修改也需要将之前的文档修改到一致
 
+## 2026-07-03 v0.5.5 凌袖固定初遇与随机闲聊事件
+
+- 本轮目标：按用户提供的 `凌袖闲聊.txt` 补充凌袖初遇、赠舞谱和低 / 通用 / 高好感闲聊内容，不压缩原文信息量。
+- 已处理：`npc_tools_dialogues.csv` 替换凌袖固定初遇、初见赠谱和关系赠谱文本；初遇继续是固定剧情，不进入随机事件表。
+- 已处理：`random_events.csv` 新增凌袖 13 个闲聊事件，拆为低好感 3 个、通用 5 个、高好感 5 个；每个选项都提供 `target.relationToPlayer` 正收益。
+- 已处理：妙音堂人物闲聊入口改为按当前 NPC ID 组装通用池 / 当前好感池，凌袖闲聊会真实走随机事件池。
+- 已同步：`CHANGELOG.md` v0.5.5 第 16 条、`src/game/random-events/csv/README.md`、`docs/game-system-breakdown.md`、`codex-workdocs/2026-07-03-v055-lingxiu-random-talk-events.md`。
+- 验证：`npx vitest run src/game/random-events/randomEventRuntime.test.ts src/game/random-events/randomEventCatalog.test.ts src/game/narrative/csvNarrativeLoader.test.ts --reporter=dot`、`npx vitest run src/__tests__/app-flow.test.tsx -t "凌袖|妙音堂舞者" --reporter=dot`、`npx tsc --noEmit`、`npm run build:web` 通过；构建仍有既有 `/assets/ui/map-bg.jpg`、`/assets/ui/consorts-ui.jpg` 运行时资源提示和 Vite 大 chunk 警告。
+
+## 2026-07-03 v0.5.5 大地图左侧面板返回入口清理
+
+- 本轮目标：删除地图界面打开左侧覆盖面板时右上角额外出现的 `返回地图` 按钮。
+- 已处理：移除 `MapMainView` 的外层 `map-main__utility-close` 按钮和对应 CSS；大地图左侧面板关闭统一走面板自身返回入口。
+- 已处理：补充回归测试，确认大地图左侧工具面板不再出现 `返回地图` 按钮，关闭后仍停留在大地图。
+- 已同步：`CHANGELOG.md` v0.5.5 第 15 条、`docs/game-system-breakdown.md`、`codex-workdocs/2026-07-03-v055-map-utility-return-cleanup.md`。
+- 验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "大地图左侧工具面板不会把玩家传回寝殿" --reporter=dot`、`npx tsc --noEmit` 通过。
+
+## 2026-07-03 v0.5.5 凌萧随机闲聊事件
+
+- 本轮目标：按用户提供的 `凌萧闲聊.txt` 添加凌萧通用、低好感、高好感和琵琶拨片后续事件，不压缩原文信息量；凌萧初遇作为固定事件维护。
+- 已处理：`random_events.csv` 新增凌萧四类闲聊事件池；凌萧初遇改由 `npc_tools_dialogues.csv` 固定剧情表演，并在固定初遇对话后追加赠谱文本。
+- 已处理：凌萧普通闲聊改为从通用池 + 当前好感池合并抽取；好感达到 `30` 后额外并入琵琶拨片后续池，每次闲聊事件都提供 `target.relationToPlayer` 正收益并映射到常驻 NPC 好感。
+- 已修订：琵琶拨片后续事件只依赖 `prerequisiteEventIds=miaoyin.music.pipa-pick`，不在组件侧检查背包、任务道具或额外开关。
+- 已同步：`CHANGELOG.md` v0.5.5 第 13、14 条、`src/game/random-events/csv/README.md`、`docs/game-system-breakdown.md`、`codex-workdocs/2026-07-03-v055-lingxiao-random-talk-events.md`。
+- 验证：`npx tsc --noEmit`、`npx vitest run src/game/random-events/randomEventCatalog.test.ts src/game/random-events/randomEventRuntime.test.ts --reporter=dot`、`npx vitest run src/__tests__/app-flow.test.tsx -t "凌萧|妙音堂" --reporter=dot`、`npm run build:web` 通过；构建仍有既有 `/assets/ui/map-bg.jpg`、`/assets/ui/consorts-ui.jpg` 运行时资源提示和 Vite 大 chunk 警告。
+
+## 2026-07-02 v0.5.5 妙音堂曲谱 / 舞谱关系赠送
+
+- 本轮目标：让曲谱和舞谱都通过推进对应 NPC 关系获得；没有对应谱子时不能请求指导；舞谱指导算法与曲谱一致。
+- 已处理：`inventory_items.csv` 新增 `dance-score` 舞谱池，`numericCatalog` 和背包展示支持 `dance-score` 分类；曲谱 / 舞谱均作为任务物品维护。
+- 已处理：`global_numeric_rules.csv` 新增 `miaoyin_score_reward_affinity_step=20`；凌萧 / 凌袖好感每跨过一个档位会获得一张随机对应谱子。
+- 已处理：玩家首次结识凌萧 / 凌袖时，会随初见对白获得一张随机对应曲谱 / 舞谱；后续重复进入人物页不再重复发放。
+- 已处理：凌袖指导从单一 `dancePracticeProgress` 改为选择舞谱后写入 `musicHallProgress.danceScoreMastery`；曲谱 / 舞谱共用难度、完成度、表现上限和随机预演分公式，曲谱读乐理，舞谱读气质。
+- 已处理：移除寝殿凌萧隔旬自动赠谱流程，谱子来源收束到关系推进赠送；`SaveGameV1` schema 提升到 `7`，旧舞曲进度结构不迁移。
+- 已同步：`CHANGELOG.md` v0.5.5 第 11 条、`docs/game-system-breakdown.md`、`docs/game-state-model.md`、`docs/save-system-maintenance.md`、`src/game/numerics/csv/README.md`、`codex-workdocs/2026-07-02-v055-miaoyin-score-reward-and-dance-score.md`。
+- 验证：`npx tsc --noEmit`、`npx vitest run src/game/numerics/numericCatalog.test.ts src/game/lib/musicScoreRuntime.test.ts --reporter=dot`、`npx vitest run src/__tests__/app-flow.test.tsx -t "妙音堂" --reporter=dot` 通过。
+
+## 2026-07-02 v0.5.5 非妃嫔 NPC 配置化
+
+- 本轮目标：新增非妃嫔 NPC 主配置表，统一皇帝、太后、工具 NPC、剧情 NPC 与通用演出 NPC 的身份、立绘和可攻略分类。
+- 已处理：新增 `src/game/npcs/csv/non_consort_npc_profiles.csv` 与 `npcCatalog`，校验 NPC ID 唯一、旧 `npc-*` ID 禁用、旧“连翘”不再作为 NPC 配置项、可攻略角色必须有情缘标题 / 场景 / 摘要。
+- 已处理：情缘系统改为读取 `isRomanceable=true` 的非妃嫔 NPC；当前可攻略名单为容安、阿翎、布自游、简宁、凌萧、凌袖、当一、卢安平。
+- 已处理：宫门、御膳房、太医院、宝华殿、妙音堂、华清池、掖庭、养心殿、太后和侍寝相关立绘 / 身份资料切到 `npcCatalog`。
+- 已处理：删除旧 `src/config/npcs.ts` 和旧 `NpcId / NPC初始配置` 类型；妙音堂乐师进度字段从 `lianQiao*` 改为 `musician*`，情缘解锁 flag 改为 `bondNpcUnlocked:miaoyin-musician`。
+- 已同步：`CHANGELOG.md` v0.5.5 第 10 条、`docs/game-system-breakdown.md`、`docs/game-state-model.md`、`codex-workdocs/2026-07-02-v055-non-consort-npc-catalog.md`。
+- 验证：`npx tsc --noEmit`、`npx vitest run src/game/npcs src/components/chamber/MiaoYinHallView.portraits.test.ts` 通过。
+- 追加验证：`npx vitest run src/game/npcs src/game/data/concubineRoster.test.ts src/components/chamber/MiaoYinHallView.portraits.test.ts src/game/save src/game/store/gameFlowStore.save.test.ts` 通过，51 passed。
+- 追加验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "杜娘|阿翎|李公公|太后|妙音堂|简宁|当一|情缘" --reporter=dot` 通过，18 passed / 128 skipped；仍有既有 React `act(...)` 测试警告。
+- 追加验证：`npx vitest run src/__tests__/app-flow.test.tsx -t "妙音堂|华清池|情缘" --reporter=dot` 通过，11 passed / 135 skipped；仍有既有 React `act(...)` 测试警告。
+- 追加验证：`npm run build:web` 通过；仍有既有 `/assets/ui/map-bg.jpg`、`/assets/ui/consorts-ui.jpg` 构建期保留提示和 Vite 大 chunk 警告。
+
+## 2026-07-02 v0.5.5 妙音堂闲逛事件补充
+
+- 本轮目标：按用户提供的 `妙音堂闲逛.txt` 添加妙音堂闲逛事件，默认收益为压力 `-2`，不压缩原文信息量。
+- 已处理：删除 `random_events.csv` 中妙音堂 6 条短占位事件，改为 15 条完整事件，覆盖通用池、乐曲池和舞蹈池；有选项事件保留选项后的结果分支。
+- 已处理：妙音堂闲逛默认压力收益改由事件行 / 选项 `effectJson` 结算，入口只在未抽到事件时兜底扣压，避免双重结算。
+- 已处理：新增旧黄纸平安符、兰草白玉簪、缠枝小铜铃、兰花绢帕、钱塘琵琶拨片等可拾取物品。
+- 已修订：钱塘琵琶拨片标记为任务物品，不能出售、不能回收、不能作为普通礼物赠送。
+- 已修复：随机事件进入选项阶段时不再清空当前剧情行，避免带选项事件的对话层消失、事件无法完成或深夜归寝流程无法触发。
+- 已处理：将银叶耳坠的专用归还判定泛化为失物归还 runtime，并让妙音堂兰花绢帕生成带隐藏失主 metadata 的实例物品；正确送还给失主时播放帕子归还特殊对白并额外增加好感。
+- 已同步：`CHANGELOG.md` v0.5.5 第 7、8、9 条、`src/game/random-events/csv/README.md`、`docs/game-system-breakdown.md`、`codex-workdocs/2026-07-02-v055-miaoyin-stroll-events.md`。
+- 验证：`npx vitest run src/game/random-events src/game/numerics`、`npx vitest run src/__tests__/app-flow.test.tsx -t "妙音堂|MiaoYin|宫宴"`、`npx tsc --noEmit`、`npm run build:web` 通过。
+
+## 2026-07-01 v0.5.5 HBuilderX / App 构建方式
+
+- 本轮目标：新增适合 HBuilderX / App WebView 的构建产物，避免普通 Web 构建中的 `/assets/...` 根路径在 App 内失效。
+- 已处理：`vite.config.ts` 在 `app` mode 下使用 `base: './'` 和 `outDir: 'dist-app'`，普通 `build:web` 仍输出 `dist/`。
+- 已处理：新增 `npm run build:app` 与 `npm run preview:app`。
+- 已处理：新增 `scripts/prepare-hbuilder-build.cjs`，后处理 `dist-app/` 中 HTML / JS / CSS 的根路径资源引用，并在仍存在 `/assets/...` 时让构建失败。
+- 已同步：`CHANGELOG.md` v0.5.5 第 5 条、`README.md`、`docs/game-system-breakdown.md`、`codex-workdocs/2026-07-01-v055-hbuilder-app-build.md`。
+- 验证：`npm run build:app` 通过；`rg -n "(^|[^.])/assets/" dist-app` 无结果。
+- 已处理：新增 Electron 桌面外壳 `electron/main.cjs`，新增 `npm run build:exe` 和 `scripts/package-electron-dir.cjs`，输出 Windows 可执行目录 `release/fenghualu-win-x64/`，入口为 `凤华录.exe`。
+- 已同步：`CHANGELOG.md` v0.5.5 第 6 条、`readme.md`、`docs/game-system-breakdown.md`、`codex-workdocs/2026-07-01-v055-windows-exe-build.md`。
+- 验证：`npm run build:exe` 通过，生成 `release/fenghualu-win-x64/凤华录.exe`；压缩包 `release/凤华录-win-x64.zip` 已生成；启动冒烟验证中 exe 运行 6 秒后仍存活，测试结束后已关闭。
+
 ## 2026-06-29 v0.5.5 大地图热点竖牌比例修复
 
 - 本轮目标：修复大地图 `map-main__hotspot is-vertical` 外层方形容器可见、竖牌比例被压扁的问题。

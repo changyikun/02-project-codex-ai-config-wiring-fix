@@ -1,6 +1,9 @@
 node_modules/
 dist/
+dist-app/
+dist-hbuilder-test/
 dist-server/
+release/
 coverage/
 .env
 .env.local

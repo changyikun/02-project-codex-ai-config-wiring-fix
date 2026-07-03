@@ -173,6 +173,69 @@ describe('randomEventRuntime', () => {
     expect(new Set(pickedIds).size).toBeGreaterThanOrEqual(4);
   });
 
+  it('loads Ling Xiao talk pools and gates the pipa pick follow-up by prerequisite event', () => {
+    const lingXiaoEvents = Object.values(randomEventCatalog.events).filter((event) => event.eventId.startsWith('miaoyin-musician.'));
+    expect(lingXiaoEvents.length).toBeGreaterThanOrEqual(9);
+    expect(new Set(lingXiaoEvents.map((event) => event.poolId))).toEqual(
+      new Set([
+        'npc.miaoyin-musician.common',
+        'npc.miaoyin-musician.low-affinity',
+        'npc.miaoyin-musician.high-affinity',
+        'npc.miaoyin-musician.pipa-pick',
+      ]),
+    );
+    lingXiaoEvents.forEach((event) => {
+      const startBranch = event.branches.start;
+      const startLineRelationGain = startBranch.lines.some(
+        (line) => Number(line.effect?.target?.relationToPlayer ?? 0) > 0,
+      );
+      const optionRelationGains = startBranch.options.map((option) =>
+        Number(option.effect?.target?.relationToPlayer ?? 0),
+      );
+      expect(startLineRelationGain || optionRelationGains.some((gain) => gain > 0)).toBe(true);
+      expect(optionRelationGains.every((gain) => gain > 0)).toBe(true);
+    });
+
+    const progress = createInitialRandomEventProgress();
+    expect(
+      listEligibleRandomEvents({ poolId: 'npc.miaoyin-musician.pipa-pick', progress }).map((event) => event.eventId),
+    ).toEqual([]);
+
+    const afterPipaPick = {
+      ...progress,
+      triggerCounts: {
+        ...progress.triggerCounts,
+        'miaoyin.music.pipa-pick': 1,
+      },
+    };
+    expect(
+      listEligibleRandomEvents({ poolId: 'npc.miaoyin-musician.pipa-pick', progress: afterPipaPick }).map((event) => event.eventId),
+    ).toEqual(['miaoyin-musician.pipa-pick.followup']);
+  });
+
+  it('loads Ling Xiu talk pools without putting her fixed first meet into random events', () => {
+    const lingXiuEvents = Object.values(randomEventCatalog.events).filter((event) => event.eventId.startsWith('miaoyin-dancer.'));
+    expect(lingXiuEvents).toHaveLength(13);
+    expect(lingXiuEvents.some((event) => event.eventId.includes('first-meet'))).toBe(false);
+    expect(new Set(lingXiuEvents.map((event) => event.poolId))).toEqual(
+      new Set([
+        'npc.miaoyin-dancer.common',
+        'npc.miaoyin-dancer.low-affinity',
+        'npc.miaoyin-dancer.high-affinity',
+      ]),
+    );
+    expect(lingXiuEvents.filter((event) => event.poolId === 'npc.miaoyin-dancer.low-affinity')).toHaveLength(3);
+    expect(lingXiuEvents.filter((event) => event.poolId === 'npc.miaoyin-dancer.common')).toHaveLength(5);
+    expect(lingXiuEvents.filter((event) => event.poolId === 'npc.miaoyin-dancer.high-affinity')).toHaveLength(5);
+    lingXiuEvents.forEach((event) => {
+      const optionRelationGains = event.branches.start.options.map((option) =>
+        Number(option.effect?.target?.relationToPlayer ?? 0),
+      );
+      expect(optionRelationGains.length).toBeGreaterThan(0);
+      expect(optionRelationGains.every((gain) => gain > 0)).toBe(true);
+    });
+  });
+
   it('filters eligible events by prerequisites, repeat policy and option unlocks', () => {
     const progress = createInitialRandomEventProgress();
     expect(listEligibleRandomEvents({ poolId: 'pool', progress, catalog }).map((event) => event.eventId)).toEqual([

@@ -13,7 +13,13 @@ import { getFavorTierByValue, STAMINA_INITIAL_PER_XUN } from '../config/constant
 import { GUIDE_TENDENCY_OPTIONS } from '../config/palaceUi';
 import { buildInitialBondProfile } from '../game/data/bondPresets';
 import { buildInitialConcubineRoster } from '../game/data/concubineRoster';
-import { buildDuNiangShopCatalog, buildMusicScoreItem, buildYetingPoisonCatalog, cloneInitialInventory } from '../game/data/inventoryPresets';
+import {
+  buildDanceScoreItem,
+  buildDuNiangShopCatalog,
+  buildMusicScoreItem,
+  buildYetingPoisonCatalog,
+  cloneInitialInventory,
+} from '../game/data/inventoryPresets';
 import { buildRouteProfiles } from '../game/data/routeProfiles';
 import { buildInitialNpcActivityState } from '../game/lib/npcActivityRuntime';
 import { YINGLUOYETING_STORY_FLAGS } from '../game/lib/yingluoyetingStoryRuntime';
@@ -101,12 +107,12 @@ const resetFlowStore = () => {
       listenCount: 0,
       strollCount: 0,
       signUpCount: 0,
-      lianQiaoFirstMet: false,
-      lianQiaoMet: false,
-      lianQiaoFavor: 0,
-      lianQiaoAffection: 0,
-      dancePracticeProgress: 0,
-      dancePracticeCount: 0,
+      musicianFirstMet: false,
+      musicianMet: false,
+      musicianFavor: 0,
+      musicianAffection: 0,
+      musicScoreMastery: {},
+      danceScoreMastery: {},
     },
     palaceBanquetProgress: {
       submissionCount: 0,
@@ -169,6 +175,40 @@ const clickDialogueOnce = async () => {
   expect(dialogueContent).toBeInTheDocument();
   fireEvent.click(dialogueContent!);
   await Promise.resolve();
+};
+
+const selectFirstDialogueOptionIfPresent = async () => {
+  const optionGroup = screen.queryByRole('group', { name: '对话分支选项' });
+  if (!optionGroup) {
+    return false;
+  }
+  const [firstOption] = within(optionGroup).getAllByRole('button');
+  fireEvent.click(firstOption);
+  await Promise.resolve();
+  return true;
+};
+
+const advanceDialogueByLabelUntilGone = async (label: string, maxSteps = 60) => {
+  for (let step = 0; step < maxSteps && screen.queryByLabelText(label); step += 1) {
+    if (await selectFirstDialogueOptionIfPresent()) {
+      continue;
+    }
+    await clickDialogueOnce();
+  }
+  expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
+};
+
+const advanceDialogueByLabelUntil = async (label: string, predicate: () => boolean, maxSteps = 60) => {
+  for (let step = 0; step < maxSteps && screen.queryByLabelText(label); step += 1) {
+    if (predicate()) {
+      return;
+    }
+    if (await selectFirstDialogueOptionIfPresent()) {
+      continue;
+    }
+    await clickDialogueOnce();
+  }
+  expect(predicate()).toBe(true);
 };
 
 const advanceFirstPaintingWork = async () => {
@@ -1896,8 +1936,9 @@ describe('App 主流程切换', () => {
     expect(useGameFlowStore.getState().currentView).toBe('map-main');
     expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined();
     expect(await screen.findByLabelText('个人属性面板')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '返回地图' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '返回地图' }));
+    fireEvent.click(screen.getByRole('button', { name: '返回' }));
 
     expect(useGameFlowStore.getState().currentView).toBe('map-main');
     expect(await screen.findByLabelText('宫廷地图')).toBeInTheDocument();
@@ -2961,7 +3002,7 @@ describe('App 主流程切换', () => {
         flags: {
           ...state.state.flags,
           attributeStatsFinalized: true,
-          isLianQiaoMet: true,
+          isMiaoyinMusicianMet: true,
         },
       },
       hiddenStats: {
@@ -2979,12 +3020,12 @@ describe('App 主流程切换', () => {
         listenCount: 6,
         strollCount: 0,
         signUpCount: 0,
-        lianQiaoFirstMet: true,
-        lianQiaoMet: true,
-        lianQiaoFavor: 2,
-        lianQiaoAffection: 2,
-        dancePracticeProgress: 0,
-        dancePracticeCount: 0,
+        musicianFirstMet: true,
+        musicianMet: true,
+        musicianFavor: 2,
+        musicianAffection: 2,
+        musicScoreMastery: {},
+        danceScoreMastery: {},
       },
       time: {
         year: 1,
@@ -3033,6 +3074,370 @@ describe('App 主流程切换', () => {
     });
   });
 
+  it('初次遇见凌萧会获得一张曲谱', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '妙音堂',
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        flags: {
+          ...state.state.flags,
+          attributeStatsFinalized: true,
+        },
+      },
+      inventory: cloneInitialInventory(),
+      musicHallProgress: {
+        listenCount: 0,
+        strollCount: 0,
+        signUpCount: 0,
+        musicianFirstMet: false,
+        musicianMet: false,
+        musicianFavor: 0,
+        musicianAffection: 0,
+        musicScoreMastery: {},
+        danceScoreMastery: {},
+      },
+      permanentNpcRelationships: {},
+      randomEventProgress: {
+        ...state.randomEventProgress,
+        triggerCounts: {
+          ...state.randomEventProgress.triggerCounts,
+          'miaoyin.music.side-song': 2,
+        },
+      },
+      time: {
+        year: 1,
+        month: 2,
+        xun: 1,
+        slotIndex: 1,
+        slot: '上午',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '凌萧' }));
+
+    expect(await screen.findByLabelText('凌萧 妙音堂对话')).toBeInTheDocument();
+    expect(await screen.findByText(/旧谱/)).toBeInTheDocument();
+    await advanceDialogueByLabelUntil('凌萧 妙音堂对话', () => Boolean(screen.queryByText(/这谱子可先留着/)));
+    await waitFor(() => {
+      expect(
+        useGameFlowStore
+          .getState()
+          .inventory.filter((item) => item.category === 'music-score')
+          .reduce((sum, item) => sum + item.quantity, 0),
+      ).toBe(1);
+    });
+    expect(screen.queryByLabelText('凌萧 妙音堂闲聊事件')).not.toBeInTheDocument();
+  });
+
+  it('凌萧闲聊会从随机事件池抽取并提高好感', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '妙音堂',
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        flags: {
+          ...state.state.flags,
+          attributeStatsFinalized: true,
+          isMiaoyinMusicianMet: true,
+        },
+      },
+      inventory: cloneInitialInventory(),
+      musicHallProgress: {
+        listenCount: 0,
+        strollCount: 0,
+        signUpCount: 0,
+        musicianFirstMet: true,
+        musicianMet: true,
+        musicianFavor: 0,
+        musicianAffection: 0,
+        musicScoreMastery: {},
+        danceScoreMastery: {},
+      },
+      permanentNpcRelationships: {
+        'miaoyin-musician': {
+          npcId: 'miaoyin-musician',
+          npcName: '凌萧',
+          met: true,
+          affinity: 0,
+          xunKey: '1-2-1',
+          actionCountThisXun: 0,
+        },
+      },
+      randomEventProgress: {
+        ...state.randomEventProgress,
+        triggerCounts: {
+          ...state.randomEventProgress.triggerCounts,
+          'miaoyin.music.side-song': 2,
+        },
+      },
+      time: {
+        year: 1,
+        month: 2,
+        xun: 1,
+        slotIndex: 1,
+        slot: '上午',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '凌萧' }));
+    expect(await screen.findByLabelText('凌萧 妙音堂对话')).toBeInTheDocument();
+    await clickDialogueAdvance();
+
+    fireEvent.click(screen.getByRole('button', { name: '闲聊（耗次）' }));
+    expect(await screen.findByLabelText('凌萧 妙音堂闲聊事件')).toBeInTheDocument();
+    await advanceDialogueByLabelUntilGone('凌萧 妙音堂闲聊事件');
+
+    expect(useGameFlowStore.getState().permanentNpcRelationships['miaoyin-musician']?.affinity).toBeGreaterThan(0);
+  });
+
+  it('初次遇见凌袖会获得一张舞谱', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '妙音堂',
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        flags: {
+          ...state.state.flags,
+          attributeStatsFinalized: true,
+        },
+      },
+      inventory: cloneInitialInventory(),
+      musicHallProgress: {
+        listenCount: 0,
+        strollCount: 0,
+        signUpCount: 0,
+        musicianFirstMet: false,
+        musicianMet: false,
+        musicianFavor: 0,
+        musicianAffection: 0,
+        musicScoreMastery: {},
+        danceScoreMastery: {},
+      },
+      permanentNpcRelationships: {},
+      randomEventProgress: {
+        ...state.randomEventProgress,
+        triggerCounts: {
+          ...state.randomEventProgress.triggerCounts,
+          'miaoyin.dance.water-sleeves': 2,
+        },
+      },
+      time: {
+        year: 1,
+        month: 2,
+        xun: 1,
+        slotIndex: 1,
+        slot: '上午',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '凌袖' }));
+
+    expect(await screen.findByLabelText('凌袖 妙音堂对话')).toBeInTheDocument();
+    await advanceDialogueByLabelUntil('凌袖 妙音堂对话', () => Boolean(screen.queryByText(/我早就会跳了/)));
+    await waitFor(() => {
+      expect(
+        useGameFlowStore
+          .getState()
+          .inventory.filter((item) => item.category === 'dance-score')
+          .reduce((sum, item) => sum + item.quantity, 0),
+      ).toBe(1);
+    });
+  });
+
+  it('妙音堂舞者需要舞谱才能指导，并按谱子进度推进舞谱', async () => {
+    const danceScore = buildDanceScoreItem('dance-score-rain-bell');
+    expect(danceScore).not.toBeNull();
+
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '妙音堂',
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        flags: {
+          ...state.state.flags,
+          attributeStatsFinalized: true,
+        },
+      },
+      inventory: cloneInitialInventory(),
+      musicHallProgress: {
+        listenCount: 0,
+        strollCount: 0,
+        signUpCount: 0,
+        musicianFirstMet: false,
+        musicianMet: false,
+        musicianFavor: 0,
+        musicianAffection: 0,
+        musicScoreMastery: {},
+        danceScoreMastery: {},
+      },
+      permanentNpcRelationships: {
+        ...state.permanentNpcRelationships,
+        'miaoyin-dancer': {
+          npcId: 'miaoyin-dancer',
+          npcName: '凌袖',
+          met: true,
+          affinity: 19,
+          xunKey: '1-2-1',
+          actionCountThisXun: 0,
+        },
+      },
+      randomEventProgress: {
+        ...state.randomEventProgress,
+        triggerCounts: {
+          ...state.randomEventProgress.triggerCounts,
+          'miaoyin.dance.water-sleeves': 2,
+        },
+      },
+      time: {
+        year: 1,
+        month: 2,
+        xun: 1,
+        slotIndex: 1,
+        slot: '上午',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '凌袖' }));
+    expect(await screen.findByLabelText('凌袖 妙音堂对话')).toBeInTheDocument();
+    await clickDialogueAdvance();
+
+    fireEvent.click(screen.getByRole('button', { name: '请求指导（耗次）' }));
+    expect(await screen.findByText(/若没有舞谱/)).toBeInTheDocument();
+    await clickDialogueAdvance();
+    await waitFor(() => expect(screen.queryByText(/若没有舞谱/)).not.toBeInTheDocument());
+
+    act(() => {
+      useGameFlowStore.getState().grantInventoryItem(danceScore!);
+    });
+    fireEvent.click(screen.getByRole('button', { name: '请求指导（耗次）' }));
+    expect(await screen.findByRole('dialog', { name: '舞者指导舞谱' })).toBeInTheDocument();
+    const temperamentBeforePractice = Number(useGameFlowStore.getState().state.stats.temperament ?? 0);
+    fireEvent.click(screen.getByRole('button', { name: /雨铃碎步谱/ }));
+
+    await waitFor(() => {
+      expect(useGameFlowStore.getState().musicHallProgress.danceScoreMastery?.['dance-score-rain-bell']?.masteryPercent).toBeGreaterThan(0);
+      expect(useGameFlowStore.getState().state.stats.temperament).toBeCloseTo(temperamentBeforePractice + 1);
+      expect(
+        useGameFlowStore
+          .getState()
+          .inventory.filter((item) => item.category === 'dance-score')
+          .reduce((sum, item) => sum + item.quantity, 0),
+      ).toBeGreaterThan(1);
+    });
+    expect(await screen.findByText(/当前进度已至/)).toBeInTheDocument();
+  });
+
+  it('凌袖闲聊会从随机事件池抽取并提高好感', async () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '妙音堂',
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        flags: {
+          ...state.state.flags,
+          attributeStatsFinalized: true,
+        },
+      },
+      musicHallProgress: {
+        listenCount: 0,
+        strollCount: 0,
+        signUpCount: 0,
+        musicianFirstMet: false,
+        musicianMet: false,
+        musicianFavor: 0,
+        musicianAffection: 0,
+        musicScoreMastery: {},
+        danceScoreMastery: {},
+      },
+      permanentNpcRelationships: {
+        ...state.permanentNpcRelationships,
+        'miaoyin-dancer': {
+          npcId: 'miaoyin-dancer',
+          npcName: '凌袖',
+          met: true,
+          affinity: 0,
+          xunKey: '1-2-1',
+          actionCountThisXun: 0,
+        },
+      },
+      randomEventProgress: {
+        ...state.randomEventProgress,
+        triggerCounts: {
+          ...state.randomEventProgress.triggerCounts,
+          'miaoyin.dance.water-sleeves': 2,
+        },
+      },
+      time: {
+        year: 1,
+        month: 2,
+        xun: 1,
+        slotIndex: 1,
+        slot: '上午',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '凌袖' }));
+    expect(await screen.findByLabelText('凌袖 妙音堂对话')).toBeInTheDocument();
+    await clickDialogueAdvance();
+
+    fireEvent.click(screen.getByRole('button', { name: '闲聊（耗次）' }));
+    expect(await screen.findByLabelText('凌袖 妙音堂闲聊事件')).toBeInTheDocument();
+    await advanceDialogueByLabelUntilGone('凌袖 妙音堂闲聊事件');
+
+    expect(useGameFlowStore.getState().permanentNpcRelationships['miaoyin-dancer']?.affinity).toBeGreaterThan(0);
+  });
+
   it('妙音堂闲逛的压力变化会随本次行动显示 toast', async () => {
     useGameFlowStore.setState((state) => ({
       ...state,
@@ -3069,15 +3474,16 @@ describe('App 主流程切换', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: '闲逛' }));
 
+    expect(await screen.findByLabelText('妙音堂闲逛事件')).toBeInTheDocument();
+    await advanceDialogueByLabelUntil('妙音堂闲逛事件', () => {
+      const toastLayer = screen.queryByLabelText('数值变化提示');
+      return Boolean(toastLayer && within(toastLayer).queryByText(/压力 -/));
+    });
     const toastLayer = await screen.findByLabelText('数值变化提示');
-    expect(await within(toastLayer).findByText(/压力 -/)).toBeInTheDocument();
+    expect(within(toastLayer).getByText(/压力 -/)).toBeInTheDocument();
     expect(screen.queryByText(/第2旬清晨通报/)).not.toBeInTheDocument();
 
-    expect(await screen.findByLabelText('妙音堂闲逛事件')).toBeInTheDocument();
-    await clickDialogueAdvance();
-    if (screen.queryByLabelText('妙音堂闲逛事件')) {
-      await clickDialogueAdvance();
-    }
+    await advanceDialogueByLabelUntilGone('妙音堂闲逛事件');
 
     expect(await screen.findByLabelText('寝殿对白')).toHaveTextContent(/夜已经深了/);
 
@@ -3114,12 +3520,12 @@ describe('App 主流程切换', () => {
         listenCount: 0,
         strollCount: 0,
         signUpCount: 0,
-        lianQiaoFirstMet: false,
-        lianQiaoMet: false,
-        lianQiaoFavor: 0,
-        lianQiaoAffection: 0,
-        dancePracticeProgress: 0,
-        dancePracticeCount: 0,
+        musicianFirstMet: false,
+        musicianMet: false,
+        musicianFavor: 0,
+        musicianAffection: 0,
+        musicScoreMastery: {},
+        danceScoreMastery: {},
       },
       time: {
         year: 1,
@@ -3136,12 +3542,7 @@ describe('App 主流程切换', () => {
     fireEvent.click(await screen.findByRole('button', { name: '闲逛' }));
 
     expect(await screen.findByLabelText('妙音堂闲逛事件')).toBeInTheDocument();
-    await clickDialogueAdvance();
-    if (screen.queryByLabelText('妙音堂闲逛事件')) {
-      await clickDialogueAdvance();
-    }
-
-    expect(screen.queryByLabelText('妙音堂闲逛事件')).not.toBeInTheDocument();
+    await advanceDialogueByLabelUntilGone('妙音堂闲逛事件');
     expect(useGameFlowStore.getState().currentView).toBe('bedchamber');
     expect(useGameFlowStore.getState().activeMapLocation).toBe('妙音堂');
   });
@@ -3221,7 +3622,7 @@ describe('App 主流程切换', () => {
           favor: 50,
           flags: {
             ...state.state.flags,
-            isLianQiaoMet: true,
+            isMiaoyinMusicianMet: true,
           },
         },
         hiddenStats: {
@@ -3239,10 +3640,10 @@ describe('App 主流程切换', () => {
           listenCount: 6,
           strollCount: 0,
           signUpCount: 0,
-          lianQiaoFirstMet: true,
-          lianQiaoMet: true,
-          lianQiaoFavor: 5,
-          lianQiaoAffection: 40,
+          musicianFirstMet: true,
+          musicianMet: true,
+          musicianFavor: 5,
+          musicianAffection: 40,
         },
         time: {
           year: 1,

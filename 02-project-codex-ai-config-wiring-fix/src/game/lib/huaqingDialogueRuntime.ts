@@ -15,10 +15,10 @@ export interface HuaqingDialogueActor {
   summary: string;
   currentGoodwill: number;
   currentAffection: number;
-  actorKind: 'consort' | 'lianqiao';
+  actorKind: 'consort' | 'miaoyin-musician';
 }
 
-const buildLianQiaoOptions = (): ConsortDialogueOption[] => [
+const buildMiaoyinMusicianOptions = (): ConsortDialogueOption[] => [
   { id: 'soft', label: '顺着水声轻轻应她', effectHint: '更容易把这一场气氛稳稳接住。', localToneTag: 'friendly' },
   { id: 'tease', label: '借雾气试他一句', effectHint: '若他肯接，最容易把话往暧昧处引。', localToneTag: 'flirt' },
   { id: 'hold', label: '只把分寸守住', effectHint: '不急着把心思露得太快。', localToneTag: 'neutral' },
@@ -39,8 +39,8 @@ const buildCsvDialogueFields = (
     return narrativeEntryToDialogueFields(entry, { speakerIdentity: actor.identity, speakerName: actor.name });
   };
 
-  if (actor.actorKind === 'lianqiao') {
-    return renderCsvEntry(payload.topic === 'follow-up' ? 'huaqing.dialogue.lianqiao.follow-up' : 'huaqing.dialogue.lianqiao.default');
+  if (actor.actorKind === 'miaoyin-musician') {
+    return renderCsvEntry(payload.topic === 'follow-up' ? 'huaqing.dialogue.musician.follow-up' : 'huaqing.dialogue.musician.default');
   }
 
   return renderCsvEntry(payload.topic === 'follow-up' ? 'huaqing.dialogue.consort.follow-up' : 'huaqing.dialogue.consort.default');
@@ -59,7 +59,7 @@ const buildCsvDialogueTurn = (
   return narrativeFieldsToConsortTurn(fields, {
     mode: 'branch',
     phase: 'continue',
-    options: actor.actorKind === 'lianqiao' ? buildLianQiaoOptions() : buildConsortOptions(),
+    options: actor.actorKind === 'miaoyin-musician' ? buildMiaoyinMusicianOptions() : buildConsortOptions(),
   });
 };
 

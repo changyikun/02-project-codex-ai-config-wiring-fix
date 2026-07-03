@@ -37,7 +37,6 @@ type WomenPortraitId =
   | '江晚晚'
   | '姜芷'
   | '李若瑶'
-  | '连翘'
   | '柳仪芳'
   | '年欣兰'
   | '裴静姝'
@@ -65,7 +64,6 @@ export const ALL_WOMEN_PORTRAIT_IDS: readonly WomenPortraitId[] = [
   '江晚晚',
   '姜芷',
   '李若瑶',
-  '连翘',
   '柳仪芳',
   '年欣兰',
   '裴静姝',
@@ -113,7 +111,6 @@ const WOMEN_ASSET_FILENAME_BY_ID: Partial<Record<WomenPortraitId | '阿翎' | '�
   花棠: nobleConsortFilename,
   姜芷: gentleConsortFilename,
   方瑶: nobleConsortFilename,
-  连翘: girlishConsortFilename,
   阿翎: girlishConsortFilename,
   太后: 'taihou.png',
   杜娘: 'duniang.png',
@@ -225,7 +222,7 @@ const canonicalRanks = [...PRESTIGE_RANK_TABLE, ...SPECIAL_PRESTIGE_RANK_TABLE]
 
 const liveStatusIllHealthThreshold = getGeneratedConsortRuleValue('live_status_ill_health_threshold');
 // Special NPCs and authority figures should never be treated as concubine-list members.
-const NON_CONCUBINE_NAMES = new Set(['布自游', '卢安平', '当一', '杜娘', '娇娇', '简宁', '连翘']);
+const NON_CONCUBINE_NAMES = new Set(['布自游', '卢安平', '当一', '杜娘', '娇娇', '简宁']);
 const NON_CONCUBINE_PATTERNS = [/太后/];
 
 const getRosterIdentityTokens = (entity: { name: string; portraitId: string }): string[] =>

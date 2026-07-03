@@ -19,6 +19,7 @@ import {
   numericFavorTiers,
   numericFixedConsortSeeds,
   numericGeneratedConsortTemplates,
+  numericInventoryItems,
   numericMonthlyExpenseStrategies,
   numericNightlyInterestEffects,
   numericPalaceStrifeRumorItems,
@@ -82,9 +83,16 @@ describe('numericCatalog', () => {
     expect(getInventoryItemsByPool('initial')).toEqual([]);
     expect(getInventoryItemsByPool('yeting-poison').map((item) => item.itemId)).toContain('hedandinghong');
     expect(getInventoryItemsByPool('music-score').length).toBeGreaterThanOrEqual(1);
+    expect(getInventoryItemsByPool('dance-score').length).toBeGreaterThanOrEqual(1);
+    expect(getInventoryItemsByPool('music-score').every((item) => item.isQuestItem && item.category === 'music-score')).toBe(true);
+    expect(getInventoryItemsByPool('dance-score').every((item) => item.isQuestItem && item.category === 'dance-score')).toBe(true);
     expect(getInventoryItemsByPool('duniang-always').every((item) => item.rarity === 'green' || item.rarity === 'blue')).toBe(true);
     expect(getInventoryItemsByPool('duniang-always').every((item) => !item.isQuestItem)).toBe(true);
     expect(getInventoryItemsByPool('yeting-poison').every((item) => item.isQuestItem)).toBe(true);
+    const pipaPick = numericInventoryItems.find((item) => item.itemId === 'miaoyin-pipa-pick');
+    expect(pipaPick?.isQuestItem).toBe(true);
+    expect(pipaPick?.canSell).toBe(false);
+    expect(pipaPick?.canRecycle).toBe(false);
     expect(getInventoryItemsByTag('low-quality-food').map((item) => item.itemId)).toContain('sesame-flatbread');
     expect(getInventoryItemsByTag('tree-fruit').map((item) => item.itemId)).toContain('fresh-jubube');
     expect(numericCraftWorks.find((work) => work.workId === 'chanmeng-incense')?.type).toBe('incense');
@@ -100,7 +108,8 @@ describe('numericCatalog', () => {
     expect(numericNightlyInterestEffects.find((effect) => effect.minInterest === 100)?.prestigeDelta).toBe(10);
 
     expect(getGeneratedConsortRuleValue('target_live_consort_count')).toBe(12);
-    expect(numericGeneratedConsortTemplates).toHaveLength(14);
+    expect(numericGeneratedConsortTemplates).toHaveLength(13);
+    expect(numericGeneratedConsortTemplates.map((template) => template.name)).not.toContain('连翘');
     expect(numericGeneratedConsortTemplates.find((template) => template.name === '花棠')?.stats.appearance).toBe(91);
   });
 });

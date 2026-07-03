@@ -24,6 +24,7 @@ export interface KitchenFoodShopEntry extends InventoryItem {
 const DU_NIANG_ALWAYS_AVAILABLE_ITEMS: readonly InventoryItem[] = getInventoryItemsByPool('duniang-always');
 const YETING_POISON_ITEMS: readonly InventoryItem[] = getInventoryItemsByPool('yeting-poison');
 const MUSIC_SCORE_LIBRARY: readonly InventoryItem[] = getInventoryItemsByPool('music-score');
+const DANCE_SCORE_LIBRARY: readonly InventoryItem[] = getInventoryItemsByPool('dance-score');
 const KITCHEN_ITEM_TEMPLATES = new Map(
   numericInventoryItems.map(({ pools: _pools, tags: _tags, ...item }) => [item.itemId, item] as const),
 );
@@ -155,8 +156,15 @@ export const isPoisonInventoryItem = (item: InventoryItem): boolean =>
 
 export const isMusicScoreItem = (item: InventoryItem): boolean => item.category === 'music-score';
 
+export const isDanceScoreItem = (item: InventoryItem): boolean => item.category === 'dance-score';
+
 export const buildMusicScoreItem = (itemId: string): InventoryItem | null => {
   const template = MUSIC_SCORE_LIBRARY.find((item) => item.itemId === itemId);
+  return template ? { ...template } : null;
+};
+
+export const buildDanceScoreItem = (itemId: string): InventoryItem | null => {
+  const template = DANCE_SCORE_LIBRARY.find((item) => item.itemId === itemId);
   return template ? { ...template } : null;
 };
 
@@ -165,5 +173,13 @@ export const buildRandomMusicScoreItem = (seed: string): InventoryItem => {
   return { ...template };
 };
 
+export const buildRandomDanceScoreItem = (seed: string): InventoryItem => {
+  const template = DANCE_SCORE_LIBRARY[hashSeed(seed) % DANCE_SCORE_LIBRARY.length];
+  return { ...template };
+};
+
 export const buildMusicScoreRewardBundle = (seed: string, quantity: number): InventoryItem[] =>
   Array.from({ length: Math.max(1, quantity) }, (_, index) => buildRandomMusicScoreItem(`${seed}:${index}`));
+
+export const buildDanceScoreRewardBundle = (seed: string, quantity: number): InventoryItem[] =>
+  Array.from({ length: Math.max(1, quantity) }, (_, index) => buildRandomDanceScoreItem(`${seed}:${index}`));

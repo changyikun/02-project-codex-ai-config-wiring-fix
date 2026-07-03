@@ -19,6 +19,7 @@ import {
 import { getNpcActivitiesAtLocation } from '../../game/lib/npcActivityRuntime';
 import { requestRelationshipJudgementLocal } from '../../game/lib/relationshipJudgeRuntime';
 import { requestTaiyiAmbientLocal } from '../../game/lib/taiyiAmbientRuntime';
+import { getBondUnlockFlagForNpc, requireNonConsortNpcProfile } from '../../game/npcs/npcCatalog';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type {
   ConcubineProfile,
@@ -43,15 +44,16 @@ interface TaiyiSceneActor extends TaiyiDialogueActor {
   consortId?: string;
 }
 
-const JIANNING_PORTRAIT_SRC = '/assets/characters/men/jian-ning.png';
+const JIANNING_PROFILE = requireNonConsortNpcProfile('jianning');
+const JIANNING_PORTRAIT_SRC = JIANNING_PROFILE.portraitSrc ?? '';
 
 const buildJianNingActor = (favor: number, affection: number): TaiyiSceneActor => ({
-  id: 'jianning',
-  name: '简宁',
-  identity: '太医院医官',
-  residence: '太医院',
-  personality: '寡言冷静，医理扎实，极重轻重缓急，不爱空话，待人克制，却会在关键处给出真正有用的判断。',
-  summary: '太医院医官，常年接触脉案、诊方与宫闱秘病，对药理、病症与人心都看得极准，但从不轻易站队。',
+  id: JIANNING_PROFILE.npcId,
+  name: JIANNING_PROFILE.displayName,
+  identity: JIANNING_PROFILE.identityLabel,
+  residence: JIANNING_PROFILE.defaultLocationId ?? '太医院',
+  personality: JIANNING_PROFILE.personality,
+  summary: JIANNING_PROFILE.summary,
   currentGoodwill: favor,
   currentAffection: affection,
   actorKind: 'jianning',
@@ -234,7 +236,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     if (!pendingJianNingUnlock) {
       return;
     }
-    applyStoryEffects({ flags: { isJianNingMet: true } });
+    applyStoryEffects({ flags: { isJianNingMet: true, [getBondUnlockFlagForNpc(JIANNING_PROFILE.npcId)]: true } });
     patchMedicalProgress({ jianNingMet: true });
     setPendingJianNingUnlock(false);
     setSystemMessage('你已在太医院结识简宁，此后这里会长期留下他的入口。');

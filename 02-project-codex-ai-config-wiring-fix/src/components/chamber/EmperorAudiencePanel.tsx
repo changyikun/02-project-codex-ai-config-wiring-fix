@@ -6,6 +6,7 @@ import {
   EMPEROR_DAY_AUDIENCE_INTERACTION_LIMIT,
 } from '../../game/lib/emperorDayAudienceRuntime';
 import { renderNarrativeEntry } from '../../game/narrative/narrativeCatalog';
+import { requireNonConsortNpcProfile } from '../../game/npcs/npcCatalog';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type {
   ConcubineProfile,
@@ -17,7 +18,8 @@ import type {
 import { AudienceInteractionShell, type AudienceMetaRow } from '../consorts/AudienceInteractionShell';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
 
-const EMPEROR_PORTRAIT_SRC = '/assets/characters/men/rongan.png';
+const EMPEROR_PROFILE = requireNonConsortNpcProfile('rongan');
+const EMPEROR_PORTRAIT_SRC = EMPEROR_PROFILE.portraitSrc ?? '';
 const EUNUCH_PORTRAIT_SRC = '/assets/characters/men/taijian.png';
 
 type EmperorAudiencePhase =
@@ -151,9 +153,16 @@ export function EmperorAudiencePanel({ source, location, concubines, skipRequest
   };
 
   const emperorPortrait = (
-    <div className="harem-palace-view__audience-portrait-stage emperor-day-audience-view__portrait-stage" aria-label="容安常驻立绘">
+    <div
+      className="harem-palace-view__audience-portrait-stage emperor-day-audience-view__portrait-stage"
+      aria-label={`${EMPEROR_PROFILE.displayName}常驻立绘`}
+    >
       <div className="harem-palace-view__audience-portrait-frame emperor-day-audience-view__portrait-frame">
-        <img src={EMPEROR_PORTRAIT_SRC} alt="容安" className="harem-palace-view__audience-portrait emperor-day-audience-view__portrait" />
+        <img
+          src={EMPEROR_PORTRAIT_SRC}
+          alt={EMPEROR_PROFILE.displayName}
+          className="harem-palace-view__audience-portrait emperor-day-audience-view__portrait"
+        />
       </div>
     </div>
   );

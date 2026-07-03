@@ -16,10 +16,10 @@ export interface MiaoYinDialogueActor {
   summary: string;
   currentGoodwill: number;
   currentAffection: number;
-  actorKind: 'consort' | 'lianqiao' | 'emperor';
+  actorKind: 'consort' | 'miaoyin-musician' | 'emperor';
 }
 
-const buildLianQiaoLocalOptions = (phase: 'first' | 'unlock' | 'gift' | 'regular'): ConsortDialogueOption[] => {
+const buildMiaoyinMusicianLocalOptions = (phase: 'first' | 'unlock' | 'gift' | 'regular'): ConsortDialogueOption[] => {
   if (phase === 'gift') {
     return [
       { id: 'receive', label: '收下并谢他记挂', effectHint: '把这一份心意稳稳接住。', localToneTag: 'friendly' },
@@ -67,17 +67,17 @@ const buildLocalOptions = (
   actor: MiaoYinDialogueActor,
   payload: ConsortDialogueRequestPayload,
 ): ConsortDialogueOption[] => {
-  if (actor.actorKind === 'lianqiao') {
+  if (actor.actorKind === 'miaoyin-musician') {
     if (payload.actionId === 'gift-event') {
-      return buildLianQiaoLocalOptions('gift');
+      return buildMiaoyinMusicianLocalOptions('gift');
     }
-    if (payload.actionId === 'meet-lianqiao') {
-      return buildLianQiaoLocalOptions('unlock');
+    if (payload.actionId === 'meet-musician') {
+      return buildMiaoyinMusicianLocalOptions('unlock');
     }
     if (payload.actionId === 'first-meet') {
-      return buildLianQiaoLocalOptions('first');
+      return buildMiaoyinMusicianLocalOptions('first');
     }
-    return buildLianQiaoLocalOptions('regular');
+    return buildMiaoyinMusicianLocalOptions('regular');
   }
   if (actor.actorKind === 'emperor') {
     return buildEmperorLocalOptions();
@@ -94,20 +94,20 @@ const buildCsvDialogueFields = (
     return narrativeEntryToDialogueFields(entry, { speakerIdentity: actor.identity, speakerName: actor.name });
   };
 
-  if (actor.actorKind === 'lianqiao' && payload.actionId === 'first-meet') {
-    return renderCsvEntry('miaoyin.dialogue.lianqiao.first');
+  if (actor.actorKind === 'miaoyin-musician' && payload.actionId === 'first-meet') {
+    return renderCsvEntry('miaoyin.dialogue.musician.first');
   }
 
-  if (actor.actorKind === 'lianqiao' && payload.actionId === 'meet-lianqiao') {
-    return renderCsvEntry('miaoyin.dialogue.lianqiao.unlock');
+  if (actor.actorKind === 'miaoyin-musician' && payload.actionId === 'meet-musician') {
+    return renderCsvEntry('miaoyin.dialogue.musician.unlock');
   }
 
-  if (actor.actorKind === 'lianqiao' && payload.actionId === 'gift-event') {
-    return renderCsvEntry('miaoyin.dialogue.lianqiao.gift');
+  if (actor.actorKind === 'miaoyin-musician' && payload.actionId === 'gift-event') {
+    return renderCsvEntry('miaoyin.dialogue.musician.gift');
   }
 
-  if (actor.actorKind === 'lianqiao') {
-    return renderCsvEntry('miaoyin.dialogue.lianqiao.default');
+  if (actor.actorKind === 'miaoyin-musician') {
+    return renderCsvEntry('miaoyin.dialogue.musician.default');
   }
 
   if (actor.actorKind === 'emperor') {
@@ -123,9 +123,9 @@ const buildCsvDialogueTurn = (
 ): ConsortDialogueTurn => {
   const fields = buildCsvDialogueFields(payload, actor);
 
-  if (actor.actorKind === 'lianqiao' && payload.topic === 'follow-up') {
+  if (actor.actorKind === 'miaoyin-musician' && payload.topic === 'follow-up') {
     const followUp = renderNarrativeEntry(
-      payload.actionId === 'gift-follow-up' ? 'miaoyin.dialogue.lianqiao.gift-follow-up' : 'miaoyin.dialogue.lianqiao.follow-up',
+      payload.actionId === 'gift-follow-up' ? 'miaoyin.dialogue.musician.gift-follow-up' : 'miaoyin.dialogue.musician.follow-up',
     );
     return narrativeEntryToConsortTurn(followUp, {
       phase: 'finish',

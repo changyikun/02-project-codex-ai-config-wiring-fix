@@ -18,6 +18,7 @@ import {
 import { getNpcActivitiesAtLocation } from '../../game/lib/npcActivityRuntime';
 import { requestRelationshipJudgementLocal } from '../../game/lib/relationshipJudgeRuntime';
 import { requestTempleAmbientLocal } from '../../game/lib/templeAmbientRuntime';
+import { getBondUnlockFlagForNpc, requireNonConsortNpcProfile } from '../../game/npcs/npcCatalog';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type {
   ConcubineProfile,
@@ -42,15 +43,16 @@ interface BaohuaSceneActor extends BaohuaDialogueActor {
   consortId?: string;
 }
 
-const DANGYI_PORTRAIT_SRC = '/assets/characters/men/dangyi.png';
+const DANGYI_PROFILE = requireNonConsortNpcProfile('dangyi');
+const DANGYI_PORTRAIT_SRC = DANGYI_PROFILE.portraitSrc ?? '';
 
 const buildDangYiActor = (favor: number, affection: number): BaohuaSceneActor => ({
-  id: 'dangyi',
-  name: '当一',
-  identity: '佛殿执事',
-  residence: '宝华殿',
-  personality: '寡言沉静，眼净心稳，擅观人心，不轻许诺，却肯在关键处点醒迷局。',
-  summary: '宝华殿执事，常年守殿抄经，看似离俗，实则对宫中暗流与人心执念都看得极清。',
+  id: DANGYI_PROFILE.npcId,
+  name: DANGYI_PROFILE.displayName,
+  identity: DANGYI_PROFILE.identityLabel,
+  residence: DANGYI_PROFILE.defaultLocationId ?? '宝华殿',
+  personality: DANGYI_PROFILE.personality,
+  summary: DANGYI_PROFILE.summary,
   currentGoodwill: favor,
   currentAffection: affection,
   actorKind: 'dangyi',
@@ -191,7 +193,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     if (!pendingDangYiUnlock) {
       return;
     }
-    applyStoryEffects({ flags: { isDangYiMet: true } });
+    applyStoryEffects({ flags: { isDangYiMet: true, [getBondUnlockFlagForNpc(DANGYI_PROFILE.npcId)]: true } });
     setPendingDangYiUnlock(false);
     setSystemMessage('你已在宝华殿结识当一，此后这里会长期留下他的入口。');
   };

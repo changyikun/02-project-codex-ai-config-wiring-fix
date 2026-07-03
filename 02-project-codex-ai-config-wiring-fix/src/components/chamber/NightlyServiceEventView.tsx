@@ -14,9 +14,12 @@ import type {
   NightlyServicePendingEvent,
 } from '../../game/types';
 import { renderNarrativeEntry } from '../../game/narrative/narrativeCatalog';
+import { requireNonConsortNpcProfile } from '../../game/npcs/npcCatalog';
 
-const EMPEROR_PORTRAIT_SRC = '/assets/characters/men/rongan.png';
-const EUNUCH_PORTRAIT_SRC = '/assets/characters/men/taijian.png';
+const EMPEROR_PROFILE = requireNonConsortNpcProfile('rongan');
+const EUNUCH_PROFILE = requireNonConsortNpcProfile('palace-eunuch');
+const EMPEROR_PORTRAIT_SRC = EMPEROR_PROFILE.portraitSrc ?? '';
+const EUNUCH_PORTRAIT_SRC = EUNUCH_PROFILE.portraitSrc ?? '';
 const YANGXIN_BACKGROUND_SRC = '/assets/routes/backgrounds/shiqin.png';
 export const OVERNIGHT_TRANSITION_MS = 900;
 
@@ -103,7 +106,13 @@ export function NightlyServiceEventView({
     if (segment.characterName === '容安') {
       return {
         label: '容安立绘',
-        portrait: <img src={EMPEROR_PORTRAIT_SRC} alt="容安" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--emperor" />,
+        portrait: (
+          <img
+            src={EMPEROR_PORTRAIT_SRC}
+            alt={EMPEROR_PROFILE.displayName}
+            className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--emperor"
+          />
+        ),
       };
     }
 
@@ -178,7 +187,11 @@ export function NightlyServiceEventView({
   const persistentEmperorPortrait = showPersistentEmperorPortrait ? (
     <div className="nightly-service-event__emperor-stage" aria-label="容安立绘">
       <div className="nightly-service-event__emperor-frame">
-        <img src={EMPEROR_PORTRAIT_SRC} alt="容安" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--emperor" />
+        <img
+          src={EMPEROR_PORTRAIT_SRC}
+          alt={EMPEROR_PROFILE.displayName}
+          className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--emperor"
+        />
       </div>
     </div>
   ) : null;
@@ -195,7 +208,13 @@ export function NightlyServiceEventView({
           {...commonProps}
           sceneLabel="侍寝太监通报"
           portraitLabel="传旨太监立绘"
-          portrait={<img src={EUNUCH_PORTRAIT_SRC} alt="传旨太监" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--eunuch" />}
+          portrait={
+            <img
+              src={EUNUCH_PORTRAIT_SRC}
+              alt={EUNUCH_PROFILE.displayName}
+              className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--eunuch"
+            />
+          }
           ariaLabel="侍寝太监通报"
           characterIdentity={summonEntry.speakerIdentity}
           characterName={summonEntry.speakerName}

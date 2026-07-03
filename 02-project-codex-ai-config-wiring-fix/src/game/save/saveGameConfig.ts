@@ -15,7 +15,7 @@ import type { RandomEventProgress } from '../random-events/randomEventRuntime';
 import { getNumericRuleValue } from '../numerics/numericCatalog';
 import { createEmperorInteractionProgress } from '../lib/emperorActivityRuntime';
 
-export const SAVE_GAME_SCHEMA_VERSION = 6;
+export const SAVE_GAME_SCHEMA_VERSION = 7;
 export const SAVE_GAME_STORAGE_KEY = 'palace-galgame-flow';
 
 export const SAVE_GAME_REQUIRED_SECTIONS = ['route', 'player', 'world', 'roster', 'inventory', 'relations', 'cases', 'progress'] as const;
@@ -68,13 +68,12 @@ export const createInitialMusicHallProgress = (): MusicHallProgressState => ({
   listenCount: 0,
   strollCount: 0,
   signUpCount: 0,
-  lianQiaoFirstMet: false,
-  lianQiaoMet: false,
-  lianQiaoFavor: 0,
-  lianQiaoAffection: 0,
+  musicianFirstMet: false,
+  musicianMet: false,
+  musicianFavor: 0,
+  musicianAffection: 0,
   musicScoreMastery: {},
-  dancePracticeProgress: 0,
-  dancePracticeCount: 0,
+  danceScoreMastery: {},
 });
 
 export const createInitialPalaceBanquetProgress = (): PalaceBanquetProgressState => ({

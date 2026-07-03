@@ -44,7 +44,6 @@ import {
   YANGXIN_VERDICT_BACKGROUND,
   resolvePlayerHomeBackground,
 } from '../config/locationSceneBackgrounds';
-import { buildRandomMusicScoreItem } from '../game/data/inventoryPresets';
 import { buildInitialBondProfile } from '../game/data/bondPresets';
 import {
   getConcubineDisplayRankText,
@@ -60,6 +59,7 @@ import { getPendingNpcPlayerVisit } from '../game/lib/npcActivityRuntime';
 import { isEmperorPublicEncounterAvailable } from '../game/lib/emperorActivityRuntime';
 import { isDowagerAudienceOpenSlot } from '../game/lib/dowagerAudienceRuntime';
 import { renderNarrativeEntry, type NarrativeEntry } from '../game/narrative/narrativeCatalog';
+import { requireNonConsortNpcProfile } from '../game/npcs/npcCatalog';
 import {
   narrativeEntryToGlobalDialogueFields,
   narrativeEntryToPresentation,
@@ -99,11 +99,13 @@ const bottomToolMessage: Record<string, string> = {
   举办宴席: '宴席入口已预留，后续会接入宫宴花费、来客与声望收益。',
   皇嗣管理: '皇嗣管理入口已预留，后续会接入孩子成长、教育与立储判定。',
 };
-const ASSISTANT_PORTRAIT_SRC = '/assets/characters/women/jiaojiao.png';
-const EUNUCH_PORTRAIT_SRC = '/assets/characters/men/taijian.png';
-const EMPEROR_PORTRAIT_SRC = '/assets/characters/men/rongan.png';
+const JIAOJIAO_PROFILE = requireNonConsortNpcProfile('jiaojiao');
+const PALACE_EUNUCH_PROFILE = requireNonConsortNpcProfile('palace-eunuch');
+const EMPEROR_PROFILE = requireNonConsortNpcProfile('rongan');
+const ASSISTANT_PORTRAIT_SRC = JIAOJIAO_PROFILE.portraitSrc ?? '';
+const EUNUCH_PORTRAIT_SRC = PALACE_EUNUCH_PROFILE.portraitSrc ?? '';
+const EMPEROR_PORTRAIT_SRC = EMPEROR_PROFILE.portraitSrc ?? '';
 const JIAOJIAO_COMMAND_PROMPT = '娘娘，有何吩咐？';
-const LIANQIAO_PORTRAIT_SRC = '/assets/characters/men/yueshi.png';
 const EXPENSE_EXPLANATION_OPTION_ID = 'expense-explanation';
 const CHAMBER_BACKGROUND_CROSSFADE_MS = 680;
 const chamberCraftWorkTypes: Partial<Record<string, CraftWorkType>> = {
@@ -192,9 +194,6 @@ export function ChamberMainView() {
     applyStoryEffects,
     advanceTime,
     patchState,
-    musicHallProgress,
-    patchMusicHallProgress,
-    grantInventoryItem,
     enterMapMain,
     enterMainChamber,
     setMapEventText,
@@ -229,7 +228,6 @@ export function ChamberMainView() {
   const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [dialogueText, setDialogueText] = useState('');
   const [dialoguePresentation, setDialoguePresentation] = useState<ChamberDialoguePresentation | null>(null);
-  const [bedchamberGiftItemName, setBedchamberGiftItemName] = useState('');
   const [overnightTransitionPhase, setOvernightTransitionPhase] = useState<OvernightTransitionPhase>('hidden');
   const [overnightTransitionReason, setOvernightTransitionReason] = useState<'deep-night' | 'stamina' | undefined>(undefined);
   const [endXunAfterNightNotice, setEndXunAfterNightNotice] = useState(false);
@@ -421,38 +419,6 @@ export function ChamberMainView() {
     // Keep locally-triggered action narratives visible across the stat/time rerender.
   }, [activeChamberPanel, activeMapLocation, isResidenceLocation, mapEventText, patchState, pendingYangxinVerdict, setMapEventText, state.flags, state.residenceName]);
 
-  useEffect(() => {
-    if (activeChamberPanel !== 'main' || isOutsideScene || !state.flags.isLianQiaoMet || musicHallProgress.lianQiaoAffection <= 60 || bedchamberGiftItemName) {
-      return;
-    }
-
-    const currentXunIndex = toXunIndex(time.year, time.month, time.xun);
-    const lastGiftXunIndex = musicHallProgress.lastGiftXunIndex ?? -999999;
-    if (currentXunIndex - lastGiftXunIndex < 3) {
-      return;
-    }
-
-    const giftItem = buildRandomMusicScoreItem(`${state.routeId}:${currentXunIndex}:bedchamber-lianqiao-gift`);
-    grantInventoryItem(giftItem);
-    patchMusicHallProgress({ lastGiftXunIndex: currentXunIndex });
-    setBedchamberGiftItemName(giftItem.name);
-    setPendingChamberDialogueAction(null);
-    setDialogueText('');
-  }, [
-    activeChamberPanel,
-    bedchamberGiftItemName,
-    grantInventoryItem,
-    isOutsideScene,
-    musicHallProgress.lastGiftXunIndex,
-    musicHallProgress.lianQiaoAffection,
-    patchMusicHallProgress,
-    state.flags.isLianQiaoMet,
-    state.routeId,
-    time.month,
-    time.xun,
-    time.year,
-  ]);
-
   const skillStats = useMemo(
     () =>
       ['poetry', 'painting', 'talent', 'embroidery', 'medicine', 'politics'].map((key) => ({
@@ -516,7 +482,6 @@ export function ChamberMainView() {
       !pendingYangxinVerdict &&
       !showSettlementReport &&
       !isNightlyOverlayActive &&
-      !bedchamberGiftItemName &&
       !expenseStrategyPanelOpen &&
       activeChamberPanel === 'main' &&
       !isOutsideScene &&
@@ -691,8 +656,7 @@ export function ChamberMainView() {
       pendingYangxinVerdict ||
       showSettlementReport ||
       showNpcPlayerVisit ||
-      isNightlyOverlayActive ||
-      bedchamberGiftItemName,
+      isNightlyOverlayActive,
   );
   const isChamberUiInteractionLocked = isChamberDialogueBlocking || expenseStrategyPanelOpen;
 
@@ -785,8 +749,7 @@ export function ChamberMainView() {
       !pendingOvernightReturn ||
       activeChamberPanel !== 'main' ||
       isNightlyOverlayActive ||
-      dialogueText ||
-      bedchamberGiftItemName
+      dialogueText
     ) {
       return;
     }
@@ -798,7 +761,6 @@ export function ChamberMainView() {
     clearOvernightReturn();
   }, [
     activeChamberPanel,
-    bedchamberGiftItemName,
     clearOvernightReturn,
     dialogueText,
     enterMainChamber,
@@ -1667,27 +1629,6 @@ export function ChamberMainView() {
             }
             content={dialogueText}
             onNextAction={handleChamberDialogueDone}
-          />
-        ) : null}
-
-        {bedchamberGiftItemName && !isNightlyOverlayActive && !showSettlementReport && activeChamberPanel === 'main' && !isOutsideScene ? (
-          <GlobalDialogueStage
-            sceneLabel="寝殿凌萧赠礼场景"
-            portraitLabel="凌萧立绘"
-            portrait={
-              <img
-                src={LIANQIAO_PORTRAIT_SRC}
-                alt="凌萧"
-                className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--miaoyin global-dialogue-stage__portrait-media--lianqiao"
-              />
-            }
-            ariaLabel="凌萧寝殿赠礼"
-            className="global-dialogue-stage--miaoyin"
-            dialogueClassName="palace-dialogue-box--miaoyin-encounter"
-            characterIdentity="妙音堂伶人"
-            characterName="凌萧"
-            content={`凌萧托宫人把一卷新谱送到了寝殿门前。他只留下一句话：这折《${bedchamberGiftItemName}》你若肯细听，想来不会白费。`}
-            onNextAction={() => setBedchamberGiftItemName('')}
           />
         ) : null}
       </div>

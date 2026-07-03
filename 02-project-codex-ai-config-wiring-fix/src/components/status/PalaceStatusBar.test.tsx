@@ -2,12 +2,13 @@
 
 import '@testing-library/jest-dom/vitest';
 import { act, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import { PalaceStatusBar } from './PalaceStatusBar';
 
 describe('PalaceStatusBar', () => {
   afterEach(() => {
+    vi.useRealTimers();
     act(() => {
       useGameFlowStore.setState((state) => ({
         ...state,
@@ -60,5 +61,53 @@ describe('PalaceStatusBar', () => {
     expect(items[0].querySelector('.palace-status__time-slot')).toHaveAccessibleName('上午');
     expect(items[1]).toHaveTextContent('银两：880');
     expect(items[2]).toHaveTextContent('体力：4');
+  });
+
+  it('flips a complete calendar page only after time changes', () => {
+    vi.useFakeTimers();
+
+    act(() => {
+      useGameFlowStore.setState((state) => ({
+        ...state,
+        time: {
+          ...state.time,
+          year: 1,
+          month: 1,
+          xun: 1,
+          slot: '清晨',
+        },
+      }));
+    });
+
+    const { container } = render(<PalaceStatusBar />);
+
+    expect(container.querySelector('.palace-status__time-page--flip')).not.toBeInTheDocument();
+
+    act(() => {
+      useGameFlowStore.setState((state) => ({
+        ...state,
+        time: {
+          ...state.time,
+          slot: '上午',
+        },
+      }));
+    });
+
+    const timeItem = container.querySelector('.palace-status__item--time');
+    const flipPage = container.querySelector('.palace-status__time-page--flip');
+
+    expect(timeItem).toHaveClass('is-flipping');
+    expect(flipPage).toBeInTheDocument();
+    expect(flipPage).toHaveTextContent('一年一月一旬上午');
+
+    act(() => {
+      vi.advanceTimersByTime(640);
+    });
+
+    expect(container.querySelector('.palace-status__time-page--flip')).not.toBeInTheDocument();
+    expect(timeItem).not.toHaveClass('is-flipping');
+    expect(timeItem).toHaveTextContent('一年一月一旬上午');
+
+    vi.useRealTimers();
   });
 });

@@ -14,6 +14,7 @@ import {
   hasDowagerGreetedThisXun,
 } from '../../game/lib/dowagerAudienceRuntime';
 import { createPermanentNpcRelationship, normalizePermanentNpcRelationshipForXun } from '../../game/lib/permanentNpcRuntime';
+import { requireNonConsortNpcProfile } from '../../game/npcs/npcCatalog';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type { ConsortDialogueTurn, InventoryItem, PermanentNpcInteractionActionId } from '../../game/types';
 
@@ -36,13 +37,12 @@ interface DowagerActionConfig {
   affinityDelta?: number;
 }
 
-const DOWAGER_PORTRAIT_SRC = '/assets/characters/women/taihou.png';
+const DOWAGER_PROFILE = requireNonConsortNpcProfile(DOWAGER_NPC_ID);
+const DOWAGER_PORTRAIT_SRC = DOWAGER_PROFILE.portraitSrc ?? '';
 
 const DOWAGER_PERSONA = {
-  personality:
-    '清醒强势，极重规矩，擅长观察与驯化，记仇护短，会审时度势，欣赏聪明人，但更欣赏懂分寸的聪明人。',
-  summary:
-    '她是后宫最高权力长辈角色，看人先看可用性，再看风骨，最后才轮到私心。她会给体面，也会要求旁人配得上这份体面。',
+  personality: DOWAGER_PROFILE.personality,
+  summary: DOWAGER_PROFILE.summary,
   speechRules:
     '说话必须体现长辈权威、宫规、体统、裁量。温和不等于无压迫感，常以提点、训诫、留白控场。不可写成普通妃嫔腔或现代口吻。',
   speechExamples:

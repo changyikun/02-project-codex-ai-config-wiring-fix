@@ -11,6 +11,8 @@
 - 状态管理：`Zustand`
 - 样式方案：单一全局样式文件 `src/index.css`
 - UI 组织方式：页面级视图放在 `src/views/`，系统级组件放在 `src/components/`
+- Web 构建：`npm run build:web`，输出 `dist/`
+- App / HBuilderX 构建：`npm run build:app`，输出 `dist-app/`
 
 ### 后端
 - 框架：`Fastify 5`
@@ -38,6 +40,14 @@
 - 剧情展示与数值变化分离。
 - 素材渲染主要靠绝对定位，不依赖大型布局系统。
 - 游戏主设计以横屏为前提，迁移时禁止改造成纵向优先布局。
+
+### 前端构建目标
+
+- `build:web` 面向普通 Web 部署，保留站点根路径资源语义，产物目录为 `dist/`。
+- `build:app` 面向 HBuilderX / App WebView，Vite 使用 `base: './'`，产物目录为 `dist-app/`。
+- App 构建后会运行 `scripts/prepare-hbuilder-build.cjs`，将构建产物中的 `/assets/...` 根路径改写为相对路径。HBuilderX 打包时应使用 `dist-app/`，不要直接使用 `dist/`。
+- 如果后续新增资源路径，源码中仍可按现有项目规则写 `'/assets/...'`；但 `build:app` 必须继续保证最终 `dist-app/` 中不残留根路径资源引用。
+- `build:exe` 面向 Windows 桌面测试包，会先执行 `build:app`，再用 Electron 加载 `dist-app/index.html`，最终可执行目录输出到 `release/fenghualu-win-x64/`，入口为 `凤华录.exe`。
 
 ## 2. UI 渲染规范
 

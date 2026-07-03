@@ -2317,26 +2317,6 @@ button {
   line-height: 1.65;
 }
 
-.map-main__utility-close {
-  position: absolute;
-  top: 24px;
-  right: 34px;
-  z-index: 160;
-  padding: 8px 18px;
-  border: 1px solid rgba(199, 166, 171, 0.56);
-  border-radius: 12px;
-  background: rgba(255, 248, 249, 0.96);
-  color: #601c22;
-  font-family: 'STKaiti', 'KaiTi', serif;
-  font-size: 18px;
-  box-shadow: 0 10px 18px rgba(92, 41, 47, 0.14);
-  cursor: pointer;
-}
-
-.map-main__utility-close:hover {
-  transform: translateY(-1px);
-}
-
 .map-main__event-actions {
   display: flex;
   gap: 12px;
@@ -6937,15 +6917,88 @@ button {
 }
 
 .palace-stage-shell .palace-status__item--time {
+  --palace-status-time-bg: url('/assets/routes/buttons/menu/tittle_butterfly.png');
   right: calc(100% - (var(--palace-status-strip-left) + var(--palace-status-strip-width)));
   top: clamp(44px, 5.2vh, 62px);
   width: clamp(116px, 8.45vw, 138px);
   aspect-ratio: 437 / 380;
-  background-image: url('/assets/routes/buttons/menu/tittle_butterfly.png');
+  background-image: none;
   color: #805046;
   font-size: clamp(15px, 1.08vw, 20px);
   white-space: normal;
   overflow: visible;
+  perspective: 760px;
+  perspective-origin: 50% -18%;
+  transform-style: preserve-3d;
+}
+
+.palace-stage-shell .palace-status__time-page {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  overflow: visible;
+  background-image: var(--palace-status-time-bg);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  transform-style: preserve-3d;
+}
+
+.palace-stage-shell .palace-status__time-page--base {
+  filter: drop-shadow(0 6px 7px rgba(38, 20, 12, 0.16));
+}
+
+.palace-stage-shell .palace-status__time-page--flip {
+  z-index: 3;
+  transform-origin: top center;
+  backface-visibility: hidden;
+  animation: palace-calendar-page-drop 640ms cubic-bezier(0.22, 0, 0.12, 1) both;
+  filter: drop-shadow(0 12px 12px rgba(46, 23, 18, 0.24));
+  will-change: transform, filter;
+}
+
+.palace-stage-shell .palace-status__time-page--flip::before,
+.palace-stage-shell .palace-status__time-page--flip::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  -webkit-mask-image: var(--palace-status-time-bg);
+  mask-image: var(--palace-status-time-bg);
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.palace-stage-shell .palace-status__time-page--flip::before {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(88, 43, 30, 0.22) 0%,
+      rgba(255, 246, 216, 0.44) 35%,
+      rgba(131, 69, 45, 0.2) 68%,
+      rgba(70, 31, 25, 0.28) 100%
+    ),
+    radial-gradient(ellipse at 50% 16%, rgba(255, 255, 242, 0.36), rgba(255, 255, 242, 0) 48%);
+  mix-blend-mode: multiply;
+  opacity: 0.68;
+  animation: palace-calendar-page-shade 640ms cubic-bezier(0.22, 0, 0.12, 1) both;
+}
+
+.palace-stage-shell .palace-status__time-page--flip::after {
+  background:
+    linear-gradient(180deg, rgba(255, 250, 224, 0.5) 0%, rgba(255, 250, 224, 0) 26%),
+    linear-gradient(0deg, rgba(43, 21, 18, 0.28) 0%, rgba(43, 21, 18, 0) 38%);
+  opacity: 0.54;
+  animation: palace-calendar-page-edge 640ms cubic-bezier(0.22, 0, 0.12, 1) both;
+}
+
+.palace-stage-shell .palace-status__item--time.is-flipping .palace-status__time-page--base {
+  animation: none;
 }
 
 .palace-stage-shell .palace-status__time-date,
@@ -6992,6 +7045,64 @@ button {
   text-overflow: clip;
   writing-mode: horizontal-tb;
   text-align: center;
+}
+
+@keyframes palace-calendar-page-drop {
+  0% {
+    opacity: 0.76;
+    transform: translateY(-13%) translateZ(-32px) rotateX(82deg) scaleY(0.95);
+    filter: drop-shadow(0 20px 16px rgba(46, 23, 18, 0.06));
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) translateZ(0) rotateX(0deg) scaleY(1);
+    filter: drop-shadow(0 6px 7px rgba(38, 20, 12, 0.16));
+  }
+}
+
+@keyframes palace-calendar-page-shade {
+  0% {
+    opacity: 0.72;
+    transform: translateY(-15%) scaleY(0.82);
+  }
+
+  100% {
+    opacity: 0.12;
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+@keyframes palace-calendar-page-edge {
+  0% {
+    opacity: 0.6;
+    transform: translateY(-12%);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+}
+
+@keyframes palace-calendar-base-dim {
+  0%,
+  100% {
+    filter: drop-shadow(0 6px 7px rgba(38, 20, 12, 0.16)) brightness(1);
+  }
+
+  44% {
+    filter: drop-shadow(0 3px 5px rgba(38, 20, 12, 0.12)) brightness(0.94);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .palace-stage-shell .palace-status__time-page--flip,
+  .palace-stage-shell .palace-status__time-page--flip::before,
+  .palace-stage-shell .palace-status__time-page--flip::after,
+  .palace-stage-shell .palace-status__item--time.is-flipping .palace-status__time-page--base {
+    animation: none;
+  }
 }
 
 .palace-stage-shell .palace-status__item--silver {
@@ -9204,7 +9315,7 @@ button {
   padding-left: 132px !important;
 }
 
-[data-dialogue-root='locked'] .global-dialogue-stage__portrait-media--lianqiao,
+[data-dialogue-root='locked'] .global-dialogue-stage__portrait-media--miaoyin-musician,
 [data-dialogue-root='locked'] .global-dialogue-stage__portrait-media--emperor {
   mix-blend-mode: multiply;
   filter: drop-shadow(0 18px 24px rgba(66, 42, 54, 0.18));

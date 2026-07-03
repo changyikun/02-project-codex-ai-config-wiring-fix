@@ -64,6 +64,10 @@ const buildCsvDialogueFields = (
     return renderCsvEntry('consort.audience.return-earring');
   }
 
+  if (actionId === 'return-lost-item') {
+    return renderCsvEntry(payload.narrativeId ?? 'consort.audience.return-lost-item');
+  }
+
   if (actionId === 'greet') {
     return renderCsvEntry('consort.audience.greet');
   }

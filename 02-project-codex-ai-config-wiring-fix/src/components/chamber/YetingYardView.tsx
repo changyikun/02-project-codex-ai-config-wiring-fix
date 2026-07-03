@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import { buildYetingPoisonCatalog } from '../../game/data/inventoryPresets';
+import { requireNonConsortNpcProfile } from '../../game/npcs/npcCatalog';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type { InventoryItem } from '../../game/types';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
 import { MapSubsceneView, type SubsceneActionEntry, type SubsceneNpcEntry } from './MapSubsceneView';
 
-export const YUE_GUGU_PORTRAIT_SRC = '/assets/characters/women/duyaoshangren.png';
+const YUE_GUGU_PROFILE = requireNonConsortNpcProfile('yue-gugu');
+export const YUE_GUGU_PORTRAIT_SRC = YUE_GUGU_PROFILE.portraitSrc ?? '';
 
 export function YetingYardView() {
   const state = useGameFlowStore((store) => store.state);
@@ -34,10 +36,10 @@ export function YetingYardView() {
   const npcEntries = useMemo<SubsceneNpcEntry[]>(
     () => [
       {
-        id: 'fixed:yue-gugu',
+        id: `fixed:${YUE_GUGU_PROFILE.npcId}`,
         kind: 'fixed',
-        name: '月姑姑',
-        identityLabel: '掖庭掌事',
+        name: YUE_GUGU_PROFILE.displayName,
+        identityLabel: YUE_GUGU_PROFILE.identityLabel,
         portraitSrc: YUE_GUGU_PORTRAIT_SRC,
         onClick: () =>
           setNpcIntroText(
@@ -85,8 +87,8 @@ export function YetingYardView() {
               className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--consort"
             />
           }
-          characterIdentity="掖庭掌事"
-          characterName="月姑姑"
+          characterIdentity={YUE_GUGU_PROFILE.identityLabel}
+          characterName={YUE_GUGU_PROFILE.displayName}
           content={npcIntroText}
           onNextAction={() => setNpcIntroText('')}
         />

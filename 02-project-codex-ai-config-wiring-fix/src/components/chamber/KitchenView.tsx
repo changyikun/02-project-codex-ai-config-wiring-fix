@@ -6,6 +6,7 @@ import {
   getConcubinePortraitPath,
 } from '../../game/data/concubineRoster';
 import { getRouteProfileById } from '../../game/data/routeProfiles';
+import { getBondUnlockFlagForNpc, requireNonConsortNpcProfile } from '../../game/npcs/npcCatalog';
 import {
   requestKitchenLocalDialogue,
   type KitchenDialogueActor,
@@ -55,19 +56,18 @@ interface KitchenSceneActor extends KitchenDialogueActor {
   consortId?: string;
 }
 
-const BU_ZIYOU_PORTRAIT_SRC = '/assets/characters/men/bu-ziyou.png';
+const BU_ZIYOU_PROFILE = requireNonConsortNpcProfile('buziyou');
+const BU_ZIYOU_PORTRAIT_SRC = BU_ZIYOU_PROFILE.portraitSrc ?? '';
 const KITCHEN_STROLL_RANDOM_EVENT_POOL_ID = 'location.kitchen.stroll';
 const SILVER_LEAF_EARRING_TEMPLATE_ITEM_ID = 'silver-leaf-earring';
 
 const buildBuZiyouActor = (favor: number, affection: number): KitchenSceneActor => ({
-  id: 'buziyou',
-  name: '布自游',
-  identity: '御厨',
-  residence: '御膳房',
-  personality:
-    '开朗嘴贫，记性极好，心细如发，表面松弛却很会察言观色，对宫里的脏事看得极明白，却仍努力替人留一口热乎气。',
-  summary:
-    '出身民间食肆，现是御膳房掌勺，熟知送膳路线、暗格和宫中人心。看起来最好说话，真正踩到底线时却下手极稳。',
+  id: BU_ZIYOU_PROFILE.npcId,
+  name: BU_ZIYOU_PROFILE.displayName,
+  identity: BU_ZIYOU_PROFILE.identityLabel,
+  residence: BU_ZIYOU_PROFILE.defaultLocationId ?? '御膳房',
+  personality: BU_ZIYOU_PROFILE.personality,
+  summary: BU_ZIYOU_PROFILE.summary,
   currentGoodwill: favor,
   currentAffection: affection,
   actorKind: 'buziyou',
@@ -117,6 +117,7 @@ export function KitchenView({ concubines }: KitchenViewProps) {
     selectedRoute,
     buyInventoryItem,
     patchKitchenProgress,
+    applyStoryEffects,
     applyConsortRelationshipJudgement,
     applyRandomEventEffectForPlayer,
     queueRandomEventUnlocks,
@@ -428,6 +429,7 @@ export function KitchenView({ concubines }: KitchenViewProps) {
         buZiyouMet: true,
         lastEncounterNpcId: actor.id,
       });
+      applyStoryEffects({ flags: { [getBondUnlockFlagForNpc(BU_ZIYOU_PROFILE.npcId)]: true } });
       setSystemMessage(
         buildLocationActionNarrative({
           locationId: 'kitchen',

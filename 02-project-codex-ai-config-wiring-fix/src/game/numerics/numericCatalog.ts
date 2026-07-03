@@ -234,7 +234,7 @@ export interface NumericGeneratedConsortTemplate {
 
 const routeIds = new Set<RouteId>(['lanyinxuguo', 'fushengrumeng', 'yingluoyeting', 'chenyuansucuo']);
 const colorIds = new Set<string>(Object.values(RarityColorId));
-const inventoryCategories = new Set<InventoryItem['category']>(['gift', 'food', 'medicine', 'rare', 'music-score']);
+const inventoryCategories = new Set<InventoryItem['category']>(['gift', 'food', 'medicine', 'rare', 'music-score', 'dance-score']);
 const inventoryRarities = new Set<InventoryItem['rarity']>(['green', 'blue', 'purple', 'red']);
 const kitchenShopSeasons = new Set<NumericKitchenShopSeason>(['all', 'spring', 'summer', 'autumn', 'winter']);
 const craftWorkTypes = new Set<CraftWorkType>(['embroidery', 'painting', 'incense']);
@@ -634,7 +634,7 @@ export const numericInventoryItems: readonly NumericInventoryItem[] = parseNumer
   }
 
   return {
-    id: row.category === 'music-score' ? row.itemId : undefined,
+    id: row.category === 'music-score' || row.category === 'dance-score' ? row.itemId : undefined,
     itemId: row.itemId,
     name: row.name,
     category: row.category as InventoryItem['category'],

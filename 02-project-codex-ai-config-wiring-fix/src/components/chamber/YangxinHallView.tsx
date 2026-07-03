@@ -12,6 +12,7 @@ import {
   normalizePermanentNpcRelationshipForXun,
 } from '../../game/lib/permanentNpcRuntime';
 import { renderNarrativeEntry } from '../../game/narrative/narrativeCatalog';
+import { requireNonConsortNpcProfile } from '../../game/npcs/npcCatalog';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type { ConcubineProfile, EmperorInteractionSource, EmperorScheduleState, InventoryItem, MapAreaId, TimeSlot } from '../../game/types';
 import { AudienceInteractionShell, type AudienceMetaRow } from '../consorts/AudienceInteractionShell';
@@ -25,7 +26,8 @@ interface YangxinHallViewProps {
   onStartEmperorAudience: (source: EmperorInteractionSource, location: MapAreaId, options?: { skipRequest?: boolean }) => void;
 }
 
-export const LI_GONGGONG_PORTRAIT_SRC = '/assets/characters/men/ligonggong.png';
+const LI_GONGGONG_PROFILE = requireNonConsortNpcProfile(LI_GONGGONG_NPC_ID);
+export const LI_GONGGONG_PORTRAIT_SRC = LI_GONGGONG_PROFILE.portraitSrc ?? '';
 const BRIBE_COST = 50;
 const BRIBE_AFFINITY_DELTA = 8;
 const TALK_AFFINITY_DELTA = 1;
@@ -283,7 +285,7 @@ export function YangxinHallView({ concubines, onStartEmperorAudience }: YangxinH
         id: 'fixed:li-gonggong',
         kind: 'fixed',
         name: LI_GONGGONG_NPC_NAME,
-        identityLabel: '太监总管',
+        identityLabel: LI_GONGGONG_PROFILE.identityLabel,
         portraitSrc: LI_GONGGONG_PORTRAIT_SRC,
         onClick: openLiGonggong,
       },

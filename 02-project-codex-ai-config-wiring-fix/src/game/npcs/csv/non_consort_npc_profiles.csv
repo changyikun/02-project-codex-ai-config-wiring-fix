@@ -1,0 +1,16 @@
+npcId,displayName,identityLabel,npcKind,gender,routeScope,defaultLocationId,portraitKey,portraitSrc,isRomanceable,bondTitle,bondSceneType,initialAffinity,personality,summary,notes
+rongan,容安,皇帝,emperor,male,all,养心殿,emperor,/assets/characters/men/rongan.png,true,帝王眷顾 / 权力试探,御前相处,0,温和克制，善于把情绪藏在礼法和政务之后。,"皇帝容安，后宫权力与侍寝、裁断、日间求见的核心人物。",皇帝日间互动与侍寝共用此人物资料。
+aling,阿翎,异邦旧识,route-npc,female,chenyuansucuo,宫门,aling,/assets/characters/women/feizi1.png,true,故国旧识 / 逃离可能,故国私语,0,谨慎敏锐，熟悉旧路，也知道宫墙内外话不能说满。,"和亲线旧识，牵连故国消息和离宫可能。",仅和亲路线常驻出现。
+buziyou,布自游,御厨,cook,male,all,御膳房,buziyou,/assets/characters/men/bu-ziyou.png,true,御膳烟火 / 暗线照应,御膳房往来,0,开朗嘴贫，记性极好，表面松弛却很会察言观色。,"御膳房掌勺，熟悉送膳路线、暗格和宫中人心。",第四次御膳房闲逛后解锁。
+jianning,简宁,太医院医官,physician,male,all,太医院,jianning,/assets/characters/men/jian-ning.png,true,医案冷语 / 生死分寸,太医院问诊,0,寡言冷静，医理扎实，极重轻重缓急，不爱空话。,"太医院医官，常年接触脉案、诊方与宫闱秘病。",太医院固定 NPC。
+miaoyin-musician,凌萧,妙音堂乐师,musician,male,all,妙音堂,miaoyin-musician,/assets/characters/men/yueshi.png,true,弦上知音 / 曲中试探,妙音堂听谱,0,说话轻而有后劲，擅从曲声和停顿里听人心。,"妙音堂乐师，负责曲谱指导与乐曲池相关内容。",当前由乐曲池事件解锁出场。
+miaoyin-dancer,凌袖,妙音堂舞者,dancer,female,all,妙音堂,miaoyin-dancer,/assets/characters/women/wuzhe.png,true,袖底风月 / 舞步相随,妙音堂观舞,0,明快灵动，练舞时认真，闲谈时有几分不肯轻易服输。,"妙音堂舞者，负责舞曲指导与舞蹈池相关内容。",凌袖可攻略。
+dangyi,当一,佛殿执事,temple-attendant,male,all,宝华殿,dangyi,/assets/characters/men/dangyi.png,true,佛灯静照 / 假死后路,宝华殿问心,0,寡言沉静，眼净心稳，不轻许诺，却肯在关键处点醒迷局。,"宝华殿执事，常年守殿抄经，对宫中暗流与人心执念看得很清。",宝华殿固定 NPC。
+lu-anping,卢安平,首辅,court-official,male,all,,lu-anping,,true,朝局同盟 / 权力暗线,朝堂谋划,0,沉稳老辣，重筹码也重时机，不轻易表态。,"朝堂关键人物，当前仅作为世界人物和情缘预备进入配置。",本轮不新增地图入口。
+dowager,太后,太后,dowager,female,all,建章宫,dowager,/assets/characters/women/taihou.png,false,,,0,端严克制，看重规矩和分寸，话里常留一层考量。,"建章宫太后，承担问安、规矩提点和月度义务。",不可攻略但有常驻好感。
+du-niang,杜娘,宫门商贩,merchant,female,all,宫门,du-niang,/assets/characters/women/duniang.png,false,,,0,精明市井，嘴甜也嘴严，知道哪些东西能碰、哪些不能碰。,"宫门内外倒卖小贩，负责中低品质宫外物件买卖和回收。",不可攻略但有常驻好感。
+li-gonggong,李公公,太监总管,eunuch,male,all,养心殿,li-gonggong,/assets/characters/men/ligonggong.png,false,,,0,谨慎圆滑，深知御前规矩，通传时最看时机。,"养心殿太监总管，负责通传皇帝、打点和行程提示。",不可攻略但有常驻好感。
+yue-gugu,月姑姑,掖庭掌事,poison-merchant,female,all,掖庭院,yue-gugu,/assets/characters/women/duyaoshangren.png,false,,,0,沉默老练，做事只问价码和风险，不多说来路。,"掖庭院掌事，负责毒药购买和暗线物件。",不可攻略。
+jiaojiao,娇娇,贴身宫女,attendant,female,all,,jiaojiao,/assets/characters/women/jiaojiao.png,false,,,0,贴身谨慎，熟悉玩家起居与通报流程。,"玩家贴身宫女，负责主循环通报、提醒和部分引导。",不可攻略。
+palace-eunuch,内侍,内侍,eunuch,male,all,养心殿,eunuch,/assets/characters/men/taijian.png,false,,,0,照规矩传话，不轻易多说。,"通用内侍，用于求见、传旨、夜间传唤等演出。",通用演出 NPC。
+palace-maid,宫人,宫人,maid,female,all,,gongren,/assets/characters/women/gongren_middleage.png,false,,,0,守规矩、传话快，通常只承担场景通传。,"通用宫人，用于送客、提醒、地点事务等演出。",通用演出 NPC。

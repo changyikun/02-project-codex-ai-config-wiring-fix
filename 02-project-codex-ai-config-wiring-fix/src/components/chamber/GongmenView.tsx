@@ -18,6 +18,7 @@ import {
 } from '../../game/lib/permanentNpcRuntime';
 import { narrativeEntryToDialogueFields } from '../../game/narrative/narrativeDialogueAdapter';
 import { renderNarrativeEntry } from '../../game/narrative/narrativeCatalog';
+import { requireNonConsortNpcProfile } from '../../game/npcs/npcCatalog';
 import {
   advanceRandomEventLine,
   beginRandomEventSession,
@@ -50,6 +51,8 @@ const duNiangFirstMeetLine1Fields = narrativeEntryToDialogueFields(duNiangFirstM
 const duNiangFirstMeetLine2Fields = narrativeEntryToDialogueFields(duNiangFirstMeetLine2);
 const alingLine1Fields = narrativeEntryToDialogueFields(alingLine1);
 const alingLine2Fields = narrativeEntryToDialogueFields(alingLine2);
+const duNiangCatalogProfile = requireNonConsortNpcProfile(DU_NIANG_NPC_ID);
+const alingCatalogProfile = requireNonConsortNpcProfile('aling');
 const npcProfiles: Record<
   GongmenNpcId,
   {
@@ -60,15 +63,15 @@ const npcProfiles: Record<
   }
 > = {
   'du-niang': {
-    identity: duNiangLine1Fields.speakerIdentity,
-    name: duNiangLine1Fields.speakerName,
-    portrait: '/assets/characters/women/duniang.png',
+    identity: duNiangCatalogProfile.identityLabel || duNiangLine1Fields.speakerIdentity,
+    name: duNiangCatalogProfile.displayName || duNiangLine1Fields.speakerName,
+    portrait: duNiangCatalogProfile.portraitSrc ?? '',
     dialogueLines: [duNiangLine1Fields.text],
   },
   aling: {
-    identity: alingLine1Fields.speakerIdentity,
-    name: alingLine1Fields.speakerName,
-    portrait: '/assets/characters/women/feizi1.png',
+    identity: alingCatalogProfile.identityLabel || alingLine1Fields.speakerIdentity,
+    name: alingCatalogProfile.displayName || alingLine1Fields.speakerName,
+    portrait: alingCatalogProfile.portraitSrc ?? '',
     dialogueLines: [alingLine1Fields.text, alingLine2Fields.text],
   },
 };

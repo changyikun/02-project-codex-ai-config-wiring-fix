@@ -13,10 +13,6 @@ export enum RouteId {
   Chenyuansucuo = 'chenyuansucuo',
 }
 
-export enum RouteScope {
-  All = 'all',
-}
-
 export enum EndingType {
   AnyEnding = 'any-ending',
   NonAccidentalEnding = 'non-accidental-ending',
@@ -47,25 +43,7 @@ export enum StoryNodeId {
   QuestHomelandReturn = 'quest.homeland-return',
 }
 
-export enum NpcId {
-  YaoLinger = 'npc-yao-linger',
-  LiuYifang = 'npc-liu-yifang',
-  JiangWanwan = 'npc-jiang-wanwan',
-  ShenMiaoqing = 'npc-shen-miaoqing',
-  ChenWanning = 'npc-chen-wanning',
-  BuZiyou = 'npc-bu-ziyou',
-  JianNing = 'npc-jian-ning',
-  LianQiao = 'npc-lian-qiao',
-  DangYi = 'npc-dang-yi',
-  LuAnping = 'npc-lu-anping',
-  DuNiang = 'npc-du-niang',
-}
-
 export type RangeTuple = readonly [min: number, max: number];
-
-export type StoryConditionExpression = string;
-
-export type 特殊剧情触发标志 = boolean | StoryConditionExpression;
 
 export type 位分声望条目 = {
   等级: number;
@@ -96,16 +74,6 @@ export type 路线配置 = {
   initialFavorRange: RangeTuple;
   clearCondition: 通关条件配置;
   endings: readonly 路线结局配置[];
-};
-
-export type NPC初始配置 = {
-  id: NpcId;
-  姓名: string;
-  年龄: number;
-  基础好感值: number;
-  特殊剧情触发标志: 特殊剧情触发标志;
-  所属路线: RouteId | RouteScope;
-  头像资源路径: string;
 };
 
 export type TimeSlotLabel = '清晨' | '上午' | '中午' | '下午' | '傍晚' | '夜晚' | '深夜';

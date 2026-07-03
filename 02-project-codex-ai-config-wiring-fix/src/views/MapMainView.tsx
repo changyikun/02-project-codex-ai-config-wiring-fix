@@ -536,12 +536,6 @@ export function MapMainView() {
           </section>
         ) : null}
 
-        {activeMapUtilityPanel ? (
-          <button type="button" className="map-main__utility-close" onClick={closeMapUtilityPanel}>
-            返回地图
-          </button>
-        ) : null}
-
         {activeMapUtilityPanel === 'harem' ? (
           <HaremPalaceView
             concubines={concubines}

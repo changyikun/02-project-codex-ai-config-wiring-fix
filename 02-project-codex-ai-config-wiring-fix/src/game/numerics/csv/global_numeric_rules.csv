@@ -42,3 +42,4 @@ dowager_interaction_limit_per_xun,2,,,,太后每旬有效互动次数上限
 dowager_greeting_affinity_delta,2,,,,建章宫请安增加的太后好感
 dowager_minor_affinity_delta,1,,,,太后闲谈/请教等普通互动增加的太后好感
 dowager_missing_monthly_greeting_prestige_delta,-20,,,,上月未向太后请安时月初扣除的玩家声望
+miaoyin_score_reward_affinity_step,20,,,,妙音堂乐师/舞者关系每累计提升多少好感赠送一张对应谱子

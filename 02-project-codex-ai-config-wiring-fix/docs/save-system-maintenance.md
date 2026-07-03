@@ -34,7 +34,7 @@
 - `progress.craftWorks.activeWorks` 保存绣花、字画、调香进行中作品。作品进度、制作次数、成色评分、开始时间和最近制作时间属于长期真值；完成品进入 `inventory.items`，可送礼或变卖。缺少该进度块的旧存档视为不兼容。
 - `progress.randomEvents` 保存随机事件触发次数、已解锁事件和待解锁事件。`unlockEventIds` 触发后先写入 `pendingUnlocks`，到下一旬清晨释放；缺少该进度块的旧存档视为不兼容。
 - `progress.emperorInteraction` 保存皇帝日间状态。`schedule.slots` 是当前旬每个时辰的皇帝行程真值，`mood` 是当前皇帝心情真值；公共偶遇、养心殿求见和李公公闲聊都必须读取该块，不允许在组件中重新生成行程或直接读侍寝模块的心情字段。
-- `inventory.items[].metadata` 可保存同名实例物品的隐藏判定信息，例如银叶耳坠的失主 ID 和提示字。metadata 是物品实例长期真值的一部分，应随存档原样保存；它不是剧情 flag，不允许在这里塞剧情正文、公式或多目标状态。
+- `inventory.items[].metadata` 可保存同名实例物品的隐藏判定信息，例如银叶耳坠、兰花绢帕的失主 ID 和提示字。metadata 是物品实例长期真值的一部分，应随存档原样保存；它不是剧情 flag，不允许在这里塞剧情正文、公式或多目标状态。
 - `relations.permanentNpcRelationships` 保存玩家与常驻 NPC 的长期关系，例如杜娘是否初见、好感值和本旬已消耗的闲谈 / 送礼次数，建章宫太后的好感、每旬互动次数、本月问安标记和本旬请安标记，以及养心殿李公公的好感和本旬通传 / 送礼 / 打点 / 闲聊次数。买卖不写入交互次数，闲谈 / 送礼 / 打点银两 / 太后有效互动必须写入。
 - `cases.palaceStrifeCases` 中每个宫斗案件必须保存 `suspects` 数组。v0.5.1 起，案件裁判以嫌疑人独立 `suspicionRate` 为准，`convictionRate` 只是最高定案率展示值；缺少 `suspects` 的旧案件视为不兼容存档。
 - `cases.pendingYangxinVerdict` 保存玩家相关待裁断案的养心殿对话事件状态。它是长期真值，因为刷新后仍必须继续“传唤 / 发言 / 选择 / 裁断”流程，不能退回娇娇通报或直接结案。
@@ -87,7 +87,7 @@
 当前长期进度字段补充：
 
 - `progress.palaceBanquet`：系统宫宴真值。保存当前宫宴季、曲谱报名快照、报名开启提醒去重标记、已结算宫宴季和最近一次宫宴结果；缺失则视为不兼容存档。
-- `progress.musicHall.musicScoreMastery`：曲谱长期学习真值。按曲谱 `itemId` 保存难度、完成度、练习次数、表现上限、最近一次练习预演表现分和最近练习时间；舞者指导的舞曲长期练习进度保存为 `dancePracticeProgress` / `dancePracticeCount`。若后续结构变化，清旧档而不是反向推断。
+- `progress.musicHall.musicScoreMastery` / `progress.musicHall.danceScoreMastery`：曲谱 / 舞谱长期学习真值。按谱子 `itemId` 保存难度、完成度、练习次数、表现上限、最近一次练习预演表现分和最近练习时间。凌萧 / 凌袖关系赠谱档位分别保存为 `musicianScoreGiftAffinityCheckpoint` / `dancerScoreGiftAffinityCheckpoint`。若后续结构变化，清旧档而不是反向推断。
 - `progress.craftWorks`：绣花 / 字画 / 调香作品真值。`SaveGameV1` schema `4` 起为必需字段；缺失则视为不兼容存档，不从背包或寝殿行动反推。
 - `progress.randomEvents`：随机事件真值。`SaveGameV1` schema `5` 起为必需字段；缺失则视为不兼容存档，不从已播放剧情或关系状态反推。
 - `progress.emperorInteraction.schedule` / `progress.emperorInteraction.mood`：皇帝日间行程与心情真值。`SaveGameV1` schema `6` 起为必需字段；缺失则视为不兼容存档，不从 `routeId + time` 或 `nightlyService.emperorMood` 反推旧档。

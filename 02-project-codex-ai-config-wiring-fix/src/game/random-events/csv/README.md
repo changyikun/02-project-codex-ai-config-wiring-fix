@@ -1,6 +1,6 @@
 # 随机事件 CSV 说明
 
-`random_events.csv` 是随机事件系统的唯一数据表。当前系统已经接入宫门杜娘闲谈、御膳房闲逛和妙音堂闲逛；其他入口后续迁移时也应从这里按 `poolId` 抽取事件。事件定义、剧情行、选项、效果和解锁关系都维护在本表，store 只保存触发计数、已解锁事件和待解锁事件，不保存正文。
+`random_events.csv` 是随机事件系统的唯一数据表。当前系统已经接入宫门杜娘闲谈、御膳房闲逛、妙音堂闲逛和妙音堂人物闲聊；其他入口后续迁移时也应从这里按 `poolId` 抽取事件。事件定义、剧情行、选项、效果和解锁关系都维护在本表，store 只保存触发计数、已解锁事件和待解锁事件，不保存正文。固定初遇、固定教学、固定送礼等确定事件不放入本表，应维护在普通剧情 CSV。
 
 ## 行类型
 
@@ -51,7 +51,7 @@
 
 `{{playerName}}`、`{{playerSurname}}`、`{{playerRank}}`、`{{playerResidence}}`、`{{playerAddress}}`、`{{targetName}}`、`{{targetSurname}}`、`{{targetRank}}`、`{{targetResidence}}`、`{{targetAddress}}`、`{{locationName}}`、`{{timeLabel}}`
 
-入口可以额外传入局部变量。例如御膳房闲逛会传 `{{earringMark}}`、`{{earringOwnerConsortId}}`、`{{earringItemId}}`，用于“刻了某个妃嫔名字一字”的银叶耳坠实例；也会按通用物品 tag 传入 `{{lowQualityFoodName}}` / `{{lowQualityFoodItemId}}`、`{{treeFruitName}}` / `{{treeFruitItemId}}`，用于把 `【低品质食物】`、`【树上果实】` 这类占位渲染成具体物品。
+入口可以额外传入局部变量。例如御膳房闲逛会传 `{{earringMark}}`、`{{earringOwnerConsortId}}`、`{{earringItemId}}`，用于“刻了某个妃嫔名字一字”的银叶耳坠实例；妙音堂闲逛会传 `{{handkerchiefMark}}`、`{{handkerchiefOwnerConsortId}}`、`{{handkerchiefItemId}}`，用于“绣着某个妃嫔名字一字”的兰花绢帕实例；御膳房也会按通用物品 tag 传入 `{{lowQualityFoodName}}` / `{{lowQualityFoodItemId}}`、`{{treeFruitName}}` / `{{treeFruitItemId}}`，用于把 `【低品质食物】`、`【树上果实】` 这类占位渲染成具体物品。
 
 缺失变量不会被静默删除，会保留为 `{{variableName}}`，方便测试发现。
 
@@ -88,7 +88,7 @@
 }
 ```
 
-`templateItemId` 必须指向 `inventory_items.csv` 中已有物品，运行时会继承模板的名称、分类、价格和礼物效果，再覆盖实例 `itemId`、`description` 与 `metadata`。`metadata` 只保存字符串、数字、布尔值或 `null`，用于后续业务判断；不要在 metadata 里写剧情正文、公式或多目标状态。
+`templateItemId` 必须指向 `inventory_items.csv` 中已有物品，运行时会继承模板的名称、分类、价格和礼物效果，再覆盖实例 `itemId`、`description` 与 `metadata`。`metadata` 只保存字符串、数字、布尔值或 `null`，用于后续业务判断；不要在 metadata 里写剧情正文、公式或多目标状态。当前失物归还彩蛋由 `lostItemReturnRuntime` 识别 `earringOwnerConsortId` 或 `handkerchiefOwnerConsortId`，对应特殊对白仍维护在普通剧情 CSV `relationship_audiences.csv` 中。
 
 `player` 可调整：`prestige`、`favor`、`stress`、`silver`、`trueHeart`、`stats`。
 
@@ -105,6 +105,13 @@
 - `location.miaoyin.common`：妙音堂通用闲逛事件。
 - `location.miaoyin.music`：妙音堂乐曲池事件。
 - `location.miaoyin.dance`：妙音堂舞蹈池事件。
+- `npc.miaoyin-musician.common`：凌萧通用闲聊。
+- `npc.miaoyin-musician.low-affinity`：凌萧低好感闲聊。
+- `npc.miaoyin-musician.high-affinity`：凌萧高好感闲聊。
+- `npc.miaoyin-musician.pipa-pick`：凌萧琵琶拨片后续闲聊。
+- `npc.miaoyin-dancer.common`：凌袖通用闲聊。
+- `npc.miaoyin-dancer.low-affinity`：凌袖低好感闲聊。
+- `npc.miaoyin-dancer.high-affinity`：凌袖高好感闲聊。
 
 杜娘闲谈会从通用池和当前好感池合并抽取。闲谈 / 送礼消耗常驻 NPC 每旬交互次数，买卖不消耗次数。
 
@@ -118,4 +125,8 @@
 
 御膳房闲逛的事件抽取必须走随机事件 runtime 的 seeded 抽取 helper，入口只提供 `routeId + xunKey + strollCount` 等种子信息；不要在地点组件里自建简单 hash 或手写权重抽取。连续闲逛计数必须能落到多个事件，不能因为相邻种子过近而长期卡在同一个权重区间。
 
-妙音堂闲逛从 `location.miaoyin.common`、`location.miaoyin.music`、`location.miaoyin.dance` 三个池合并抽取，入口固定先结算压力 `-2`，事件表只维护额外剧情与可能拾取的物品。乐曲池和舞蹈池的触发次数会被妙音堂入口读取，用于解锁乐师凌萧和舞者凌袖在场景 NPC 区出现；这个解锁只依赖 `progress.randomEvents.triggerCounts`，不要在 CSV 里写额外 flag 或条件系统。妙音堂同样必须使用随机事件 runtime 的多池 seeded helper，不得在地点组件里另写私有权重抽取器。
+妙音堂闲逛当前维护 15 个事件，来源于玩家给出的妙音堂闲逛文本。妙音堂闲逛从 `location.miaoyin.common`、`location.miaoyin.music`、`location.miaoyin.dance` 三个池合并抽取，每个事件必须在剧情行或选项效果里提供一次 `player.stress=-2` 的默认收益；入口只在完全没有抽到事件时使用兜底压力收益，不能先统一扣压再播放事件，避免双重结算。可拾取事件可以额外通过 `inventory.gain` 给物品，帮人归还、打听消息、观摩练习等分支可以固定给予 `player.prestige` 或 `player.stats` 收益。兰花绢帕与银叶耳坠同属失物归还彩蛋：收起时生成带隐藏失主 metadata 的独立实例，玩家仍可出售或送给任意人，只有送还给失主才触发特殊归还对白和额外好感。乐曲池和舞蹈池的触发次数会被妙音堂入口读取，用于解锁乐师凌萧和舞者凌袖在场景 NPC 区出现；这个解锁只依赖 `progress.randomEvents.triggerCounts`，不要在 CSV 里写额外 flag 或条件系统。妙音堂同样必须使用随机事件 runtime 的多池 seeded helper，不得在地点组件里另写私有权重抽取器。
+
+凌萧初遇是固定事件，维护在 `npc_tools_dialogues.csv`，不进入随机事件表、不参与随机抽取、不写入随机事件触发计数。凌萧普通闲聊才由随机事件系统驱动，从 `npc.miaoyin-musician.common` 与当前好感池合并抽取：好感低于 `30` 使用低好感池，达到 `30` 后使用高好感池，并额外并入 `npc.miaoyin-musician.pipa-pick`。琵琶拨片后续事件只通过 `prerequisiteEventIds=miaoyin.music.pipa-pick` 判断是否开启，不在组件里检查背包、任务道具或额外 flag；玩家完成“香案底下的琵琶拨片”事件后，该后续才会进入可抽池。凌萧闲聊会消耗常驻 NPC 交互次数，因此每个事件都必须至少提供一次 `target.relationToPlayer` 正收益；玩家发言同样使用 `{{playerRank}}`、`{{playerAddress}}` 与 `portraitKey=player`。
+
+凌袖初遇也是固定事件，维护在 `npc_tools_dialogues.csv` 的 `miaoyin.dancer.first-meet` 与 `miaoyin.dancer.score.first-meet`，不进入随机事件表。凌袖普通闲聊从 `npc.miaoyin-dancer.common` 与当前好感池合并抽取：好感低于 `30` 使用低好感池，达到 `30` 后使用高好感池。当前凌袖池共 13 个事件：低好感 3 个、通用 5 个、高好感 5 个。凌袖闲聊同样会消耗常驻 NPC 交互次数，每个选项必须提供 `target.relationToPlayer` 正收益，并且玩家发言行必须使用 `{{playerRank}}` / `{{playerAddress}}` 与 `portraitKey=player`。

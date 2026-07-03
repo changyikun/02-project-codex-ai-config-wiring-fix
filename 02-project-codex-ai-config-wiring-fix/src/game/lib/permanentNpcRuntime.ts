@@ -1,19 +1,25 @@
 import { CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN } from './consortVisitRuntime';
+import { requireNonConsortNpcProfile } from '../npcs/npcCatalog';
 import type { PermanentNpcInteractionActionId, PermanentNpcRelationshipState } from '../types';
 
 export const PERMANENT_NPC_INTERACTION_ACTION_LIMIT_PER_XUN = CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN;
 
-export const DU_NIANG_NPC_ID = 'du-niang';
-export const DU_NIANG_NPC_NAME = '杜娘';
+const duNiangProfile = requireNonConsortNpcProfile('du-niang');
+const liGonggongProfile = requireNonConsortNpcProfile('li-gonggong');
+const miaoYinMusicianProfile = requireNonConsortNpcProfile('miaoyin-musician');
+const miaoYinDancerProfile = requireNonConsortNpcProfile('miaoyin-dancer');
+
+export const DU_NIANG_NPC_ID = duNiangProfile.npcId;
+export const DU_NIANG_NPC_NAME = duNiangProfile.displayName;
 export const DU_NIANG_FRIENDSHIP_PRICE_AFFINITY = 60;
 export const DU_NIANG_FRIENDSHIP_BUY_RATE = 0.85;
 export const DU_NIANG_FRIENDSHIP_SELL_RATE = 1.1;
-export const LI_GONGGONG_NPC_ID = 'li-gonggong';
-export const LI_GONGGONG_NPC_NAME = '李公公';
-export const MIAOYIN_MUSICIAN_NPC_ID = 'miaoyin-musician';
-export const MIAOYIN_MUSICIAN_NPC_NAME = '凌萧';
-export const MIAOYIN_DANCER_NPC_ID = 'miaoyin-dancer';
-export const MIAOYIN_DANCER_NPC_NAME = '凌袖';
+export const LI_GONGGONG_NPC_ID = liGonggongProfile.npcId;
+export const LI_GONGGONG_NPC_NAME = liGonggongProfile.displayName;
+export const MIAOYIN_MUSICIAN_NPC_ID = miaoYinMusicianProfile.npcId;
+export const MIAOYIN_MUSICIAN_NPC_NAME = miaoYinMusicianProfile.displayName;
+export const MIAOYIN_DANCER_NPC_ID = miaoYinDancerProfile.npcId;
+export const MIAOYIN_DANCER_NPC_NAME = miaoYinDancerProfile.displayName;
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, Math.floor(value)));
 

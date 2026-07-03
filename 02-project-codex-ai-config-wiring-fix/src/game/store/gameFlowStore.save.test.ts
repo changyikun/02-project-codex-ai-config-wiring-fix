@@ -337,9 +337,9 @@ describe('gameFlowStore SaveGameV1 integration', () => {
       musicHallProgress: {
         ...state.musicHallProgress,
         listenCount: 6,
-        lianQiaoMet: true,
-        lianQiaoFavor: 60,
-        lianQiaoAffection: 60,
+        musicianMet: true,
+        musicianFavor: 60,
+        musicianAffection: 60,
         musicScoreMastery: {
           'score-phoenix-return': {
             itemId: 'score-phoenix-return',

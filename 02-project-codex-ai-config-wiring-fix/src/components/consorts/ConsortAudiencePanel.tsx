@@ -11,9 +11,9 @@ import { clampToRange, createDialogueId, trimDialogueHistory } from '../../game/
 import { requestConsortLocalDialogue } from '../../game/lib/consortDialogueRuntime';
 import { traceDialogue } from '../../game/lib/dialogueTrace';
 import {
-  isEarringReturnForConsort,
-  resolveEarringGiftRelationDelta,
-} from '../../game/lib/earringReturnRuntime';
+  resolveLostItemGiftRelationDelta,
+  resolveLostItemReturnForConsort,
+} from '../../game/lib/lostItemReturnRuntime';
 import {
   CONSORT_AUDIENCE_FIXED_ACTIONS,
   CONSORT_AUDIENCE_FOLLOW_UP_LIMIT_PER_TOPIC,
@@ -59,6 +59,7 @@ interface NarrativeTurnOverrides {
   selectedOptionId?: string;
   selectedOptionLabel?: string;
   giftItemName?: string;
+  narrativeId?: string;
   smearTargetName?: string;
   historyOverride?: HistoryEntry[];
   forceFinish?: boolean;
@@ -248,6 +249,7 @@ export function ConsortAudiencePanel({
       selectedOptionId: overrides?.selectedOptionId,
       selectedOptionLabel: overrides?.selectedOptionLabel,
       giftItemName: overrides?.giftItemName,
+      narrativeId: overrides?.narrativeId,
       smearTargetName: overrides?.smearTargetName,
       history: activeHistory,
       recentContext: activeHistory.map((entry) => `${entry.speaker}：${entry.text}`),
@@ -446,8 +448,8 @@ export function ConsortAudiencePanel({
       return;
     }
 
-    const isEarringReturn = isEarringReturnForConsort(item, consort.id);
-    const relationDelta = resolveEarringGiftRelationDelta(item, consort.id);
+    const lostItemReturn = resolveLostItemReturnForConsort(item, consort.id);
+    const relationDelta = resolveLostItemGiftRelationDelta(item, consort.id);
     const nextConsort: ConcubineProfile = {
       ...consort,
       stats: {
@@ -461,7 +463,7 @@ export function ConsortAudiencePanel({
 
     patchConcubineById(consort.id, () => nextConsort);
     const shouldSendOff = actionRecord.actionCountThisXun >= CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN;
-    const narrativeActionId: ConsortPalaceActionId = isEarringReturn ? 'return-earring' : 'gift';
+    const narrativeActionId: ConsortPalaceActionId = lostItemReturn ? 'return-lost-item' : 'gift';
     setBusy(true);
     setPickerMode(null);
     setActionId(narrativeActionId);
@@ -472,10 +474,11 @@ export function ConsortAudiencePanel({
 
     try {
       await runNarrativeTurn(nextConsort, 'action', narrativeActionId, '送礼', {
-        actionResult: isEarringReturn
+        actionResult: lostItemReturn
           ? ''
           : `${item.name}已送出。系统按礼物规则结算：对玩家好感 ${item.favorDelta >= 0 ? '+' : ''}${item.favorDelta}。`,
         giftItemName: item.name,
+        narrativeId: lostItemReturn?.narrativeId,
       });
     } finally {
       setBusy(false);

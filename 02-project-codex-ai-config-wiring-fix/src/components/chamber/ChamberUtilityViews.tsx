@@ -1298,7 +1298,7 @@ export function InventoryPanelView({ onClose }: InventoryPanelViewProps) {
   const entries = useMemo<Record<InventoryTabId, typeof inventory>>(
     () => ({
       tonic: inventory.filter((item) => item.category === 'food'),
-      gift: inventory.filter((item) => item.category === 'gift' || item.category === 'music-score'),
+      gift: inventory.filter((item) => item.category === 'gift' || item.category === 'music-score' || item.category === 'dance-score'),
       pill: inventory.filter((item) => item.category === 'medicine' || (item.category === 'rare' && !isKeyInventoryItem(item))),
       'key-item': inventory.filter(isKeyInventoryItem),
     }),
@@ -1337,8 +1337,10 @@ export function InventoryPanelView({ onClose }: InventoryPanelViewProps) {
               <h3>{entry.name}</h3>
               <p>{entry.description}</p>
               <p>
-                {entry.category === 'music-score'
-                  ? `当前库存：${entry.quantity} | 曲谱颜色：${entry.color ?? entry.rarity} | 登记编号：${entry.id ?? entry.itemId}`
+                {entry.category === 'music-score' || entry.category === 'dance-score'
+                  ? `当前库存：${entry.quantity} | ${entry.category === 'music-score' ? '曲谱' : '舞谱'}颜色：${
+                      entry.color ?? entry.rarity
+                    } | 登记编号：${entry.id ?? entry.itemId}`
                   : `当前库存：${entry.quantity} | 单价：${entry.price}两 | 回收价：${getInventoryRecyclePrice(entry)}两`}
               </p>
             </article>

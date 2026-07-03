@@ -23,6 +23,7 @@ import {
 } from '../../game/lib/consortVisitRuntime';
 import { getNpcActivitiesAtLocation } from '../../game/lib/npcActivityRuntime';
 import { requestRelationshipJudgementLocal } from '../../game/lib/relationshipJudgeRuntime';
+import { requireNonConsortNpcProfile } from '../../game/npcs/npcCatalog';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type {
   ConcubineProfile,
@@ -48,7 +49,7 @@ interface HotSpringInviteOption {
   name: string;
   identity: string;
   portraitSrc: string;
-  actorKind: 'consort' | 'lianqiao';
+  actorKind: 'consort' | 'miaoyin-musician';
   consortId?: string;
   personality: string;
   summary: string;
@@ -62,21 +63,22 @@ interface HuaqingSceneActor extends HuaqingDialogueActor {
   consortId?: string;
 }
 
-const LIANQIAO_PORTRAIT_SRC = '/assets/characters/men/yueshi.png';
+const MIAOYIN_MUSICIAN_PROFILE = requireNonConsortNpcProfile('miaoyin-musician');
+const MIAOYIN_MUSICIAN_PORTRAIT_SRC = MIAOYIN_MUSICIAN_PROFILE.portraitSrc ?? '';
 
 const isSpecialSlot = (slot: string): boolean => slot === '深夜';
 
-const buildLianQiaoActor = (favor: number, affection: number): HuaqingSceneActor => ({
-  id: 'lianqiao',
-  name: '凌萧',
-  identity: '妙音堂伶人',
-  residence: '妙音堂',
-  personality: '他最懂收音与留白，越是近处相见，越会把一句话里真正的停顿听得清清楚楚。',
-  summary: '妙音堂伶人。对曲意与人心都极敏感，愿意赴你的深夜之约，已不是寻常分寸。',
+const buildMiaoyinMusicianActor = (favor: number, affection: number): HuaqingSceneActor => ({
+  id: MIAOYIN_MUSICIAN_PROFILE.npcId,
+  name: MIAOYIN_MUSICIAN_PROFILE.displayName,
+  identity: MIAOYIN_MUSICIAN_PROFILE.identityLabel,
+  residence: MIAOYIN_MUSICIAN_PROFILE.defaultLocationId ?? '妙音堂',
+  personality: MIAOYIN_MUSICIAN_PROFILE.personality,
+  summary: MIAOYIN_MUSICIAN_PROFILE.summary,
   currentGoodwill: favor,
   currentAffection: affection,
-  actorKind: 'lianqiao',
-  portraitSrc: LIANQIAO_PORTRAIT_SRC,
+  actorKind: 'miaoyin-musician',
+  portraitSrc: MIAOYIN_MUSICIAN_PORTRAIT_SRC,
 });
 
 const buildConsortActor = (consort: ConcubineProfile): HuaqingSceneActor => ({
@@ -152,17 +154,17 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
         currentAffection: consort.stats.affection,
       }));
 
-    if (deepNightActive && state.flags.isLianQiaoMet && musicHallProgress.lianQiaoAffection >= HOT_SPRING_SHARED_AFFECTION_REQUIREMENT) {
+    if (deepNightActive && state.flags.isMiaoyinMusicianMet && musicHallProgress.musicianAffection >= HOT_SPRING_SHARED_AFFECTION_REQUIREMENT) {
       eligibleConsorts.push({
-        id: 'lianqiao',
-        name: '凌萧',
-        identity: '妙音堂伶人',
-        portraitSrc: LIANQIAO_PORTRAIT_SRC,
-        actorKind: 'lianqiao',
-        personality: '她最会在近处听出人声里的轻重，越是深夜，越不肯轻易把真心说满。',
-        summary: '妙音堂伶人。若肯应你的深夜之约，已是把许多平日不肯交出的分寸往前递了一步。',
-        currentGoodwill: musicHallProgress.lianQiaoFavor,
-        currentAffection: musicHallProgress.lianQiaoAffection,
+        id: MIAOYIN_MUSICIAN_PROFILE.npcId,
+        name: MIAOYIN_MUSICIAN_PROFILE.displayName,
+        identity: MIAOYIN_MUSICIAN_PROFILE.identityLabel,
+        portraitSrc: MIAOYIN_MUSICIAN_PORTRAIT_SRC,
+        actorKind: 'miaoyin-musician',
+        personality: MIAOYIN_MUSICIAN_PROFILE.personality,
+        summary: MIAOYIN_MUSICIAN_PROFILE.summary,
+        currentGoodwill: musicHallProgress.musicianFavor,
+        currentAffection: musicHallProgress.musicianAffection,
       });
     }
 
@@ -170,9 +172,9 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
   }, [
     concubines,
     deepNightActive,
-    musicHallProgress.lianQiaoAffection,
-    musicHallProgress.lianQiaoFavor,
-    state.flags.isLianQiaoMet,
+    musicHallProgress.musicianAffection,
+    musicHallProgress.musicianFavor,
+    state.flags.isMiaoyinMusicianMet,
   ]);
 
   const buildPayload = (
@@ -352,17 +354,17 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
 
     const actionOutcome = beginTimedLocationAction();
     applyStoryEffects({ stress: -HOT_SPRING_SHARED_STRESS_REDUCE });
-    if (invite.actorKind === 'lianqiao') {
-      const nextFavor = clampToRange(musicHallProgress.lianQiaoFavor + HOT_SPRING_SHARED_FAVORABILITY_GAIN, -100, 100);
-      const nextAffection = clampToRange(musicHallProgress.lianQiaoAffection + HOT_SPRING_SHARED_AFFECTION_GAIN, 0, 100);
+    if (invite.actorKind === 'miaoyin-musician') {
+      const nextFavor = clampToRange(musicHallProgress.musicianFavor + HOT_SPRING_SHARED_FAVORABILITY_GAIN, -100, 100);
+      const nextAffection = clampToRange(musicHallProgress.musicianAffection + HOT_SPRING_SHARED_AFFECTION_GAIN, 0, 100);
       patchMusicHallProgress({
-        lianQiaoFavor: nextFavor,
-        lianQiaoAffection: nextAffection,
-        lastEncounterNpcId: 'lianqiao',
+        musicianFavor: nextFavor,
+        musicianAffection: nextAffection,
+        lastEncounterNpcId: MIAOYIN_MUSICIAN_PROFILE.npcId,
       });
       holdTimedActionOutcome(actionOutcome);
       await beginEncounter(
-        buildLianQiaoActor(nextFavor, nextAffection),
+        buildMiaoyinMusicianActor(nextFavor, nextAffection),
         deepNightActive ? 'late-night-shared-bath' : 'shared-bath',
         deepNightActive ? '深夜共浴' : '双人沐浴',
         deepNightActive
@@ -441,12 +443,12 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
         option.localToneTag,
       );
 
-      if (activeActor.actorKind === 'lianqiao') {
-        const nextFavor = clampToRange(musicHallProgress.lianQiaoFavor + judgement.favorDelta, -100, 100);
-        const nextAffection = clampToRange(musicHallProgress.lianQiaoAffection + judgement.affectionDelta, 0, 100);
+      if (activeActor.actorKind === 'miaoyin-musician') {
+        const nextFavor = clampToRange(musicHallProgress.musicianFavor + judgement.favorDelta, -100, 100);
+        const nextAffection = clampToRange(musicHallProgress.musicianAffection + judgement.affectionDelta, 0, 100);
         patchMusicHallProgress({
-          lianQiaoFavor: nextFavor,
-          lianQiaoAffection: nextAffection,
+          musicianFavor: nextFavor,
+          musicianAffection: nextAffection,
           lastToneTag: judgement.toneTag,
           lastEncounterNpcId: activeActor.id,
         });
@@ -607,7 +609,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
                 src={activeActor.portraitSrc}
                 alt={activeActor.name}
                 className={`global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--huaqing ${
-                  activeActor.actorKind === 'lianqiao' ? 'global-dialogue-stage__portrait-media--lianqiao' : ''
+                  activeActor.actorKind === 'miaoyin-musician' ? 'global-dialogue-stage__portrait-media--miaoyin-musician' : ''
                 }`}
               />
             }

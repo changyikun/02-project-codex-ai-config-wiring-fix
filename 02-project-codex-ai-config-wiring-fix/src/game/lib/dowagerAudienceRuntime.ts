@@ -1,8 +1,11 @@
 import { getNumericRuleValue } from '../numerics/numericCatalog';
+import { requireNonConsortNpcProfile } from '../npcs/npcCatalog';
 import type { PalaceTimeState, PermanentNpcRelationshipState } from '../types';
 
-export const DOWAGER_NPC_ID = 'dowager';
-export const DOWAGER_NPC_NAME = '太后';
+const dowagerProfile = requireNonConsortNpcProfile('dowager');
+
+export const DOWAGER_NPC_ID = dowagerProfile.npcId;
+export const DOWAGER_NPC_NAME = dowagerProfile.displayName;
 export const DOWAGER_AUDIENCE_OPEN_SLOTS = ['清晨', '上午', '中午', '下午', '傍晚'] as const;
 
 export const DOWAGER_INTERACTION_LIMIT_PER_XUN = getNumericRuleValue('dowager_interaction_limit_per_xun');

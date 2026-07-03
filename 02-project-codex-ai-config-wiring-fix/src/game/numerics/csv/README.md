@@ -58,13 +58,14 @@
   - `dowager_greeting_affinity_delta`：建章宫 `请安` 增加的太后好感。
   - `dowager_minor_affinity_delta`：`请教规矩` / `闲谈` 等普通太后互动增加的好感。
   - `dowager_missing_monthly_greeting_prestige_delta`：上月未向太后问安时，次月月初扣除的玩家声望真值。
+  - `miaoyin_score_reward_affinity_step`：凌萧 / 凌袖关系每累计跨过多少好感档位赠送一张对应随机谱子。
 
 - `inventory_items.csv`
-  - `pools`：物品出现池。常用值：`initial`、`kitchen`、`duniang-always`、`yeting-poison`、`music-score`。当前 `initial` 池应保持为空，玩家开局不带初始背包物品。
+  - `pools`：物品出现池。常用值：`initial`、`kitchen`、`duniang-always`、`yeting-poison`、`music-score`、`dance-score`。当前 `initial` 池应保持为空，玩家开局不带初始背包物品。
   - `tags`：通用物品标签，用于剧情或随机事件按类别抽取具体物品，例如 `low-quality-food`、`tree-fruit`。它不是某个场景的私有字段，也不等同于商店出现池；同一个 tag 可以被御膳房、杜娘、后续地点事件等不同入口复用。
-  - `category`：背包分类，当前可用 `gift`、`food`、`medicine`、`rare`、`music-score`。
+  - `category`：背包分类，当前可用 `gift`、`food`、`medicine`、`rare`、`music-score`、`dance-score`。
   - `rarity` / `color`：品质颜色，当前可用 `green`、`blue`、`purple`、`red`。
-  - `isQuestItem`：任务 / 剧情关键物品标记。杜娘和通用回收逻辑不得收购该类物品；毒药、曲谱和主线证物等非普通交易物应显式标记。
+  - `isQuestItem`：任务 / 剧情关键物品标记。杜娘和通用回收逻辑不得收购该类物品；毒药、曲谱、舞谱和主线证物等非普通交易物应显式标记。
   - `favorDelta` / `healthDelta` / `appearanceDelta` / `temperamentDelta`：道具效果数值。
 
 - `kitchen_shop_offers.csv`

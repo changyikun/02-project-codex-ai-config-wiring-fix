@@ -17,6 +17,12 @@
 | AI 定位 | 当前玩法不接入 AI 生成剧情正文；本地 CSV 是剧情正文和基础演出元数据唯一来源，关系倾向由本地标签先行判定；硬数值、合法性、存档真值由系统规则控制 |
 | 当前完成度 | 启动、路线、属性、开场引导、地图、寝殿主循环、妃嫔/情缘/物品/宫务面板雏形、部分 AI 接口和 Foundation 规则服务 |
 
+前端当前维护两个构建目标：
+
+- Web 构建：`npm run build:web`，Vite 默认 `base='/'`，输出 `dist/`，用于普通网页部署。
+- App / HBuilderX 构建：`npm run build:app`，Vite `app` mode 使用 `base='./'`，输出 `dist-app/`，随后由 `scripts/prepare-hbuilder-build.cjs` 将构建产物中的 `/assets/...` 根路径资源引用改写为相对路径。HBuilderX 打包应使用 `dist-app/`，不要直接使用 `dist/`。
+- Windows exe 构建：`npm run build:exe`，先生成 `dist-app/`，再通过 Electron 桌面外壳加载本地页面，可执行目录输出到 `release/fenghualu-win-x64/`，入口为 `凤华录.exe`。
+
 ## 2. 总体系统架构
 
 ```mermaid
@@ -58,9 +64,9 @@ flowchart TB
 | UI 组件 | `src/components/*` | 对话框、状态栏、妃嫔列表、寝殿子面板等 |
 | 游戏状态 | `src/game/store/gameFlowStore.ts` | 当前存档真值、时间、资源、妃嫔、物品、关系进度、结算报告 |
 | 游戏类型 | `src/game/types.ts` | 路线、时间、属性、道具、妃嫔、关系 AI、存档结构类型 |
-| 规则配置 | `src/config/*`、`src/game/numerics/*` | 时间、体力、位分、路线、地点开放、颜色、系统事件等硬规则；核心可调数值由 numerics CSV 和 catalog 提供 |
+| 规则配置 | `src/config/*`、`src/game/numerics/*`、`src/game/npcs/*` | 时间、体力、位分、路线、地点开放、颜色、系统事件等硬规则；核心可调数值由 numerics CSV 和 catalog 提供；非妃嫔 NPC 身份、展示和可攻略资格由 NPC CSV catalog 提供 |
 | 剧情配置 | `src/game/narrative/csv/*`、`src/game/narrative/narrativeCatalog.ts`、`src/game/narrative/narrativeDialogueAdapter.ts` | 按系统域维护剧情正文、说话人、立绘键、立绘位置和场景提示；代码引用稳定剧情 ID，并通过 adapter 将完整 entry 转换为对应 UI 展示结构 |
-| 随机事件配置 | `src/game/random-events/csv/random_events.csv`、`src/game/random-events/randomEventCatalog.ts`、`src/game/random-events/randomEventRuntime.ts` | 维护可抽取事件池、前置事件、剧情行、选项、局部效果和后续解锁；当前已接入杜娘闲谈与御膳房闲逛，进度保存于 `progress.randomEvents` |
+| 随机事件配置 | `src/game/random-events/csv/random_events.csv`、`src/game/random-events/randomEventCatalog.ts`、`src/game/random-events/randomEventRuntime.ts` | 维护可抽取事件池、前置事件、剧情行、选项、局部效果和后续解锁；当前已接入杜娘闲谈、御膳房闲逛、妙音堂闲逛和妙音堂人物闲聊，进度保存于 `progress.randomEvents` |
 | 前端运行时 | `src/game/lib/*Runtime.ts` | 本地兜底对话、地点交互、关系判定调用、寝殿工具函数、玩家姓名称呼解析 |
 | 后端入口 | `server/src/app.ts` | 装配 AI、Foundation、Memory、路由、缓存、错误处理 |
 | AI 路由 | `server/src/routes/aiRoutes.ts` | `/api/v1/ai/*` 对话、数值、关系、场景氛围接口 |
@@ -405,31 +411,35 @@ flowchart TB
 系统宫宴当前已接入第一版纵向闭环：
 
 - 报名开启：跨入目标宫宴前一个月的报名起点时，生成 `event` 类通报，由司乐女官 / 掌册宫人提醒妙音堂开始收录曲谱。首届宫宴在 1 年 3 月上旬，报名起点为 1 年 2 月上旬清晨。
-- 学谱：玩家持有曲谱后，需要在妙音堂场景中找乐师连翘，并通过她的人物交互页选择 `请求指导` 学习曲谱；`musicHallProgress.musicScoreMastery` 按曲谱保存难度、完成度、练习次数与表现上限。学习收益受玩家乐理、曲谱难度和连翘关系影响。
+- 学谱 / 学舞：玩家持有曲谱后，需要在妙音堂场景中找乐师凌萧，并通过他的人物交互页选择 `请求指导` 学习曲谱；玩家持有舞谱后，需要找舞者凌袖选择 `请求指导` 学习舞谱。`musicHallProgress.musicScoreMastery` 按曲谱保存难度、完成度、练习次数与表现上限；`musicHallProgress.danceScoreMastery` 按舞谱保存同构进度。学习收益分别受玩家乐理 / 气质、谱子难度和对应 NPC 关系影响。
 - 报名：玩家在妙音堂登记一张曲谱，系统保存曲谱快照到 `palaceBanquetProgress.submittedScore`，本届不重复改写；登记不消耗库存曲谱，报名后仍可继续练习该曲。
 - 结算：每年 3 月上旬傍晚进入系统宫宴，宫宴占用傍晚和夜晚，结算后停在深夜。
 - 结果：`palaceBanquetRuntime` 根据已登记曲谱的当前完成度、曲谱难度计算表现上限，再在宫宴当天按上限随机生成本场表现分，最终结算声望变化与事件通报。
 - 去重：`lastRegistrationNoticeSeasonKey` 与 `lastResolvedSeasonKey` 防止报名提醒和宫宴结算因读档或连续推进重复触发。
 
-曲谱当前作为“可长期学习的曲目”服务系统宫宴；后续若扩展适性、稀有曲谱来源或妃嫔竞争，应继续以宫宴 runtime 作为唯一硬结算入口。
+曲谱当前作为“可长期学习的曲目”服务系统宫宴；舞谱当前作为“可长期学习的舞目”保存长期进度，暂不接宫宴硬结算。后续若扩展适性、稀有谱子来源或妃嫔竞争，应继续以对应 runtime 作为唯一硬结算入口。
 
-曲谱练习当前公式：
+谱子练习当前公式：
 
-- 曲谱难度：红谱 `85`，紫谱 `65`，蓝谱 `50`，其他 `40`。
-- 乐理值：读取既有玩家属性字段 `state.stats.talent`，该字段在界面和规则中显示为“乐理”。正式游戏中该字段为 `0..100` 运行时真值；学谱公式内部按 `/10` 折算到 `0..10` 能力档。
-- 连翘协助值：已结识连翘时为 `clamp(连翘好感 + 连翘情谊, 0, 200)`，未结识时为 `0`。
-- 单次学谱完成度增量：`clamp(8 + floor(乐理值 / 2) + floor(连翘协助值 / 25) + 随机浮动 - floor(曲谱难度 / 18), 3, 24)`；随机浮动为 `0..2`，同一存档种子下可复现。
-- 学谱成长：每次学谱额外增加运行时真值 `talent +2`，toast 显示“乐理 +2”。
-- 表现上限：`clamp(40 + 完成度 * 0.65 + 乐理值 * 4 + floor(连翘协助值 / 8) + floor(曲谱难度 / 4), 20, 220)`。
+- 谱子难度：红谱 `85`，紫谱 `65`，蓝谱 `50`，其他 `40`。
+- 能力值：曲谱读取 `state.stats.talent`，界面显示为“乐理”，按 `/10` 折算到 `0..10` 能力档；舞谱读取 `state.stats.temperament`，界面显示为“气质”，按 `/100` 折算到 `0..10` 能力档。
+- NPC 协助值：凌萧 / 凌袖使用常驻 NPC 关系好感；曲谱在宫宴结算中仍兼容读取凌萧的 `musicianFavor + musicianAffection` 作为支持值。
+- 单次完成度增量：`clamp(8 + floor(能力值 / 2) + floor(NPC协助值 / 25) + 随机浮动 - floor(谱子难度 / 18), 3, 24)`；随机浮动为 `0..2`，同一存档种子下可复现。
+- 学习成长：每次学曲谱额外增加运行时真值 `talent +2`，toast 显示“乐理 +2”；每次学舞谱额外增加运行时真值 `temperament +1`，toast 显示“气质 +1”。
+- 表现上限：`clamp(40 + 完成度 * 0.65 + 能力值 * 4 + floor(NPC协助值 / 8) + floor(谱子难度 / 4), 20, 220)`。
 - 宫宴本场表现分：在 `floor(表现上限 * 0.55)..表现上限` 间按宫宴季和曲谱生成随机分；练谱只提高完成度与表现上限，不直接锁定最终表现分。
 
 妙音堂当前子场景规则：
 
 - 一级地点按钮只保留 `宴席报名` 与 `闲逛`；听曲 / 学谱不再作为场景右侧一级按钮出现，学谱必须从乐师人物交互页进入。
-- `闲逛` 是耗时地点行动，先结算压力 `-2`，再从 `location.miaoyin.common`、`location.miaoyin.music`、`location.miaoyin.dance` 三个随机事件池合并抽取一条事件演出；低权重事件可以额外拾取物品。
-- 乐师连翘与舞者凌袖属于妙音堂常驻 NPC，但不是开局直接显示的固定入口。连翘在乐曲池事件被触发多次后显示，凌袖在舞蹈池事件被触发多次后显示；旧档或旧流程中已经结识连翘时，连翘仍可显示，避免既有学谱闭环被切断。
+- `闲逛` 是耗时地点行动，从 `location.miaoyin.common`、`location.miaoyin.music`、`location.miaoyin.dance` 三个随机事件池合并抽取一条事件演出；每条妙音堂闲逛事件必须在剧情行或选项效果中提供默认 `压力 -2`，入口只在未抽到事件时使用兜底收益，避免重复结算。拾取、归还、打听和观摩分支可额外获得物品、声望或属性收益。
+- 乐师凌萧与舞者凌袖属于妙音堂常驻 NPC，但不是开局直接显示的固定入口。凌萧在乐曲池事件被触发多次后显示，凌袖在舞蹈池事件被触发多次后显示；开发期不承接旧 `连翘` NPC ID 或旧 `bondNpcUnlocked:lianqiao` flag。
 - 乐师 / 舞者人物页必须复用 `AudienceInteractionShell`，右侧操作为送礼、闲聊、请求指导和返回；送礼 / 闲聊 / 指导消耗常驻 NPC 交互次数，退出人物页后按人物会面耗时规则推进时间。
-- 连翘 `请求指导` 选择玩家持有曲谱后，复用曲谱练习公式推进 `musicScoreMastery` 并增加乐理；凌袖 `请求指导` 推进 `musicHallProgress.dancePracticeProgress` 并增加气质。舞曲练习第一版只保存长期进度，不接宫宴硬结算。
+- 凌萧初遇是固定事件，由 `npc_tools_dialogues.csv` 的 `miaoyin.musician.first-meet` 和 `miaoyin.musician.score.first-meet` 表演；入口生成随机曲谱后只把赠谱文本追加到固定初遇对话中。初遇不进入 `random_events.csv`，不参与随机抽取，也不写入随机事件触发计数。
+- 凌萧 `闲聊` 从 `npc.miaoyin-musician.common` 与当前好感池合并抽取；好感低于 `30` 使用低好感池，达到 `30` 后使用高好感池，并额外并入 `npc.miaoyin-musician.pipa-pick`。琵琶拨片后续只由 `prerequisiteEventIds=miaoyin.music.pipa-pick` 开启，不在组件层检查背包、任务物品或额外 flag。所有凌萧闲聊事件必须在剧情行或选项效果里提供 `target.relationToPlayer` 正收益，运行时会把它映射到常驻 NPC 好感。
+- 凌袖初遇同样是固定事件，由 `npc_tools_dialogues.csv` 的 `miaoyin.dancer.first-meet` 和 `miaoyin.dancer.score.first-meet` 表演；入口生成随机舞谱后追加赠谱文本。凌袖 `闲聊` 从 `npc.miaoyin-dancer.common` 与当前好感池合并抽取；好感低于 `30` 使用低好感池，达到 `30` 后使用高好感池。妙音堂人物闲聊入口按当前 NPC ID 组装池 ID，不再只为凌萧维护一组写死常量。
+- 凌萧 `请求指导` 必须选择玩家持有曲谱，复用谱子练习公式推进 `musicScoreMastery` 并增加乐理；凌袖 `请求指导` 必须选择玩家持有舞谱，复用同一公式推进 `danceScoreMastery` 并增加气质。没有对应谱子时只播放 NPC 拒绝指导对白，不消耗交互次数。
+- 曲谱 / 舞谱来源：玩家首次结识凌萧 / 凌袖时，会获得一张对应随机曲谱 / 舞谱；后续推进凌萧 / 凌袖关系时，关系好感每跨过 `global_numeric_rules.csv` 的 `miaoyin_score_reward_affinity_step` 档位，再获得一张对应随机谱子。谱子物品由 `inventory_items.csv` 的 `music-score` / `dance-score` 池维护，均为任务物品，不进入普通售卖 / 回收。
 
 路线选择也是新建一局的边界：调用 `applyRouteSelection` 时必须从初始状态重建路线状态，重置时间、临时文本、结算通报、宫斗案件、侍寝进度、交易记录、库存与关系进度，避免旧存档状态串入新局。
 
@@ -545,10 +555,10 @@ flowchart LR
 - 杜娘是第一名接入常驻 NPC 关系的工具 NPC：初见对白读取 `npc_tools_dialogues.csv`，见过后进入买卖 / 闲谈 / 送礼操作栏；买卖不消耗交互次数，闲谈和送礼消耗每旬次数。杜娘只售卖 `inventory_items.csv` 中 `duniang-always` 池的中低品质宫外物件；她可收购所有 `canRecycle !== false` 且 `isQuestItem !== true` 的物品。杜娘好感达到友情价阈值后，买入价打折、回收价上浮。宫门工具 NPC 的普通入场对白只承担进入人物页的承接作用，不应连续拆成多段阻挡操作；退出人物页统一使用 `返回`，不维护 `返回宫门` 这类地点专属退出文案。
 - 养心殿主场景不再使用泛用地点行动按钮；场景右侧除固定 `离开` 外不提供 `求见皇上 / 朝堂事务 / 抄读` 等地点按钮。太监总管李公公作为常驻 NPC 显示在场景中间，玩家点击后进入人物交互页，可选择 `求见皇帝`、`送礼`、`打点银两`、`闲聊`。李公公好感保存于常驻 NPC 关系，会提高养心殿通传成功率；但求见仍必须满足皇帝当前时辰确实在养心殿内。求见成功后由李公公通传，进入皇帝日间单人交互页；求见失败、夜间拒见和单纯返回不推进时间。送礼、打点银两、闲聊属于耗次互动，退出李公公交互页时按人物会面规则推进时间。闲聊只透露皇帝当前行程和心情，不直接改变皇帝状态。
 - 杜娘闲谈由随机事件系统驱动：`random_events.csv` 中维护 `npc.du-niang.common`、`npc.du-niang.low-affinity`、`npc.du-niang.high-affinity` 三类事件池，运行时按通用池 + 当前好感池合并抽取。当前杜娘池共 25 个事件，通用池 12 个、低好感池 4 个、高好感池 9 个；内容应围绕她在宫门口听来的日常、宫外街坊、小本买卖、熟人琐事和对宫内生活的好奇展开，避免把所有闲谈写成空泛后宫旁白。正常流程的随机事件正文应优先是对白框可直接显示的台词，不写电视剧剧本式动作 / 环境描写；只有会影响玩家理解的交易或关系信息才可极短补充。杜娘闲谈不能只是空对白：每个事件的剧情行或选项必须至少提供一次 `target.relationToPlayer` 正收益，有选项的事件每个选项也必须有好感收益。玩家发言行的身份栏不得写死为“玩家”，应使用 `{{playerRank}}` 并由运行时传入当前位分；玩家发言行的立绘必须标记 `portraitKey=player`，宫门工具 NPC 页会据此把中间立绘切换为当前路线玩家立绘。随机事件的 `unlockEventIds` 不会立即加入可抽池，而是进入 `progress.randomEvents.pendingUnlocks`，到下一旬清晨才释放。杜娘的多池合并抽取必须走随机事件 runtime 的 seeded helper，宫门组件不得使用 `Math.random` 或私有权重抽取器。
-- 御膳房购买食物由 `kitchen_shop_offers.csv` 控制当前旬货单：常备项固定出现，季节项按当前月份和权重抽取，每个 offer 按 `stockPerXun` 做每旬限购；购买走通用 `buyInventoryItem(item, stockLimit)` 和交易账本，不能在组件里另写库存计数。御膳房 `闲逛` 接入 `random_events.csv` 的 `location.kitchen.stroll` 池，当前 19 个事件；第四次闲逛强制结识布自游优先于随机事件。每个御膳房闲逛事件都必须在剧情行或分支中至少提供一次 `player.stress=-2` 通用收益，拾取类分支可额外给少量银两或 `inventory.gain` 物品；公开善行、帮人遮掩、识字看账、辨物观察等分支可以按事件内容固定给予声望或属性收益，不能做随机收益判定。事件文本中需要随机引用物品类别时，入口通过 `inventoryTagRuntime` 先按通用 tag 抽出具体物品，再把物品名和 `itemId` 作为随机事件变量传入；随机事件表只引用变量，不维护地点私有物品随机器。银叶耳坠等彩蛋拾取物使用模板物品实例化：入口 seeded 选择隐藏失主，把提示字、失主 ID 和实例 itemId 作为变量传给随机事件，事件表生成可出售 / 可送人的普通礼物实例；正确归还时由妃嫔送礼入口识别 metadata 并播放 `relationship_audiences.csv` 的特殊对白。事件抽取必须走随机事件 runtime 的 seeded helper，地点入口不得自建简单 hash 或私有权重抽取器。
+- 御膳房购买食物由 `kitchen_shop_offers.csv` 控制当前旬货单：常备项固定出现，季节项按当前月份和权重抽取，每个 offer 按 `stockPerXun` 做每旬限购；购买走通用 `buyInventoryItem(item, stockLimit)` 和交易账本，不能在组件里另写库存计数。御膳房 `闲逛` 接入 `random_events.csv` 的 `location.kitchen.stroll` 池，当前 19 个事件；第四次闲逛强制结识布自游优先于随机事件。每个御膳房闲逛事件都必须在剧情行或分支中至少提供一次 `player.stress=-2` 通用收益，拾取类分支可额外给少量银两或 `inventory.gain` 物品；公开善行、帮人遮掩、识字看账、辨物观察等分支可以按事件内容固定给予声望或属性收益，不能做随机收益判定。事件文本中需要随机引用物品类别时，入口通过 `inventoryTagRuntime` 先按通用 tag 抽出具体物品，再把物品名和 `itemId` 作为随机事件变量传入；随机事件表只引用变量，不维护地点私有物品随机器。银叶耳坠、兰花绢帕等失物彩蛋使用模板物品实例化：入口 seeded 选择隐藏失主，把提示字、失主 ID 和实例 itemId 作为变量传给随机事件，事件表生成可出售 / 可送人的普通礼物实例；正确归还时由妃嫔送礼入口识别 metadata 并播放 `relationship_audiences.csv` 的特殊对白。事件抽取必须走随机事件 runtime 的 seeded helper，地点入口不得自建简单 hash 或私有权重抽取器。
 - 妙音堂、御膳房、太医院、宝华殿、华清池、掖庭院、建章宫等专属地点不得再各自维护一级入口卡片；复杂业务继续保留在二级面板或原有流程中，但入口必须先挂到通用子场景框架。
 - 从后宫外景打开左侧工具面板时，关闭面板必须返回 `activeChamberPanel='harem'`；不得退回 `main` 导致后宫 UI 被卸载，也不得借玩家寝殿作为中转。
-- 大地图自身的左侧“嫔妃 / 查看 / 纪事 / 情缘”必须作为地图覆盖面板打开，不得先调用 `enterMainChamber()` 借寝殿面板承载；关闭后仍停留在地图。
+- 大地图自身的左侧“嫔妃 / 查看 / 纪事 / 情缘”必须作为地图覆盖面板打开，不得先调用 `enterMainChamber()` 借寝殿面板承载；关闭后仍停留在地图。地图层不得额外渲染覆盖面板外侧的 `返回地图` 按钮，退出统一使用面板自身的返回入口，避免同一面板出现两个返回按钮。
 - 外景回地图时，`enterMapMain()` 只能先切 `currentView='map-main'` 触发退出动画；旧 `activeMapLocation` 和旧面板状态必须保留到 `AnimatePresence.onExitComplete` 后再清理，避免退出动画期间的旧 `ChamberMainView` 短暂重绘成玩家寝宫。
 
 时间通报归属：
@@ -609,9 +619,17 @@ toast 反馈口径：
 |---|---|---|
 | 皇帝 | 容安 | 宠爱、真心、侍寝、册封、养心殿裁断、结局 |
 | 固定剧情妃 | 姚玲儿、柳仪芳、江晚晚、沈妙清、陈婉宁等 | 竞争、结盟、剧情节点、案件目标 |
-| 可攻略 NPC | 当一、简宁、卢安平、布自游、连翘、阿翎 | 情缘线、地点互动、特殊资源 |
+| 可攻略 NPC | 容安、阿翎、布自游、简宁、凌萧、凌袖、当一、卢安平 | 情缘线、地点互动、特殊资源 |
 | 工具 NPC | 娇娇、杜娘等 | 引导、通报、交易、系统入口 |
 | 自定义剧情妃 | 玩家提交生成 | 丰富后宫生态，必须经硬规则校验 |
+
+非妃嫔 NPC 配置规则：
+
+- 非妃嫔 NPC 的唯一资料入口是 `src/game/npcs/csv/non_consort_npc_profiles.csv`，由 `npcCatalog` 读取和校验；组件和 runtime 不应再各自维护人物名、身份、立绘路径、可攻略资格或情缘基础文案。
+- 妃嫔仍由妃嫔 roster / 生成模板维护，不合入非妃嫔 NPC 表。
+- `isRomanceable=true` 只表示该角色可进入情缘系统，不等同于普通好感互动；杜娘、李公公、太后等可以有常驻好感，但不可攻略。
+- 当前可攻略非妃嫔名单固定为容安、阿翎、布自游、简宁、凌萧、凌袖、当一、卢安平；卢安平当前只进入配置和情缘识别，不自动生成地图入口。
+- 不承接旧 `src/config/npcs.ts`、旧 `npc-*` ID、旧 `连翘` NPC 配置或旧 `bondNpcUnlocked:lianqiao` flag；结构不匹配时按开发期规则清档。
 
 ### 10.2 关系变动规则
 

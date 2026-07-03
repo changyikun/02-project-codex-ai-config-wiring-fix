@@ -558,7 +558,7 @@ export interface BondInteractionOption {
   localToneTag: RelationshipToneTag;
 }
 
-export type InventoryItemCategory = 'gift' | 'food' | 'medicine' | 'rare' | 'music-score';
+export type InventoryItemCategory = 'gift' | 'food' | 'medicine' | 'rare' | 'music-score' | 'dance-score';
 export type InventoryItemRarity = 'green' | 'blue' | 'purple' | 'red';
 export type CraftWorkType = 'embroidery' | 'painting' | 'incense';
 export type CraftWorkQuality = 'rough' | 'steady' | 'fine';
@@ -588,6 +588,7 @@ export interface InventoryItem {
 export type ConsortPalaceActionId =
   | 'visit'
   | 'gift'
+  | 'return-lost-item'
   | 'return-earring'
   | 'greet'
   | 'quarrel'
@@ -752,20 +753,20 @@ export interface MusicHallProgressState {
   listenCount: number;
   strollCount: number;
   signUpCount: number;
-  lianQiaoFirstMet: boolean;
-  lianQiaoMet: boolean;
-  lianQiaoFavor: number;
-  lianQiaoAffection: number;
+  musicianFirstMet: boolean;
+  musicianMet: boolean;
+  musicianFavor: number;
+  musicianAffection: number;
   lastEncounterNpcId?: string;
   lastToneTag?: RelationshipToneTag;
   lastAmbientText?: string;
-  lastGiftXunIndex?: number;
+  musicianScoreGiftAffinityCheckpoint?: number;
+  dancerScoreGiftAffinityCheckpoint?: number;
   lastSubmittedMusicScoreId?: string;
   lastPracticedMusicScoreId?: string;
+  lastPracticedDanceScoreId?: string;
   musicScoreMastery?: Record<string, MusicScoreMasteryState>;
-  dancePracticeProgress?: number;
-  dancePracticeCount?: number;
-  lastDanceGuidanceAt?: PalaceTimeState;
+  danceScoreMastery?: Record<string, MusicScoreMasteryState>;
 }
 
 export interface MusicScoreMasteryState {
