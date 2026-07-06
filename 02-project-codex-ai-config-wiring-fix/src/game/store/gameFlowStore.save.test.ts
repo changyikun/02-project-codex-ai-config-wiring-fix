@@ -278,9 +278,13 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     const flow = useGameFlowStore.getState();
     expect(flow.time).toMatchObject({ year: 1, month: 2, xun: 1, slot: '清晨' });
     expect(flow.palaceBanquetProgress.lastRegistrationNoticeSeasonKey).toBe('1-3-1-palace-banquet');
-    expect(flow.settlementReports.at(-1)).toMatchObject({
+    expect(flow.settlementReports.find((report) => report.title === '宫宴报名开启通知')).toMatchObject({
       kind: 'event',
-      title: '宫宴报名开启',
+      title: '宫宴报名开启通知',
+      year: 1,
+      month: 2,
+      xun: 1,
+      lines: ['宫宴报名开启通知：本届宫宴定于1年3月第1旬傍晚。'],
     });
   });
 
@@ -308,7 +312,7 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     const flow = useGameFlowStore.getState();
     expect(flow.time).toMatchObject({ year: 1, month: 1, xun: 3, slot: '深夜' });
     expect(flow.palaceBanquetProgress.lastRegistrationNoticeSeasonKey).toBeUndefined();
-    expect(flow.settlementReports.some((report) => report.title === '宫宴报名开启')).toBe(false);
+    expect(flow.settlementReports.some((report) => report.title === '宫宴报名开启通知')).toBe(false);
   });
 
   it('resolves the system palace banquet once when time reaches the banquet slot', () => {
@@ -383,7 +387,7 @@ describe('gameFlowStore SaveGameV1 integration', () => {
 
     useGameFlowStore.getState().advanceTime(1);
     const flow = useGameFlowStore.getState();
-    const latestReport = flow.settlementReports.at(-1);
+    const latestReport = flow.settlementReports.find((report) => report.title === '系统宫宴通报');
 
     expect(flow.time.slot).toBe('深夜');
     expect(flow.state.prestige).toBeGreaterThan(2500);
@@ -1361,13 +1365,12 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     useGameFlowStore.getState().advanceTime(1);
 
     const flow = useGameFlowStore.getState();
-    const latestReport = flow.settlementReports.at(-1);
+    const latestReport = flow.settlementReports.find((report) => report.kind === 'month');
     expect(flow.state.prestige).toBe(980);
     expect(['summon', 'player-choice']).toContain(flow.pendingYangxinVerdict?.stage);
     expect(flow.hiddenStats.initialRank).toBe('嫔');
     expect(latestReport?.kind).toBe('month');
-    expect(latestReport?.summary).toContain('当前位份：嫔');
-    expect(latestReport?.summary).toContain('当前声望：980 / 750');
+    expect(latestReport?.summary).toContain('当前位份：嫔，声望：980 / 750。');
     expect(latestReport?.summary).toContain('上月未见娘娘入宫问安');
     expect(latestReport?.summary).not.toContain('扣声望750');
 
@@ -1444,7 +1447,7 @@ describe('gameFlowStore SaveGameV1 integration', () => {
 
     useGameFlowStore.getState().advanceTime(1);
 
-    const latestReport = useGameFlowStore.getState().settlementReports.at(-1);
+    const latestReport = useGameFlowStore.getState().settlementReports.find((report) => report.kind === 'month');
     expect(latestReport?.summary).toContain('宫斗案件：本月有1条变动。');
     expect(latestReport?.summary).not.toContain('尚未接入真实判定');
   });
@@ -1484,7 +1487,7 @@ describe('gameFlowStore SaveGameV1 integration', () => {
 
     useGameFlowStore.getState().advanceTime(1);
 
-    const latestReport = useGameFlowStore.getState().settlementReports.at(-1);
+    const latestReport = useGameFlowStore.getState().settlementReports.find((report) => report.kind === 'month');
     expect(latestReport?.summary).not.toContain('下月提点');
   });
 
@@ -1630,7 +1633,8 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     expect(pendingFlow.nightlyService.pendingEvent?.outcome).toBe('player-service');
     expect(pendingFlow.nightlyService.playerNightFavorGauge).toBe(100);
     expect(pendingFlow.state.favor).toBe(50);
-    expect(pendingFlow.settlementReports).toHaveLength(0);
+    expect(pendingFlow.settlementReports.filter((report) => !report.chronicleOnly)).toHaveLength(0);
+    expect(pendingFlow.latestSettlementReportId).toBeUndefined();
 
     useGameFlowStore.getState().finalizePendingNightlyService(['music', 'poetry', 'gentle']);
 
@@ -1640,7 +1644,9 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     expect(flow.nightlyService.reports.at(-1)?.outcome).toBe('player-service');
     expect(flow.state.favor).toBeGreaterThan(50);
     expect(flow.hiddenStats.favor).toBe(flow.state.favor);
-    expect(flow.settlementReports.at(-1)?.lines.join(' ')).toContain('养心殿侍寝已毕');
+    const playerServiceReport = flow.settlementReports.find((report) => report.kind === 'xun' && !report.chronicleOnly);
+    expect(playerServiceReport?.lines.join(' ')).toContain('养心殿侍寝已毕');
+    expect(flow.settlementReports.find((report) => report.chronicleCategory === 'rumor')?.chronicleOnly).toBe(true);
   });
 
   it('announces the nightly service target when time enters night before morning settlement', () => {
@@ -1679,14 +1685,15 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     const flow = useGameFlowStore.getState();
     expect(flow.time.slot).toBe('夜晚');
     expect(flow.nightlyService.pendingNotice?.lines.join(' ')).toContain('夜里太监来报');
-    expect(flow.settlementReports).toHaveLength(0);
+    expect(flow.settlementReports.filter((report) => !report.chronicleOnly)).toHaveLength(0);
+    expect(flow.latestSettlementReportId).toBeUndefined();
 
     useGameFlowStore.getState().acknowledgeNightlyServiceNotice();
     useGameFlowStore.getState().advanceTime(1);
 
     const deepNightFlow = useGameFlowStore.getState();
     expect(deepNightFlow.time.slot).toBe('深夜');
-    expect(deepNightFlow.settlementReports).toHaveLength(0);
+    expect(deepNightFlow.settlementReports.filter((report) => !report.chronicleOnly)).toHaveLength(0);
 
     useGameFlowStore.getState().advanceTime(1);
 
@@ -1698,8 +1705,11 @@ describe('gameFlowStore SaveGameV1 integration', () => {
       slot: '清晨',
     });
     expect(morningFlow.nightlyService.pendingNotice).toBeUndefined();
-    expect(morningFlow.settlementReports.at(-1)?.title).toBe('2年3月第3旬清晨通报');
-    expect(morningFlow.settlementReports.at(-1)?.lines.join(' ')).toContain('侍寝保底值');
+    const morningReport = morningFlow.settlementReports.find((report) => report.title === '2年3月第3旬清晨通报');
+    expect(morningReport?.lines.join(' ')).toContain('侍寝保底值');
+    expect(morningReport?.chronicleLines?.join(' ') ?? '').not.toContain('侍寝保底值');
+    expect(morningFlow.settlementReports.find((report) => report.chronicleCategory === 'rumor')?.chronicleOnly).toBe(true);
+    expect(morningFlow.latestSettlementReportId).toBe(morningReport?.id);
   });
 
   it('reveals pregnancy on the morning report after finalized player service', () => {
@@ -1756,7 +1766,9 @@ describe('gameFlowStore SaveGameV1 integration', () => {
 
     const flow = useGameFlowStore.getState();
     expect(flow.state.flags.pregnant).toBe(true);
-    expect(flow.settlementReports.at(-1)?.lines.join(' ')).toContain('太医请脉');
+    expect(flow.settlementReports.find((report) => report.title === '2年3月第3旬清晨通报')?.lines.join(' ')).toContain(
+      '太医请脉',
+    );
   });
 
   it('limits player-consort interactions per consort each xun', () => {

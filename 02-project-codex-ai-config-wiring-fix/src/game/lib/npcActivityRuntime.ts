@@ -145,7 +145,7 @@ const buildSummary = (
     return `${actorName}本旬到${targetName}殿中${purposeLabel}，${targetName}原本的外出安排被压下。`;
   }
   if (intent === 'social-plot' && target) {
-    return `${actorName}与${targetName}私下${purposeLabel}，关系走向会在旬末收束。`;
+    return `${actorName}与${targetName}私下${purposeLabel}。`;
   }
   if (intent === 'hostile-plot' && target) {
     return `${actorName}对${targetName}起了${purposeLabel}之心，可能演化为一桩宫斗案。`;

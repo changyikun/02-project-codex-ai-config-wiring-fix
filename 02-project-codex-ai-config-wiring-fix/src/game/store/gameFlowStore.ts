@@ -141,6 +141,7 @@ import {
 import type {
   AffairSourceLabel,
   BondProfileState,
+  ChronicleCategory,
   ConcubineProfile,
   ConsortInteractionProgress,
   ConsortPalaceActionId,
@@ -160,6 +161,7 @@ import type {
   KitchenProgressState,
   MedicalProgressState,
   MusicHallProgressState,
+  NightlyServiceReport,
   NightlyServiceInteractionActionId,
   NightlyServiceInteractionChoice,
   NpcActivityState,
@@ -286,6 +288,7 @@ export interface GameFlowStore {
   numericFeedbackSignal: NumericFeedbackSignal;
   pendingOvernightReturn?: PendingOvernightReturn;
   pendingViewTransitionCleanup?: PendingViewTransitionCleanup;
+  activeBlockingNarratives: Record<string, true>;
   setCurrentView: (view: CurrentView) => void;
   setScene: (scene: SceneId) => void;
   openChamberPanel: (panel: ChamberPanelId) => void;
@@ -302,6 +305,8 @@ export interface GameFlowStore {
   setBriefing: (briefing: string) => void;
   setDialogue: (dialogue?: DialogueTurn) => void;
   setMapEventText: (text: string) => void;
+  beginBlockingNarrative: (lockId: string) => void;
+  endBlockingNarrative: (lockId: string) => void;
   requestOvernightReturn: (payload: Omit<PendingOvernightReturn, 'id'>) => void;
   clearOvernightReturn: () => void;
   completeOvernightTransition: (reason?: PendingOvernightReturn['reason']) => void;
@@ -437,6 +442,7 @@ const LATE_NIGHT_PENALTY = {
   health: getNumericRuleValue('late_night_penalty_health'),
   temperament: getNumericRuleValue('late_night_penalty_temperament'),
 } as const;
+const formatSignedDelta = (value: number): string => `${value >= 0 ? '+' : ''}${value}`;
 const getCurrentXunKey = (time: PalaceTimeState): string => `${time.year}-${time.month}-${time.xun}`;
 const getNextXunMorning = (time: PalaceTimeState): PalaceTimeState => {
   let year = time.year;
@@ -901,7 +907,6 @@ interface MonthGovernanceUpdate {
 }
 
 const buildSettlementReport = ({
-  currentState,
   nextState,
   nextTime,
   xunTransitions,
@@ -914,7 +919,6 @@ const buildSettlementReport = ({
   dowagerLines,
   reportIndex,
 }: {
-  currentState: GameNumericsState;
   nextState: GameNumericsState;
   nextTime: PalaceTimeState;
   xunTransitions: number;
@@ -935,44 +939,39 @@ const buildSettlementReport = ({
   const title = isMonthReport
     ? `${nextTime.year}年${nextTime.month}月月初通报`
     : `${nextTime.year}年${nextTime.month}月第${nextTime.xun}旬清晨通报`;
-  const lines = [
-    xunTransitions > 1
-      ? `已连续推进${xunTransitions}旬，当前回到${nextTime.month}月第${nextTime.xun}旬清晨。`
-      : `已入${nextTime.month}月第${nextTime.xun}旬清晨，体力按新旬口径恢复为${nextState.stamina}。`,
-  ];
+  const lines = [`体力已恢复为${nextState.stamina}。`];
+  const chronicleLines: string[] = [];
 
   if (lateNightPenaltyLines.length > 0) {
     lines.push(...lateNightPenaltyLines);
+    chronicleLines.push(...lateNightPenaltyLines);
   }
 
   if (economy && monthTransitions > 0) {
     const currentRank = monthGovernance?.nextRankName ?? economy.rankName;
     const nextRankRequiredPrestige = resolveNextPlayerRankPrestigeRequirement(currentRank);
-    lines.push(`本月月俸：${economy.stipend}`);
-    lines.push(`本月用度：${economy.palaceExpense}`);
-    lines.push(`当前银两：${nextState.silver}`);
-    lines.push(`当前位份：${currentRank}`);
-    lines.push(`当前声望：${nextState.prestige} / ${nextRankRequiredPrestige ?? '已达顶位'}`);
+    const economyLine = `本月月俸：${economy.stipend}，用度：${economy.palaceExpense}，当前银两：${nextState.silver}。`;
+    const rankLine = `当前位份：${currentRank}，声望：${nextState.prestige} / ${nextRankRequiredPrestige ?? '已达顶位'}。`;
+    lines.push(economyLine);
+    lines.push(rankLine);
+    chronicleLines.push(economyLine, rankLine);
     if (dowagerLines.length > 0) {
       lines.push(...dowagerLines);
+      chronicleLines.push(...dowagerLines);
     }
     if (palaceStrifeLines.length > 0) {
-      lines.push(`宫斗案件：本月有${palaceStrifeLines.length}条变动。`);
+      const palaceStrifeSummaryLine = `宫斗案件：本月有${palaceStrifeLines.length}条变动。`;
+      lines.push(palaceStrifeSummaryLine);
       lines.push(...palaceStrifeLines);
-    } else {
-      lines.push('宫斗案件：本月暂无结案或新调查。');
+      chronicleLines.push(palaceStrifeSummaryLine, ...palaceStrifeLines);
     }
   } else {
     if (nightlyServiceLines.length > 0) {
       lines.push(...nightlyServiceLines);
-    } else {
-      lines.push('宫中暂未触发强制夜间事件，娘娘仍可自由安排行程。');
-    }
-    if (currentState.stamina !== nextState.stamina) {
-      lines.push(`上一旬剩余体力不继承，新旬体力已重算为${nextState.stamina}。`);
     }
     if (palaceStrifeLines.length > 0) {
       lines.push(...palaceStrifeLines);
+      chronicleLines.push(...palaceStrifeLines);
     }
   }
 
@@ -983,12 +982,14 @@ const buildSettlementReport = ({
   return {
     id: `${nextTime.year}-${nextTime.month}-${nextTime.xun}-${reportIndex}`,
     kind: isMonthReport ? 'month' : 'xun',
+    chronicleCategory: 'internal',
     year: nextTime.year,
     month: nextTime.month,
     xun: nextTime.xun,
     title,
     summary: lines.join(' '),
     lines,
+    chronicleLines,
   };
 };
 
@@ -1003,27 +1004,102 @@ const isDuplicateSettlementReport = (previous: SettlementReport | undefined, nex
       previous.title === next.title,
   );
 
+const buildChronicleOnlyReport = ({
+  id,
+  chronicleCategory,
+  time,
+  title,
+  lines,
+}: {
+  id: string;
+  chronicleCategory: ChronicleCategory;
+  time: Pick<PalaceTimeState, 'year' | 'month' | 'xun'>;
+  title: string;
+  lines: string[];
+}): SettlementReport | null => {
+  const cleanLines = lines.map((line) => line.trim()).filter(Boolean);
+  if (cleanLines.length === 0) {
+    return null;
+  }
+
+  return {
+    id,
+    kind: 'event',
+    chronicleCategory,
+    chronicleOnly: true,
+    year: time.year,
+    month: time.month,
+    xun: time.xun,
+    title,
+    summary: cleanLines.join(' '),
+    lines: cleanLines,
+  };
+};
+
+const describeNightlyServiceForChronicle = (report: NightlyServiceReport): string => {
+  const targetName = report.targetName ?? '宫中妃嫔';
+  const interestLine = `兴致${report.interest}`;
+  switch (report.outcome) {
+    case 'player-service':
+      return `${targetName}今夜奉召侍寝，${interestLine}。`;
+    case 'player-companion':
+      return `${targetName}今夜奉召伴驾，${interestLine}。`;
+    case 'other-consort-service':
+      return `${targetName}今夜侍寝，${interestLine}。`;
+    case 'other-consort-companion':
+      return `${targetName}今夜伴驾，${interestLine}。`;
+    case 'emperor-alone':
+    default:
+      return `皇上今夜独寝，${interestLine}。`;
+  }
+};
+
+const buildNightlyServiceChronicleReport = (report: NightlyServiceReport, reportIndex: number): SettlementReport | null =>
+  buildChronicleOnlyReport({
+    id: `chronicle-nightly-${report.id}-${reportIndex}`,
+    chronicleCategory: 'rumor',
+    time: report,
+    title: report.targetName ? `今夜召幸：${report.targetName}` : '今夜独寝',
+    lines: [describeNightlyServiceForChronicle(report)],
+  });
+
+const buildNpcRelationChronicleReport = ({
+  nextTime,
+  lines,
+  reportIndex,
+}: {
+  nextTime: PalaceTimeState;
+  lines: string[];
+  reportIndex: number;
+}): SettlementReport | null =>
+  buildChronicleOnlyReport({
+    id: `chronicle-npc-relation-${nextTime.year}-${nextTime.month}-${nextTime.xun}-${reportIndex}`,
+    chronicleCategory: 'rumor',
+    time: nextTime,
+    title: '宫中闲言',
+    lines,
+  });
+
 const buildPalaceBanquetRegistrationReport = ({
   seasonKey,
+  noticeTime,
   eventTime,
   reportIndex,
 }: {
   seasonKey: string;
+  noticeTime: PalaceTimeState;
   eventTime: PalaceTimeState;
   reportIndex: number;
 }): SettlementReport => ({
   id: `palace-banquet-registration-${seasonKey}-${reportIndex}`,
   kind: 'event',
-  year: eventTime.year,
-  month: eventTime.month,
-  xun: eventTime.xun,
-  title: '宫宴报名开启',
-  summary: `司乐女官来报：本届宫宴定于${eventTime.month}月第${eventTime.xun}旬${eventTime.slot}，妙音堂今日起收录曲谱。`,
-  lines: [
-    `司乐女官来报：本届宫宴定于${eventTime.month}月第${eventTime.xun}旬${eventTime.slot}。`,
-    '妙音堂今日起收录曲谱，若娘娘手中有合适曲谱，可在宫宴前递交报名。',
-    '报名截止在宫宴开始前，逾时便只能随班入席。',
-  ],
+  chronicleCategory: 'event',
+  year: noticeTime.year,
+  month: noticeTime.month,
+  xun: noticeTime.xun,
+  title: '宫宴报名开启通知',
+  summary: `宫宴报名开启通知：本届宫宴定于${eventTime.year}年${eventTime.month}月第${eventTime.xun}旬${eventTime.slot}。`,
+  lines: [`宫宴报名开启通知：本届宫宴定于${eventTime.year}年${eventTime.month}月第${eventTime.xun}旬${eventTime.slot}。`],
 });
 
 const buildRankPromotionReport = ({
@@ -1053,6 +1129,7 @@ const buildRankPromotionReport = ({
   return {
     id: `rank-promotion-${nextTime.year}-${nextTime.month}-${nextTime.xun}-${reportIndex}`,
     kind: 'promotion',
+    chronicleCategory: 'edict',
     year: nextTime.year,
     month: nextTime.month,
     xun: nextTime.xun,
@@ -1075,6 +1152,7 @@ const buildPalaceBanquetResultReport = ({
 }): SettlementReport => ({
   id: `palace-banquet-result-${seasonKey}-${reportIndex}`,
   kind: 'event',
+  chronicleCategory: 'event',
   year: completedAt.year,
   month: completedAt.month,
   xun: completedAt.xun,
@@ -1352,6 +1430,7 @@ const createInitialGameFlowFields = (currentView: CurrentView): Partial<GameFlow
   numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
   pendingOvernightReturn: undefined,
   pendingViewTransitionCleanup: undefined,
+  activeBlockingNarratives: {},
 });
 
 const restoreSaveGameV1Fields = (saveGame: SaveGameV1): Partial<GameFlowStore> => ({
@@ -1404,6 +1483,7 @@ const restoreSaveGameV1Fields = (saveGame: SaveGameV1): Partial<GameFlowStore> =
   lastSeenSettlementReportId: saveGame.world.lastSeenSettlementReportId,
   numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
   pendingOvernightReturn: undefined,
+  activeBlockingNarratives: {},
 });
 
 export const useGameFlowStore = create<GameFlowStore>()(
@@ -1451,6 +1531,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
       numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
       pendingOvernightReturn: undefined,
       pendingViewTransitionCleanup: undefined,
+      activeBlockingNarratives: {},
       setCurrentView: (currentView) => set({ currentView }),
       setScene: (scene) => set({ scene }),
       openChamberPanel: (activeChamberPanel) => set({ activeChamberPanel }),
@@ -1678,6 +1759,22 @@ export const useGameFlowStore = create<GameFlowStore>()(
       setBriefing: (briefing) => set({ briefing }),
       setDialogue: (dialogue) => set({ dialogue }),
       setMapEventText: (text) => set({ mapEventText: text }),
+      beginBlockingNarrative: (lockId) =>
+        set((current) => ({
+          activeBlockingNarratives: {
+            ...current.activeBlockingNarratives,
+            [lockId]: true,
+          },
+        })),
+      endBlockingNarrative: (lockId) =>
+        set((current) => {
+          if (!current.activeBlockingNarratives[lockId]) {
+            return current;
+          }
+          const remaining = { ...current.activeBlockingNarratives };
+          delete remaining[lockId];
+          return { activeBlockingNarratives: remaining };
+        }),
       requestOvernightReturn: (payload) =>
         set({
           pendingOvernightReturn: {
@@ -3015,7 +3112,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
           const npcRelationSettlement =
             xunTransitions > 0
               ? resolveNpcRelationMatrixForActivities(current.npcRelationMatrix, Object.values(current.npcActivity.entries))
-              : { matrix: current.npcRelationMatrix, deltasByConsortId: {} };
+              : { matrix: current.npcRelationMatrix, deltasByConsortId: {}, chronicleLines: [] };
           const palaceStrifeSettlement =
             xunTransitions > 0
               ? settlePalaceStrifeForXunTransitions(
@@ -3203,7 +3300,11 @@ export const useGameFlowStore = create<GameFlowStore>()(
                 ? []
                 : nightlyServiceSettlement?.morningLines ?? [];
           const lateNightPenaltyLines = shouldApplyLateNightPenalty
-            ? ['娇娇低声禀道：昨夜歇得太晚，晨起气色难免受损。压力+2，健康-10，气质-10。']
+            ? [
+                `娇娇低声禀道：昨夜歇得太晚，晨起气色难免受损。压力${formatSignedDelta(
+                  LATE_NIGHT_PENALTY.stress,
+                )}，健康${formatSignedDelta(LATE_NIGHT_PENALTY.health)}，气质${formatSignedDelta(LATE_NIGHT_PENALTY.temperament)}。`,
+              ]
             : [];
           const palaceStrifeLines =
             xunTransitions > 0
@@ -3216,7 +3317,6 @@ export const useGameFlowStore = create<GameFlowStore>()(
           const settlementReport = hasPendingPlayerNightlyService
             ? null
             : buildSettlementReport({
-                currentState: current.state,
                 nextState,
                 nextTime,
                 xunTransitions,
@@ -3232,6 +3332,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
           const registrationReport = registrationNotice.shouldShow
             ? buildPalaceBanquetRegistrationReport({
                 seasonKey: registrationNotice.seasonKey,
+                noticeTime: nextTime,
                 eventTime: registrationNotice.eventTime,
                 reportIndex: current.settlementReports.length + reportIndexOffset + 2,
               })
@@ -3244,14 +3345,38 @@ export const useGameFlowStore = create<GameFlowStore>()(
                 reportIndex: current.settlementReports.length + reportIndexOffset + 3,
               })
             : null;
+          const npcRelationChronicleReport =
+            xunTransitions > 0
+              ? buildNpcRelationChronicleReport({
+                  nextTime,
+                  lines: npcRelationSettlement.chronicleLines,
+                  reportIndex: current.settlementReports.length + reportIndexOffset + 4,
+                })
+              : null;
+          const nightlyServiceChronicleReport =
+            nightlyServiceSettlement && !nightlyServiceSettlement.pendingEvent
+              ? buildNightlyServiceChronicleReport(
+                  nightlyServiceSettlement.report,
+                  current.settlementReports.length + reportIndexOffset + 5,
+                )
+              : null;
           let settlementReports = current.settlementReports;
           let latestSettlementReportId = current.latestSettlementReportId;
-          [rankPromotionReport, settlementReport, registrationReport, palaceBanquetReport].forEach((report) => {
+          [
+            rankPromotionReport,
+            settlementReport,
+            registrationReport,
+            palaceBanquetReport,
+            npcRelationChronicleReport,
+            nightlyServiceChronicleReport,
+          ].forEach((report) => {
             if (!report || isDuplicateSettlementReport(settlementReports.at(-1), report)) {
               return;
             }
             settlementReports = [...settlementReports, report].slice(-MAX_SETTLEMENT_REPORTS);
-            latestSettlementReportId = report.id;
+            if (!report.chronicleOnly) {
+              latestSettlementReportId = report.id;
+            }
           });
 
           return {
@@ -3391,7 +3516,6 @@ export const useGameFlowStore = create<GameFlowStore>()(
             result.nextEmperorMood,
           );
           const settlementReport = buildSettlementReport({
-            currentState: current.state,
             nextState,
             nextTime,
             xunTransitions: 1,
@@ -3404,10 +3528,18 @@ export const useGameFlowStore = create<GameFlowStore>()(
             dowagerLines: [],
             reportIndex: current.settlementReports.length + 1,
           });
-          const shouldAppendSettlementReport = !isDuplicateSettlementReport(current.settlementReports.at(-1), settlementReport);
-          const settlementReports = settlementReport && shouldAppendSettlementReport
-            ? [...current.settlementReports, settlementReport].slice(-MAX_SETTLEMENT_REPORTS)
-            : current.settlementReports;
+          const nightlyServiceChronicleReport = buildNightlyServiceChronicleReport(result.report, current.settlementReports.length + 2);
+          let settlementReports = current.settlementReports;
+          let latestSettlementReportId = current.latestSettlementReportId;
+          [settlementReport, nightlyServiceChronicleReport].forEach((report) => {
+            if (!report || isDuplicateSettlementReport(settlementReports.at(-1), report)) {
+              return;
+            }
+            settlementReports = [...settlementReports, report].slice(-MAX_SETTLEMENT_REPORTS);
+            if (!report.chronicleOnly) {
+              latestSettlementReportId = report.id;
+            }
+          });
 
           return {
             state: nextState,
@@ -3440,8 +3572,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             activeAffairsSource: DEFAULT_AFFAIRS_SOURCE,
             mapEventText: '',
             settlementReports,
-            latestSettlementReportId:
-              settlementReport && shouldAppendSettlementReport ? settlementReport.id : current.latestSettlementReportId,
+            latestSettlementReportId,
           };
         }),
       spendFamilyAid: () => {

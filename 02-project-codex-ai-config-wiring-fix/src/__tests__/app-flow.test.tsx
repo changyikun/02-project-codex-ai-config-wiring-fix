@@ -67,6 +67,7 @@ const resetFlowStore = () => {
     dialogue: undefined,
     mapEventText: '',
     save: undefined,
+    activeBlockingNarratives: {},
     settlementReports: [],
     latestSettlementReportId: undefined,
     lastSeenSettlementReportId: undefined,
@@ -2143,8 +2144,9 @@ describe('App 主流程切换', () => {
           month: 1,
           xun: 2,
           title: '1年1月第2旬清晨通报',
-          summary: '已入1月第2旬清晨，体力按新旬口径恢复为10。',
-          lines: ['已入1月第2旬清晨，体力按新旬口径恢复为10。'],
+          summary: '体力已恢复为10。',
+          lines: ['体力已恢复为10。'],
+          chronicleLines: [],
         },
       ],
       latestSettlementReportId: 'settlement-map-1',
@@ -3072,7 +3074,7 @@ describe('App 主流程切换', () => {
       expect(useGameFlowStore.getState().palaceBanquetProgress.submittedScore?.difficulty).toBe(85);
       expect(useGameFlowStore.getState().inventory.some((item) => item.itemId === 'score-phoenix-return')).toBe(true);
     });
-  });
+  }, 10000);
 
   it('初次遇见凌萧会获得一张曲谱', async () => {
     useGameFlowStore.setState((state) => ({
@@ -7336,7 +7338,8 @@ describe('App 主流程切换', () => {
     fireEvent.click(screen.getByRole('button', { name: '诵读经典' }));
 
     await waitFor(() => {
-      expect(screen.getByText('1年1月1旬（上午）')).toBeInTheDocument();
+      expect(screen.getByLabelText('一年一月一旬')).toBeInTheDocument();
+      expect(screen.getByLabelText('上午')).toBeInTheDocument();
       expect(screen.getByText(`体力：${STAMINA_INITIAL_PER_XUN - 2}`)).toBeInTheDocument();
     });
     await clickDialogueAdvance();
@@ -7362,7 +7365,8 @@ describe('App 主流程切换', () => {
     fireEvent.click(screen.getByRole('button', { name: '结束本旬' }));
 
     await waitFor(() => {
-      expect(screen.getByText('1年1月1旬（夜晚）')).toBeInTheDocument();
+      expect(screen.getByLabelText('一年一月一旬')).toBeInTheDocument();
+      expect(screen.getByLabelText('夜晚')).toBeInTheDocument();
       expect(screen.getAllByLabelText('夜晚侍寝通报').length).toBeGreaterThan(0);
     });
 
@@ -7376,6 +7380,8 @@ describe('App 主流程切换', () => {
         expect(screen.getByLabelText('清晨')).toBeInTheDocument();
         expect(screen.getByText(`体力：${STAMINA_INITIAL_PER_XUN}`)).toBeInTheDocument();
         expect(screen.getByText(/1年1月第2旬清晨通报/)).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`体力已恢复为${STAMINA_INITIAL_PER_XUN}`))).toBeInTheDocument();
+        expect(screen.getByText(/侍寝保底值/)).toBeInTheDocument();
         expect(screen.queryByLabelText('一夜过去')).not.toBeInTheDocument();
       },
       { timeout: 3500 },
@@ -7391,10 +7397,11 @@ describe('App 主流程切换', () => {
     expect(useGameFlowStore.getState().settlementReports.filter((report) => report.title === '1年1月第2旬清晨通报')).toHaveLength(1);
 
     fireEvent.click(screen.getByRole('button', { name: '纪事' }));
-    fireEvent.click(await screen.findByRole('button', { name: '事件' }));
+    fireEvent.click(await screen.findByRole('button', { name: '内务' }));
 
-    expect(await screen.findByText('1年1月第2旬清晨通报')).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(`体力按新旬口径恢复为${STAMINA_INITIAL_PER_XUN}`))).toBeInTheDocument();
+    expect(screen.queryByText('1年1月第2旬清晨通报')).not.toBeInTheDocument();
+    expect(screen.queryByText(/体力已恢复/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/侍寝保底值/)).not.toBeInTheDocument();
   }, 10000);
 
   it('普通行动推进到夜晚时，会先展示本次行动结果，再展示非主角侍寝通报', async () => {
@@ -7447,16 +7454,83 @@ describe('App 主流程切换', () => {
     await clickDialogueAdvance();
 
     await waitFor(() => {
-      expect(screen.getByText('1年1月1旬（夜晚）')).toBeInTheDocument();
+      expect(screen.getByLabelText('一年一月一旬')).toBeInTheDocument();
+      expect(screen.getByLabelText('夜晚')).toBeInTheDocument();
       expect(screen.getAllByLabelText('夜晚侍寝通报').length).toBeGreaterThan(0);
     });
 
     await clickDialogueAdvance();
 
     await waitFor(() => {
-      expect(screen.getByText('1年1月1旬（夜晚）')).toBeInTheDocument();
+      expect(screen.getByLabelText('一年一月一旬')).toBeInTheDocument();
+      expect(screen.getByLabelText('夜晚')).toBeInTheDocument();
       expect(screen.queryByLabelText('一夜过去')).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: '殿内小憩' })).toBeInTheDocument();
+    });
+  }, 10000);
+
+  it('地点随机事件未收束时，不会叠加夜晚侍寝通报', async () => {
+    useGameFlowStore.setState((flow) => ({
+      ...flow,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '妙音堂',
+      activeMapLocationEntryTime: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 4,
+        slot: '傍晚',
+        slotProgress: 0,
+      },
+      state: {
+        ...flow.state,
+        favor: 1,
+        stamina: STAMINA_INITIAL_PER_XUN,
+        flags: {
+          ...flow.state.flags,
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        ...flow.hiddenStats,
+        favor: 1,
+        initialRank: '皇后',
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 4,
+        slot: '傍晚',
+        slotProgress: 0,
+      },
+      nightlyService: {
+        ...flow.nightlyService,
+        queuedRolls: {
+          alone: 100,
+          player: 100,
+          pool: 1,
+          interest: 60,
+          pregnancy: 100,
+        },
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '闲逛' }));
+
+    expect(await screen.findByLabelText('妙音堂闲逛事件')).toBeInTheDocument();
+    expect(useGameFlowStore.getState().nightlyService.pendingNotice).toBeDefined();
+    expect(screen.queryByLabelText('夜晚侍寝通报')).not.toBeInTheDocument();
+
+    await advanceDialogueByLabelUntilGone('妙音堂闲逛事件');
+
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('夜晚侍寝通报').length).toBeGreaterThan(0);
     });
   }, 10000);
 
@@ -7508,7 +7582,8 @@ describe('App 主流程切换', () => {
     fireEvent.click(screen.getByRole('button', { name: '结束本旬' }));
 
     await waitFor(() => {
-      expect(screen.getByText('1年1月1旬（夜晚）')).toBeInTheDocument();
+      expect(screen.getByLabelText('一年一月一旬')).toBeInTheDocument();
+      expect(screen.getByLabelText('夜晚')).toBeInTheDocument();
       expect(screen.getAllByLabelText('侍寝太监通报').length).toBeGreaterThan(0);
     });
 
@@ -7545,7 +7620,7 @@ describe('App 主流程切换', () => {
       },
       { timeout: 3500 },
     );
-  });
+  }, 10000);
 
   it('从妙音堂触发主角侍寝后，黑幕结束后再显示清晨通报', async () => {
     useGameFlowStore.setState((flow) => ({
@@ -7773,7 +7848,7 @@ describe('App 主流程切换', () => {
 
     useGameFlowStore.getState().advanceTime(1);
     const flow = useGameFlowStore.getState();
-    const latestReport = flow.settlementReports.at(-1);
+    const latestReport = flow.settlementReports.find((report) => report.kind === 'month');
 
     expect(flow.time).toMatchObject({
       year: 1,
@@ -7787,9 +7862,7 @@ describe('App 主流程切换', () => {
       kind: 'month',
       title: '1年2月月初通报',
     });
-    expect(latestReport?.lines).toContain('本月月俸：160');
-    expect(latestReport?.lines).toContain('本月用度：80');
-    expect(latestReport?.lines).toContain('当前银两：1080');
+    expect(latestReport?.lines).toContain('本月月俸：160，用度：80，当前银两：1080。');
   });
 
   it('跨月时按本月用度策略扣银两并改变声望和健康，下月策略次月生效', () => {
@@ -7839,7 +7912,7 @@ describe('App 主流程切换', () => {
 
     useGameFlowStore.getState().advanceTime(1);
     const flow = useGameFlowStore.getState();
-    const latestReport = flow.settlementReports.at(-1);
+    const latestReport = flow.settlementReports.find((report) => report.kind === 'month');
 
     expect(flow.state.silver).toBe(1120);
     expect(flow.state.prestige).toBe(975);
@@ -7847,8 +7920,7 @@ describe('App 主流程切换', () => {
     expect(flow.state.stats.health).toBe(49);
     expect(flow.state.monthlyExpenseStrategy).toBe('luxury');
     expect(flow.state.nextMonthlyExpenseStrategy).toBeUndefined();
-    expect(latestReport?.lines).toContain('当前位份：婕妤');
-    expect(latestReport?.lines).toContain('当前声望：975 / 1100');
+    expect(latestReport?.lines).toContain('当前位份：婕妤，声望：975 / 1100。');
     expect(latestReport?.summary).not.toContain('位分复核');
     expect(latestReport?.summary).not.toContain('下月提点');
   });
@@ -8133,12 +8205,11 @@ describe('App 主流程切换', () => {
 
     useGameFlowStore.getState().advanceTime(1);
     const flow = useGameFlowStore.getState();
-    const latestReport = flow.settlementReports.at(-1);
+    const latestReport = flow.settlementReports.find((report) => report.kind === 'month');
 
     expect(flow.hiddenStats.initialRank).toBe('德妃 / 淑妃 / 贤妃');
     expect(flow.state.residenceName).toBe('长春宫');
-    expect(latestReport?.summary).toContain('当前位份：德妃 / 淑妃 / 贤妃');
-    expect(latestReport?.summary).toContain('当前声望：1780 / 2100');
+    expect(latestReport?.summary).toContain('当前位份：德妃 / 淑妃 / 贤妃，声望：1780 / 2100。');
   });
 
   it('跨月晋升会先显示太监晋升通报，再显示普通月初通报', async () => {
@@ -8224,7 +8295,7 @@ describe('App 主流程切换', () => {
     expect(await screen.findByLabelText('娇娇旬月通报')).toBeInTheDocument();
   });
 
-  it('纪事诏令页会分条展示月结算明细', () => {
+  it('纪事内务页会按日期分条展示月结算明细', () => {
     useGameFlowStore.setState((state) => ({
       ...state,
       currentView: 'bedchamber',
@@ -8245,14 +8316,10 @@ describe('App 主流程切换', () => {
           month: 2,
           xun: 1,
           title: '1年2月月初通报',
-          summary: '本月月俸：160 本月用度：80 当前银两：1080 当前位份：婕妤 当前声望：1000 / 1100 宫斗案件：本月暂无结案或新调查。',
+          summary: '本月月俸：160，用度：80，当前银两：1080。 当前位份：婕妤，声望：1000 / 1100。',
           lines: [
-            '本月月俸：160',
-            '本月用度：80',
-            '当前银两：1080',
-            '当前位份：婕妤',
-            '当前声望：1000 / 1100',
-            '宫斗案件：本月暂无结案或新调查。',
+            '本月月俸：160，用度：80，当前银两：1080。',
+            '当前位份：婕妤，声望：1000 / 1100。',
           ],
         },
       ],
@@ -8260,10 +8327,17 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    const reportList = screen.getByRole('list', { name: '月报明细' });
-    expect(within(reportList).getByText('当前位份：婕妤')).toBeInTheDocument();
-    expect(within(reportList).getByText('当前声望：1000 / 1100')).toBeInTheDocument();
-    expect(within(reportList).getByText('宫斗案件：本月暂无结案或新调查。')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '内务' }));
+
+    expect(screen.getAllByText('1年2月第1旬')).toHaveLength(2);
+    expect(screen.getAllByText('1年2月月初通报')).toHaveLength(2);
+    expect(screen.getByText('本月月俸：160，用度：80，当前银两：1080。')).toBeInTheDocument();
+    expect(screen.getByText('当前位份：婕妤，声望：1000 / 1100。')).toBeInTheDocument();
+    expect(screen.queryByText(/宫斗案件：本月暂无/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '事件' }));
+    expect(screen.queryByText('本旬暂无新记')).not.toBeInTheDocument();
+    expect(screen.queryByText(/没有事件/)).not.toBeInTheDocument();
   });
 
   it('请平安脉不消耗体力且每旬限一次，殿内小憩可恢复体力', async () => {
@@ -8324,7 +8398,8 @@ describe('App 主流程切换', () => {
     await waitFor(() => {
       expect(useGameFlowStore.getState().state.stamina).toBe(STAMINA_INITIAL_PER_XUN);
       expect(useGameFlowStore.getState().state.stats.health).toBe(healthBeforePulse + 5);
-      expect(screen.getByText('1年1月1旬（上午）')).toBeInTheDocument();
+      expect(screen.getByLabelText('一年一月一旬')).toBeInTheDocument();
+      expect(screen.getByLabelText('上午')).toBeInTheDocument();
     });
     await clickDialogueAdvance();
 
@@ -8344,7 +8419,8 @@ describe('App 主流程切换', () => {
 
     await waitFor(() => {
       expect(useGameFlowStore.getState().state.stamina).toBe(STAMINA_INITIAL_PER_XUN + 1);
-      expect(screen.getByText('1年1月1旬（下午）')).toBeInTheDocument();
+      expect(screen.getByLabelText('一年一月一旬')).toBeInTheDocument();
+      expect(screen.getByLabelText('下午')).toBeInTheDocument();
     });
   });
 

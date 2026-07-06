@@ -102,6 +102,7 @@
 - `npc.du-niang.low-affinity`：杜娘低好感闲谈与后续。
 - `npc.du-niang.high-affinity`：杜娘高好感闲谈。
 - `location.kitchen.stroll`：御膳房闲逛事件。
+- `location.imperial-garden.stroll`：御花园闲逛事件。
 - `location.miaoyin.common`：妙音堂通用闲逛事件。
 - `location.miaoyin.music`：妙音堂乐曲池事件。
 - `location.miaoyin.dance`：妙音堂舞蹈池事件。
@@ -126,6 +127,8 @@
 御膳房闲逛的事件抽取必须走随机事件 runtime 的 seeded 抽取 helper，入口只提供 `routeId + xunKey + strollCount` 等种子信息；不要在地点组件里自建简单 hash 或手写权重抽取。连续闲逛计数必须能落到多个事件，不能因为相邻种子过近而长期卡在同一个权重区间。
 
 妙音堂闲逛当前维护 15 个事件，来源于玩家给出的妙音堂闲逛文本。妙音堂闲逛从 `location.miaoyin.common`、`location.miaoyin.music`、`location.miaoyin.dance` 三个池合并抽取，每个事件必须在剧情行或选项效果里提供一次 `player.stress=-2` 的默认收益；入口只在完全没有抽到事件时使用兜底压力收益，不能先统一扣压再播放事件，避免双重结算。可拾取事件可以额外通过 `inventory.gain` 给物品，帮人归还、打听消息、观摩练习等分支可以固定给予 `player.prestige` 或 `player.stats` 收益。兰花绢帕与银叶耳坠同属失物归还彩蛋：收起时生成带隐藏失主 metadata 的独立实例，玩家仍可出售或送给任意人，只有送还给失主才触发特殊归还对白和额外好感。乐曲池和舞蹈池的触发次数会被妙音堂入口读取，用于解锁乐师凌萧和舞者凌袖在场景 NPC 区出现；这个解锁只依赖 `progress.randomEvents.triggerCounts`，不要在 CSV 里写额外 flag 或条件系统。妙音堂同样必须使用随机事件 runtime 的多池 seeded helper，不得在地点组件里另写私有权重抽取器。
+
+御花园闲逛当前维护在 `location.imperial-garden.stroll` 单池中。每个事件必须在剧情行或选项效果里提供一次 `player.stress=-2` 的默认收益；入口只在没有抽到事件时使用兜底压力收益。可拾取物品通过 `inventory.gain` 写在对应“带走”选项上；如果文本里有随机地点引用，入口负责传入变量，CSV 不写私有随机逻辑。
 
 凌萧初遇是固定事件，维护在 `npc_tools_dialogues.csv`，不进入随机事件表、不参与随机抽取、不写入随机事件触发计数。凌萧普通闲聊才由随机事件系统驱动，从 `npc.miaoyin-musician.common` 与当前好感池合并抽取：好感低于 `30` 使用低好感池，达到 `30` 后使用高好感池，并额外并入 `npc.miaoyin-musician.pipa-pick`。琵琶拨片后续事件只通过 `prerequisiteEventIds=miaoyin.music.pipa-pick` 判断是否开启，不在组件里检查背包、任务道具或额外 flag；玩家完成“香案底下的琵琶拨片”事件后，该后续才会进入可抽池。凌萧闲聊会消耗常驻 NPC 交互次数，因此每个事件都必须至少提供一次 `target.relationToPlayer` 正收益；玩家发言同样使用 `{{playerRank}}`、`{{playerAddress}}` 与 `portraitKey=player`。
 

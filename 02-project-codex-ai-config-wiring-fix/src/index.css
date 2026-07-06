@@ -6471,6 +6471,14 @@ button {
   padding: 18px 20px;
 }
 
+.chamber-utility-view__entry-date {
+  margin-bottom: 6px;
+  color: rgba(115, 71, 74, 0.72);
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
 .chamber-utility-view__entry-card h3,
 .chamber-utility-view__detail-card h3 {
   margin: 0 0 8px;

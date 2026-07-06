@@ -91,12 +91,16 @@ export const upsertNpcPairRelation = (
 export const resolveNpcRelationMatrixForActivities = (
   matrix: NpcRelationMatrix,
   entries: NpcActivityEntry[],
-): { matrix: NpcRelationMatrix; deltasByConsortId: Record<string, number> } => {
+): { matrix: NpcRelationMatrix; deltasByConsortId: Record<string, number>; chronicleLines: string[] } => {
   let nextMatrix = matrix;
   const deltasByConsortId: Record<string, number> = {};
+  const chronicleLines: string[] = [];
 
   entries.forEach((entry) => {
     if (!entry.targetConsortId || entry.actorConsortId === entry.targetConsortId) {
+      return;
+    }
+    if (!['visit-consort', 'social-plot', 'hostile-plot'].includes(entry.intent)) {
       return;
     }
 
@@ -104,7 +108,14 @@ export const resolveNpcRelationMatrixForActivities = (
     nextMatrix = result.matrix;
     deltasByConsortId[entry.actorConsortId] = (deltasByConsortId[entry.actorConsortId] ?? 0) + result.delta.actorStressDelta;
     deltasByConsortId[entry.targetConsortId] = (deltasByConsortId[entry.targetConsortId] ?? 0) + result.delta.targetStressDelta;
+    if (result.delta.favorDelta !== 0 || result.delta.tensionDelta !== 0) {
+      const relationEffects = [
+        result.delta.favorDelta > 0 ? '关系渐亲' : result.delta.favorDelta < 0 ? '情分转薄' : '',
+        result.delta.tensionDelta > 0 ? '嫌隙加深' : result.delta.tensionDelta < 0 ? '嫌隙稍解' : '',
+      ].filter(Boolean);
+      chronicleLines.push(`${entry.summary}${relationEffects.length > 0 ? ` ${relationEffects.join('，')}。` : ''}`);
+    }
   });
 
-  return { matrix: nextMatrix, deltasByConsortId };
+  return { matrix: nextMatrix, deltasByConsortId, chronicleLines };
 };

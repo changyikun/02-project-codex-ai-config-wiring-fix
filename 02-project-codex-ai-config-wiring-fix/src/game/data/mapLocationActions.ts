@@ -38,20 +38,11 @@ export const MAP_LOCATION_INTERACTION_CONFIGS: readonly MapLocationInteractionCo
     idleText: '花木深处常有人停步，风声也容易把半句话送到旁人耳边。',
     actions: [
       {
-        id: 'garden-stroll',
-        label: '游园',
+        id: 'stroll',
+        label: '闲逛',
         locationId: '御花园',
         narrativeLocationId: 'imperial-garden',
-        resultText: '花影与水声暂且压住宫中杂念，气质略有进益，压力稍减。',
-        effects: { stress: -1, stats: { temperament: 1 } },
-      },
-      {
-        id: 'listen-rumors',
-        label: '听风',
-        locationId: '御花园',
-        narrativeLocationId: 'imperial-garden',
-        resultText: '你在宫道转角听见几句未说尽的闲话，心计略有进益。',
-        effects: { stats: { intrigue: 1 } },
+        resultText: '你在御花园里慢慢走了一圈，花影与水声暂且压住宫中杂念。压力-2。',
       },
     ],
   },

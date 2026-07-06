@@ -400,7 +400,10 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
 
   if (aloneRoll <= aloneRate) {
     const nextGauge = clamp(input.playerNightFavorGauge + gaugeIncrement, gaugeMin, gaugeMax);
-    const lines = [`夜里太监来报：皇帝心绪不展，本旬夜间皇帝独寝。玩家侍寝保底值+${gaugeIncrement}，当前为${nextGauge}。`];
+    const lines = [
+      '夜里太监来报：皇帝心绪不展，本旬夜间皇帝独寝。',
+      `本旬未被召幸，侍寝保底值+${gaugeIncrement}，当前为${nextGauge}。`,
+    ];
     const report = buildReport({
       routeId: input.routeId,
       timeKey: input.timeKey,
@@ -491,7 +494,7 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
     const lines = [
       `夜里太监来报：养心殿召娘娘侍寝。本次兴致${interest}。`,
       ...(playerServiceSummonPrestigeDelta > 0 ? ['本次召幸已足够让宫中记上一笔。'] : []),
-      '本旬玩家已承宠，侍寝保底值归零。',
+      '本旬已承宠，侍寝保底值归零。',
     ];
     const report = buildReport({
       routeId: input.routeId,
@@ -532,7 +535,10 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
 
   if (candidates.length === 0) {
     const nextGauge = clamp(input.playerNightFavorGauge + gaugeIncrement, gaugeMin, gaugeMax);
-    const lines = [`夜里太监来报：后宫无人入选，本旬皇帝独寝。玩家侍寝保底值+${gaugeIncrement}，当前为${nextGauge}。`];
+    const lines = [
+      '夜里太监来报：后宫无人入选，本旬皇帝独寝。',
+      `本旬未被召幸，侍寝保底值+${gaugeIncrement}，当前为${nextGauge}。`,
+    ];
     const report = buildReport({
       routeId: input.routeId,
       timeKey: input.timeKey,
@@ -575,7 +581,7 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
   const lines = [
     `夜里太监来报：本旬由${target.rankLabel}${target.name}侍寝。本次兴致${interest}。`,
     ...(playerFavorEffect.line ? [playerFavorEffect.line] : []),
-    `玩家本旬未被召幸，侍寝保底值+${gaugeIncrement}，当前为${nextGauge}。`,
+    `本旬未被召幸，侍寝保底值+${gaugeIncrement}，当前为${nextGauge}。`,
   ];
   const report = buildReport({
     routeId: input.routeId,
@@ -644,7 +650,7 @@ export const resolvePlayerNightlyServiceEvent = (
             : `你在言语间点到${thirdPartyEffect.targetName}的错处，御前一时静了下来。`,
         ]
       : []),
-    '本旬玩家已承宠，侍寝保底值归零。',
+    '本旬已承宠，侍寝保底值归零。',
   ];
   const report = buildReport({
     routeId: input.routeId,

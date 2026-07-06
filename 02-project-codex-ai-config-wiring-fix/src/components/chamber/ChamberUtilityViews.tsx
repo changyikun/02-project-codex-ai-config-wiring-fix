@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { AFFAIRS_UI_BACKGROUND, BOND_UI_BACKGROUND, CHRONICLE_UI_BACKGROUND, INVENTORY_UI_BACKGROUND, MISC_INFO_UI_BACKGROUND } from '../../config/locationSceneBackgrounds';
-import { getMonthlyExpenseStrategyConfig } from '../../config/monthlyExpenseStrategy';
 import { resolveUnlockedBondCharacters } from '../../game/data/bondPresets';
 import { getInventoryRecyclePrice, getPoisonInventoryItemIdByName } from '../../game/data/inventoryPresets';
 import {
@@ -23,7 +22,7 @@ import type {
   SettlementReport,
 } from '../../game/types';
 
-type ChronicleTabId = 'edict' | 'secret' | 'quarrel' | 'event' | 'rumor';
+type ChronicleTabId = 'edict' | 'rumor' | 'secret' | 'event' | 'internal';
 type MiscInfoCardId = 'emperor' | 'officials' | 'dowager' | 'father' | 'court';
 type InventoryTabId = 'tonic' | 'gift' | 'pill' | 'key-item';
 type AffairStepId = 'target' | 'method' | 'ally' | 'item' | 'investigation' | 'finish';
@@ -39,10 +38,10 @@ const utilityPanelFrameStyle = (backgroundImage: string): CSSProperties => ({
 
 const chronicleTabs: Array<{ id: ChronicleTabId; label: string }> = [
   { id: 'edict', label: '圣旨' },
-  { id: 'secret', label: '密事' },
-  { id: 'quarrel', label: '口角' },
+  { id: 'rumor', label: '闲言' },
+  { id: 'secret', label: '秘事' },
   { id: 'event', label: '事件' },
-  { id: 'rumor', label: '流言' },
+  { id: 'internal', label: '内务' },
 ];
 
 const inventoryTabs: Array<{ id: InventoryTabId; label: string }> = [
@@ -268,86 +267,61 @@ interface ChroniclePanelViewProps {
   onClose: () => void;
 }
 
-export function ChroniclePanelView({ time, state, hiddenStats, settlementReports, onClose }: ChroniclePanelViewProps) {
-  const [activeTab, setActiveTab] = useState<ChronicleTabId>('edict');
-  const monthReports = useMemo(
-    () => settlementReports.filter((report) => report.kind === 'month').slice().reverse(),
-    [settlementReports],
-  );
-  const xunReports = useMemo(
-    () => settlementReports.filter((report) => report.kind === 'xun').slice().reverse(),
-    [settlementReports],
-  );
-  const monthlyExpenseStrategy = getMonthlyExpenseStrategyConfig(state.monthlyExpenseStrategy);
-  const nextMonthlyExpenseStrategy = state.nextMonthlyExpenseStrategy
-    ? getMonthlyExpenseStrategyConfig(state.nextMonthlyExpenseStrategy)
-    : undefined;
+const chronicleDateLabel = (report: Pick<SettlementReport, 'year' | 'month' | 'xun'>): string =>
+  `${report.year}年${report.month}月第${report.xun}旬`;
 
-  const entries = useMemo<Record<ChronicleTabId, Array<{ title: string; detail: string; detailLines?: string[] }>>>(
-    () => ({
-      edict:
-        monthReports.length > 0
-          ? monthReports.map((report) => ({
-              title: report.title,
-              detail: report.summary,
-              detailLines: report.lines,
-            }))
-          : [
-              {
-                title: `${time.year}年${time.month}月第${time.xun}旬宫中暂未颁新旨`,
-                detail: '眼下仍以旧例行事，若后续有封赏、迁宫或禁足，会在此页首先记录。',
-              },
-              {
-                title: `${state.residenceName}日常用度照旧`,
-                detail: `当前银两 ${hiddenStats.silver}，体力 ${state.stamina}。寝殿未见额外裁减。`,
-              },
-            ],
-      secret: [
-        {
-          title: '娇娇已记下娘娘近旬动向',
-          detail: `本月用度为“${monthlyExpenseStrategy.label}”，${
-            nextMonthlyExpenseStrategy
-              ? `下月将改为“${nextMonthlyExpenseStrategy.label}”。`
-              : '下月暂照本月旧例。'
-          }后续若触发暗线、密约与私会，会在此留档。`,
-        },
-        {
-          title: '暂无未公开的宫中秘信',
-          detail: '该页后续会汇入密事、密诏、暗访与私人书信。',
-        },
-      ],
-      quarrel: [
-        {
-          title: '宫中暂无公开口角记录',
-          detail: '与嫔妃口角、宫女争执、御前失仪等事件触发后，会依时间顺序记在这里。',
-        },
-      ],
-      event:
-        xunReports.length > 0
-          ? xunReports.map((report) => ({
-              title: report.title,
-              detail: report.summary,
-              detailLines: report.lines,
-            }))
-          : [
-              {
-                title: '当前流程运转正常',
-                detail: '主场景、后宫、个人属性与外出场景均可继续运行，不会因打开纪事页中断。',
-              },
-              {
-                title: '本旬重点仍是安排行程',
-                detail: '学习、休养、外出、查看人物关系等入口已经接通。',
-              },
-            ],
-      rumor: [
-        {
-          title: hiddenStats.favor >= 40 ? '宫中已有人议论娘娘近来颇得关注' : '宫中对娘娘的议论暂时不多',
-          detail: `当前宠爱 ${hiddenStats.favor}，若后续宫斗、偶遇与侍寝事件推进，流言会逐渐累积。`,
-        },
-      ],
-    }),
-    [hiddenStats.favor, hiddenStats.silver, monthReports, state.openingTendency, state.residenceName, state.stamina, time.month, time.xun, time.year, xunReports],
-  );
+const resolveChronicleCategory = (report: SettlementReport): ChronicleTabId => {
+  if (report.chronicleCategory) {
+    return report.chronicleCategory;
+  }
+  if (report.kind === 'promotion') {
+    return 'edict';
+  }
+  if (report.kind === 'month' || report.kind === 'xun') {
+    return 'internal';
+  }
+  return 'event';
+};
+
+interface ChronicleEntryViewModel {
+  id: string;
+  title: string;
+  date: string;
+  detail: string;
+}
+
+export function ChroniclePanelView({ settlementReports, onClose }: ChroniclePanelViewProps) {
+  const [activeTab, setActiveTab] = useState<ChronicleTabId>('edict');
+  const reportsByChronicleCategory = useMemo(() => {
+    const groups: Record<ChronicleTabId, ChronicleEntryViewModel[]> = {
+      edict: [],
+      rumor: [],
+      secret: [],
+      event: [],
+      internal: [],
+    };
+    settlementReports
+      .slice()
+      .reverse()
+      .forEach((report) => {
+        const chronicleLines = report.chronicleLines ?? report.lines;
+        const reportLines = chronicleLines.length > 0 ? chronicleLines : [];
+        reportLines.forEach((line, index) => {
+          const detail = line.trim();
+          if (!detail) {
+            return;
+          }
+          groups[resolveChronicleCategory(report)].push({
+            id: `${report.id}-${index}`,
+            title: report.title,
+            date: chronicleDateLabel(report),
+            detail,
+          });
+        });
+      });
+    return groups;
+  }, [settlementReports]);
+  const entries = reportsByChronicleCategory;
   return (
     <UtilityPanelShell ariaLabel="纪事面板" backgroundImage={CHRONICLE_UI_BACKGROUND} onClose={onClose}>
       <div className="chamber-utility-view__toolbar chamber-utility-view__toolbar--chronicle">
@@ -365,17 +339,10 @@ export function ChroniclePanelView({ time, state, hiddenStats, settlementReports
 
       <div className="chamber-utility-view__body chamber-utility-view__body--chronicle">
         {entries[activeTab].map((entry) => (
-          <article key={entry.title} className="chamber-utility-view__entry-card">
+          <article key={entry.id} className="chamber-utility-view__entry-card">
+            <div className="chamber-utility-view__entry-date">{entry.date}</div>
             <h3>{entry.title}</h3>
-            {entry.detailLines && entry.detailLines.length > 0 ? (
-              <ul className="chamber-utility-view__entry-lines" aria-label={activeTab === 'edict' ? '月报明细' : '旬报明细'}>
-                {entry.detailLines.map((line, index) => (
-                  <li key={`${entry.title}-${index}`}>{line}</li>
-                ))}
-              </ul>
-            ) : (
-              <p>{entry.detail}</p>
-            )}
+            <p>{entry.detail}</p>
           </article>
         ))}
       </div>

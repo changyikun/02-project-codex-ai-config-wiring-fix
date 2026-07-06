@@ -29,6 +29,7 @@
 
 - 不保存：`currentView`、弹窗、正在显示的对白、地图临时事件文本、briefing。
 - 必须保存：玩家数值、隐藏数值、时间、路线、妃嫔、库存、交易记录、关系进度、地点进度、侍寝进度、旬月通报、宫斗案件。
+- `settlementReports` 同时保存可弹出的旬月 / 事件通报和纪事留档。带 `chronicleOnly=true` 的记录只用于纪事面板，读档恢复后不得被 `latestSettlementReportId` 或通报选择逻辑当作未读弹窗；五类纪事分类由 `chronicleCategory` 维护，不从 `title` 文本反推。通报正文保存于 `lines`，纪事正文优先保存于 `chronicleLines`。纪事展示按 `chronicleLines` 逐行拆分，缺失时才回退 `lines`；空分类不生成占位记录。体力恢复、侍寝保底等机制结算可以保留在娇娇通报 `lines` 中，但不得写入 `chronicleLines`；月初内务需先聚合账目与位分声望。
 - NPC 旬级行动和 NPC-NPC 关系矩阵属于长期真值：它们决定本旬玩家能在何处遇到谁、谁在谁殿内同场、以及旬末 NPC 关系如何变化。
 - `progress.npcActivity.entries` 中未收束的 `visit-consort.targetConsortId` 表示目标妃嫔本旬在自己寝宫会客；读档恢复或 UI 重建时不得因为目标自己的旧公共外出条目或特殊住址导致她从寝宫消失。玩家结束这次会客后，该 `visit-consort` 标记为 `resolved=true`，来访妃嫔回自己的寝宫，目标不再显示“会客中”。公共外出的 `resolved=true` 只表示已交谈，NPC 仍留在原目的地。
 - `progress.craftWorks.activeWorks` 保存绣花、字画、调香进行中作品。作品进度、制作次数、成色评分、开始时间和最近制作时间属于长期真值；完成品进入 `inventory.items`，可送礼或变卖。缺少该进度块的旧存档视为不兼容。

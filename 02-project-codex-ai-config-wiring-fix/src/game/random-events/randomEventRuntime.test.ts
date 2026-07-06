@@ -173,6 +173,31 @@ describe('randomEventRuntime', () => {
     expect(new Set(pickedIds).size).toBeGreaterThanOrEqual(4);
   });
 
+  it('loads imperial garden stroll events with guaranteed stress relief and item gains', () => {
+    const gardenEvents = Object.values(randomEventCatalog.events).filter(
+      (event) => event.poolId === 'location.imperial-garden.stroll',
+    );
+    expect(gardenEvents).toHaveLength(15);
+    gardenEvents.forEach((event) => {
+      const hasStressRelief = event.branches.start.lines.some((line) => Number(line.effect?.player?.stress ?? 0) <= -2);
+      expect(hasStressRelief).toBe(true);
+    });
+    const inventoryGainOptions = gardenEvents.flatMap((event) =>
+      event.branches.start.options.filter((option) => (option.effect?.inventory?.gain?.length ?? 0) > 0),
+    );
+    expect(inventoryGainOptions).toHaveLength(4);
+
+    const pickedIds = [1, 2, 3, 4, 5, 6].map(
+      (count) =>
+        pickRandomEventBySeed({
+          poolId: 'location.imperial-garden.stroll',
+          progress: createInitialRandomEventProgress(),
+          seed: `yingluoyeting:1-1-1:imperial-garden-stroll:${count}`,
+        })?.eventId,
+    );
+    expect(new Set(pickedIds).size).toBeGreaterThanOrEqual(3);
+  });
+
   it('loads Ling Xiao talk pools and gates the pipa pick follow-up by prerequisite event', () => {
     const lingXiaoEvents = Object.values(randomEventCatalog.events).filter((event) => event.eventId.startsWith('miaoyin-musician.'));
     expect(lingXiaoEvents.length).toBeGreaterThanOrEqual(9);

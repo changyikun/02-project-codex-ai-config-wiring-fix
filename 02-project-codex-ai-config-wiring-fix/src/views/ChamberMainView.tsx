@@ -189,6 +189,7 @@ export function ChamberMainView() {
     activeMapLocation,
     activeMapLocationEntryTime,
     activeAffairsSource,
+    activeBlockingNarratives,
     mapEventText,
     openChamberPanel,
     closeChamberPanel,
@@ -267,7 +268,9 @@ export function ChamberMainView() {
   };
   const pendingNightlyServiceEvent = nightlyService.pendingEvent;
   const pendingNightlyServiceNotice = nightlyService.pendingNotice;
-  const shouldDelayNightlyServiceOverlay = Boolean(dialogueText || pendingYangxinVerdict);
+  const shouldDelayNightlyServiceOverlay = Boolean(
+    dialogueText || pendingYangxinVerdict || Object.keys(activeBlockingNarratives).length > 0,
+  );
   const shouldShowPendingNightlyServiceEvent = Boolean(pendingNightlyServiceEvent && !shouldDelayNightlyServiceOverlay);
   const shouldShowPendingNightlyServiceNotice = Boolean(
     !shouldShowPendingNightlyServiceEvent && pendingNightlyServiceNotice && !shouldDelayNightlyServiceOverlay,
@@ -446,7 +449,7 @@ export function ChamberMainView() {
     const lastSeenIndex = lastSeenSettlementReportId
       ? settlementReports.findIndex((report) => report.id === lastSeenSettlementReportId)
       : -1;
-    return settlementReports.slice(Math.max(0, lastSeenIndex + 1), latestIndex + 1)[0];
+    return settlementReports.slice(Math.max(0, lastSeenIndex + 1), latestIndex + 1).find((report) => !report.chronicleOnly);
   }, [latestSettlementReportId, lastSeenSettlementReportId, settlementReports]);
   const latestSettlementReportIsPromotion = latestSettlementReport?.kind === 'promotion';
   const isOvernightSettlementPhase = overnightTransitionPhase === 'settlement';

@@ -330,16 +330,20 @@ export interface PermanentNpcRelationshipState {
 export type PermanentNpcRelationshipMap = Record<string, PermanentNpcRelationshipState>;
 
 export type SettlementReportKind = 'xun' | 'month' | 'event' | 'promotion';
+export type ChronicleCategory = 'edict' | 'rumor' | 'secret' | 'event' | 'internal';
 
 export interface SettlementReport {
   id: string;
   kind: SettlementReportKind;
+  chronicleCategory?: ChronicleCategory;
+  chronicleOnly?: boolean;
   year: number;
   month: number;
   xun: number;
   title: string;
   summary: string;
   lines: string[];
+  chronicleLines?: string[];
 }
 
 export interface NightlyServiceRolls {

@@ -40,6 +40,7 @@ import type {
 } from '../../game/types';
 import { LocationActionResultStage } from './LocationActionResultStage';
 import { MapSubsceneView, type SubsceneActionEntry, type SubsceneNpcEntry } from './MapSubsceneView';
+import { useBlockingNarrativeLock } from './useBlockingNarrativeLock';
 import { useLocationActionFlow, type TimedLocationActionOutcome } from './useLocationActionFlow';
 
 interface KitchenViewProps {
@@ -141,6 +142,7 @@ export function KitchenView({ concubines }: KitchenViewProps) {
   const [encounterConsumedInteraction, setEncounterConsumedInteraction] = useState(false);
   const [activeRandomSession, setActiveRandomSession] = useState<RandomEventSession | null>(null);
   const [activeRandomLine, setActiveRandomLine] = useState<RandomEventLine | null>(null);
+  useBlockingNarrativeLock('kitchen:random-event', Boolean(activeRandomSession));
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
   const xunKey = `${time.year}-${time.month}-${time.xun}`;

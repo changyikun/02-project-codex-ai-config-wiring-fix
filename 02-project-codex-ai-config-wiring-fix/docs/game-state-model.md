@@ -111,6 +111,9 @@ interface SaveGameV1 {
 - 启动页“开始”会二级确认，确认后清空旧 envelope，从初始状态创建新局并写入新存档。
 - 启动页“回溯”会读取上一次 `SaveGameV1`，并根据 durable state 推断恢复到路线选择、属性页、地图或寝殿。
 - 当前游戏仍处开发阶段，存档结构不做跨版本迁移；缺少当前必需字段、schema 不匹配或 envelope 解析失败时，直接删除旧存档并让回溯显示无可用存档。
+- `world.settlementReports` 同时承载“可弹出的旬月 / 事件通报”和“只进入纪事的留档记录”。`kind` 继续服务通报演出优先级与说话人选择，`lines` 是娇娇 / 太监当场通报正文，`chronicleLines` 是纪事留档正文；缺少 `chronicleLines` 时纪事页才回退读取 `lines`。`chronicleCategory` 服务纪事五分类：`edict` 圣旨、`rumor` 闲言、`secret` 秘事、`event` 事件、`internal` 内务。`chronicleOnly=true` 的记录只在纪事中展示，不得进入 `latestSettlementReportId` 待播通报，也不得触发地图 / 寝殿的娇娇或太监通报 overlay。
+- 纪事每条记录必须带 `year / month / xun` 日期。当前默认归类为：晋封旨意进入圣旨，宫宴报名 / 宫宴结果等系统流程进入事件，娇娇旬报 / 月报、月俸发放、用度、月结算进入内务，妃嫔之间互动造成关系变化与皇上夜间侍寝 / 伴驾 / 独寝情况进入闲言。秘事分类预留给后续未公开线索或暗线记录，不能用普通事件占位替代。
+- 纪事展示时，`SettlementReport.chronicleLines` 中每一行都是一条独立纪事；没有 `chronicleLines` 的旧式记录才按 `lines` 展示。生成 `chronicleLines` 时必须按阅读目的聚合：月初内务把月俸 / 用度 / 银两写一条，把位分 / 声望写一条；无宫斗案件不写空占位。体力恢复、侍寝保底、无事件说明和实现时机说明不属于纪事真值，但体力恢复和侍寝保底仍可保留在 `lines` 里由娇娇当场通报。没有真实记录的分类保持空白，不写“暂无事件”类占位记录。
 - 系统宫宴进度保存于 `progress.palaceBanquet`，包括当前宫宴季、已提交曲谱快照、报名提醒标记、已结算宫宴季和最近一次宫宴结果。
 - 妙音堂曲谱 / 舞谱学习进度保存于 `progress.musicHall.musicScoreMastery` / `progress.musicHall.danceScoreMastery`，按谱子 ID 记录难度、完成度、练习次数、表现上限、最近一次练习预演表现分和最近练习时间；乐师凌萧的结识与支持进度保存于 `progress.musicHall.musicianFirstMet / musicianMet / musicianFavor / musicianAffection`，凌萧 / 凌袖关系赠谱档位保存于 `musicianScoreGiftAffinityCheckpoint` / `dancerScoreGiftAffinityCheckpoint`。后续若字段结构变化，必须清旧档或提升 schema，不做旧字段 fallback。
 - 绣花、字画、调香作品进度保存于 `progress.craftWorks.activeWorks`。作品由点击寝殿对应行动进入对应类别面板后创建和推进，记录作品 ID、类别、进度、制作次数、成色评分、开始时间和最近制作时间；完成后从进行中列表移除并生成 `gift` 背包物品。当前 schema 为 `7`，缺少当前必需进度块的旧存档按开发期规则直接清除。
@@ -537,5 +540,6 @@ interface PregnancyState {
 
 - 剧情 / 对话是否正在显示属于 UI 临时态，不写入 `SaveGameV1`。
 - `dialogueText`、`mapEventText`、`selectedHotspotId`、`activeGongmenNpc`、`expenseStrategyPanelOpen` 等只用于当前页面交互，不是长期存档真值。
+- `activeBlockingNarratives` 是当前前端舞台的阻塞剧情锁集合，只用于控制同一时刻只能展示一件剧情 / 通报 / overlay；随机事件、固定剧情或后续类似演出可用它暂缓侍寝通报、过夜黑屏和清晨通报的渲染。该字段不写入存档，读档、新开局和恢复主循环时一律清空。
 - 这些临时态仍然会影响点击合法性：对白、通报或剧情结果未收起前，背景按钮必须被交互锁屏蔽。
 - 后续若要把某段剧情推进变为长期进度，必须新增独立的 `flags` / `progress` 字段，而不是依赖当前是否有对话框显示。

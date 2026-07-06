@@ -34,5 +34,6 @@ describe('npcRelationRuntime', () => {
 
     expect(result.matrix['consort-a|consort-b'].tension).toBe(6);
     expect(result.deltasByConsortId['consort-b']).toBe(3);
+    expect(result.chronicleLines).toEqual(['施压 情分转薄，嫌隙加深。']);
   });
 });

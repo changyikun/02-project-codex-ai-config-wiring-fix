@@ -32,6 +32,7 @@ import type { RandomEventLine } from '../../game/random-events/randomEventCatalo
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type { ConcubineProfile } from '../../game/types';
 import { MapSubsceneView, type SubsceneNpcEntry } from './MapSubsceneView';
+import { useBlockingNarrativeLock } from './useBlockingNarrativeLock';
 import { useLocationActionFlow } from './useLocationActionFlow';
 
 type GongmenNpcId = 'du-niang' | 'aling';
@@ -121,6 +122,7 @@ export function GongmenView({ concubines }: GongmenViewProps) {
   const [dialogueStep, setDialogueStep] = useState(0);
   const [activeRandomSession, setActiveRandomSession] = useState<RandomEventSession | null>(null);
   const [activeRandomLine, setActiveRandomLine] = useState<RandomEventLine | null>(null);
+  useBlockingNarrativeLock('gongmen:random-event', Boolean(activeRandomSession));
   const [activeNpcConsumedInteraction, setActiveNpcConsumedInteraction] = useState(false);
   const [activeConsortAudience, setActiveConsortAudience] = useState<{
     entryId: string;

@@ -60,6 +60,7 @@ import { AudienceInteractionShell, type AudienceMetaRow } from '../consorts/Audi
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
 import { LocationActionResultStage } from './LocationActionResultStage';
 import { MapSubsceneView, type SubsceneActionEntry, type SubsceneNpcEntry } from './MapSubsceneView';
+import { useBlockingNarrativeLock } from './useBlockingNarrativeLock';
 import { useLocationActionFlow, type TimedLocationActionOutcome } from './useLocationActionFlow';
 
 interface MiaoYinHallViewProps {
@@ -185,6 +186,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
   const [activeGiftMode, setActiveGiftMode] = useState<MiaoYinGiftMode | null>(null);
   const [activeRandomSession, setActiveRandomSession] = useState<RandomEventSession | null>(null);
   const [activeRandomLine, setActiveRandomLine] = useState<RandomEventLine | null>(null);
+  useBlockingNarrativeLock('miaoyin:random-event', Boolean(activeRandomSession));
   const [activeNpcDialogue, setActiveNpcDialogue] = useState<ReturnType<typeof narrativeEntryToDialogueFields> | null>(null);
   const [activeNpcConsumedInteraction, setActiveNpcConsumedInteraction] = useState(false);
   const [showSignUpPicker, setShowSignUpPicker] = useState(false);

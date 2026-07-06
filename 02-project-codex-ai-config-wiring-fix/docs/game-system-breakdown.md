@@ -66,7 +66,7 @@ flowchart TB
 | 游戏类型 | `src/game/types.ts` | 路线、时间、属性、道具、妃嫔、关系 AI、存档结构类型 |
 | 规则配置 | `src/config/*`、`src/game/numerics/*`、`src/game/npcs/*` | 时间、体力、位分、路线、地点开放、颜色、系统事件等硬规则；核心可调数值由 numerics CSV 和 catalog 提供；非妃嫔 NPC 身份、展示和可攻略资格由 NPC CSV catalog 提供 |
 | 剧情配置 | `src/game/narrative/csv/*`、`src/game/narrative/narrativeCatalog.ts`、`src/game/narrative/narrativeDialogueAdapter.ts` | 按系统域维护剧情正文、说话人、立绘键、立绘位置和场景提示；代码引用稳定剧情 ID，并通过 adapter 将完整 entry 转换为对应 UI 展示结构 |
-| 随机事件配置 | `src/game/random-events/csv/random_events.csv`、`src/game/random-events/randomEventCatalog.ts`、`src/game/random-events/randomEventRuntime.ts` | 维护可抽取事件池、前置事件、剧情行、选项、局部效果和后续解锁；当前已接入杜娘闲谈、御膳房闲逛、妙音堂闲逛和妙音堂人物闲聊，进度保存于 `progress.randomEvents` |
+| 随机事件配置 | `src/game/random-events/csv/random_events.csv`、`src/game/random-events/randomEventCatalog.ts`、`src/game/random-events/randomEventRuntime.ts` | 维护可抽取事件池、前置事件、剧情行、选项、局部效果和后续解锁；当前已接入杜娘闲谈、御膳房闲逛、御花园闲逛、妙音堂闲逛和妙音堂人物闲聊，进度保存于 `progress.randomEvents` |
 | 前端运行时 | `src/game/lib/*Runtime.ts` | 本地兜底对话、地点交互、关系判定调用、寝殿工具函数、玩家姓名称呼解析 |
 | 后端入口 | `server/src/app.ts` | 装配 AI、Foundation、Memory、路由、缓存、错误处理 |
 | AI 路由 | `server/src/routes/aiRoutes.ts` | `/api/v1/ai/*` 对话、数值、关系、场景氛围接口 |
@@ -143,6 +143,7 @@ flowchart LR
 - 剧情正文和基础演出元数据优先来自 `src/game/narrative/csv/`；运行时代码负责选择剧情 ID、传变量和处理状态，不在 CSV 中写 JS 表达式、数值公式或条件逻辑。需要说话人、立绘、旁白名和正文一起出现的剧情，应按完整 entry 读取，并通过 `narrativeDialogueAdapter` 转换为当前 UI 所需结构，不能只配置 `text`，也不能在各业务流程里重复手写 `entry.speakerName` / `entry.text` 映射。
 - CSV 变量统一使用 `{{variableName}}`，正文分页使用现有 `<<PAGE_BREAK>>`；缺失变量在运行时保留原样并由测试捕获，不静默吞掉。
 - 随机事件正文暂不并入 `narrativeCatalog`；由 `src/game/random-events/csv/random_events.csv` 单表维护事件元信息、剧情行、选项、局部效果和解锁。随机事件 runtime 保持纯函数，具体入口负责把效果落到 store、存档进度和 UI 表演上。随机事件若要生成同名独立物品，应使用 `inventory.gain[].templateItemId` 继承物品表模板，并把实例差异写入 `description` / `metadata`，不得在 runtime 中手写临时物品全字段。
+- 随机事件属于阻塞剧情演出：入口开始播放随机事件时必须持有 `activeBlockingNarratives` 临时锁，直到事件所有剧情行和选项结果收束后释放。夜晚侍寝通报、玩家侍寝事件、过夜黑屏和清晨通报可以先进入 store 的 pending 状态，但不能在锁释放前渲染 overlay，避免多个剧情舞台和立绘同屏叠加。
 - 任意剧情 / 对话文本正在显示时，除当前对话框、分支选项和同场景明确允许的操作区外，背景 UI 不能响应点击。
 - 视觉层由 `global-dialogue-stage__interaction-lock` 吃掉背景鼠标事件；业务层由 `ChamberMainView`、`MapMainView` 的交互锁判断兜底，避免键盘、测试或程序化点击绕过遮罩。
 - 寝殿行动反馈未收起时，不能继续点学习、外出、家族事务、情缘等按钮；地图剧情反馈未收起时，不能点侧栏或热点。
@@ -511,6 +512,7 @@ flowchart LR
 寝殿反馈顺序：
 
 - 普通行动：先结算数值并显示行动结果对白，再进入后续通报或夜晚事件
+- 随机事件行动：先完整播放本次随机事件；若行动推进到夜晚并生成侍寝 pending，侍寝通报必须等待随机事件收束后再展示
 - 跨旬行动：若行动推进到下一旬，仍先展示本次行动结果，玩家收起后再显示新旬通报
 - 外出探索：先显示出行提示，玩家确认后再切到地图，避免提示被转场立即盖掉
 - 寝殿面板打开时点击外出：必须先关闭面板并展示出行提示，再切地图，避免对白被面板条件吞掉
@@ -551,6 +553,7 @@ flowchart LR
 - 人物交互页的耗时结算发生在退出页时，而不是点击进入人物或打开买卖面板时。若本次会面内已经消耗至少 `1` 次交互次数或皇帝主行动，则主动返回、告退送客或自动送客都会推进 `1` 个时间格，并复用 `useLocationActionFlow()` 处理深夜 / 体力归零的睡觉收束；未耗次的返回、夜间拒见、买卖、选礼和单纯查看不推进时间。
 - 建章宫太后也属于常驻 NPC 交互页，不加入妃嫔 roster。玩家清晨到傍晚可拜见太后；夜晚 / 深夜只显示建章宫宫人通传，不能进入太后交互页，也不能消耗互动次数或推进时间。太后每旬有效互动上限为 `2` 次，右侧操作栏显示 `本旬可互动 n/2`；`请安` 每旬最多一次，`请安` 与 `送礼问安` 都会完成本月问安义务，`请教规矩` / `闲谈` 只增加少量太后好感。`送礼问安` 复用妃嫔送礼物品筛选，礼物本体只结算太后好感，不把健康 / 容貌 / 气质等道具效果套到太后身上。
 - 空地点或未做专属小玩法的地点统一由 `GenericMapLocationView` 读取 `src/game/data/mapLocationActions.ts` 显示常规行动与地点内特殊入口；行动结果正文继续引用 `location_encounters.csv`，真实行动通过 `useLocationActionFlow()` 推进时辰并接过夜流程。
+- 御花园属于泛用地点，但一级地点行动只保留 `闲逛`；该行动接入 `random_events.csv` 的 `location.imperial-garden.stroll` 池，每条事件必须提供默认 `压力 -2`，拾取类分支可额外通过 `inventory.gain` 给御花园独立礼物物品。入口只在未抽到事件时使用兜底压力收益，不得先统一扣压再播放事件。
 - 宫门不再由 `MapMainView` 直接打开独立假场景，而是作为 `activeMapLocation='宫门'` 的地点子场景由 `GongmenView` 承载；杜娘 / 阿翎显示在 `MapSubsceneView` 的 NPC 区，交易、闲谈、送礼和售卖保留为工具 NPC 对话后的二级业务。工具 NPC 的右侧操作栏只放交互次数与操作按钮，不得在互动后追加临时提示标识；购买 / 售卖 / 送礼等业务结果由背包、银两和既有数值反馈承担，不塞进右侧按钮组。宫门工具 NPC 人物页不使用共享外壳顶部返回按钮，只保留右侧操作栏中的 `返回`，避免同一页面出现两个退出入口。
 - 杜娘是第一名接入常驻 NPC 关系的工具 NPC：初见对白读取 `npc_tools_dialogues.csv`，见过后进入买卖 / 闲谈 / 送礼操作栏；买卖不消耗交互次数，闲谈和送礼消耗每旬次数。杜娘只售卖 `inventory_items.csv` 中 `duniang-always` 池的中低品质宫外物件；她可收购所有 `canRecycle !== false` 且 `isQuestItem !== true` 的物品。杜娘好感达到友情价阈值后，买入价打折、回收价上浮。宫门工具 NPC 的普通入场对白只承担进入人物页的承接作用，不应连续拆成多段阻挡操作；退出人物页统一使用 `返回`，不维护 `返回宫门` 这类地点专属退出文案。
 - 养心殿主场景不再使用泛用地点行动按钮；场景右侧除固定 `离开` 外不提供 `求见皇上 / 朝堂事务 / 抄读` 等地点按钮。太监总管李公公作为常驻 NPC 显示在场景中间，玩家点击后进入人物交互页，可选择 `求见皇帝`、`送礼`、`打点银两`、`闲聊`。李公公好感保存于常驻 NPC 关系，会提高养心殿通传成功率；但求见仍必须满足皇帝当前时辰确实在养心殿内。求见成功后由李公公通传，进入皇帝日间单人交互页；求见失败、夜间拒见和单纯返回不推进时间。送礼、打点银两、闲聊属于耗次互动，退出李公公交互页时按人物会面规则推进时间。闲聊只透露皇帝当前行程和心情，不直接改变皇帝状态。
@@ -566,6 +569,12 @@ flowchart LR
 - 旬月通报与系统事件通报绑定在时间主循环和 `settlementReports` 队列上，不绑定具体界面。
 - 寝殿主界面和地图主界面都必须能展示未读通报；玩家在地图上时，贴身宫女仍会出现并说明时间结算结果。
 - 通报显示期间应屏蔽背景 UI 点击，收起后写入 `lastSeenSettlementReportId`。
+- 纪事面板使用同一份 `settlementReports` 留档，但按 `chronicleCategory` 分为 `圣旨 / 闲言 / 秘事 / 事件 / 内务` 五类，并在每条记录上显示年月旬日期。娇娇旬报 / 月报属于内务，宫宴等系统流程属于事件。`chronicleOnly=true` 的记录只能用于纪事展示，不能作为未读通报弹出；`ChamberMainView` 与 `MapMainView` 选择待播通报时必须跳过这类记录。
+- `SettlementReport.lines` 是当场通报正文，`SettlementReport.chronicleLines` 是纪事留档正文；纪事页优先读取 `chronicleLines`，缺失时才回退读取 `lines`。体力恢复和侍寝保底值属于娇娇清晨通报，可留在 `lines` 中，但不得写入 `chronicleLines`。
+- 纪事不是内部机制日志。无事件占位、空宫斗案件摘要和“关系何时收束”这类实现说明不得写入玩家可见纪事。熬夜惩罚等确实需要通报的数值必须读取数值表真值，不得手写展示值。
+- 纪事展示以 `SettlementReport.chronicleLines` 为最小记录单位，但月初内务必须先按玩家阅读目的聚合：月俸 / 用度 / 当前银两为一条，当前位分 / 声望为一条；只有真实宫斗案件变动时才追加案件记录。没有真实记录的分类保持空白，不写“暂无事件”或“未有记录”占位。
+- 闲言用于玩家可回看但不必强制打断流程的宫内传闻：妃嫔之间旬级拜访、试探、拉拢、传话、施压等互动若造成关系变化，应写入闲言；皇上今晚侍寝 / 伴驾 / 独寝的对象与大致性质也写入闲言。NPC-NPC 内部压力等不直接面向玩家的数值变化仍不弹 toast。
+- 内务用于内廷账务和居所治理：每月月俸发放、宫务用度、当前银两、位分复核、太后月度问安惩罚等月结算内容应归入内务，而不是圣旨或普通事件。
 - 太后月度问安是月结规则的一部分：若上月没有通过建章宫 `请安` 或 `送礼问安` 完成本月义务，次月月初通报中追加建章宫掌事传话，并按数值表扣除固定声望。该扣除和家世 / 用度 / 宫斗裁断等声望变化同属月结真值，不使用 toast 替代剧情通报。
 
 NPC 旬级动向：

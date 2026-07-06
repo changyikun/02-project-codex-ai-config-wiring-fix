@@ -231,7 +231,7 @@ export function MapMainView() {
     const lastSeenIndex = lastSeenSettlementReportId
       ? settlementReports.findIndex((report) => report.id === lastSeenSettlementReportId)
       : -1;
-    return settlementReports.slice(Math.max(0, lastSeenIndex + 1), latestIndex + 1)[0];
+    return settlementReports.slice(Math.max(0, lastSeenIndex + 1), latestIndex + 1).find((report) => !report.chronicleOnly);
   }, [latestSettlementReportId, lastSeenSettlementReportId, settlementReports]);
   const latestSettlementReportIsPromotion = latestSettlementReport?.kind === 'promotion';
   const showSettlementReport = Boolean(
