@@ -212,8 +212,6 @@ interface ConcubineListViewProps {
 export function ConcubineListView({ concubines, onClose }: ConcubineListViewProps) {
   const [activeStatus, setActiveStatus] = useState<ConcubineStatus>('live');
   const [selectedId, setSelectedId] = useState<string>('');
-  const [actionNote, setActionNote] = useState('');
-  const [isSocialPanelOpen, setIsSocialPanelOpen] = useState(false);
   const [activeMetricHelpKey, setActiveMetricHelpKey] = useState<string | null>(null);
 
   const visibleConsorts = useMemo(() => sortConcubinesByStatus(concubines, activeStatus), [activeStatus, concubines]);
@@ -225,12 +223,7 @@ export function ConcubineListView({ concubines, onClose }: ConcubineListViewProp
   }, [selectedId, visibleConsorts]);
 
   useEffect(() => {
-    setActionNote('');
     setActiveMetricHelpKey(null);
-  }, [activeStatus, selectedId]);
-
-  useEffect(() => {
-    setIsSocialPanelOpen(false);
   }, [activeStatus, selectedId]);
 
   const activeConsort = visibleConsorts.find((consort) => consort.id === selectedId) ?? visibleConsorts[0] ?? null;
@@ -241,10 +234,34 @@ export function ConcubineListView({ concubines, onClose }: ConcubineListViewProp
 
   const currentRankText = getConcubineDisplayRankText(activeConsort);
   const currentRankPalette = getConcubineRankPalette(activeConsort);
-  const metricRows = buildMetricRows(activeConsort);
+  const metricRows = buildMetricRows(activeConsort)
+    .map((row) => row.filter((metric) => !['familyBackground', 'relationToPlayer', 'affection'].includes(metric.key)))
+    .filter((row) => row.length > 0);
+  const featuredMetrics = [
+    buildMetric({
+      key: 'relationToPlayer',
+      label: '好感',
+      display: formatSignedValue(activeConsort.stats.relationToPlayer),
+      numericValue: activeConsort.stats.relationToPlayer,
+      range: [-100, 100],
+    }),
+    buildMetric({
+      key: 'affection',
+      label: '倾情',
+      display: formatMetricValue(activeConsort.stats.affection),
+      numericValue: activeConsort.stats.affection,
+      range: [0, 100],
+    }),
+  ];
   const currentConditionLabel = getConcubineConditionLabel(activeConsort);
   const rankShiftNotice = getConcubineRankShiftNotice(activeConsort);
-  const noteText = actionNote || `性格：${activeConsort.personality}。生平：${activeConsort.summary}`;
+  const resolveRelationProfiles = (ids: string[]): ConcubineProfile[] =>
+    ids
+      .map((id) => concubines.find((consort) => consort.id === id || consort.name === id))
+      .filter((consort): consort is ConcubineProfile => Boolean(consort))
+      .slice(0, 3);
+  const allyProfiles = resolveRelationProfiles(activeConsort.allies);
+  const rivalProfiles = resolveRelationProfiles(activeConsort.rivals);
 
   return (
     <section className="concubine-list-view" aria-label="嫔妃总览面板">
@@ -307,19 +324,67 @@ export function ConcubineListView({ concubines, onClose }: ConcubineListViewProp
           </div>
           {rankShiftNotice ? <small className="concubine-list-view__chip-hint">{rankShiftNotice}</small> : null}
         </div>
-        <div className="concubine-list-view__chip concubine-list-view__chip--secondary">{activeConsort.residence}</div>
-        <div className="concubine-list-view__chip concubine-list-view__chip--secondary">{`状态 ${currentConditionLabel}`}</div>
       </div>
 
-      <div className="concubine-list-view__action-group" aria-label="嫔妃动作按钮">
-        <button
-          type="button"
-          className={`concubine-list-view__social-toggle ${isSocialPanelOpen ? 'is-active' : ''}`}
-          onClick={() => setIsSocialPanelOpen(true)}
-        >
-          人际
-        </button>
-      </div>
+      <section className="concubine-list-view__info-board" aria-label="嫔妃人物信息">
+        <dl>
+          <div className="concubine-list-view__info-row">
+            <dt>居所</dt>
+            <dd>{activeConsort.residence}</dd>
+          </div>
+          <div className="concubine-list-view__info-row">
+            <dt>状态</dt>
+            <dd>{currentConditionLabel}</dd>
+          </div>
+          <div className="concubine-list-view__info-row">
+            <dt>家世</dt>
+            <dd>{activeConsort.familyBackground}</dd>
+          </div>
+          <div className="concubine-list-view__info-row">
+            <dt>性格</dt>
+            <dd>{activeConsort.personality}</dd>
+          </div>
+          <div className="concubine-list-view__info-row concubine-list-view__info-row--summary">
+            <dt>生平</dt>
+            <dd>{activeConsort.summary}</dd>
+          </div>
+          <div className="concubine-list-view__info-row concubine-list-view__info-row--featured">
+            <dt></dt>
+            <dd>
+              <section className="concubine-list-view__featured-metrics" aria-label="好感与倾情">
+                <h3>与我情分</h3>
+                <div className="concubine-list-view__featured-list">
+                  {featuredMetrics.map((metric) => {
+                    const accentColor = metric.accentColor ?? getMetricAccentColor(metric.key, metric.numericValue, metric.range);
+                    const meterStyle =
+                      metric.range && typeof metric.numericValue === 'number'
+                        ? ({
+                            '--metric-fill': accentColor,
+                            '--metric-level': `${getMetricPercent(metric.numericValue, metric.range)}%`,
+                          } as CSSProperties)
+                        : undefined;
+                    return (
+                      <article key={metric.key} className="concubine-list-view__featured-metric" style={meterStyle}>
+                        <div className="concubine-list-view__featured-copy">
+                          <span>{metric.label}</span>
+                          <strong>{metric.display.replace(/^\+/, '')}</strong>
+                        </div>
+                        <div className="concubine-list-view__featured-meter" aria-hidden="true">
+                          <i />
+                        </div>
+                        <div className="concubine-list-view__featured-scale" aria-hidden="true">
+                          <span>0</span>
+                          <span>100</span>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            </dd>
+          </div>
+        </dl>
+      </section>
 
       <section className="concubine-list-view__metric-board" aria-label="嫔妃核心属性">
         {metricRows.map((row, rowIndex) => (
@@ -376,46 +441,38 @@ export function ConcubineListView({ concubines, onClose }: ConcubineListViewProp
         ))}
       </section>
 
-      {isSocialPanelOpen ? (
-        <section className="concubine-list-view__social-panel" aria-label="嫔妃人际关系">
-          <header className="concubine-list-view__social-header">
-            <h3>人际</h3>
-            <button type="button" onClick={() => setIsSocialPanelOpen(false)}>
-              收起
-            </button>
-          </header>
-          <article className="concubine-list-view__social-group">
-            <span>交好</span>
-            <div className="concubine-list-view__social-pills">
-              {activeConsort.allies.length > 0 ? (
-                activeConsort.allies.map((name) => (
-                  <span key={name} className="concubine-list-view__social-pill is-ally">
-                    {name}
-                  </span>
-                ))
-              ) : (
-                <span className="concubine-list-view__social-empty">暂无明显交好对象</span>
-              )}
-            </div>
-          </article>
-          <article className="concubine-list-view__social-group">
-            <span>交恶</span>
-            <div className="concubine-list-view__social-pills">
-              {activeConsort.rivals.length > 0 ? (
-                activeConsort.rivals.map((name) => (
-                  <span key={name} className="concubine-list-view__social-pill is-rival">
-                    {name}
-                  </span>
-                ))
-              ) : (
-                <span className="concubine-list-view__social-empty">暂无明显交恶对象</span>
-              )}
-            </div>
-          </article>
-        </section>
-      ) : null}
-
-      <p className={`concubine-list-view__note ${isSocialPanelOpen ? 'is-hidden' : ''}`}>{noteText}</p>
+      <section className="concubine-list-view__relationship-board" aria-label="嫔妃人际关系">
+        <article className="concubine-list-view__relationship-group">
+          <h3>交好NPC</h3>
+          <div className="concubine-list-view__relationship-list">
+            {allyProfiles.length > 0 ? (
+              allyProfiles.map((consort) => (
+                <span key={consort.id} className="concubine-list-view__relationship-avatar">
+                  <img src={getConcubinePortraitPath(consort.portraitId)} alt="" />
+                  <span>{consort.name}</span>
+                </span>
+              ))
+            ) : (
+              <span className="concubine-list-view__relationship-empty">暂无</span>
+            )}
+          </div>
+        </article>
+        <article className="concubine-list-view__relationship-group">
+          <h3>交恶NPC</h3>
+          <div className="concubine-list-view__relationship-list">
+            {rivalProfiles.length > 0 ? (
+              rivalProfiles.map((consort) => (
+                <span key={consort.id} className="concubine-list-view__relationship-avatar">
+                  <img src={getConcubinePortraitPath(consort.portraitId)} alt="" />
+                  <span>{consort.name}</span>
+                </span>
+              ))
+            ) : (
+              <span className="concubine-list-view__relationship-empty">暂无</span>
+            )}
+          </div>
+        </article>
+      </section>
 
       <section className="concubine-list-view__portrait-stage" aria-label={`${activeConsort.name}立绘`}>
         <img

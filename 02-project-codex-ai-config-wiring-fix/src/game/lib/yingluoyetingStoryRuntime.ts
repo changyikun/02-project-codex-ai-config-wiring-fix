@@ -1,6 +1,6 @@
 import type { GameNumericsState, InventoryItem, MapAreaId, PalaceTimeState } from '../types';
 import { renderNarrativeEntry } from '../narrative/narrativeCatalog';
-import { narrativeEntryToDialogueFields } from '../narrative/narrativeDialogueAdapter';
+import { narrativeEntryToDialogueFields, narrativeEntryToPresentation } from '../narrative/narrativeDialogueAdapter';
 import { resolvePlayerDisplayName } from './playerNameRuntime';
 
 export const YINGLUOYETING_EVIDENCE_ITEM_IDS = {
@@ -69,9 +69,15 @@ export interface YingluoyetingMapEvent {
   locationId: MapAreaId | '后宫';
   speakerIdentity: string;
   speakerName: string;
+  portraitKey: string;
+  portraitPlacement: 'stage' | 'dialogue-left';
   text: string;
   options: YingluoyetingMapEventOption[];
 }
+
+const resolveMapEventPortraitPlacement = (
+  placement: YingluoyetingMapEvent['portraitPlacement'] | '',
+): YingluoyetingMapEvent['portraitPlacement'] => placement || 'stage';
 
 const oldTestimonyItem: InventoryItem = {
   itemId: YINGLUOYETING_EVIDENCE_ITEM_IDS.oldTestimony,
@@ -158,11 +164,15 @@ const buildChenFirstMeetEvent = (playerName: string): YingluoyetingMapEvent => {
   const entry = renderNarrativeEntry('route.yingluoyeting.harem-first-meet', {
     playerDisplayName: resolvePlayerDisplayName(playerName, '沉璧'),
   });
-  const eventFields = narrativeEntryToDialogueFields(entry);
+  const eventFields = narrativeEntryToPresentation(entry);
   return {
     eventId: YINGLUOYETING_EVENT_IDS.chenFirstMeet,
     locationId: resolveNarrativeLocationId(entry.locationId, '后宫'),
-    ...eventFields,
+    speakerIdentity: eventFields.speakerIdentity,
+    speakerName: eventFields.speakerName,
+    portraitKey: eventFields.portraitKey,
+    portraitPlacement: resolveMapEventPortraitPlacement(eventFields.portraitPlacement),
+    text: eventFields.text,
     options: [
     {
       id: 'thank-chen',
@@ -189,6 +199,8 @@ const coldPalaceEvent: YingluoyetingMapEvent = {
   eventId: YINGLUOYETING_EVENT_IDS.coldPalaceClue,
   locationId: resolveNarrativeLocationId(coldPalaceNarrative.locationId, '冷宫'),
   ...coldPalaceNarrativeFields,
+  portraitKey: coldPalaceNarrative.portraitKey,
+  portraitPlacement: resolveMapEventPortraitPlacement(coldPalaceNarrative.portraitPlacement),
   options: [
     {
       id: 'shelter',
@@ -214,6 +226,8 @@ const taiyiOldPrescriptionEvent: YingluoyetingMapEvent = {
   eventId: YINGLUOYETING_EVENT_IDS.taiyiOldPrescription,
   locationId: resolveNarrativeLocationId(taiyiOldPrescriptionNarrative.locationId, '太医院'),
   ...taiyiOldPrescriptionNarrativeFields,
+  portraitKey: taiyiOldPrescriptionNarrative.portraitKey,
+  portraitPlacement: resolveMapEventPortraitPlacement(taiyiOldPrescriptionNarrative.portraitPlacement),
   options: [
     {
       id: 'copy',
@@ -239,6 +253,8 @@ const storageTransferListEvent: YingluoyetingMapEvent = {
   eventId: YINGLUOYETING_EVENT_IDS.storageTransferList,
   locationId: resolveNarrativeLocationId(storageTransferListNarrative.locationId, '御膳房'),
   ...storageTransferListNarrativeFields,
+  portraitKey: storageTransferListNarrative.portraitKey,
+  portraitPlacement: resolveMapEventPortraitPlacement(storageTransferListNarrative.portraitPlacement),
   options: [
     {
       id: 'copy-date',
@@ -262,11 +278,15 @@ const buildEvidenceBoxEvent = (playerName: string): YingluoyetingMapEvent => {
   const entry = renderNarrativeEntry('route.yingluoyeting.box', {
     playerDisplayName: resolvePlayerDisplayName(playerName, '沉璧'),
   });
-  const eventFields = narrativeEntryToDialogueFields(entry);
+  const eventFields = narrativeEntryToPresentation(entry);
   return {
     eventId: YINGLUOYETING_EVENT_IDS.evidenceBox,
     locationId: resolveNarrativeLocationId(entry.locationId, '昭阳宫'),
-    ...eventFields,
+    speakerIdentity: eventFields.speakerIdentity,
+    speakerName: eventFields.speakerName,
+    portraitKey: eventFields.portraitKey,
+    portraitPlacement: resolveMapEventPortraitPlacement(eventFields.portraitPlacement),
+    text: eventFields.text,
     options: [
     {
       id: 'take-evidence',

@@ -71,6 +71,16 @@ const buildHotspotStyle = (hotspot: MapHotspotConfig): CSSProperties => {
 };
 
 const resolveYingluoyetingEventPortrait = (event: YingluoyetingMapEvent, isResult: boolean) => {
+  if (event.portraitKey === 'chenwanning') {
+    return (
+      <img
+        src={CHEN_WANNING_PORTRAIT_SRC}
+        alt="陈婉宁"
+        className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--consort"
+      />
+    );
+  }
+
   if (isResult) {
     return undefined;
   }
@@ -99,6 +109,10 @@ const resolveYingluoyetingEventPortrait = (event: YingluoyetingMapEvent, isResul
 };
 
 const resolveYingluoyetingEventPortraitLabel = (event: YingluoyetingMapEvent, isResult: boolean): string => {
+  if (event.portraitKey === 'chenwanning') {
+    return '陈婉宁立绘';
+  }
+
   if (isResult) {
     return `${event.speakerName}剪影`;
   }
@@ -168,6 +182,7 @@ export function MapMainView() {
   const mapBackgroundImage = activeYingluoyetingBackground ?? resolveMapBackgroundImage(time.slot);
   const locationSceneActive = Boolean(activeYingluoyetingEvent);
   const activeYingluoyetingDialogueIsResult = Boolean(yingluoyetingResultText);
+  const activeYingluoyetingDialogueUsesChenWanning = activeYingluoyetingEvent?.portraitKey === 'chenwanning';
   const activeYingluoyetingDialogueUsesOldPalaceMaid =
     !activeYingluoyetingDialogueIsResult && activeYingluoyetingEvent?.eventId === YINGLUOYETING_EVENT_IDS.coldPalaceClue;
   const activeYingluoyetingDialogueIdentity = activeYingluoyetingDialogueIsResult
@@ -178,6 +193,14 @@ export function MapMainView() {
   const activeYingluoyetingDialogueName = activeYingluoyetingDialogueIsResult
     ? activeYingluoyetingEvent?.locationId ?? '主线剧情'
     : activeYingluoyetingEvent?.speakerName ?? '主线剧情';
+  const activeYingluoyetingStageIdentity =
+    activeYingluoyetingDialogueIsResult && activeYingluoyetingDialogueUsesChenWanning
+      ? activeYingluoyetingEvent?.speakerIdentity ?? '嫔妃'
+      : activeYingluoyetingDialogueIdentity;
+  const activeYingluoyetingStageName =
+    activeYingluoyetingDialogueIsResult && activeYingluoyetingDialogueUsesChenWanning
+      ? activeYingluoyetingEvent?.speakerName ?? '陈婉宁'
+      : activeYingluoyetingDialogueName;
   const activeGuideEntry = guideActive ? renderNarrativeEntry(MAP_GUIDE_LINE_IDS[Math.min(guideStep, MAP_GUIDE_LINE_IDS.length - 1)]) : undefined;
   const activeGuidePresentation = activeGuideEntry ? narrativeEntryToPresentation(activeGuideEntry) : undefined;
 
@@ -603,12 +626,12 @@ export function MapMainView() {
             narrationName={activeYingluoyetingEvent.locationId}
             quotedSpeakerIdentity={activeYingluoyetingEvent.speakerIdentity}
             quotedSpeakerName={activeYingluoyetingEvent.speakerName}
-            splitQuotedDialogue={!activeYingluoyetingDialogueUsesOldPalaceMaid}
+            splitQuotedDialogue={!(activeYingluoyetingDialogueUsesOldPalaceMaid || activeYingluoyetingDialogueUsesChenWanning)}
             ariaLabel={`${activeYingluoyetingEvent.locationId}主线剧情`}
             className="global-dialogue-stage--yingluoyeting"
             dialogueClassName="palace-dialogue-box--yingluoyeting"
-            characterIdentity={activeYingluoyetingDialogueIdentity}
-            characterName={activeYingluoyetingDialogueName}
+            characterIdentity={activeYingluoyetingStageIdentity}
+            characterName={activeYingluoyetingStageName}
             content={yingluoyetingResultText || activeYingluoyetingEvent.text}
             highlightText={yingluoyetingResultHint}
             onNextAction={yingluoyetingResultText ? handleYingluoyetingNextAction : undefined}

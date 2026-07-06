@@ -105,6 +105,7 @@ const EMPEROR_PROFILE = requireNonConsortNpcProfile('rongan');
 const ASSISTANT_PORTRAIT_SRC = JIAOJIAO_PROFILE.portraitSrc ?? '';
 const EUNUCH_PORTRAIT_SRC = PALACE_EUNUCH_PROFILE.portraitSrc ?? '';
 const EMPEROR_PORTRAIT_SRC = EMPEROR_PROFILE.portraitSrc ?? '';
+const YUQIAN_SHIWEI_PORTRAIT_SRC = '/assets/characters/men/yuqianshiwei.png';
 const JIAOJIAO_COMMAND_PROMPT = '娘娘，有何吩咐？';
 const EXPENSE_EXPLANATION_OPTION_ID = 'expense-explanation';
 const CHAMBER_BACKGROUND_CROSSFADE_MS = 680;
@@ -1202,6 +1203,23 @@ export function ChamberMainView() {
     });
   }
 
+  const zhengyangSpecialNpcs: SubsceneNpcEntry[] =
+    activeMapLocation === '正阳门'
+      ? [
+          {
+            id: 'special:yuqian-shiwei',
+            kind: 'fixed',
+            name: '御前侍卫',
+            identityLabel: '正阳门',
+            ariaLabel: '与御前侍卫交谈',
+            portraitSrc: YUQIAN_SHIWEI_PORTRAIT_SRC,
+            interactableState: shouldShowZhengyangWait ? 'available' : 'disabled',
+            disabledReason: shouldShowZhengyangWait ? undefined : '此时正阳门值守森严，不宜久候。',
+            onClick: shouldShowZhengyangWait ? handleZhengyangWait : undefined,
+          },
+        ]
+      : [];
+
   const locationSpecialNpcs: SubsceneNpcEntry[] =
     emperorPublicEncounterAvailable && activeMapLocation
       ? [
@@ -1475,7 +1493,11 @@ export function ChamberMainView() {
             onLeave={enterMapMain}
           />
         ) : activeChamberPanel === 'main' && activeMapLocation && !isResidenceLocation && !activeEmperorAudience ? (
-          <GenericMapLocationView locationId={activeMapLocation} extraNpcs={locationSpecialNpcs} extraActions={locationSpecialActions} />
+          <GenericMapLocationView
+            locationId={activeMapLocation}
+            extraNpcs={[...zhengyangSpecialNpcs, ...locationSpecialNpcs]}
+            extraActions={locationSpecialActions}
+          />
         ) : activeChamberPanel === 'harem' ? (
           <HaremPalaceView
             concubines={concubines}

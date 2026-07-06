@@ -31,10 +31,10 @@ type AffairSourceLabel = '宫斗事务' | '家族事务' | '朝堂事务';
 type PoisonQteOutcome = 'success' | 'failure';
 
 const utilityPanelFrameStyle = (backgroundImage: string): CSSProperties => ({
-  backgroundImage: `linear-gradient(180deg, rgba(255, 248, 244, 0.9), rgba(248, 235, 229, 0.88)), url("${backgroundImage}")`,
+  backgroundImage: `url("${backgroundImage}")`,
   backgroundPosition: 'center',
   backgroundRepeat: 'no-repeat',
-  backgroundSize: 'cover',
+  backgroundSize: '100% 100%',
 });
 
 const chronicleTabs: Array<{ id: ChronicleTabId; label: string }> = [
