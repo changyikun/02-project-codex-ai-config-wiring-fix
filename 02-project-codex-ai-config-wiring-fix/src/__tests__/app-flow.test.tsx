@@ -171,6 +171,20 @@ const clickDialogueAdvance = async () => {
   await Promise.resolve();
 };
 
+const advanceDialogueUntil = async (predicate: () => boolean, maxSteps = 80) => {
+  for (let index = 0; index < maxSteps; index += 1) {
+    if (predicate()) {
+      return;
+    }
+    if (!getDialogueContent()) {
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+      continue;
+    }
+    await clickDialogueAdvance();
+  }
+  expect(predicate()).toBe(true);
+};
+
 const clickDialogueOnce = async () => {
   const dialogueContent = getDialogueContent();
   expect(dialogueContent).toBeInTheDocument();
@@ -300,6 +314,32 @@ describe('App 主流程切换', () => {
     await clickStartNewGame();
     expect(await screen.findByText('通关要求')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '确定' })).toBeInTheDocument();
+  });
+
+  it('路线选择页仅影落掖庭可确认进入属性页，其他路线只预览并显示敬请期待', async () => {
+    render(<App />);
+
+    await clickStartNewGame();
+
+    expect(await screen.findByRole('heading', { name: '请选择路线' })).toBeInTheDocument();
+    expect(screen.getByText('*试玩版仅开放影落掖庭线，其他路线敬请期待')).toBeInTheDocument();
+
+    const routeProfiles = buildRouteProfiles();
+    const lockedRoute = routeProfiles.find((route) => route.id !== 'yingluoyeting')!;
+    const playableRoute = routeProfiles.find((route) => route.id === 'yingluoyeting')!;
+    const routeList = screen.getByLabelText('开局路线列表');
+
+    fireEvent.click(within(routeList).getByRole('button', { name: lockedRoute.label }));
+    expect(await screen.findByRole('button', { name: '敬请期待' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '敬请期待' }));
+    expect(useGameFlowStore.getState().currentView).toBe('route-selection');
+    expect(screen.queryByRole('button', { name: '确认进入剧情' })).not.toBeInTheDocument();
+
+    fireEvent.click(within(routeList).getByRole('button', { name: playableRoute.label }));
+    fireEvent.click(await screen.findByRole('button', { name: '确定' }));
+
+    expect(await screen.findByRole('button', { name: '确认进入剧情' })).toBeInTheDocument();
   });
 
   it('开始新游戏会二级确认、清空旧存档并创建新存档', async () => {
@@ -480,6 +520,20 @@ describe('App 主流程切换', () => {
     fireEvent.click(screen.getByRole('button', { name: '回溯历史进度' }));
 
     expect(await screen.findByRole('status')).toHaveTextContent('暂无可回溯的存档。');
+    expect(screen.getByRole('button', { name: '开始新游戏' })).toBeInTheDocument();
+  });
+
+  it('试玩版未开放的开始页入口会留在开始页并显示提示', async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '前尘成就回顾' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('当前功能试玩版未开放');
+    expect(screen.getByRole('button', { name: '开始新游戏' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '打开设置' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('当前功能试玩版未开放');
     expect(screen.getByRole('button', { name: '开始新游戏' })).toBeInTheDocument();
   });
 
@@ -719,7 +773,7 @@ describe('App 主流程切换', () => {
     expect(screen.queryByLabelText('数值变化提示')).not.toBeInTheDocument();
   });
 
-  it('属性页改名会同步路线状态和影落掖庭开场称呼', async () => {
+  it('属性页改名会同步路线状态并进入影落掖庭新开场', async () => {
     render(<App />);
 
     await clickStartNewGame();
@@ -737,10 +791,7 @@ describe('App 主流程切换', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '确认进入剧情' }));
 
-    expect(await screen.findByText(/掖庭掌事把名册合上/)).toBeInTheDocument();
-    fireEvent.click(getDialoguePageTarget()!);
-    expect(await screen.findByText(/林氏，字写得不错/)).toBeInTheDocument();
-    expect(screen.queryByText(/沉氏，字写得不错/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/墨泼青衫簪折雪，玉堕朱门骨未销。/)).toBeInTheDocument();
   });
 
   it('对话正文逐字显示时点击文本框会立即补全', () => {
@@ -874,6 +925,22 @@ describe('App 主流程切换', () => {
     expect(screen.queryByAltText('娇娇')).not.toBeInTheDocument();
   });
 
+  it('全局对话舞台立绘出现时使用淡入类', () => {
+    render(
+      <GlobalDialogueStage
+        sceneLabel="测试剧情舞台"
+        portraitLabel="李公公立绘"
+        portrait={<img src="/assets/characters/men/ligonggong.png" alt="李公公" />}
+        characterIdentity="李公公"
+        characterName="李公公"
+        content="面前的人白发如雪。"
+        typewriter={false}
+      />,
+    );
+
+    expect(screen.getByLabelText('李公公立绘')).toHaveClass('global-dialogue-stage__portrait-stage--entering');
+  });
+
   it('全局对话舞台的线性剧情翻完后点击正文推进，不显示下一句按钮', () => {
     const onNextAction = vi.fn();
 
@@ -906,7 +973,7 @@ describe('App 主流程切换', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '确认进入剧情' }));
 
-    expect(await screen.findByText('中宫掌事宫女 · 娇娇')).toBeInTheDocument();
+    expect(await screen.findByLabelText('开场对话框')).toBeInTheDocument();
     await advanceDialoguePages();
     expect(screen.queryByRole('button', { name: '下一句' })).not.toBeInTheDocument();
     expect(getDialogueContent()).toBeInTheDocument();
@@ -987,7 +1054,7 @@ describe('App 主流程切换', () => {
     expect(screen.getByText(/和亲|故国|异邦/)).toBeInTheDocument();
   });
 
-  it('影落掖庭开场会先交代掖庭旧案背景，再由娇娇引导起手选择', async () => {
+  it('影落掖庭开场按新脚本播放开篇诗和宫宴CG', async () => {
     const defaultFavorTier = getFavorTierByValue(10);
     useGameFlowStore.setState((state) => ({
       ...state,
@@ -1006,6 +1073,11 @@ describe('App 主流程切换', () => {
         silver: 50,
         trueHeart: 0,
         openingTendency: undefined,
+        stats: {
+          ...state.state.stats,
+          temperament: 400,
+          talent: 60,
+        },
       },
       hiddenStats: {
         silver: 50,
@@ -1031,82 +1103,158 @@ describe('App 主流程切换', () => {
     const { container } = render(<App />);
 
     expect((container.querySelector('.opening-dialogue__background') as HTMLElement).style.backgroundImage).toContain(
-      '/assets/routes/backgrounds/yeting_daytime.png',
+      '/assets/routes/backgrounds/poetry.png',
     );
-    expect(screen.getByText(/掖庭掌事/)).toBeInTheDocument();
-    expect(screen.queryByText(/真正改命/)).not.toBeInTheDocument();
-    expect(screen.queryByAltText('娇娇')).not.toBeInTheDocument();
-
-    for (let index = 0; index < 6 && !screen.queryByText(/字写得不错/); index += 1) {
-      await clickDialogueOnce();
-    }
-
-    expect(await screen.findByText(/字写得不错/)).toBeInTheDocument();
-    expect(screen.getByAltText('掌事宫人')).toHaveAttribute('src', '/assets/characters/women/gongren_middleage.png');
-    expect(screen.getByLabelText('掌事宫人立绘')).toBeInTheDocument();
+    expect(screen.getByText(/墨泼青衫簪折雪，玉堕朱门骨未销。/)).toBeInTheDocument();
 
     await clickDialogueAdvance();
-
     expect((container.querySelector('.opening-dialogue__background') as HTMLElement).style.backgroundImage).toContain(
-      '/assets/routes/backgrounds/yushufang_inside_daytime.png',
+      '/assets/routes/backgrounds/gongyan.png',
     );
-    expect(screen.queryByAltText('娇娇')).not.toBeInTheDocument();
-    expect(await screen.findByText(/那份祝词随待呈文书送到御前/)).toBeInTheDocument();
-
-    for (let index = 0; index < 8 && !screen.queryByText(/旧词不合宫宴礼数/); index += 1) {
-      await clickDialogueOnce();
-    }
-
-    expect(await screen.findByText(/旧词不合宫宴礼数/)).toBeInTheDocument();
-    expect(screen.getByAltText('沈璧')).toBeInTheDocument();
-    expect(screen.getByLabelText('沈璧立绘')).toHaveClass('global-dialogue-stage__portrait-stage--dialogue-left');
-    expect(screen.queryByAltText('娇娇')).not.toBeInTheDocument();
-
-    await advanceDialoguePages();
-    expect(screen.getByText(/放进后妃册最末/)).toBeInTheDocument();
-    expect(screen.queryByText(/往后人前说话/)).not.toBeInTheDocument();
-
-    await clickDialogueAdvance();
-
-    expect((container.querySelector('.opening-dialogue__background') as HTMLElement).style.backgroundImage).toContain(
-      '/assets/routes/backgrounds/yeting_daytime.png',
+    expect((container.querySelector('.opening-dialogue__background--previous') as HTMLElement).style.backgroundImage).toContain(
+      '/assets/routes/backgrounds/poetry.png',
     );
-    expect(screen.queryByAltText('娇娇')).not.toBeInTheDocument();
-    expect(await screen.findByText(/娇娇也是那日被拨到你身边/)).toBeInTheDocument();
-    expect(screen.queryByText(/往后人前说话/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/殿中香烟缭绕，九龙衔灯/)).toBeInTheDocument();
 
-    await clickDialogueOnce();
-
-    expect(await screen.findByAltText('娇娇')).toBeInTheDocument();
-    expect(screen.getByText('掖庭引路宫女 · 娇娇')).toBeInTheDocument();
-    expect(await screen.findByText(/往后人前说话/)).toBeInTheDocument();
-    expect(screen.queryByText(/娇娇也是那日被拨到你身边/)).not.toBeInTheDocument();
-
-    await clickDialogueAdvance();
-
-    expect(screen.queryByAltText('娇娇')).not.toBeInTheDocument();
-    expect(await screen.findByText(/回忆像灯花一样轻轻爆开/)).toBeInTheDocument();
-    await advanceDialoguePages();
-    expect(screen.queryByAltText('娇娇')).not.toBeInTheDocument();
-
-    await clickDialogueAdvance();
-
-    expect(screen.queryByAltText('娇娇')).not.toBeInTheDocument();
-    expect(await screen.findByText(/娇娇扶着木匣/)).toBeInTheDocument();
-    expect(screen.queryByText(/进储秀宫西偏殿前/)).not.toBeInTheDocument();
-
-    await clickDialogueOnce();
-
-    expect(await screen.findByAltText('娇娇')).toBeInTheDocument();
-    expect(await screen.findByText(/进储秀宫西偏殿前/)).toBeInTheDocument();
-    expect(screen.queryByText(/娇娇扶着木匣/)).not.toBeInTheDocument();
-    expect(screen.getByText('节衣缩食')).toBeInTheDocument();
-    expect(screen.getByText('量入为出')).toBeInTheDocument();
-    expect(screen.getByText('锦衣玉食')).toBeInTheDocument();
-    expect(screen.getByText('先问清用度')).toBeInTheDocument();
   });
 
-  it('影落掖庭开场定下用度后会先听地图引导，再经过后宫触发陈婉宁初见', async () => {
+  it('影落掖庭开场会预加载后续切换场景，避免切图时露底闪烁', async () => {
+    const defaultFavorTier = getFavorTierByValue(10);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'opening-dialogue',
+      scene: 'briefing',
+      routeId: 'yingluoyeting',
+      state: {
+        ...state.state,
+        routeId: 'yingluoyeting',
+        favor: 10,
+        stats: {
+          ...state.state.stats,
+          temperament: 400,
+          talent: 60,
+        },
+      },
+      hiddenStats: {
+        silver: 50,
+        prestige: 50,
+        stress: 60,
+        favor: 10,
+        trueHeart: 0,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '低位小主',
+      },
+    }));
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(document.head.querySelector('link[rel="preload"][as="image"][href="/assets/routes/backgrounds/gongyan.png"]')).toBeInTheDocument();
+      expect(document.head.querySelector('link[rel="preload"][as="image"][href="/assets/routes/backgrounds/liuli_lamp.png"]')).toBeInTheDocument();
+      expect(document.head.querySelector('link[rel="preload"][as="image"][href="/assets/routes/backgrounds/eye.png"]')).toBeInTheDocument();
+      expect(document.head.querySelector('link[rel="preload"][as="image"][href="/assets/characters/men/ligonggong.png"]')).toBeInTheDocument();
+    });
+  });
+
+  it('影落掖庭开场进入黑幕时不会先露出掖庭漏室背景', async () => {
+    const defaultFavorTier = getFavorTierByValue(10);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'opening-dialogue',
+      scene: 'briefing',
+      routeId: 'yingluoyeting',
+      state: {
+        ...state.state,
+        routeId: 'yingluoyeting',
+        favor: 10,
+        stats: {
+          ...state.state.stats,
+          temperament: 400,
+          talent: 60,
+        },
+      },
+      hiddenStats: {
+        silver: 50,
+        prestige: 50,
+        stress: 60,
+        favor: 10,
+        trueHeart: 0,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '低位小主',
+      },
+    }));
+
+    const { container } = render(<App />);
+
+    await advanceDialogueUntil(
+      () => Boolean(container.querySelector('.opening-dialogue__black-transition')),
+      40,
+    );
+
+    expect(container.querySelector('.opening-dialogue__black-transition')).toBeInTheDocument();
+    expect((container.querySelector('.opening-dialogue__background--current') as HTMLElement).style.backgroundImage).not.toContain(
+      '/assets/routes/backgrounds/loushi.png',
+    );
+  });
+
+  it('出去看看分支先切出御李公公场景，再回漏室后延后显示李公公立绘', async () => {
+    const defaultFavorTier = getFavorTierByValue(10);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'opening-dialogue',
+      scene: 'briefing',
+      routeId: 'yingluoyeting',
+      state: {
+        ...state.state,
+        routeId: 'yingluoyeting',
+        favor: 10,
+        stats: {
+          ...state.state.stats,
+          temperament: 400,
+          talent: 60,
+        },
+      },
+      hiddenStats: {
+        silver: 50,
+        prestige: 50,
+        stress: 60,
+        favor: 10,
+        trueHeart: 0,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '低位小主',
+      },
+    }));
+
+    const { container } = render(<App />);
+    const currentBackground = () =>
+      (container.querySelector('.opening-dialogue__background--current') as HTMLElement | null)?.style.backgroundImage ?? '';
+
+    await advanceDialogueUntil(() => Boolean(screen.queryByRole('button', { name: '出去看看' })), 120);
+    fireEvent.click(screen.getByRole('button', { name: '出去看看' }));
+
+    await clickDialogueAdvance();
+
+    await waitFor(() => {
+      expect(currentBackground()).toContain('/assets/routes/backgrounds/chuyu_li.png');
+    });
+    expect(screen.queryByLabelText('李公公立绘')).not.toBeInTheDocument();
+
+    await advanceDialogueUntil(() => getDialogueContent()?.textContent?.includes('“沉姑娘。”他开口了') ?? false, 20);
+
+    await waitFor(() => {
+      expect(currentBackground()).toContain('/assets/routes/backgrounds/loushi.png');
+    });
+    expect(screen.queryByLabelText('李公公立绘')).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('李公公立绘')).toBeInTheDocument();
+    }, { timeout: 1000 });
+  }, 15000);
+
+  it('影落掖庭开场定下用度后进入地图并挂起陈婉宁初见', async () => {
     const defaultFavorTier = getFavorTierByValue(10);
     useGameFlowStore.setState((state) => ({
       ...state,
@@ -1150,11 +1298,9 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    for (let index = 0; index < 4; index += 1) {
-      await advanceDialoguePages();
-      await clickDialogueAdvance();
-    }
-    await advanceDialoguePages();
+    await advanceDialogueUntil(() => Boolean(screen.queryByRole('button', { name: '原地等候' })));
+    fireEvent.click(screen.getByRole('button', { name: '原地等候' }));
+    await advanceDialogueUntil(() => Boolean(screen.queryByRole('button', { name: '量入为出' })), 120);
     fireEvent.click(await screen.findByRole('button', { name: '量入为出' }));
 
     const mapGuide = await screen.findByLabelText('地图引导对话框');
@@ -1164,27 +1310,15 @@ describe('App 主流程切换', () => {
     expect(useGameFlowStore.getState().state.flags[YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]).toBe(true);
 
     await clickDialogueAdvance();
-    expect(screen.getByLabelText('地图引导对话框')).toHaveTextContent(/左侧四个圆形是常驻入口/);
-    await clickDialogueAdvance();
-
-    expect(await screen.findByText(/你第一次踏进后宫宫道时/)).toBeInTheDocument();
-    expect(useGameFlowStore.getState().state.flags.mapGuideFinished).toBe(true);
-
-    await advanceDialoguePages();
-    fireEvent.click(screen.getByRole('button', { name: '谢她照拂，只字不提旧案' }));
-    expect(await screen.findByText(/陈婉宁笑意未改/)).toBeInTheDocument();
-    await advanceDialoguePages();
-    fireEvent.click(document.querySelector<HTMLElement>('[data-dialogue-page-state="last"]')!);
 
     await waitFor(() => {
       const flow = useGameFlowStore.getState();
-      expect(flow.currentView).toBe('bedchamber');
-      expect(flow.state.residenceName).toBe('储秀宫西偏殿');
-      expect(flow.state.flags[YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]).toBe(false);
-      expect(flow.state.flags[YINGLUOYETING_STORY_FLAGS.chenFirstMeetPlayed]).toBe(true);
+      expect(flow.currentView).toBe('map-main');
+      expect(flow.state.flags[YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]).toBe(true);
+      expect(flow.state.flags[YINGLUOYETING_STORY_FLAGS.chenFirstMeetPlayed]).not.toBe(true);
     });
-    expect(await screen.findByLabelText('玩家信息')).toHaveTextContent('储秀宫西偏殿');
-  });
+    expect(await screen.findByLabelText('大地图常驻入口')).toBeInTheDocument();
+  }, 15000);
 
   it('开场用度解释选项由说话人说明三档含义后返回选择', async () => {
     render(<App />);
@@ -1893,14 +2027,14 @@ describe('App 主流程切换', () => {
 
     expect(await screen.findByLabelText('后宫宫殿总览')).toBeInTheDocument();
 
-    fireEvent.click(within(screen.getByRole('navigation', { name: '寝殿左侧功能栏' })).getByRole('button', { name: '查看' }));
+    fireEvent.click(within(screen.getByRole('navigation', { name: '寝殿左侧功能栏' })).getByRole('button', { name: '属性' }));
     expect(await screen.findByLabelText('个人属性面板')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '返回' }));
     expect(await screen.findByLabelText('后宫宫殿总览')).toBeInTheDocument();
     expect(useGameFlowStore.getState().activeChamberPanel).toBe('harem');
 
-    fireEvent.click(within(screen.getByRole('navigation', { name: '寝殿左侧功能栏' })).getByRole('button', { name: '查看' }));
+    fireEvent.click(within(screen.getByRole('navigation', { name: '寝殿左侧功能栏' })).getByRole('button', { name: '属性' }));
     expect(await screen.findByLabelText('个人属性面板')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '返回' }));
     expect(await screen.findByLabelText('后宫宫殿总览')).toBeInTheDocument();
@@ -1932,7 +2066,7 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    fireEvent.click(within(screen.getByRole('navigation', { name: '大地图常驻入口' })).getByRole('button', { name: '查看' }));
+    fireEvent.click(within(screen.getByRole('navigation', { name: '大地图常驻入口' })).getByRole('button', { name: '属性' }));
 
     expect(useGameFlowStore.getState().currentView).toBe('map-main');
     expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined();
@@ -1966,7 +2100,7 @@ describe('App 主流程切换', () => {
     render(<App />);
 
     const sidebar = screen.getByRole('navigation', { name: '寝殿左侧功能栏' });
-    fireEvent.click(within(sidebar).getByRole('button', { name: '查看' }));
+    fireEvent.click(within(sidebar).getByRole('button', { name: '属性' }));
 
     expect(useGameFlowStore.getState().currentView).toBe('bedchamber');
     expect(useGameFlowStore.getState().activeMapLocation).toBe('御膳房');
@@ -4066,7 +4200,7 @@ describe('App 主流程切换', () => {
     render(<App />);
 
     expect(screen.queryByRole('button', { name: '椒房殿' })).not.toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: '掖庭院' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '掖庭' })).toBeInTheDocument();
     const sidebar = await screen.findByLabelText('大地图常驻入口');
     fireEvent.click(within(sidebar).getByRole('button', { name: '回宫' }));
 
@@ -4124,7 +4258,7 @@ describe('App 主流程切换', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('button', { name: '掖庭院' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '掖庭' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '储秀宫' })).not.toBeInTheDocument();
     expect(useGameFlowStore.getState().state.residenceName).toBe('储秀宫');
     expect(screen.queryByRole('button', { name: '椒房殿' })).not.toBeInTheDocument();
@@ -7711,6 +7845,102 @@ describe('App 主流程切换', () => {
     );
 
     await clickDialogueAdvance();
+  }, 8000);
+
+  it('侍寝跨夜黑幕会先盖住旧夜景，再切到第二日清晨', async () => {
+    useGameFlowStore.setState((flow) => ({
+      ...flow,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '妙音堂',
+      state: {
+        ...flow.state,
+        favor: 80,
+        trueHeart: 35,
+        stamina: STAMINA_INITIAL_PER_XUN,
+        flags: {
+          ...flow.state.flags,
+          bedchamberIntroShown: true,
+        },
+      },
+      hiddenStats: {
+        ...flow.hiddenStats,
+        favor: 80,
+        trueHeart: 35,
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 5,
+        slot: '夜晚',
+        slotProgress: 0,
+      },
+      nightlyService: {
+        ...flow.nightlyService,
+        pendingEvent: {
+          id: 'nightly-service-player-miaoyin-cover',
+          timeKey: '1-1-1',
+          year: 1,
+          month: 1,
+          xun: 1,
+          outcome: 'player-service',
+          playerName: flow.state.name,
+          rankLabel: flow.hiddenStats.initialRank ?? '宫妃',
+          initialInterest: 60,
+          currentInterest: 60,
+          interactionCount: 0,
+          maxInteractions: 3,
+          selectedActionIds: [],
+          stage: 'notice',
+          pregnancyRoll: 100,
+        },
+      },
+      settlementReports: [],
+      latestSettlementReportId: undefined,
+      lastSeenSettlementReportId: undefined,
+    }));
+
+    const { container } = render(<App />);
+
+    await clickDialogueAdvance();
+    await clickDialogueAdvance();
+
+    const actionPanel = await screen.findByLabelText('养心殿侍寝操作');
+    fireEvent.click(within(actionPanel).getByRole('button', { name: /鼓瑟/ }));
+    await clickDialogueAdvance();
+
+    fireEvent.click(await screen.findByRole('button', { name: /吟诗/ }));
+    await clickDialogueAdvance();
+
+    fireEvent.click(await screen.findByRole('button', { name: /温言/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /温柔/ }));
+    await clickDialogueAdvance();
+
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('正式侍寝剧情').length).toBeGreaterThan(0);
+    });
+    await clickDialogueAdvance();
+
+    expect(await screen.findByLabelText('一夜过去')).toBeInTheDocument();
+    expect(screen.getByLabelText('夜晚')).toBeInTheDocument();
+    expect((container.querySelector('.chamber-main__background--current') as HTMLElement).style.backgroundImage).toContain(
+      '/assets/routes/backgrounds/miaoyintang_daytime.png',
+    );
+
+    await waitFor(
+      () => {
+        expect(useGameFlowStore.getState().time).toMatchObject({
+          xun: 2,
+          slot: '清晨',
+        });
+        expect((container.querySelector('.chamber-main__background--current') as HTMLElement).style.backgroundImage).toContain(
+          '/assets/routes/home/home_yeting_dawn%20till%20dask.png',
+        );
+      },
+      { timeout: 650 },
+    );
   }, 8000);
 
   it.each(['御膳房', '宝华殿', '华清池', '太医院', '建章宫'] as const)(

@@ -28,6 +28,7 @@ interface StartSceneProps {
   backgroundImage?: string;
   title?: string;
   notice?: string;
+  noticeKey?: number;
   onAction?: (action: string) => void;
 }
 
@@ -35,6 +36,7 @@ export function StartScene({
   backgroundImage,
   title = '凤华录',
   notice,
+  noticeKey = 0,
   onAction,
 }: StartSceneProps) {
   const [confirmingNewGame, setConfirmingNewGame] = useState(false);
@@ -118,7 +120,7 @@ export function StartScene({
               ))}
             </nav>
             {notice ? (
-              <p className="start-scene__notice" role="status">
+              <p key={noticeKey} className="start-scene__notice" role="status">
                 {notice}
               </p>
             ) : null}

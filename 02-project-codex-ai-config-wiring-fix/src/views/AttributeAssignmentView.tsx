@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { AGE_RANGE } from '../config/constants';
 import { convertFortuneAttributePoints } from '../config/formulas';
 import { attributeFields } from '../game/data/config';
@@ -7,6 +7,16 @@ import { useGameFlowStore } from '../game/store/gameFlowStore';
 import { AttributeHelpButton } from '../components/status/AttributeHelpButton';
 
 const ATTRIBUTE_STATS_FINALIZED_FLAG = 'attributeStatsFinalized';
+const TRANSIENT_NOTICE_DURATION_MS = 2200;
+
+const attributePetals = Array.from({ length: 16 }, (_, index) => ({
+  id: `attribute-petal-${index}`,
+  left: `${3 + ((index * 6.1) % 94)}%`,
+  delay: `${(index % 8) * 0.72}s`,
+  duration: `${12 + (index % 6) * 1.45}s`,
+  size: `${14 + (index % 5) * 6}px`,
+  drift: `${16 + (index % 7) * 9}px`,
+}));
 
 const randomInt = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min;
 
@@ -45,10 +55,14 @@ export function AttributeAssignmentView() {
   const { state, selectedRoute, setPlayerName, patchState, setAttributeValue, finalizeAttributeAssignment, setCurrentView, setScene } =
     useGameFlowStore();
   const [activeHelpKey, setActiveHelpKey] = useState<string | null>(null);
+  const [familyNotice, setFamilyNotice] = useState('');
+  const [familyNoticeKey, setFamilyNoticeKey] = useState(0);
+  const familyNoticeTimerRef = useRef<number | null>(null);
 
   const finalized = Boolean(state.flags[ATTRIBUTE_STATS_FINALIZED_FLAG]);
   const routeLocked = Boolean(selectedRoute?.statsLocked);
   const controlsLocked = routeLocked || finalized;
+  const hasRandomFamilyOptions = (selectedRoute?.familyOptions?.length ?? 0) > 1;
   const pointsLeftDisplay = useMemo(() => {
     if (finalized) {
       return '已确认';
@@ -73,6 +87,34 @@ export function AttributeAssignmentView() {
     }));
   }, [finalized, routeLocked, selectedRoute?.id, state.stats]);
 
+  useEffect(() => {
+    return () => {
+      if (familyNoticeTimerRef.current !== null) {
+        window.clearTimeout(familyNoticeTimerRef.current);
+      }
+    };
+  }, []);
+
+  const clearFamilyNotice = () => {
+    if (familyNoticeTimerRef.current !== null) {
+      window.clearTimeout(familyNoticeTimerRef.current);
+      familyNoticeTimerRef.current = null;
+    }
+    setFamilyNotice('');
+  };
+
+  const showFamilyNotice = (message: string) => {
+    if (familyNoticeTimerRef.current !== null) {
+      window.clearTimeout(familyNoticeTimerRef.current);
+    }
+    setFamilyNoticeKey((current) => current + 1);
+    setFamilyNotice(message);
+    familyNoticeTimerRef.current = window.setTimeout(() => {
+      setFamilyNotice('');
+      familyNoticeTimerRef.current = null;
+    }, TRANSIENT_NOTICE_DURATION_MS);
+  };
+
   const adjustAge = (direction: -1 | 1) => {
     const nextAge = Math.min(AGE_RANGE[1], Math.max(AGE_RANGE[0], state.age + direction));
     if (nextAge !== state.age) {
@@ -81,6 +123,12 @@ export function AttributeAssignmentView() {
   };
 
   const randomizeFamily = () => {
+    if (!hasRandomFamilyOptions) {
+      showFamilyNotice('当前路线为固定家世');
+      return;
+    }
+
+    clearFamilyNotice();
     const options = selectedRoute?.familyOptions ?? [state.family];
     const family = options[randomInt(0, options.length - 1)];
     const pointsTotal = resolveRouteInitialPointsTotal(selectedRoute?.id ?? state.routeId, family);
@@ -137,34 +185,30 @@ export function AttributeAssignmentView() {
       <div className="attribute-assignment__frame">
         <div className="attribute-assignment__background" />
         <div className="attribute-assignment__content">
+          <div className="attribute-assignment__petals" aria-hidden="true">
+            {attributePetals.map((petal) => (
+              <span
+                key={petal.id}
+                className="start-scene__petal"
+                style={{
+                  left: petal.left,
+                  top: '-10%',
+                  width: petal.size,
+                  height: `calc(${petal.size} * 0.72)`,
+                  animationDelay: petal.delay,
+                  animationDuration: petal.duration,
+                  ['--petal-drift' as string]: petal.drift,
+                } as CSSProperties}
+              />
+            ))}
+          </div>
+          <h1 className="attribute-assignment__title">初始设定</h1>
           <aside className="attribute-assignment__portrait-panel">
             {selectedRoute ? <img src={selectedRoute.portrait} alt={selectedRoute.label} /> : null}
-            <button
-              type="button"
-              className="attribute-assignment__confirm"
-              onClick={() => {
-                finalizeAttributeAssignment();
-                setScene('briefing');
-                setCurrentView('opening-dialogue');
-              }}
-              aria-label="确认进入剧情"
-              title="确认"
-            >
-              <img src="/assets/routes/buttons/confirm.png" alt="确认" />
-            </button>
+            <span className="attribute-assignment__taohua" aria-hidden="true" />
           </aside>
 
           <section className="attribute-assignment__panel">
-            <div className="attribute-assignment__topbar">
-              <div>
-                剩余点数：{pointsLeftDisplay}
-              </div>
-              <button type="button" className="attribute-assignment__random" onClick={autoAssign}>
-                <span className="attribute-assignment__random-bg" />
-                <span className="attribute-assignment__random-text" />
-              </button>
-            </div>
-
             <div className="attribute-assignment__identity">
               <label className="attribute-assignment__identity-field">
                 <span>姓名</span>
@@ -200,12 +244,30 @@ export function AttributeAssignmentView() {
                 <span>家世</span>
                 <div className="attribute-assignment__inline">
                   <input value={state.family} readOnly />
-                  <button type="button" onClick={randomizeFamily} disabled={(selectedRoute?.familyOptions?.length ?? 0) <= 1}>
-                    <span className="attribute-assignment__tiny-random" aria-hidden="true" />
-                    <span className="visually-hidden">随机</span>
+                  <button
+                    type="button"
+                    className="attribute-assignment__family-random"
+                    onClick={randomizeFamily}
+                    disabled={finalized}
+                  >
+                    随机
                   </button>
+                  {familyNotice ? (
+                    <span key={familyNoticeKey} className="attribute-assignment__family-notice">
+                      {familyNotice}
+                    </span>
+                  ) : null}
                 </div>
               </label>
+            </div>
+
+            <div className="attribute-assignment__topbar">
+              <div>
+                剩余点数：{pointsLeftDisplay}
+              </div>
+              <button type="button" className="attribute-assignment__random" onClick={autoAssign}>
+                随机
+              </button>
             </div>
 
             <div className="attribute-assignment__grid">
@@ -254,15 +316,30 @@ export function AttributeAssignmentView() {
             </div>
           </section>
         </div>
-        <button
-          type="button"
-          className="attribute-assignment__back"
-          onClick={() => setCurrentView('route-selection')}
-          aria-label="返回路线选择"
-          title="返回"
-        >
-          <img src="/assets/routes/buttons/back.png" alt="返回" />
-        </button>
+        <div className="attribute-assignment__actions" aria-label="属性加点操作">
+          <button
+            type="button"
+            className="attribute-assignment__confirm"
+            onClick={() => {
+              finalizeAttributeAssignment();
+              setScene('briefing');
+              setCurrentView('opening-dialogue');
+            }}
+            aria-label="确认进入剧情"
+            title="确认"
+          >
+            确认
+          </button>
+          <button
+            type="button"
+            className="attribute-assignment__back"
+            onClick={() => setCurrentView('route-selection')}
+            aria-label="返回路线选择"
+            title="返回"
+          >
+            返回
+          </button>
+        </div>
       </div>
     </main>
   );

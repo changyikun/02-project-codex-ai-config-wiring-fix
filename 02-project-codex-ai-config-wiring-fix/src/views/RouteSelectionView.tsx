@@ -8,6 +8,8 @@ interface RouteSelectionViewProps {
   onConfirm?: () => void;
 }
 
+const playableRouteId: RouteSelectionProfile['id'] = 'yingluoyeting';
+
 const playStampFeedback = () => {
   if (navigator.vibrate) {
     navigator.vibrate(18);
@@ -37,14 +39,19 @@ export function RouteSelectionView({ onConfirm }: RouteSelectionViewProps) {
   const routeProfiles = useMemo(() => buildRouteProfiles(), []);
   const applyRouteSelection = useGameFlowStore((state) => state.applyRouteSelection);
 
-  const [selectedRouteId, setSelectedRouteId] = useState<RouteSelectionProfile['id']>('lanyinxuguo');
+  const [selectedRouteId, setSelectedRouteId] = useState<RouteSelectionProfile['id']>(playableRouteId);
   const [nameDrafts, setNameDrafts] = useState<Record<string, string>>(() =>
     Object.fromEntries(routeProfiles.map((profile) => [profile.id, profile.defaultName])),
   );
 
   const selectedRoute = routeProfiles.find((profile) => profile.id === selectedRouteId) ?? routeProfiles[0];
+  const isSelectedRoutePlayable = selectedRoute.id === playableRouteId;
 
   const confirmRoute = () => {
+    if (!isSelectedRoutePlayable) {
+      return;
+    }
+
     const normalizedName = nameDrafts[selectedRoute.id].trim() || selectedRoute.defaultName;
     try {
       playStampFeedback();
@@ -69,6 +76,11 @@ export function RouteSelectionView({ onConfirm }: RouteSelectionViewProps) {
         <div className="route-selection__veil" />
 
         <div className="route-selection__shell">
+          <header className="route-selection__heading">
+            <h2>请选择路线</h2>
+            <p>*试玩版仅开放影落掖庭线，其他路线敬请期待</p>
+          </header>
+
           <section className="route-selection__rail" aria-label="开局路线列表">
             {routeProfiles.map((route) => (
               <button
@@ -148,8 +160,17 @@ export function RouteSelectionView({ onConfirm }: RouteSelectionViewProps) {
                     </div>
                   </div>
 
-                  <button type="button" className="route-selection__confirm" onClick={confirmRoute}>
-                    <img src="/assets/routes/buttons/confirm-flower.png" alt="确定" />
+                  <button
+                    type="button"
+                    className={`route-selection__confirm ${isSelectedRoutePlayable ? '' : 'is-preview-only'}`}
+                    onClick={confirmRoute}
+                    aria-label={isSelectedRoutePlayable ? '确定' : '敬请期待'}
+                  >
+                    {isSelectedRoutePlayable ? (
+                      <img src="/assets/routes/buttons/confirm-flower.png" alt="" aria-hidden="true" />
+                    ) : (
+                      <span>敬请期待</span>
+                    )}
                   </button>
                 </div>
               </motion.article>

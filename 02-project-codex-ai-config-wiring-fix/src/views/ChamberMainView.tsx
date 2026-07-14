@@ -16,7 +16,7 @@ import { HuaQingPoolView } from '../components/chamber/HuaQingPoolView';
 import { KitchenView } from '../components/chamber/KitchenView';
 import { MapSubsceneView, type SubsceneActionEntry, type SubsceneNpcEntry } from '../components/chamber/MapSubsceneView';
 import { MiaoYinHallView } from '../components/chamber/MiaoYinHallView';
-import { NightlyServiceEventView, OVERNIGHT_TRANSITION_MS } from '../components/chamber/NightlyServiceEventView';
+import { NightlyServiceEventView, OVERNIGHT_BLACK_COVER_MS, OVERNIGHT_TRANSITION_MS } from '../components/chamber/NightlyServiceEventView';
 import { TaiHospitalView } from '../components/chamber/TaiHospitalView';
 import { useLocationActionFlow } from '../components/chamber/useLocationActionFlow';
 import { YangxinHallView } from '../components/chamber/YangxinHallView';
@@ -344,7 +344,7 @@ export function ChamberMainView() {
 
       completeOvernightTransition(overnightTransitionReason);
       setOvernightTransitionPhase('fade-out');
-    }, OVERNIGHT_TRANSITION_MS);
+    }, OVERNIGHT_BLACK_COVER_MS);
 
     return () => window.clearTimeout(timer);
   }, [completeOvernightTransition, overnightTransitionPhase, overnightTransitionReason, time.month, time.slotIndex, time.slotProgress, time.xun, time.year]);

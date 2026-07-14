@@ -110,9 +110,9 @@ describe('影落掖庭地图主线体验', () => {
     const mapBackground = container.querySelector('.map-main__background') as HTMLElement;
     expect(mapBackground).not.toHaveClass('is-location-scene');
     expect(mapBackground.style.backgroundImage).toContain('map_spring_dusk.png');
-    expect(screen.getByRole('button', { name: '掖庭院' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '掖庭' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '椒房殿' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '掖庭' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '掖庭院' })).not.toBeInTheDocument();
   });
 
   it('enters cold palace story from the map and grants old testimony evidence through existing state and inventory', async () => {

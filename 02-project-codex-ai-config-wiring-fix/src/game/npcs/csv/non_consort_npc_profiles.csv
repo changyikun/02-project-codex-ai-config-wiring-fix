@@ -5,7 +5,7 @@ buziyou,布自游,御厨,cook,male,all,御膳房,buziyou,/assets/characters/men/
 jianning,简宁,太医院医官,physician,male,all,太医院,jianning,/assets/characters/men/taiyi.png,true,医案冷语 / 生死分寸,太医院问诊,0,寡言冷静，医理扎实，极重轻重缓急，不爱空话。,"太医院医官，常年接触脉案、诊方与宫闱秘病。",太医院固定 NPC。
 miaoyin-musician,凌萧,妙音堂乐师,musician,male,all,妙音堂,miaoyin-musician,/assets/characters/men/yueshi.png,true,弦上知音 / 曲中试探,妙音堂听谱,0,说话轻而有后劲，擅从曲声和停顿里听人心。,"妙音堂乐师，负责曲谱指导与乐曲池相关内容。",当前由乐曲池事件解锁出场。
 miaoyin-dancer,凌袖,妙音堂舞者,dancer,female,all,妙音堂,miaoyin-dancer,/assets/characters/women/wuzhe.png,true,袖底风月 / 舞步相随,妙音堂观舞,0,明快灵动，练舞时认真，闲谈时有几分不肯轻易服输。,"妙音堂舞者，负责舞曲指导与舞蹈池相关内容。",凌袖可攻略。
-dangyi,当一,佛殿执事,temple-attendant,male,all,宝华殿,dangyi,/assets/characters/men/dangyi.png,true,佛灯静照 / 假死后路,宝华殿问心,0,寡言沉静，眼净心稳，不轻许诺，却肯在关键处点醒迷局。,"宝华殿执事，常年守殿抄经，对宫中暗流与人心执念看得很清。",宝华殿固定 NPC。
+dangyi,当一,佛殿执事,temple-attendant,male,all,宝华殿,dangyi,/assets/characters/men/guoshi.png,true,佛灯静照 / 假死后路,宝华殿问心,0,寡言沉静，眼净心稳，不轻许诺，却肯在关键处点醒迷局。,"宝华殿执事，常年守殿抄经，对宫中暗流与人心执念看得很清。",宝华殿固定 NPC。
 lu-anping,卢安平,首辅,court-official,male,all,,lu-anping,,true,朝局同盟 / 权力暗线,朝堂谋划,0,沉稳老辣，重筹码也重时机，不轻易表态。,"朝堂关键人物，当前仅作为世界人物和情缘预备进入配置。",本轮不新增地图入口。
 dowager,太后,太后,dowager,female,all,建章宫,dowager,/assets/characters/women/taihou.png,false,,,0,端严克制，看重规矩和分寸，话里常留一层考量。,"建章宫太后，承担问安、规矩提点和月度义务。",不可攻略但有常驻好感。
 du-niang,杜娘,宫门商贩,merchant,female,all,宫门,du-niang,/assets/characters/women/duniang.png,false,,,0,精明市井，嘴甜也嘴严，知道哪些东西能碰、哪些不能碰。,"宫门内外倒卖小贩，负责中低品质宫外物件买卖和回收。",不可攻略但有常驻好感。

@@ -314,6 +314,7 @@ export function GlobalDialogueStage({
   const portraitStageClassName = [
     'global-dialogue-stage__portrait-stage',
     `global-dialogue-stage__portrait-stage--${currentPortraitPlacement}`,
+    'global-dialogue-stage__portrait-stage--entering',
   ].join(' ');
   const rootClassName = [
     'global-dialogue-stage',
@@ -360,7 +361,7 @@ export function GlobalDialogueStage({
       <div className="global-dialogue-stage__interaction-lock" aria-hidden="true" />
 
       {showPortrait ? (
-        <div className={portraitStageClassName} aria-label={currentPortraitLabel}>
+        <div key={`${currentPortraitLabel}-${currentPortraitPlacement}`} className={portraitStageClassName} aria-label={currentPortraitLabel}>
           <div className="global-dialogue-stage__portrait-frame">{currentPortrait}</div>
         </div>
       ) : null}

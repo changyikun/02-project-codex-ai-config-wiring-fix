@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMapHotspots, resolveMapBackgroundImage } from './palaceUi';
+import { buildMapHotspots, CHAMBER_SIDEBAR_BUTTONS, MAP_SIDEBAR_BUTTONS, resolveMapBackgroundImage } from './palaceUi';
 
 describe('palace map UI configuration', () => {
   it.each([
@@ -19,7 +19,7 @@ describe('palace map UI configuration', () => {
     const yeting = hotspots.find((hotspot) => hotspot.id === '掖庭院');
 
     expect(yeting).toMatchObject({
-      label: '掖庭院',
+      label: '掖庭',
       top: '64.5%',
       left: '81.7%',
     });
@@ -30,5 +30,10 @@ describe('palace map UI configuration', () => {
     expect(buildMapHotspots('储秀宫西偏殿').some((hotspot) => hotspot.id === '长春宫' || hotspot.label === '长春宫')).toBe(
       false,
     );
+  });
+
+  it('labels the left sidebar stats entry as attributes', () => {
+    expect(MAP_SIDEBAR_BUTTONS.find((button) => button.id === 'stats')?.label).toBe('属性');
+    expect(CHAMBER_SIDEBAR_BUTTONS.find((button) => button.id === 'stats')?.label).toBe('属性');
   });
 });

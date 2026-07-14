@@ -92,7 +92,7 @@ describe('NightlyServiceEventView', () => {
     expect((document.querySelector('.nightly-service-event__background') as HTMLElement).style.backgroundImage).toContain(
       '/assets/routes/backgrounds/shiqin.png',
     );
-    expect(screen.getByAltText('传旨太监')).toHaveAttribute('src', '/assets/characters/men/taijian.png');
+    expect(screen.getByAltText('内侍')).toHaveAttribute('src', '/assets/characters/men/taijian.png');
     expect(document.querySelector('.global-dialogue-stage__portrait-media--eunuch')).toBeInTheDocument();
     expect(document.querySelector('.palace-dialogue-box--nightly-service')).toBeNull();
     expect(document.querySelector('.palace-dialogue-box--chamber')).toBeInTheDocument();

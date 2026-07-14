@@ -73,14 +73,14 @@ export const GUIDE_TENDENCY_OPTIONS: readonly GuideTendencyOption[] = MONTHLY_EX
 export const MAP_SIDEBAR_BUTTONS: readonly PalaceSidebarButtonConfig[] = [
   { id: 'consorts', label: '嫔妃', top: '22%' },
   { id: 'return', label: '回宫', top: '31.5%' },
-  { id: 'stats', label: '查看', top: '41%' },
+  { id: 'stats', label: '属性', top: '41%' },
   { id: 'chronicle', label: '纪事', top: '50.5%' },
 ] as const;
 
 export const CHAMBER_SIDEBAR_BUTTONS: readonly PalaceSidebarButtonConfig[] = [
   { id: 'consorts', label: '嫔妃', top: '22%' },
   { id: 'map-main', label: '外出', top: '31.5%' },
-  { id: 'stats', label: '查看', top: '41%' },
+  { id: 'stats', label: '属性', top: '41%' },
   { id: 'chronicle', label: '纪事', top: '50.5%' },
 ] as const;
 
@@ -98,7 +98,7 @@ export const MAP_HOTSPOTS: readonly MapHotspotConfig[] = [
   { id: '养心殿', label: '养心殿', top: '50.3%', left: '38.4%', width: '4.4%', height: '17.1%', description: '养心殿关系侍寝、陪伴与皇帝主线，重要剧情会在这里展开。', vertical: true },
   { id: '御膳房', label: '御膳房', top: '55.6%', left: '70.2%', width: '4.4%', height: '17.7%', description: '御膳房能采买膳食，也常牵连赏赐、补品与偶发小事。', vertical: true },
   { id: '宫门', label: '宫门', top: '73.8%', left: '57.4%', width: '4.4%', height: '18.2%', description: '宫门关系外来人物与特殊事件，也是部分路线支线的入口。', vertical: true },
-  { id: '掖庭院', label: '掖庭院', top: '64.5%', left: '81.7%', width: '4.4%', height: '18.2%', description: '掖庭院多为宫中差役、旧档与杂务所在，影落掖庭旧事也常从这里翻起。', vertical: true },
+  { id: '掖庭院', label: '掖庭', top: '64.5%', left: '81.7%', width: '4.4%', height: '18.2%', description: '掖庭院多为宫中差役、旧档与杂务所在，影落掖庭旧事也常从这里翻起。', vertical: true },
 ] as const;
 
 export const buildMapHotspots = (_residenceName: PlayerResidenceName): readonly MapHotspotConfig[] => MAP_HOTSPOTS;

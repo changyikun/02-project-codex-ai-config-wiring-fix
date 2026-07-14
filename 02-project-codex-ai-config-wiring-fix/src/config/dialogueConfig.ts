@@ -13,7 +13,7 @@ export const DIALOGUE_CONFIG = {
   box: {
     left: '54px',
     right: '54px',
-    bottom: '22px',
+    bottom: '0px',
     height: '214px',
   },
   frame: {

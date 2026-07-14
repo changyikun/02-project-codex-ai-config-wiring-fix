@@ -35,6 +35,7 @@ const npcActivityPurposeLabels: Record<NpcActivityPurpose, string> = {
 };
 
 const npcActivityLocationLabels = new Map<string, string>(MAP_HOTSPOTS.map((hotspot) => [hotspot.id, hotspot.label]));
+const START_SCENE_NOTICE_DURATION_MS = 2200;
 
 const formatNpcActivityConsort = (consort?: ConcubineProfile): string =>
   consort ? `${getConcubineDisplayRankText(consort)} ${consort.name}` : '未知妃嫔';
@@ -67,6 +68,8 @@ export default function App() {
   const concubines = useGameFlowStore((state) => state.concubines);
   const customConsorts = useGameFlowStore((state) => state.customConsorts);
   const [startSceneNotice, setStartSceneNotice] = useState('');
+  const [startSceneNoticeKey, setStartSceneNoticeKey] = useState(0);
+  const startSceneNoticeTimerRef = useRef<number | null>(null);
   const npcActivityDebugLoggedXunRef = useRef<string | null>(null);
   const dialogueRootStyle = getDialogueRootStyle();
 
@@ -91,6 +94,14 @@ export default function App() {
     return () => {
       document.removeEventListener('selectstart', preventBrowserExtraction);
       document.removeEventListener('dragstart', preventBrowserExtraction);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (startSceneNoticeTimerRef.current !== null) {
+        window.clearTimeout(startSceneNoticeTimerRef.current);
+      }
     };
   }, []);
 
@@ -137,23 +148,50 @@ export default function App() {
     console.table(npcActivityDebugRows);
   }, [currentView, npcActivity.xunKey, npcActivityDebugRows, time.month, time.xun, time.year]);
 
+  const clearStartSceneNotice = () => {
+    if (startSceneNoticeTimerRef.current !== null) {
+      window.clearTimeout(startSceneNoticeTimerRef.current);
+      startSceneNoticeTimerRef.current = null;
+    }
+    setStartSceneNotice('');
+  };
+
+  const showStartSceneNotice = (message: string) => {
+    if (startSceneNoticeTimerRef.current !== null) {
+      window.clearTimeout(startSceneNoticeTimerRef.current);
+    }
+    setStartSceneNoticeKey((current) => current + 1);
+    setStartSceneNotice(message);
+    startSceneNoticeTimerRef.current = window.setTimeout(() => {
+      setStartSceneNotice('');
+      startSceneNoticeTimerRef.current = null;
+    }, START_SCENE_NOTICE_DURATION_MS);
+  };
+
   const handleStartSceneAction = (action: string) => {
     if (action === '开始') {
-      setStartSceneNotice('');
+      clearStartSceneNotice();
       startNewGame();
       return;
     }
 
     if (action === '回溯') {
       const result = resumeLastSave();
-      setStartSceneNotice(result.success ? '' : result.message);
+      if (result.success) {
+        clearStartSceneNotice();
+      } else {
+        showStartSceneNotice(result.message);
+      }
+      return;
     }
+
+    showStartSceneNotice('当前功能试玩版未开放');
   };
 
   const renderCurrentView = () => {
     switch (currentView) {
       case 'start':
-        return <StartScene notice={startSceneNotice} onAction={handleStartSceneAction} />;
+        return <StartScene notice={startSceneNotice} noticeKey={startSceneNoticeKey} onAction={handleStartSceneAction} />;
       case 'route-selection':
         return <RouteSelectionView />;
       case 'attribute-assignment':
@@ -165,7 +203,7 @@ export default function App() {
       case 'bedchamber':
         return <ChamberMainView />;
       default:
-        return <StartScene notice={startSceneNotice} onAction={handleStartSceneAction} />;
+        return <StartScene notice={startSceneNotice} noticeKey={startSceneNoticeKey} onAction={handleStartSceneAction} />;
     }
   };
 

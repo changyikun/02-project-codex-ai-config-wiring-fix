@@ -352,40 +352,15 @@ export function MapMainView() {
     }
   };
 
-  const handleHotspot = (hotspotId: MapHotspotConfig['id']) => {
-    if (isMapInteractionBlocked) {
-      return;
-    }
-
-    if (guideActive) {
-      setMapEventText('先把地图和入口认熟，待会儿回寝殿后，娘娘再随时外出。');
-      return;
-    }
-    resetYingluoyetingEvent();
-    if (hotspotId === state.residenceName) {
-      setSelectedHotspotId(null);
-      setMapEventText(buildMapTransitionNarrative({ kind: 'return-chamber', residenceName: state.residenceName }));
-      enterMainChamber();
-      return;
-    }
-    setSelectedHotspotId(hotspotId);
-  };
-
-  const handleEnterHotspot = () => {
-    if (isMapInteractionBlocked) {
-      return;
-    }
-
-    if (!selectedHotspot) return;
-
-    if (selectedHotspot.id === state.residenceName) {
+  const enterHotspot = (hotspot: MapHotspotConfig) => {
+    if (hotspot.id === state.residenceName) {
       setSelectedHotspotId(null);
       setMapEventText(buildMapTransitionNarrative({ kind: 'return-chamber', residenceName: state.residenceName }));
       enterMainChamber();
       return;
     }
 
-    if (selectedHotspot.id === '华清池' && !canAccessHotSpringByPrestige(state.prestige)) {
+    if (hotspot.id === '华清池' && !canAccessHotSpringByPrestige(state.prestige)) {
       setSelectedHotspotId(null);
       setMapEventText('小主，华清池乃是容华及以上位分方可享用之地，咱们还是先请回吧。');
       return;
@@ -394,7 +369,7 @@ export function MapMainView() {
     const yingluoyetingEvent = resolveYingluoyetingMapEvent({
       state,
       time,
-      locationId: selectedHotspot.id,
+      locationId: hotspot.id,
       inventory,
     });
     if (yingluoyetingEvent) {
@@ -424,18 +399,45 @@ export function MapMainView() {
 
     setSelectedHotspotId(null);
 
-    if (selectedHotspot.id === '后宫') {
+    if (hotspot.id === '后宫') {
       enterMainChamber('后宫', previousTime);
       openChamberPanel('harem');
       return;
     }
 
-    if (selectedHotspot.id === state.residenceName) {
+    if (hotspot.id === state.residenceName) {
       enterMainChamber();
       return;
     }
 
-    enterMainChamber(selectedHotspot.id, previousTime);
+    enterMainChamber(hotspot.id, previousTime);
+  };
+
+  const handleHotspot = (hotspotId: MapHotspotConfig['id']) => {
+    if (isMapInteractionBlocked) {
+      return;
+    }
+
+    if (guideActive) {
+      setMapEventText('先把地图和入口认熟，待会儿回寝殿后，娘娘再随时外出。');
+      return;
+    }
+
+    const hotspot = mapHotspots.find((entry) => entry.id === hotspotId);
+    if (!hotspot) {
+      return;
+    }
+
+    resetYingluoyetingEvent();
+    enterHotspot(hotspot);
+  };
+
+  const handleEnterHotspot = () => {
+    if (isMapInteractionBlocked || !selectedHotspot) {
+      return;
+    }
+
+    enterHotspot(selectedHotspot);
   };
 
   const applyConcubineRelationDeltas = (

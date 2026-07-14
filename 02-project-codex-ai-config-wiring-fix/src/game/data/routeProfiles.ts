@@ -108,7 +108,7 @@ export const buildRouteProfiles = (): RouteSelectionProfile[] => {
       residenceDisplay: yingluo.config.residenceDisplay,
       aptitudeDisplay: '未知',
       biography:
-        '粗衣粝食，磨不掉骨中傲气。身陷囫囵，又怎会放过任何可以翻盘的机会。只是这一次的路无人知晓结局。',
+        '粗衣粝食，磨不掉骨中傲气。身陷囹圄，又怎会放过任何可以翻盘的机会。只是这一次的路无人知晓结局。',
       clearanceRequirement: '十年内到达妃位，并达成结局【沉冤得雪】。',
       difficulty: '困难',
       portrait: '/assets/characters/women/chenbi.png',

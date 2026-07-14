@@ -22,6 +22,8 @@ const EMPEROR_PORTRAIT_SRC = EMPEROR_PROFILE.portraitSrc ?? '';
 const EUNUCH_PORTRAIT_SRC = EUNUCH_PROFILE.portraitSrc ?? '';
 const YANGXIN_BACKGROUND_SRC = '/assets/routes/backgrounds/shiqin.png';
 export const OVERNIGHT_TRANSITION_MS = 900;
+export const OVERNIGHT_BLACK_COVER_RATIO = 0.34;
+export const OVERNIGHT_BLACK_COVER_MS = Math.round(OVERNIGHT_TRANSITION_MS * OVERNIGHT_BLACK_COVER_RATIO);
 
 type NightlyServiceViewPhase = 'notice' | 'choose' | 'feedback' | 'service' | 'overnight';
 type GentleSelectionStep = 'branch' | 'praise-target' | 'smear-target';
@@ -164,7 +166,7 @@ export function NightlyServiceEventView({
       return undefined;
     }
 
-    const timer = window.setTimeout(() => onComplete(selectedChoices), OVERNIGHT_TRANSITION_MS);
+    const timer = window.setTimeout(() => onComplete(selectedChoices), OVERNIGHT_BLACK_COVER_MS);
     return () => window.clearTimeout(timer);
   }, [onComplete, phase, selectedChoices]);
 
