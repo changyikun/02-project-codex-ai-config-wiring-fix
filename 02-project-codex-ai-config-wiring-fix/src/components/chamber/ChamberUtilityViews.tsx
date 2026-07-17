@@ -364,11 +364,11 @@ export function MiscInfoPanelView({ state, hiddenStats, bondProfile, onClose }: 
     () => ({
       emperor: {
         title: `皇帝 ${bondProfile.npcName === '容安' ? bondProfile.npcName : '容安'}`,
-        lines: [`年龄：二十四`, `心情：${resolveEmperorMoodLabel(hiddenStats.favor)}`, `对娘娘当前宠爱：${hiddenStats.favor}`],
+        lines: [`年龄：二十四`, `心情：${resolveEmperorMoodLabel(hiddenStats.favor)}`, `对小主当前宠爱：${hiddenStats.favor}`],
       },
       officials: {
         title: '其余官员',
-        lines: ['首辅：卢安平', '内廷总管：简宁', `近旬对娘娘观感：${hiddenStats.prestige >= 1200 ? '谨慎观望' : '尚未站队'}`],
+        lines: ['首辅：卢安平', '内廷总管：简宁', `近旬对小主观感：${hiddenStats.prestige >= 1200 ? '谨慎观望' : '尚未站队'}`],
       },
       dowager: {
         title: '太后',
@@ -376,7 +376,7 @@ export function MiscInfoPanelView({ state, hiddenStats, bondProfile, onClose }: 
       },
       father: {
         title: `父亲 ${routeFatherNameMap[state.routeId]}`,
-        lines: [`家世：${state.family}`, `对娘娘期许：${state.openingTendency ?? '安稳度日'}`, '家族当前暂无紧急来信'],
+        lines: [`家世：${state.family}`, `对小主期许：${state.openingTendency ?? '安稳度日'}`, '家族当前暂无紧急来信'],
       },
       court: {
         title: '朝堂',

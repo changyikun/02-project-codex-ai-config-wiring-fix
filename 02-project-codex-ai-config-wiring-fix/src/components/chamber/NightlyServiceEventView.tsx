@@ -129,19 +129,6 @@ export function NightlyServiceEventView({
       };
     }
 
-    if (segment.characterName === '容安') {
-      return {
-        label: '容安立绘',
-        portrait: (
-          <img
-            src={EMPEROR_PORTRAIT_SRC}
-            alt={EMPEROR_PROFILE.displayName}
-            className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--emperor"
-          />
-        ),
-      };
-    }
-
     return undefined;
   };
 

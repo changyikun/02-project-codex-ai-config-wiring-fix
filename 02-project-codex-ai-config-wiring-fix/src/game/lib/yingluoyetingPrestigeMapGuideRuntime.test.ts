@@ -74,7 +74,10 @@ describe('yingluoyeting prestige map guide runtime', () => {
     ]);
     expect(steps.at(-1)).toMatchObject({
       completesStory: true,
+      speakerIdentity: '场景旁白',
+      speakerName: '建章宫',
     });
+    expect(steps.at(-1)?.text).toContain('试玩版剧情到此结束，接下来小主可以自由探索游玩目前开放的部分场景与玩法~');
     expect(steps.at(-1)?.portraitKey).toBeUndefined();
   });
 });

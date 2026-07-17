@@ -2,6 +2,7 @@ import type { MapAreaId, TimeSlot } from '../game/types';
 
 export const HAREM_OVERVIEW_BACKGROUND = '/assets/routes/backgrounds/hougong_daytime.png';
 export const HAREM_OUTSIDE_BACKGROUND = '/assets/routes/backgrounds/hougong_outside_daytime.png';
+export const HAREM_OUTSIDE_NIGHT_BACKGROUND = '/assets/routes/backgrounds/hougong_outside_night.png';
 export const CONSORT_AUDIENCE_BACKGROUND = '/assets/routes/backgrounds/zhudian_daytime.png';
 const COMMON_MENU_PANEL_BACKGROUND = '/assets/routes/buttons/menu/caidan.png';
 export const PLAYER_STATS_BACKGROUND = COMMON_MENU_PANEL_BACKGROUND;
@@ -24,15 +25,24 @@ const haremBackground = HAREM_OVERVIEW_BACKGROUND;
 const affairsBackground = '/assets/ui/affairs-ui.jpg';
 const coldPalaceBackground = '/assets/routes/backgrounds/lenggong_daytime.png';
 const yetingBackground = '/assets/routes/backgrounds/yeting_daytime.png';
+const yetingNightBackground = '/assets/routes/backgrounds/yeting_night.png';
 const jianzhangBackground = '/assets/routes/backgrounds/jianzhanggong_daytime.png';
+const jianzhangNightBackground = '/assets/routes/backgrounds/jianzhanggong_night.png';
 const miaoyinBackground = '/assets/routes/backgrounds/miaoyintang_daytime.png';
+const miaoyinNightBackground = '/assets/routes/backgrounds/miaoyintang_night.png';
 const imperialGardenBackground = '/assets/routes/backgrounds/yuhuayuan_daytime.png';
+const imperialGardenNightBackground = '/assets/routes/backgrounds/yuhuayuan_night.png';
 const huaqingchiBackground = '/assets/routes/backgrounds/huaqingchi_daytime.png';
 const gongmenBackground = '/assets/routes/backgrounds/gongmen_daytime.png';
+const gongmenNightBackground = '/assets/routes/backgrounds/gongmen_night.png';
 const taiHospitalBackground = '/assets/routes/backgrounds/taiyiyuan_daytime.png';
 const yangxinOutsideBackground = '/assets/routes/backgrounds/yangxindian_outside_daytime.png';
+const yangxinOutsideNightBackground = '/assets/routes/backgrounds/yangxindian_outside_night.png';
+const yangxinInsideBackground = '/assets/routes/backgrounds/yangxindian_inside_daytime.png';
+const yangxinInsideNightBackground = '/assets/routes/backgrounds/yangxindian_inside_night.png';
 export const YANGXIN_VERDICT_BACKGROUND = '/assets/routes/backgrounds/yangxin_verdict_daytime.png';
 const imperialKitchenBackground = '/assets/routes/backgrounds/yushanfang_daytime.png';
+const imperialKitchenNightBackground = '/assets/routes/backgrounds/yushanfang_night.png';
 const zhengyangGateBackground = '/assets/routes/backgrounds/zhengyangmen_daytime.png';
 
 export const LOCATION_SCENE_BACKGROUNDS: Partial<Record<MapAreaId, string>> = {
@@ -63,3 +73,24 @@ export const LOCATION_SCENE_BACKGROUNDS: Partial<Record<MapAreaId, string>> = {
   昭阳宫: residenceBackground,
   钟粹宫: residenceBackground,
 };
+
+const isNightSlot = (slot: TimeSlot): boolean => slot === '夜晚' || slot === '深夜';
+
+export const LOCATION_SCENE_NIGHT_BACKGROUNDS: Partial<Record<MapAreaId, string>> = {
+  建章宫: jianzhangNightBackground,
+  宫门: gongmenNightBackground,
+  掖庭院: yetingNightBackground,
+  妙音堂: miaoyinNightBackground,
+  御膳房: imperialKitchenNightBackground,
+  御花园: imperialGardenNightBackground,
+  养心殿: yangxinOutsideNightBackground,
+};
+
+export const resolveHaremOutsideBackground = (slot: TimeSlot): string =>
+  isNightSlot(slot) ? HAREM_OUTSIDE_NIGHT_BACKGROUND : HAREM_OUTSIDE_BACKGROUND;
+
+export const resolveYangxinInsideBackground = (slot: TimeSlot): string =>
+  isNightSlot(slot) ? yangxinInsideNightBackground : yangxinInsideBackground;
+
+export const resolveLocationSceneBackground = (location: MapAreaId, slot: TimeSlot): string | undefined =>
+  isNightSlot(slot) ? LOCATION_SCENE_NIGHT_BACKGROUNDS[location] ?? LOCATION_SCENE_BACKGROUNDS[location] : LOCATION_SCENE_BACKGROUNDS[location];

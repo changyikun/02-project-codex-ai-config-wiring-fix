@@ -6,7 +6,6 @@ import {
   getConcubinePortraitPath,
 } from '../../game/data/concubineRoster';
 import { getRouteProfileById } from '../../game/data/routeProfiles';
-import { getBondUnlockFlagForNpc, requireNonConsortNpcProfile } from '../../game/npcs/npcCatalog';
 import {
   requestKitchenLocalDialogue,
   type KitchenDialogueActor,
@@ -57,23 +56,8 @@ interface KitchenSceneActor extends KitchenDialogueActor {
   consortId?: string;
 }
 
-const BU_ZIYOU_PROFILE = requireNonConsortNpcProfile('buziyou');
-const BU_ZIYOU_PORTRAIT_SRC = BU_ZIYOU_PROFILE.portraitSrc ?? '';
 const KITCHEN_STROLL_RANDOM_EVENT_POOL_ID = 'location.kitchen.stroll';
 const SILVER_LEAF_EARRING_TEMPLATE_ITEM_ID = 'silver-leaf-earring';
-
-const buildBuZiyouActor = (favor: number, affection: number): KitchenSceneActor => ({
-  id: BU_ZIYOU_PROFILE.npcId,
-  name: BU_ZIYOU_PROFILE.displayName,
-  identity: BU_ZIYOU_PROFILE.identityLabel,
-  residence: BU_ZIYOU_PROFILE.defaultLocationId ?? '御膳房',
-  personality: BU_ZIYOU_PROFILE.personality,
-  summary: BU_ZIYOU_PROFILE.summary,
-  currentGoodwill: favor,
-  currentAffection: affection,
-  actorKind: 'buziyou',
-  portraitSrc: BU_ZIYOU_PORTRAIT_SRC,
-});
 
 const buildConsortActor = (consort: ConcubineProfile): KitchenSceneActor => ({
   id: consort.id,
@@ -118,7 +102,6 @@ export function KitchenView({ concubines }: KitchenViewProps) {
     selectedRoute,
     buyInventoryItem,
     patchKitchenProgress,
-    applyStoryEffects,
     applyConsortRelationshipJudgement,
     applyRandomEventEffectForPlayer,
     queueRandomEventUnlocks,
@@ -276,11 +259,6 @@ export function KitchenView({ concubines }: KitchenViewProps) {
     setPendingTimedActionOutcome(outcome.shouldSleep ? outcome : null);
   };
 
-  const holdTimedActionOutcome = (outcome: TimedLocationActionOutcome) => {
-    setActionResultText('');
-    setPendingTimedActionOutcome(outcome.shouldSleep ? outcome : null);
-  };
-
   const closeActionResult = () => {
     const outcome = pendingTimedActionOutcome;
     setActionResultText('');
@@ -424,32 +402,6 @@ export function KitchenView({ concubines }: KitchenViewProps) {
     const nextCount = kitchenProgress.strollCount + 1;
     patchKitchenProgress({ strollCount: nextCount });
 
-    if (!kitchenProgress.buZiyouMet && nextCount >= 4) {
-      const actor = buildBuZiyouActor(kitchenProgress.buZiyouFavor, kitchenProgress.buZiyouAffinity);
-      patchKitchenProgress({
-        buZiyouUnlocked: true,
-        buZiyouMet: true,
-        lastEncounterNpcId: actor.id,
-      });
-      applyStoryEffects({ flags: { [getBondUnlockFlagForNpc(BU_ZIYOU_PROFILE.npcId)]: true } });
-      setSystemMessage(
-        buildLocationActionNarrative({
-          locationId: 'kitchen',
-          actionId: 'meet',
-          actionLabel: '御膳房闲逛',
-          resultText: '你在第四次闲逛时，于灶间深处撞见了布自游。',
-        }),
-      );
-      holdTimedActionOutcome(actionOutcome);
-      await beginEncounter(
-        actor,
-        'forced-meet',
-        '布自游结识',
-        '你在御膳房连着闲逛到第四次，终于在灶后见到了布自游。',
-      );
-      return;
-    }
-
     if (beginKitchenStrollRandomEvent(actionOutcome, nextCount)) {
       return;
     }
@@ -462,21 +414,6 @@ export function KitchenView({ concubines }: KitchenViewProps) {
         resultText: '御膳房炊烟袅袅，各处动静仍由你自行留意。',
       }),
       actionOutcome,
-    );
-  };
-
-  const handleOpenBuZiyou = async () => {
-    if (busy) {
-      return;
-    }
-
-    const actor = buildBuZiyouActor(kitchenProgress.buZiyouFavor, kitchenProgress.buZiyouAffinity);
-    patchKitchenProgress({ lastEncounterNpcId: actor.id });
-    await beginEncounter(
-      actor,
-      'meet-buziyou',
-      '与布自游说话',
-      '你绕过灶台，主动朝布自游走了过去。',
     );
   };
 
@@ -611,19 +548,6 @@ export function KitchenView({ concubines }: KitchenViewProps) {
   const subsceneNpcEntries = useMemo<SubsceneNpcEntry[]>(() => {
     const entries: SubsceneNpcEntry[] = [];
 
-    if (kitchenProgress.buZiyouUnlocked) {
-      entries.push({
-        id: 'fixed:buziyou',
-        kind: 'fixed',
-        name: '布自游',
-        identityLabel: '御厨',
-        portraitSrc: BU_ZIYOU_PORTRAIT_SRC,
-        onClick: () => {
-          void handleOpenBuZiyou();
-        },
-      });
-    }
-
     if (scheduledConsortActivity) {
       const { entry, consort } = scheduledConsortActivity;
       entries.push({
@@ -649,7 +573,7 @@ export function KitchenView({ concubines }: KitchenViewProps) {
     }
 
     return entries;
-  }, [beginEncounter, handleOpenBuZiyou, kitchenProgress.buZiyouUnlocked, resolveNpcActivityEntry, scheduledConsortActivity]);
+  }, [beginEncounter, resolveNpcActivityEntry, scheduledConsortActivity]);
 
   const subsceneActions = useMemo<SubsceneActionEntry[]>(
     () => [
@@ -755,35 +679,33 @@ export function KitchenView({ concubines }: KitchenViewProps) {
       ) : null}
 
       {shopOpen ? (
-        <section className="kitchen-view__shop-modal" role="dialog" aria-label="御膳房购买美食弹窗">
-          <header className="kitchen-view__shop-header">
-            <div>
-              <strong>膳房食单</strong>
-              <span>{`当前银两：${state.silver}`}</span>
-            </div>
+        <section
+          className="harem-palace-view__audience-picker harem-palace-view__audience-picker--gift kitchen-view__shop-picker"
+          role="dialog"
+          aria-label="御膳房购买美食弹窗"
+        >
+          <header>
+            <strong>膳房食单</strong>
+            <span>{`当前银两：${state.silver}`}</span>
             <button type="button" onClick={() => setShopOpen(false)}>
               收起
             </button>
           </header>
-          <div className="kitchen-view__shop-list">
+          <div className="harem-palace-view__audience-picker-list kitchen-view__shop-picker-list">
             {kitchenCatalog.map((item) => {
               const remainingStock = getKitchenShopRemainingStock(item);
               return (
-                <article key={item.offerId} className="kitchen-view__shop-card">
-                  <div>
-                    <h3>{item.name}</h3>
-                    <p>{item.description}</p>
-                    <span>{`${item.seasonLabel} · 售价：${item.price}两 · 本旬余量：${remainingStock}`}</span>
-                  </div>
-                  <button
-                    type="button"
-                    aria-label={`购买 ${item.name}`}
-                    disabled={state.silver < item.price || remainingStock <= 0}
-                    onClick={() => handleBuyFood(item)}
-                  >
-                    购买
-                  </button>
-                </article>
+                <button
+                  key={item.offerId}
+                  type="button"
+                  aria-label={`购买 ${item.name}`}
+                  disabled={state.silver < item.price || remainingStock <= 0}
+                  onClick={() => handleBuyFood(item)}
+                >
+                  <strong>{`${item.name} · ${item.price}两`}</strong>
+                  <span>{`${item.seasonLabel} · 本旬余量：${remainingStock}`}</span>
+                  <span>{item.description}</span>
+                </button>
               );
             })}
           </div>

@@ -95,7 +95,7 @@ const PetalEffect = () => {
 };
 
 const resolvePlayerTitle = (family: string, routeId: string): string => {
-  if (routeId === 'lanyinxuguo') return '皇后娘娘';
+  if (routeId === 'lanyinxuguo') return '小主';
   if (routeId === 'chenyuansucuo') return '公主';
   if (family.includes('罪臣')) return '姑娘';
   return '小主';

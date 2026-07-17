@@ -287,6 +287,25 @@ describe('影落掖庭地图主线体验', () => {
     expect(screen.queryByLabelText('冷宫主线剧情')).not.toBeInTheDocument();
   });
 
+  it('keeps Yeting locked while allowing the kitchen subscene from the map', async () => {
+    const { container } = render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '掖庭' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('暂未解锁');
+    expect(useGameFlowStore.getState().currentView).toBe('map-main');
+    expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined();
+
+    fireEvent.click(screen.getByRole('button', { name: '御膳房' }));
+
+    await waitFor(() => {
+      expect(useGameFlowStore.getState().activeMapLocation).toBe('御膳房');
+      expect(useGameFlowStore.getState().currentView).toBe('bedchamber');
+    });
+    const mapBackground = container.querySelector('.map-main__background') as HTMLElement | null;
+    expect(mapBackground?.classList.contains('is-location-scene') ?? false).toBe(false);
+  });
+
   it.skip('enters cold palace story from the map and grants old testimony evidence through existing state and inventory', async () => {
     const { container } = render(<App />);
 

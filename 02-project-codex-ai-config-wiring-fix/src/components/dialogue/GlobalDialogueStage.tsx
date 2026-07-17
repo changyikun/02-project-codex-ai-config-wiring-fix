@@ -306,11 +306,11 @@ export function GlobalDialogueStage({
     currentSegment.characterIdentity === characterIdentity && currentSegment.characterName === characterName;
   const currentPortrait =
     resolvedPortrait?.portrait ??
-    (showPortrait && portrait && currentSegmentMatchesBaseCharacter ? portrait : undefined) ??
-    (showPortrait ? <div className="global-dialogue-stage__portrait-placeholder">{currentSegment.characterName}</div> : undefined);
+    (showPortrait && portrait && currentSegmentMatchesBaseCharacter ? portrait : undefined);
   const currentPortraitLabel =
-    resolvedPortrait?.label ?? (showPortrait && portrait && currentSegmentMatchesBaseCharacter ? portraitLabel : `${currentSegment.characterName}剪影`);
+    resolvedPortrait?.label ?? (showPortrait && portrait && currentSegmentMatchesBaseCharacter ? portraitLabel : undefined);
   const currentPortraitPlacement = resolvedPortrait?.placement ?? 'stage';
+  const shouldRenderPortrait = Boolean(currentPortrait && currentPortraitLabel);
   const portraitStageClassName = [
     'global-dialogue-stage__portrait-stage',
     `global-dialogue-stage__portrait-stage--${currentPortraitPlacement}`,
@@ -319,7 +319,7 @@ export function GlobalDialogueStage({
   const rootClassName = [
     'global-dialogue-stage',
     currentSegment.isNarration ? 'global-dialogue-stage--narration' : 'global-dialogue-stage--assistant',
-    showPortrait ? `global-dialogue-stage--portrait-${currentPortraitPlacement}` : '',
+    shouldRenderPortrait ? `global-dialogue-stage--portrait-${currentPortraitPlacement}` : '',
     className,
   ]
     .filter(Boolean)
@@ -360,7 +360,7 @@ export function GlobalDialogueStage({
     <section className={rootClassName} aria-label={sceneLabel} data-dialogue-lock={DIALOGUE_CONFIG.lockVersion}>
       <div className="global-dialogue-stage__interaction-lock" aria-hidden="true" />
 
-      {showPortrait ? (
+      {shouldRenderPortrait ? (
         <div key={`${currentPortraitLabel}-${currentPortraitPlacement}`} className={portraitStageClassName} aria-label={currentPortraitLabel}>
           <div className="global-dialogue-stage__portrait-frame">{currentPortrait}</div>
         </div>

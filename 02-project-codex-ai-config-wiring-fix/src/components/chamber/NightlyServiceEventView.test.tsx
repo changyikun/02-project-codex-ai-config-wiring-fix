@@ -100,6 +100,11 @@ describe('NightlyServiceEventView', () => {
 
     clickDialogueToEnd();
     clickDialogueContent();
+
+    expect(document.querySelector('.nightly-service-event__emperor-stage .global-dialogue-stage__portrait-media--emperor')).toBeInTheDocument();
+    expect(document.querySelector('.global-dialogue-stage__portrait-stage .global-dialogue-stage__portrait-media--emperor')).toBeNull();
+    expect(document.querySelector('.global-dialogue-stage__portrait-placeholder')).toBeNull();
+
     clickDialogueContent();
 
     const actionPanel = screen.getByLabelText('养心殿侍寝操作');
@@ -108,7 +113,9 @@ describe('NightlyServiceEventView', () => {
     expect(screen.getByRole('button', { name: '鼓瑟抚琴' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '鼓瑟抚琴' }));
-    expect(document.querySelector('.global-dialogue-stage__portrait-media--emperor')).toBeInTheDocument();
+    expect(document.querySelector('.nightly-service-event__emperor-stage .global-dialogue-stage__portrait-media--emperor')).toBeInTheDocument();
+    expect(document.querySelector('.global-dialogue-stage__portrait-stage .global-dialogue-stage__portrait-media--emperor')).toBeNull();
+    expect(document.querySelector('.global-dialogue-stage__portrait-placeholder')).toBeNull();
     expect(screen.getByText(/弦音/)).toBeInTheDocument();
     clickDialogueToEnd();
     clickDialogueContent();

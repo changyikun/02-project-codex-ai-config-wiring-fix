@@ -162,7 +162,7 @@ const resolveOtherConsortPlayerFavorEffect = (
     return {
       playerFavorDelta,
       playerPrestigeDelta,
-      line: `${consortLabel}侍寝后替玩家美言，皇帝对娘娘的态度略有松动。`,
+      line: `${consortLabel}侍寝后替玩家美言，皇帝对小主的态度略有松动。`,
     };
   }
 
@@ -174,7 +174,7 @@ const resolveOtherConsortPlayerFavorEffect = (
     return {
       playerFavorDelta,
       playerPrestigeDelta: 0,
-      line: `${consortLabel}侍寝后向皇帝抹黑玩家，娘娘在御前的处境多了几分阴影。`,
+      line: `${consortLabel}侍寝后向皇帝抹黑玩家，小主在御前的处境多了几分阴影。`,
     };
   }
 
@@ -441,8 +441,8 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
       const outcome = input.player.pregnant ? 'player-companion' : 'player-service';
       const lines = [
         outcome === 'player-companion'
-          ? '夜里太监来报：养心殿传召娘娘前去陪伴。'
-          : '夜里太监来报：养心殿传召娘娘侍寝。',
+          ? '夜里太监来报：养心殿传召小主前去陪伴。'
+          : '夜里太监来报：养心殿传召小主侍寝。',
       ];
       const report = buildReport({
         routeId: input.routeId,
@@ -492,7 +492,7 @@ export const resolveNightlyService = (input: NightlyServiceInput): NightlyServic
     const effects = getInterestEffects(interest);
     const playerServiceSummonPrestigeDelta = getPlayerServiceSummonPrestigeDelta(outcome);
     const lines = [
-      `夜里太监来报：养心殿召娘娘侍寝。本次兴致${interest}。`,
+      `夜里太监来报：养心殿召小主侍寝。本次兴致${interest}。`,
       ...(playerServiceSummonPrestigeDelta > 0 ? ['本次召幸已足够让宫中记上一笔。'] : []),
       '本旬已承宠，侍寝保底值归零。',
     ];
@@ -642,7 +642,7 @@ export const resolvePlayerNightlyServiceEvent = (
   const lines = [
     `养心殿侍寝已毕。本次兴致${finalInterest}。`,
     ...(playerServiceSummonPrestigeDelta > 0 ? ['本次召幸已足够让宫中记上一笔。'] : []),
-    ...(pregnancy?.succeeded ? ['太医请脉后低声回禀：娘娘脉象有喜，已按例记入内廷医案。'] : []),
+    ...(pregnancy?.succeeded ? ['太医请脉后低声回禀：小主脉象有喜，已按例记入内廷医案。'] : []),
     ...(thirdPartyEffect
       ? [
           thirdPartyEffect.branchId === 'praise'

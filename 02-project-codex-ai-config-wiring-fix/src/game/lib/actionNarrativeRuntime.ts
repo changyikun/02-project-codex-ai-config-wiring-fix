@@ -49,6 +49,7 @@ const chamberActionNarrativeIdByAction: Record<string, string> = {
   incense: 'chamber.action.incense',
   rest: 'chamber.action.rest',
   nap: 'chamber.action.nap',
+  pulse: 'chamber.action.pulse',
 };
 
 export function buildChamberActionNarrativeEntry(input: ChamberActionNarrativeInput): NarrativeEntry {

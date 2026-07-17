@@ -154,7 +154,7 @@ export const isPlayerPalaceStrifeTargetId = (targetId: string | undefined): bool
 
 export const buildPlayerPalaceStrifeTarget = (
   playerState: GameNumericsState,
-  rankLabel = '娘娘',
+  rankLabel = '小主',
 ): PalaceStrifeTargetProfile => ({
   id: PLAYER_PALACE_STRIFE_TARGET_ID,
   name: playerState.name,
@@ -192,7 +192,7 @@ const getPendingVerdictSuspect = (caseState: PalaceStrifeCaseState): PalaceStrif
   (caseState.suspects ?? []).find((suspect) => suspect.suspicionRate >= investigationConvictionThreshold);
 
 const formatYangxinCaseTargetName = (caseState: PalaceStrifeCaseState): string =>
-  isPlayerPalaceStrifeTargetId(caseState.targetConsortId) ? '娘娘' : caseState.targetName;
+  isPlayerPalaceStrifeTargetId(caseState.targetConsortId) ? '小主' : caseState.targetName;
 
 const formatYangxinFramedTargetName = (caseState: PalaceStrifeCaseState): string =>
   isPlayerPalaceStrifeTargetId(caseState.framedTargetConsortId) ? '你' : (caseState.framedTargetName ?? '被嫁祸者');
@@ -304,7 +304,7 @@ const buildPalaceStrifeSuspects = (input: {
       evaluatePalaceStrifeFormula('playerTargetSuspicion', {
         baseConvictionRate: input.baseConvictionRate,
       }),
-      '娘娘被卷入案中，仍需在调查册上留名。',
+      '小主被卷入案中，仍需在调查册上留名。',
     );
   }
 
@@ -915,9 +915,9 @@ export const buildYangxinVerdictEvent = ({
     id: 'player',
     subjectType: 'player',
     subjectId: PLAYER_PALACE_STRIFE_TARGET_ID,
-    name: '娘娘',
+    name: '小主',
     role: isPlayerSuspect ? '定罪候选人' : isPlayerTarget ? '受害者' : isPlayerFramed ? '被嫁祸者' : '相关旁听',
-    reason: '案件牵连娘娘本人，必须到场听裁。',
+    reason: '案件牵连小主本人，必须到场听裁。',
   });
   attendees = upsertAttendee(
     attendees,
@@ -942,7 +942,7 @@ export const buildYangxinVerdictEvent = ({
       subjectId: 'jiaojiao',
       name: '娇娇',
       role: '贴身宫女',
-      reason: '娘娘身边人可就起居行踪作证。',
+      reason: '小主身边人可就起居行踪作证。',
     });
   }
 

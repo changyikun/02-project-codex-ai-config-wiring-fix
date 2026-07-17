@@ -49,7 +49,7 @@ export function AudienceInteractionShell({
           <div className="harem-palace-view__header-actions">{headerActions}</div>
         ) : onBack ? (
           <div className="harem-palace-view__header-actions">
-            <button type="button" className="harem-palace-view__utility-button" onClick={() => onBack()}>
+            <button type="button" className="harem-palace-view__utility-button harem-palace-view__utility-button--return" onClick={() => onBack()}>
               {backLabel}
             </button>
           </div>

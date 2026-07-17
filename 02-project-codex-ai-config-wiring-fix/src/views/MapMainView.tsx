@@ -7,7 +7,7 @@ import { ConcubineListView } from '../components/consorts/ConcubineListView';
 import { HaremPalaceView } from '../components/consorts/HaremPalaceView';
 import { PlayerStatsView } from '../components/status/PlayerStatsView';
 import type { ChamberPanelId } from '../config/bedchamber';
-import { HAREM_OUTSIDE_BACKGROUND, LOCATION_SCENE_BACKGROUNDS } from '../config/locationSceneBackgrounds';
+import { resolveHaremOutsideBackground, resolveLocationSceneBackground } from '../config/locationSceneBackgrounds';
 import { buildMapHotspots, MAP_SIDEBAR_BUTTONS, resolveMapBackgroundImage, type MapHotspotConfig } from '../config/palaceUi';
 import { buildInitialBondProfile } from '../game/data/bondPresets';
 import { getConcubinePortraitPath } from '../game/data/concubineRoster';
@@ -32,9 +32,10 @@ const ASSISTANT_PORTRAIT_SRC = '/assets/characters/women/jiaojiao.png';
 const DOWAGER_PORTRAIT_SRC = '/assets/characters/women/taihou.png';
 const CHEN_WANNING_PORTRAIT_SRC = getConcubinePortraitPath('陈婉宁');
 const OLD_PALACE_MAID_PORTRAIT_SRC = '/assets/characters/women/laogongren.png';
-const UNLOCKED_MAP_HOTSPOT_IDS = new Set<MapHotspotConfig['id']>(['妙音堂', '宫门', '建章宫', '御花园', '掖庭院', '养心殿']);
+const UNLOCKED_MAP_HOTSPOT_IDS = new Set<MapHotspotConfig['id']>(['妙音堂', '宫门', '建章宫', '御花园', '御膳房', '养心殿']);
 const LOCKED_LOCATION_TOAST_TEXT = '暂未解锁';
 const LOCKED_LOCATION_TOAST_MS = 2400;
+const MAP_BACKGROUND_CROSSFADE_MS = 680;
 
 const renderHotspotLabel = (label: string, vertical?: boolean) => {
   if (!vertical) {
@@ -212,10 +213,12 @@ export function MapMainView() {
   const closeMapUtilityPanel = () => setActiveMapUtilityPanel(null);
   const activeYingluoyetingBackground = activeYingluoyetingEvent
     ? activeYingluoyetingEvent.locationId === '后宫'
-      ? HAREM_OUTSIDE_BACKGROUND
-      : LOCATION_SCENE_BACKGROUNDS[activeYingluoyetingEvent.locationId]
+      ? resolveHaremOutsideBackground(time.slot)
+      : resolveLocationSceneBackground(activeYingluoyetingEvent.locationId, time.slot)
     : undefined;
   const mapBackgroundImage = activePrestigeMapGuideStep?.background ?? activeYingluoyetingBackground ?? resolveMapBackgroundImage(time.slot);
+  const [displayedMapBackground, setDisplayedMapBackground] = useState(mapBackgroundImage);
+  const [fadingMapBackground, setFadingMapBackground] = useState<string | undefined>();
   const locationSceneActive = Boolean(activeYingluoyetingEvent || isPrestigeMapGuideDowagerScene);
   const activeYingluoyetingDialogueIsResult = Boolean(yingluoyetingResultText);
   const activeYingluoyetingDialogueUsesChenWanning = activeYingluoyetingEvent?.portraitKey === 'chenwanning';
@@ -319,6 +322,18 @@ export function MapMainView() {
     },
     [],
   );
+
+  useEffect(() => {
+    if (mapBackgroundImage === displayedMapBackground) {
+      return undefined;
+    }
+
+    setFadingMapBackground(displayedMapBackground);
+    setDisplayedMapBackground(mapBackgroundImage);
+    const timer = window.setTimeout(() => setFadingMapBackground(undefined), MAP_BACKGROUND_CROSSFADE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [displayedMapBackground, mapBackgroundImage]);
 
   useEffect(() => {
     if (
@@ -627,9 +642,15 @@ export function MapMainView() {
     <main className="map-main palace-stage-shell">
       <div className="map-main__frame">
         <div
-          className={`map-main__background ${locationSceneActive ? 'is-location-scene' : ''}`}
-          style={{ backgroundImage: `url(${mapBackgroundImage})` }}
+          className={`map-main__background map-main__background--current ${locationSceneActive ? 'is-location-scene' : ''}`}
+          style={{ backgroundImage: `url(${displayedMapBackground})` }}
         />
+        {fadingMapBackground ? (
+          <div
+            className={`map-main__background map-main__background--previous ${locationSceneActive ? 'is-location-scene' : ''}`}
+            style={{ backgroundImage: `url(${fadingMapBackground})` }}
+          />
+        ) : null}
         <PalaceStatusBar />
 
         {lockedLocationToastId ? (
@@ -692,7 +713,7 @@ export function MapMainView() {
             concubines={concubines}
             playerResidenceName={state.residenceName}
             playerName={state.name}
-            playerRankLabel={hiddenStats.initialRank ?? '娘娘'}
+            playerRankLabel={hiddenStats.initialRank ?? '小主'}
           />
         ) : activeMapUtilityPanel === 'chronicle' ? (
           <ChroniclePanelView

@@ -67,8 +67,8 @@ export const resolveDowagerMissedGreetingPenalty = ({
     prestigeDelta,
     lines: [
       missedMonthCount > 1
-        ? `建章宫掌事来传话：前数月未见娘娘入宫问安，太后虽未明责，宫里已有议论。声望-${absDelta}。`
-        : `建章宫掌事来传话：上月未见娘娘入宫问安，太后虽未明责，宫里已有议论。声望-${absDelta}。`,
+        ? `建章宫掌事来传话：前数月未见小主入宫问安，太后虽未明责，宫里已有议论。声望-${absDelta}。`
+        : `建章宫掌事来传话：上月未见小主入宫问安，太后虽未明责，宫里已有议论。声望-${absDelta}。`,
     ],
   };
 };

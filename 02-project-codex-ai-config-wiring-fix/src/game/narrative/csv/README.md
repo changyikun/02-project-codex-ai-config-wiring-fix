@@ -36,7 +36,7 @@ id,group,routeId,locationId,actorKey,actionId,variant,order,speakerIdentity,spea
 | --- | --- | --- |
 | `id` | 剧情条目的唯一名字，代码按它找到这句文本 | 不要随意改。要新增分支时新建一个稳定 ID，不要覆盖别的剧情。 |
 | `speakerIdentity` | 决定对话框里“身份”的显示 | 写“贴身宫女”“裁断者”“场景旁白”“御膳房管事”等。它影响玩家对说话者身份的理解。 |
-| `speakerName` | 决定对话框里“名字”的显示 | 写“娇娇”“容安”“皇帝”“杜娘”等。玩家本人相关文本通常用“你 / 娘娘”，避免直接写死玩家姓名。 |
+| `speakerName` | 决定对话框里“名字”的显示 | 写“娇娇”“容安”“皇帝”“杜娘”等。玩家本人相关文本通常用“你 / 小主”，避免直接写死玩家姓名。 |
 | `portraitKey` | 标记这句应该配谁的立绘 | 常用 `jiaojiao`、`emperor`、`eunuch`、`consort`、`du-niang`。目前部分立绘仍由代码兜底，但这里要先填对，方便后续统一。 |
 | `portraitPlacement` | 标记立绘呈现位置 | 常用 `stage`。玩家立绘或特殊对话可用 `dialogue-left`。不需要立绘时留空。 |
 | `narrationName` | 旁白或场景名 | 没有明确说话人时填场景，如“养心殿”“御膳房”；用于让旁白不看起来像角色发言。 |
@@ -91,7 +91,7 @@ id,group,routeId,locationId,actorKey,actionId,variant,order,speakerIdentity,spea
 示例：
 
 ```csv
-"yangxin.verdict.summon","yangxin-verdict","","寝殿","eunuch","summon","","1","传旨内侍","内侍","eunuch","stage","寝殿","养心殿传旨，请娘娘即刻前往听裁。","","裁断传唤"
+"yangxin.verdict.summon","yangxin-verdict","","寝殿","eunuch","summon","","1","传旨内侍","内侍","eunuch","stage","寝殿","养心殿传旨，请小主即刻前往听裁。","","裁断传唤"
 ```
 
 ## 代码如何读取

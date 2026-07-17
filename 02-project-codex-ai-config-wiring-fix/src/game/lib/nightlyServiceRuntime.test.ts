@@ -32,7 +32,7 @@ describe('nightly service runtime', () => {
     expect(result.effects.playerFavorDelta).toBeGreaterThan(0);
     expect(result.effects.playerTrueHeartDelta).toBeGreaterThan(0);
     expect(result.effects.playerPrestigeDelta).toBe(12);
-    expect(result.lines.join(' ')).toContain('养心殿召娘娘侍寝');
+    expect(result.lines.join(' ')).toContain('养心殿召小主侍寝');
     expect(result.lines.join(' ')).not.toContain('宠爱+');
     expect(result.lines.join(' ')).not.toContain('真心+');
     expect(result.lines.join(' ')).not.toContain('声望+');

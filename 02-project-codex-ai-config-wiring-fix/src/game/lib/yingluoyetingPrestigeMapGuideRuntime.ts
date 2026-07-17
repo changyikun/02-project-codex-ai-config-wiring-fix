@@ -178,7 +178,12 @@ export const buildYingluoyetingPrestigeMapGuideSteps = ({
       background: YINGLUOYETING_PRESTIGE_MAP_GUIDE_BACKGROUNDS.jianzhanggongInside,
       speakerIdentity: narrationIdentity,
       speakerName: '建章宫',
-      text: '',
+      text: joinPages([
+        '。。。',
+        '。。',
+        '。',
+        '试玩版剧情到此结束，接下来小主可以自由探索游玩目前开放的部分场景与玩法~',
+      ]),
       completesStory: true,
     },
   ];

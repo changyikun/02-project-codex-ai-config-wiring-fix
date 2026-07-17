@@ -57,16 +57,14 @@ textarea,
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
-  filter: saturate(0.82) brightness(0.72);
+  filter: none;
 }
 
 .nightly-service-event__background::after {
   content: '';
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(180deg, rgba(22, 13, 12, 0.2), rgba(8, 4, 4, 0.5)),
-    radial-gradient(circle at 50% 35%, rgba(234, 194, 132, 0.16), transparent 42%);
+  background: none;
 }
 
 .nightly-service-event--scripted .nightly-service-event__background {
@@ -356,10 +354,10 @@ textarea,
 .nightly-service-event__emperor-stage {
   position: absolute;
   left: 50%;
-  top: 88px;
+  top: clamp(124px, 18dvh, 156px);
   z-index: 4;
-  width: 360px;
-  height: 468px;
+  width: clamp(440px, 34vw, 560px);
+  height: clamp(560px, 78dvh, 680px);
   transform: translateX(-50%);
   pointer-events: none;
 }
@@ -375,7 +373,7 @@ textarea,
 .nightly-service-event__actions {
   position: absolute;
   right: 28px;
-  top: 150px;
+  top: clamp(214px, 30dvh, 260px);
   z-index: 8;
   display: grid;
   width: 122px;
@@ -426,6 +424,29 @@ textarea,
   cursor: default;
   opacity: 0.46;
   transform: none;
+}
+
+@media (max-width: 960px) {
+  .nightly-service-event__emperor-stage {
+    top: clamp(112px, 18dvh, 136px);
+    width: min(48vw, 420px);
+    height: min(70dvh, 560px);
+  }
+
+  .nightly-service-event__actions {
+    right: 18px;
+    top: clamp(196px, 30dvh, 238px);
+    width: 112px;
+  }
+
+  .nightly-service-event__actions--branch {
+    width: 176px;
+  }
+
+  .nightly-service-event__actions button {
+    min-height: 42px;
+    font-size: 18px;
+  }
 }
 
 .nightly-service-event--overnight {
@@ -2563,6 +2584,7 @@ button {
   z-index: 0;
 }
 
+.map-main__background,
 .chamber-main__background {
   transition:
     opacity 680ms ease,
@@ -2571,10 +2593,12 @@ button {
   will-change: opacity, filter, transform;
 }
 
+.map-main__background--current,
 .chamber-main__background--current {
   opacity: 1;
 }
 
+.map-main__background--previous,
 .chamber-main__background--previous {
   z-index: 1;
   pointer-events: none;
@@ -7686,6 +7710,83 @@ button {
   cursor: pointer;
 }
 
+.attribute-assignment__back,
+.concubine-list-view__back,
+.harem-palace-view__detail-return,
+.harem-palace-view__utility-button--return,
+.harem-palace-view__audience-actions button.harem-palace-view__audience-return,
+.chamber-utility-view__return,
+.map-main__gongmen-return,
+.player-stats-view__close {
+  width: 80px;
+  min-width: 80px;
+  height: 78px;
+  min-height: 78px;
+  padding: 0 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: url('/assets/routes/buttons/menu/yuanniu1.png') center / contain no-repeat;
+  box-shadow: none;
+  color: #873c4c;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: 23px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: 0;
+  text-align: center;
+  white-space: normal;
+  cursor: pointer;
+  filter: drop-shadow(0 10px 14px rgba(88, 44, 51, 0.2));
+  transition:
+    transform 180ms ease,
+    filter 180ms ease,
+    background-image 180ms ease;
+}
+
+.attribute-assignment__back:hover,
+.harem-palace-view__utility-button--return:hover,
+.harem-palace-view__audience-actions button.harem-palace-view__audience-return:hover:not(:disabled),
+.chamber-utility-view__return:hover,
+.map-main__gongmen-return:hover,
+.player-stats-view__close:hover {
+  background-image: url('/assets/routes/buttons/menu/yuanniu2.png');
+  transform: translateY(-2px) scale(1.02);
+  filter: drop-shadow(0 14px 18px rgba(88, 44, 51, 0.26));
+  box-shadow: none;
+}
+
+.concubine-list-view__back {
+  left: 50%;
+  right: auto;
+  bottom: 3.8%;
+  transform: translateX(-50%);
+}
+
+.concubine-list-view__back:hover {
+  background-image: url('/assets/routes/buttons/menu/yuanniu2.png');
+  transform: translate(-50%, -2px) scale(1.02);
+  filter: drop-shadow(0 14px 18px rgba(88, 44, 51, 0.26));
+  box-shadow: none;
+}
+
+.harem-palace-view__detail-return {
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.harem-palace-view__detail-return:hover {
+  background-image: url('/assets/routes/buttons/menu/yuanniu2.png');
+  transform: translateY(calc(-50% - 2px)) scale(1.02);
+  filter: drop-shadow(0 14px 18px rgba(88, 44, 51, 0.26));
+  box-shadow: none;
+}
+
+.harem-palace-view__audience-actions button.harem-palace-view__audience-return:disabled {
+  opacity: 0.55;
+  filter: grayscale(0.2) drop-shadow(0 8px 10px rgba(88, 44, 51, 0.12));
+}
+
 @media (max-width: 1120px) {
   .chamber-utility-view {
     left: 88px;
@@ -8810,6 +8911,44 @@ button {
   font-size: 18px;
 }
 
+.kitchen-view__shop-picker {
+  right: 214px;
+  top: 196px;
+  z-index: 5;
+  width: 326px;
+  max-height: 388px;
+}
+
+.kitchen-view__shop-picker header {
+  align-items: flex-start;
+}
+
+.kitchen-view__shop-picker header strong {
+  min-width: 94px;
+}
+
+.kitchen-view__shop-picker header span {
+  color: #7a474b;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: 15px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.kitchen-view__shop-picker-list {
+  max-height: 298px;
+}
+
+.kitchen-view__shop-picker-list button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+  transform: none;
+}
+
+.kitchen-view__shop-picker-list button:disabled:hover {
+  transform: none;
+}
+
 .yeting-yard-view {
   position: absolute;
   inset: 0;
@@ -8996,6 +9135,11 @@ button {
     width: 138px;
   }
 
+  .kitchen-view__shop-picker {
+    right: 168px;
+    width: 300px;
+  }
+
   .kitchen-view__shop-modal {
     right: 168px;
     width: min(408px, calc(100% - 398px));
@@ -9111,6 +9255,27 @@ button {
   .kitchen-view__dialogue .palace-dialogue-box--kitchen-encounter .palace-dialogue-box__next {
     right: 26px;
     bottom: 34px;
+  }
+
+  .kitchen-view__shop-picker {
+    left: 96px;
+    right: 124px;
+    top: 242px;
+    width: auto;
+    max-height: calc(100% - 352px);
+    padding: 12px;
+  }
+
+  .kitchen-view__shop-picker-list {
+    max-height: 174px;
+  }
+
+  .kitchen-view__shop-picker header strong {
+    min-width: 72px;
+  }
+
+  .kitchen-view__shop-picker header span {
+    font-size: 12px;
   }
 
   .kitchen-view__shop-modal {

@@ -13,12 +13,12 @@ const header =
 
 describe('csvNarrativeLoader', () => {
   it('parses quoted csv fields with commas, quotes, escaped line breaks and placeholders', () => {
-    const csv = `${header}\n"test.id","test-group","","","","","","1","场景旁白","测试","","dialogue-left","","她说：""娘娘，{{name}}。""\\n下一句","含,逗号","备注"`;
+    const csv = `${header}\n"test.id","test-group","","","","","","1","场景旁白","测试","","dialogue-left","","她说：""小主，{{name}}。""\\n下一句","含,逗号","备注"`;
     const [entry] = parseNarrativeCsv(csv, 'test.csv');
 
     expect(entry.id).toBe('test.id');
     expect(entry.portraitPlacement).toBe('dialogue-left');
-    expect(entry.text).toBe('她说："娘娘，{{name}}。"\n下一句');
+    expect(entry.text).toBe('她说："小主，{{name}}。"\n下一句');
     expect(entry.sceneHint).toBe('含,逗号');
     expect(renderNarrativeTemplate(entry.text, { name: '谢令仪' })).toContain('谢令仪');
   });
@@ -46,7 +46,7 @@ describe('csvNarrativeLoader', () => {
     expect(renderedEntry.text).toContain('椒房殿');
   });
 
-  it('uses 主子 instead of 娘娘 in 娇娇 spoken narrative lines', () => {
+  it('does not use 娘娘 in 娇娇 spoken narrative lines', () => {
     const jiaojiaoLinesWithNiangniang = narrativeEntries
       .filter((entry) => entry.actorKey === 'jiaojiao' || entry.speakerName === '娇娇')
       .filter((entry) => entry.text.includes('娘娘'));
@@ -55,7 +55,7 @@ describe('csvNarrativeLoader', () => {
   });
 
   it('keeps unresolved placeholders visible for tests to catch', () => {
-    const text = renderNarrativeText('opening.default.turn1', { playerTitle: '皇后娘娘' });
+    const text = renderNarrativeText('opening.default.turn1', { playerTitle: '小主' });
     expect(findUnresolvedNarrativeVariables(text)).toContain('npcName');
   });
 

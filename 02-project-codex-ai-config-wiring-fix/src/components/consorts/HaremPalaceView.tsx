@@ -3,8 +3,8 @@ import { ConsortAudiencePanel } from './ConsortAudiencePanel';
 import { HAREM_PALACES, type HaremPalaceId } from '../../config/haremPalaces';
 import {
   CONSORT_AUDIENCE_BACKGROUND,
-  HAREM_OUTSIDE_BACKGROUND,
   HAREM_OVERVIEW_BACKGROUND,
+  resolveHaremOutsideBackground,
 } from '../../config/locationSceneBackgrounds';
 import {
   canStartConsortVisit,
@@ -85,13 +85,13 @@ export function HaremPalaceView({ concubines, playerResidenceName, playerName, p
           ? CONSORT_AUDIENCE_BACKGROUND
           : selectedPalace
             ? HAREM_OVERVIEW_BACKGROUND
-            : HAREM_OUTSIDE_BACKGROUND
+            : resolveHaremOutsideBackground(time.slot)
       }")`,
       backgroundPosition: 'center',
       backgroundRepeat: 'no-repeat',
       backgroundSize: 'cover',
     }),
-    [activeResidentId, selectedPalace],
+    [activeResidentId, selectedPalace, time.slot],
   );
 
   useEffect(() => {

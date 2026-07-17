@@ -1,5 +1,5 @@
 id,group,routeId,locationId,actorKey,actionId,variant,order,speakerIdentity,speakerName,portraitKey,portraitPlacement,narrationName,text,sceneHint,notes
-"yangxin.verdict.summon","yangxin-verdict","","寝殿","eunuch","summon","","1","传旨内侍","内侍","eunuch","stage","寝殿","养心殿传旨，请娘娘即刻前往听裁。","","裁断传唤"
+"yangxin.verdict.summon","yangxin-verdict","","寝殿","eunuch","summon","","1","传旨内侍","内侍","eunuch","stage","寝殿","养心殿传旨，请小主即刻前往听裁。","","裁断传唤"
 "yangxin.verdict.no-statement","yangxin-verdict","","养心殿","emperor","statement-empty","","2","裁断者","皇帝","emperor","stage","养心殿","相关人已经到齐，皇帝命内廷呈上案卷。","","裁断无发言兜底"
 "yangxin.verdict.statement.emperor","yangxin-verdict","","养心殿","emperor","statement","case-intro","3","裁断者","皇帝","emperor","stage","养心殿","{{caseTargetName}}一案，内廷已将{{suspectDisplayName}}推至定罪门槛。此案为{{severityLabel}}，今日只问该如何裁处，不再翻案。","","裁断皇帝开场"
 "yangxin.verdict.statement.suspect.player","yangxin-verdict","","养心殿","player","statement","suspect-player","4","定罪候选人","你","player","dialogue-left","养心殿","你垂首听裁，只求皇上看明案中轻重。","","玩家本人陈情"

@@ -437,7 +437,7 @@ const buildCase = (patch: Partial<PalaceStrifeCaseState> = {}): PalaceStrifeCase
         id: 'suspect-player',
         subjectType: 'player',
         subjectId: PLAYER_PALACE_STRIFE_TARGET_ID,
-        name: '娘娘 谢令仪',
+        name: '小主 谢令仪',
         suspicionRate,
         isActualActor: true,
         reason: '行动痕迹与动机最重，内廷优先追查。',

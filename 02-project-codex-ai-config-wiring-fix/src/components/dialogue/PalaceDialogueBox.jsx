@@ -60,11 +60,6 @@ export function GlobalDialogue({
   const showOptions = hasOptions && isContentComplete;
   const contentInteractionDisabled = contentDisabled || showOptions;
   const canAdvancePage = Boolean(onAdvancePage) && isContentComplete && !contentInteractionDisabled;
-  const speakerLabel =
-    characterIdentity && characterName && characterIdentity !== characterName
-      ? `${characterIdentity} · ${characterName}`
-      : characterName || characterIdentity;
-
   useLayoutEffect(() => {
     setVisibleCharCount(shouldUseTypewriter ? 0 : contentChars.length);
   }, [contentChars.length, contentText, shouldUseTypewriter]);
@@ -152,7 +147,6 @@ export function GlobalDialogue({
         data-dialogue-page-state={canAdvancePage ? 'more' : 'last'}
         data-dialogue-interaction={contentInteractionDisabled ? 'disabled' : 'enabled'}
       >
-        <header className="palace-dialogue-box__speaker">{speakerLabel}</header>
         <div className="palace-dialogue-box__text-container" aria-busy={busy}>
           <div className="palace-dialogue-box__text-plate">
             <div

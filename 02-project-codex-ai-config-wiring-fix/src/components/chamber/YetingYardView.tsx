@@ -43,7 +43,7 @@ export function YetingYardView() {
         portraitSrc: YUE_GUGU_PORTRAIT_SRC,
         onClick: () =>
           setNpcIntroText(
-            '月姑姑把手里一串旧钥匙慢慢拢进袖中，抬眼只问你一句：“娘娘来此，是问旧档，还是问那些不该摆上台面的东西？”',
+            '月姑姑把手里一串旧钥匙慢慢拢进袖中，抬眼只问你一句：“小主来此，是问旧档，还是问那些不该摆上台面的东西？”',
           ),
       },
     ],

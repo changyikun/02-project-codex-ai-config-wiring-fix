@@ -168,8 +168,8 @@ export const resolveEmperorAudienceRequest = (input: EmperorAudienceRequestInput
       chance: 0,
       roll: 100,
       line: input.time.slot === '清晨'
-        ? '内侍垂手回话：“皇上尚在前朝，娘娘此时求见，怕是见不着圣驾。”'
-        : '内侍低声劝道：“夜色已深，养心殿不再通传后宫求见，请娘娘回宫歇息。”',
+        ? '内侍垂手回话：“皇上尚在前朝，小主此时求见，怕是见不着圣驾。”'
+        : '内侍低声劝道：“夜色已深，养心殿不再通传后宫求见，请小主回宫歇息。”',
     };
   }
 
@@ -192,8 +192,8 @@ export const resolveEmperorAudienceRequest = (input: EmperorAudienceRequestInput
     roll,
     line:
       roll <= chance
-        ? '内侍入殿通传片刻，躬身出来：“皇上准了，请娘娘随奴才入殿。”'
-        : '内侍入殿通传许久，回来时声音压得更低：“皇上政务未毕，今日恐不得空，请娘娘先回。”',
+        ? '内侍入殿通传片刻，躬身出来：“皇上准了，请小主随奴才入殿。”'
+        : '内侍入殿通传许久，回来时声音压得更低：“皇上政务未毕，今日恐不得空，请小主先回。”',
   };
 };
 

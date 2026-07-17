@@ -42,7 +42,7 @@ export const buildJiaojiaoGreeting = ({ family, rank, favorLabel, time }: Jiaoji
       ? '清晨正适合先理一理今日宫中要紧事。'
       : time.slot === '夜晚'
         ? '夜色一沉，宫里的人心也最容易起波澜。'
-        : '娘娘做事还要看时辰，宫里一日有一日的规矩。';
+        : '小主做事还要看时辰，宫里一日有一日的规矩。';
 
-  return `娘娘如今以${rank}之身立于宫中，出身${family}，眼下在后宫里算是${favorLabel}。${timeHint}`;
+  return `小主如今以${rank}之身立于宫中，出身${family}，眼下在后宫里算是${favorLabel}。${timeHint}`;
 };

@@ -53,7 +53,7 @@ describe('local-only gameplay mode', () => {
       routeId: 'lanyinxuguo',
       playerName: '谢令仪',
       family: '镇国公嫡女',
-      playerTitle: '皇后娘娘',
+      playerTitle: '小主',
       residenceName: '椒房殿',
       npcName: '娇娇',
       topic: 'opening-guide',

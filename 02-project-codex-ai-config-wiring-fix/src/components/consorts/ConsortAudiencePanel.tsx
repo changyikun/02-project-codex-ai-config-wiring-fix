@@ -629,7 +629,7 @@ export function ConsortAudiencePanel({
             {action.label}
           </button>
         ))}
-        <button type="button" onClick={exitAudience} disabled={busy}>
+        <button type="button" className="harem-palace-view__audience-return" onClick={exitAudience} disabled={busy}>
           返回
         </button>
       </aside>

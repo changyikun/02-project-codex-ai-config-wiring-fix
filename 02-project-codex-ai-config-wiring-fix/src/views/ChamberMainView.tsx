@@ -39,10 +39,11 @@ import {
   MONTHLY_EXPENSE_STRATEGIES,
 } from '../config/monthlyExpenseStrategy';
 import {
-  HAREM_OUTSIDE_BACKGROUND,
-  LOCATION_SCENE_BACKGROUNDS,
   YANGXIN_VERDICT_BACKGROUND,
+  resolveHaremOutsideBackground,
+  resolveLocationSceneBackground,
   resolvePlayerHomeBackground,
+  resolveYangxinInsideBackground,
 } from '../config/locationSceneBackgrounds';
 import { buildInitialBondProfile } from '../game/data/bondPresets';
 import {
@@ -172,7 +173,7 @@ const npcVisitPurposeLabel: Record<string, string> = {
 const buildNpcPlayerVisitOpening = (visitorName: string, purpose: string): string => {
   const purposeLabel = npcVisitPurposeLabel[purpose] ?? '递话';
   if (purpose === 'gift') {
-    return `${visitorName}遣宫人先递了话，随后亲自入殿，将随身带来的匣子轻轻搁在案边。她笑意不深，只说今日路过，想来问候娘娘几句。`;
+    return `${visitorName}遣宫人先递了话，随后亲自入殿，将随身带来的匣子轻轻搁在案边。她笑意不深，只说今日路过，想来问候小主几句。`;
   }
   if (purpose === 'pressure') {
     return `${visitorName}来得不算突然，却也没有给你推辞的余地。她在帘外停了一息，入内后先看了看殿中陈设，才把话锋压低。`;
@@ -263,6 +264,7 @@ export function ChamberMainView({ openingBedchamberBridge = false }: ChamberMain
     source: EmperorInteractionSource;
     location: MapAreaId;
     skipRequest?: boolean;
+    interiorActive?: boolean;
   } | null>(null);
   const [emperorNoticeText, setEmperorNoticeText] = useState('');
   const [jianzhangNoticeText, setJianzhangNoticeText] = useState('');
@@ -316,10 +318,12 @@ export function ChamberMainView({ openingBedchamberBridge = false }: ChamberMain
   const currentSceneBackground =
     pendingYangxinVerdict && pendingYangxinVerdict.stage !== 'summon'
       ? YANGXIN_VERDICT_BACKGROUND
+      : activeEmperorAudience?.source === 'yangxin-request' && activeEmperorAudience.interiorActive
+        ? resolveYangxinInsideBackground(time.slot)
       : isHaremPanelActive
-      ? HAREM_OUTSIDE_BACKGROUND
+      ? resolveHaremOutsideBackground(time.slot)
       : isOutsideScene && activeMapLocation
-        ? LOCATION_SCENE_BACKGROUNDS[activeMapLocation]
+        ? resolveLocationSceneBackground(activeMapLocation, time.slot)
         : resolvePlayerHomeBackground(time.slot);
   const [displayedSceneBackground, setDisplayedSceneBackground] = useState(currentSceneBackground);
   const [fadingSceneBackground, setFadingSceneBackground] = useState<string | undefined>();
@@ -1226,7 +1230,18 @@ export function ChamberMainView({ openingBedchamberBridge = false }: ChamberMain
     setDialogueText('');
     setEmperorNoticeText('');
     setPendingChamberDialogueAction(null);
-    setActiveEmperorAudience({ source, location, skipRequest: options?.skipRequest });
+    setActiveEmperorAudience({
+      source,
+      location,
+      skipRequest: options?.skipRequest,
+      interiorActive: source === 'yangxin-request' && Boolean(options?.skipRequest),
+    });
+  };
+
+  const handleEmperorAudienceEnterInterior = () => {
+    setActiveEmperorAudience((current) =>
+      current && current.source === 'yangxin-request' ? { ...current, interiorActive: true } : current,
+    );
   };
 
   const handleEmperorAudienceLeave = (result?: { shouldAdvanceTime?: boolean }) => {
@@ -1631,6 +1646,7 @@ export function ChamberMainView({ openingBedchamberBridge = false }: ChamberMain
             location={activeEmperorAudience.location}
             concubines={allConsorts}
             skipRequest={activeEmperorAudience.skipRequest}
+            onEnterInterior={handleEmperorAudienceEnterInterior}
             onLeave={handleEmperorAudienceLeave}
           />
         ) : null}
@@ -1718,7 +1734,7 @@ export function ChamberMainView({ openingBedchamberBridge = false }: ChamberMain
             concubines={concubines}
             playerResidenceName={state.residenceName}
             playerName={state.name}
-            playerRankLabel={hiddenStats.initialRank ?? '娘娘'}
+            playerRankLabel={hiddenStats.initialRank ?? '小主'}
             onLeave={enterMapMain}
           />
         ) : activeChamberPanel === 'chronicle' ? (

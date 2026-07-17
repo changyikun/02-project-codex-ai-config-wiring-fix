@@ -1137,7 +1137,7 @@ const buildRankPromotionReport = ({
       ? `另迁居${nextResidenceName}，原${previousResidenceName}诸事由内务府交割。`
       : `仍居${nextResidenceName}，宫中用度按新位分重定。`;
   const lines = [
-    `内侍奉旨来报：皇上有旨，念娘娘入宫以来谨慎持身、声望渐著，由${previousRankName}晋为${nextRankName}。`,
+    `内侍奉旨来报：皇上有旨，念小主入宫以来谨慎持身、声望渐著，由${previousRankName}晋为${nextRankName}。`,
     residenceLine,
   ];
 
@@ -2128,7 +2128,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             success: false,
             chance: 0,
             roll: 100,
-            message: '李公公入殿问过，回来时只低声道：“皇上此刻不在养心殿，娘娘今日怕是见不着圣驾。”',
+            message: '李公公入殿问过，回来时只低声道：“皇上此刻不在养心殿，小主今日怕是见不着圣驾。”',
           };
         }
         const resolution = resolveEmperorAudienceRequest({
@@ -3744,25 +3744,39 @@ export const useGameFlowStore = create<GameFlowStore>()(
           };
         }),
       completeYingluoyetingPrestigeMapGuide: () =>
-        set((current) => ({
-          currentView: 'bedchamber',
-          scene: 'activity',
-          activeChamberPanel: 'main',
-          activeMapLocation: '建章宫',
-          activeMapLocationEntryTime: current.time,
-          activeAffairsSource: DEFAULT_AFFAIRS_SOURCE,
-          mapEventText: '',
-          state: {
-            ...current.state,
-            flags: {
-              ...current.state.flags,
-              [YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]: false,
-              [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideStarted]: true,
-              [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished]: true,
+        set((current) => {
+          const xunKey = getCurrentXunKey(current.time);
+          const dowagerRelationship = normalizePermanentNpcRelationshipForXun(
+            current.permanentNpcRelationships[DOWAGER_NPC_ID],
+            DOWAGER_NPC_ID,
+            DOWAGER_NPC_NAME,
+            xunKey,
+          );
+
+          return {
+            currentView: 'bedchamber',
+            scene: 'activity',
+            activeChamberPanel: 'main',
+            activeMapLocation: '建章宫',
+            activeMapLocationEntryTime: current.time,
+            activeAffairsSource: DEFAULT_AFFAIRS_SOURCE,
+            mapEventText: '',
+            state: {
+              ...current.state,
+              flags: {
+                ...current.state.flags,
+                [YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]: false,
+                [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideStarted]: true,
+                [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished]: true,
+              },
             },
-          },
-          yingluoyetingPrestigeMapGuide: undefined,
-        })),
+            permanentNpcRelationships: {
+              ...current.permanentNpcRelationships,
+              [DOWAGER_NPC_ID]: markDowagerGreetingOnRelationship(dowagerRelationship, current.time),
+            },
+            yingluoyetingPrestigeMapGuide: undefined,
+          };
+        }),
       spendFamilyAid: () => {
         const current = get();
         if ((current.state.familyAidBonus ?? 0) > 0) {

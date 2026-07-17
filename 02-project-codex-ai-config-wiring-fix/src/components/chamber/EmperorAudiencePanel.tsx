@@ -37,12 +37,13 @@ interface EmperorAudiencePanelProps {
   location: MapAreaId;
   concubines: ConcubineProfile[];
   skipRequest?: boolean;
+  onEnterInterior?: () => void;
   onLeave: (result?: { shouldAdvanceTime?: boolean }) => void;
 }
 
 const formatPlayerAddress = (playerName: string, rankLabel: string): string => {
   const surname = playerName.trim().slice(0, 1);
-  return `${surname || '娘娘'}${rankLabel}`;
+  return `${surname || '小主'}${rankLabel}`;
 };
 
 const isEligibleTargetConsort = (consort: ConcubineProfile): boolean =>
@@ -56,7 +57,7 @@ const buildEmperorFarewellText = (source: EmperorInteractionSource, location: Ma
     locationName: location,
   }).text;
 
-export function EmperorAudiencePanel({ source, location, concubines, skipRequest = false, onLeave }: EmperorAudiencePanelProps) {
+export function EmperorAudiencePanel({ source, location, concubines, skipRequest = false, onEnterInterior, onLeave }: EmperorAudiencePanelProps) {
   const {
     state,
     hiddenStats,
@@ -149,6 +150,9 @@ export function EmperorAudiencePanel({ source, location, concubines, skipRequest
       onLeave({ shouldAdvanceTime: false });
       return;
     }
+    if (source === 'yangxin-request' && feedbackNextPhase === 'intro') {
+      onEnterInterior?.();
+    }
     setPhase(feedbackNextPhase);
   };
 
@@ -226,7 +230,7 @@ export function EmperorAudiencePanel({ source, location, concubines, skipRequest
       >
         诉苦
       </button>
-      <button type="button" onClick={finishAudience} disabled={dialogueActive}>
+      <button type="button" className="harem-palace-view__audience-return" onClick={finishAudience} disabled={dialogueActive}>
         返回
       </button>
     </aside>

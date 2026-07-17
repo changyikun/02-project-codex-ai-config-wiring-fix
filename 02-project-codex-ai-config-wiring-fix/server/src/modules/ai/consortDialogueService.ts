@@ -102,9 +102,9 @@ const asksForPlayerResponse = (text: string): boolean => {
   }
 
   return [
-    /(娘娘|小主|公主|陛下|你|您).{0,14}(可愿|愿不愿|要不要|想不想|可要|是否|打算|觉得|以为|如何|怎样|何不|怎么想|怎么看|怎么说|可否|能否|作何打算)/u,
+    /(小主|小主|公主|陛下|你|您).{0,14}(可愿|愿不愿|要不要|想不想|可要|是否|打算|觉得|以为|如何|怎样|何不|怎么想|怎么看|怎么说|可否|能否|作何打算)/u,
     /(回|答|说|给).{0,6}(我|朕|本宫|哀家|妾)?(?:一)?(句|声|个)(准话|明话|明白|说法|答复)/u,
-    /(你|您|娘娘|小主).{0,8}(呢|如何回|如何答|怎么选|怎么定)/u,
+    /(你|您|小主|小主).{0,8}(呢|如何回|如何答|怎么选|怎么定)/u,
   ].some((pattern) => pattern.test(normalized));
 };
 
@@ -117,7 +117,7 @@ const buildSessionClosingDialogue = (payload: ConsortDialogueRequest): ConsortDi
     phase: 'finish',
     speakerIdentity: identity,
     speakerName: name,
-    text: `${name}将这一场话慢慢收住，神色仍留着分寸：“今日说到这里，便已经够了。再往深处去，反倒容易叫旁人听出不该听的意思。娘娘先回吧，余下的话，待来日局面更稳时再说。”`,
+    text: `${name}将这一场话慢慢收住，神色仍留着分寸：“今日说到这里，便已经够了。再往深处去，反倒容易叫旁人听出不该听的意思。小主先回吧，余下的话，待来日局面更稳时再说。”`,
     sceneHint: '这一轮话题已自然收束，继续交谈需重新开启场景。',
     options: [],
   };
@@ -243,7 +243,7 @@ const buildBuZiyouFallbackDraft = (payload: ConsortDialogueRequest): FallbackDia
     return {
       mode: 'branch',
       phase: 'continue',
-      text: `他抬眼时先看锅灶后的火候，像是连说话都带着掌勺人收火时的稳当。布自游拎着刚起锅的食盒从灶后转出来，先把你从头到尾看了一遍，才低声笑道：“娘娘倒是不避烟火气。御膳房人来人往，若只想寻口热食，我还能替娘娘挑一份清爽的；若想借这地方看人，也未必来错。”`,
+      text: `他抬眼时先看锅灶后的火候，像是连说话都带着掌勺人收火时的稳当。布自游拎着刚起锅的食盒从灶后转出来，先把你从头到尾看了一遍，才低声笑道：“小主倒是不避烟火气。御膳房人来人往，若只想寻口热食，我还能替小主挑一份清爽的；若想借这地方看人，也未必来错。”`,
       sceneHint: '这是你与布自游在御膳房的第一次照面。此后主界面会留下他的入口。',
       options: buildBuZiyouFallbackOptions(),
     };
@@ -252,7 +252,7 @@ const buildBuZiyouFallbackDraft = (payload: ConsortDialogueRequest): FallbackDia
   return {
     mode: 'branch',
     phase: 'continue',
-    text: `他抬眼时先看锅灶后的火候，像是连说话都带着掌勺人收火时的稳当。布自游抬手把木匙搁在案边，朝你略略颔首：“膳房里最不缺的就是耳目，娘娘若来找我，想必也不是只为了问这锅汤熬得如何。话可以说，只是说到哪一步，得看娘娘先给我几分真心。”`,
+    text: `他抬眼时先看锅灶后的火候，像是连说话都带着掌勺人收火时的稳当。布自游抬手把木匙搁在案边，朝你略略颔首：“膳房里最不缺的就是耳目，小主若来找我，想必也不是只为了问这锅汤熬得如何。话可以说，只是说到哪一步，得看小主先给我几分真心。”`,
     sceneHint: '布自游惯会留半句余地。你说得越直，他越会借机试你的分寸。',
     options: buildBuZiyouFallbackOptions(),
   };
@@ -274,7 +274,7 @@ const buildDangYiFallbackDraft = (payload: ConsortDialogueRequest): FallbackDial
     return {
       mode: 'line',
       phase: 'finish',
-      text: '当一听完你这句回话，只将目光在香火间停了一停，才低声道：“娘娘心里有数，往后再来宝华殿，便不会白来。今日先把这句话记下，余下的，不必急在一时。”',
+      text: '当一听完你这句回话，只将目光在香火间停了一停，才低声道：“小主心里有数，往后再来宝华殿，便不会白来。今日先把这句话记下，余下的，不必急在一时。”',
       sceneHint: '这一回话头已经收住，可以回到殿中主界面了。',
       options: [],
     };
@@ -285,8 +285,8 @@ const buildDangYiFallbackDraft = (payload: ConsortDialogueRequest): FallbackDial
     phase: 'continue',
     text:
       payload.actionId === 'forced-meet'
-        ? '当一立在供灯之后，先将手里经卷合起，才朝你微微一礼：“娘娘连着来宝华殿三回，想来不是只为走个过场。佛前最忌口是心非，可宫里的人偏偏最难避开的，也是这四个字。娘娘若愿意，往后到殿里来，不妨把心放稳些，再看该问什么、该信什么。”'
-        : '当一将案前残香拨正，语气极缓：“宝华殿里看似最静，其实来的人各有心事。娘娘若只想求一句宽心话，我能回；若想借这地方看人心，也未必来错。只是有些话，知道得太早，不见得是福。”',
+        ? '当一立在供灯之后，先将手里经卷合起，才朝你微微一礼：“小主连着来宝华殿三回，想来不是只为走个过场。佛前最忌口是心非，可宫里的人偏偏最难避开的，也是这四个字。小主若愿意，往后到殿里来，不妨把心放稳些，再看该问什么、该信什么。”'
+        : '当一将案前残香拨正，语气极缓：“宝华殿里看似最静，其实来的人各有心事。小主若只想求一句宽心话，我能回；若想借这地方看人心，也未必来错。只是有些话，知道得太早，不见得是福。”',
     sceneHint:
       payload.actionId === 'forced-meet'
         ? '这是你与当一在宝华殿的第一次照面。此后主界面会留下他的入口。'
@@ -325,8 +325,8 @@ const buildLianQiaoFallbackDraft = (payload: ConsortDialogueRequest): FallbackDi
       phase: 'finish',
       text:
         payload.actionId === 'gift-follow-up'
-          ? '连翘听完你这句，只把谱卷往你掌中轻轻一推：“娘娘既肯收，我便算没白走这一趟。往后若还有合你心意的，我仍替你留着。”'
-          : '连翘把最后一点余音也收进指尖，才低声道：“娘娘既听得明白，往后再来妙音堂，便不会只是过客。今日这一折，到这里就够了。”',
+          ? '连翘听完你这句，只把谱卷往你掌中轻轻一推：“小主既肯收，我便算没白走这一趟。往后若还有合你心意的，我仍替你留着。”'
+          : '连翘把最后一点余音也收进指尖，才低声道：“小主既听得明白，往后再来妙音堂，便不会只是过客。今日这一折，到这里就够了。”',
       sceneHint: '这一回话已收住，可以回到妙音堂主界面了。',
       options: [],
     };
@@ -337,12 +337,12 @@ const buildLianQiaoFallbackDraft = (payload: ConsortDialogueRequest): FallbackDi
     phase: 'continue',
     text:
       payload.actionId === 'first-meet'
-        ? '一折将尽时，连翘先按住尚在余颤的琴弦，回身看你，语气轻得像怕惊散堂中余音：“娘娘连着来听了几回，想来不是只为散心。妙音堂里最怕的不是错音，是听不出轻重，却偏要装作真懂。”'
+        ? '一折将尽时，连翘先按住尚在余颤的琴弦，回身看你，语气轻得像怕惊散堂中余音：“小主连着来听了几回，想来不是只为散心。妙音堂里最怕的不是错音，是听不出轻重，却偏要装作真懂。”'
         : payload.actionId === 'meet-lianqiao'
-          ? '堂中人声渐散，连翘把谱页合起，像是终于肯把视线真正落在你身上：“娘娘前后听到第六回，还肯来，便不是随意消磨。会听曲的人很多，能把一折里的呼吸与收放都听进去的人却少。若娘娘不嫌，我往后也愿替你多留一份好曲。”'
+          ? '堂中人声渐散，连翘把谱页合起，像是终于肯把视线真正落在你身上：“小主前后听到第六回，还肯来，便不是随意消磨。会听曲的人很多，能把一折里的呼吸与收放都听进去的人却少。若小主不嫌，我往后也愿替你多留一份好曲。”'
           : payload.actionId === 'gift-event'
-            ? '连翘将一卷新谱递到你手边，声音比平日更轻：“前几日试出来一折新意，我想着娘娘也许会喜欢，便先替你留下了。曲子这种东西，若无人肯细听，再好也只像白白落在梁间。”'
-            : '连翘将指尖从弦上慢慢收回，先等堂中余音散净，才低声开口：“妙音堂看着热闹，其实人人都在守自己的节拍。娘娘若只是来听一折，我能陪；若想借曲声看人心，就得先看自己肯听到哪一步。”',
+            ? '连翘将一卷新谱递到你手边，声音比平日更轻：“前几日试出来一折新意，我想着小主也许会喜欢，便先替你留下了。曲子这种东西，若无人肯细听，再好也只像白白落在梁间。”'
+            : '连翘将指尖从弦上慢慢收回，先等堂中余音散净，才低声开口：“妙音堂看着热闹，其实人人都在守自己的节拍。小主若只是来听一折，我能陪；若想借曲声看人心，就得先看自己肯听到哪一步。”',
     sceneHint:
       payload.actionId === 'meet-lianqiao'
         ? '这一回以后，妙音堂主界面会永久留下连翘的入口。'
@@ -387,7 +387,7 @@ const buildDefaultFallbackDraft = (payload: ConsortDialogueRequest): FallbackDia
       return {
         mode: 'branch',
         phase: 'continue',
-        text: `${voiceHint}${payload.consortContext.name}接过${payload.giftItemName ?? '礼物'}后，先压了一下神色，才向你低声谢礼：“娘娘这份心意，妾不敢怠慢。只是宫里的人情债，最怕记得太清。”`,
+        text: `${voiceHint}${payload.consortContext.name}接过${payload.giftItemName ?? '礼物'}后，先压了一下神色，才向你低声谢礼：“小主这份心意，妾不敢怠慢。只是宫里的人情债，最怕记得太清。”`,
         sceneHint: '礼已经送出去，接下来最适合顺势探她态度。',
         options: buildDefaultFallbackOptions(payload.actionId),
       };
@@ -395,7 +395,7 @@ const buildDefaultFallbackDraft = (payload: ConsortDialogueRequest): FallbackDia
       return {
         mode: 'branch',
         phase: 'continue',
-        text: `${voiceHint}${payload.consortContext.name}先向你敛衽问安：“娘娘今日肯来，妾自该把话回得周全。只是宫里人多眼杂，许多心思并不宜说得太明。”`,
+        text: `${voiceHint}${payload.consortContext.name}先向你敛衽问安：“小主今日肯来，妾自该把话回得周全。只是宫里人多眼杂，许多心思并不宜说得太明。”`,
         sceneHint: '先从寒暄切入，最容易看出她愿不愿意继续开口。',
         options: buildDefaultFallbackOptions(payload.actionId),
       };
@@ -403,7 +403,7 @@ const buildDefaultFallbackDraft = (payload: ConsortDialogueRequest): FallbackDia
       return {
         mode: 'branch',
         phase: 'continue',
-        text: `${voiceHint}你话锋一沉，她便也不再一味退让：“娘娘若只想教训妾，妾自然领着。可若要把旧账翻到今日，妾也未必一句都不能回。”`,
+        text: `${voiceHint}你话锋一沉，她便也不再一味退让：“小主若只想教训妾，妾自然领着。可若要把旧账翻到今日，妾也未必一句都不能回。”`,
         sceneHint: '火气已经起来了，再往前半步就是僵局，往后半步却也许能逼出真话。',
         options: buildDefaultFallbackOptions(payload.actionId),
       };
@@ -411,7 +411,7 @@ const buildDefaultFallbackDraft = (payload: ConsortDialogueRequest): FallbackDia
       return {
         mode: 'branch',
         phase: 'continue',
-        text: `${voiceHint}${payload.consortContext.name}被你压住气势之后，仍把礼数做尽：“规矩既是娘娘定下的，妾自会领。只是这份轻重，妾往后也不会忘。”`,
+        text: `${voiceHint}${payload.consortContext.name}被你压住气势之后，仍把礼数做尽：“规矩既是小主定下的，妾自会领。只是这份轻重，妾往后也不会忘。”`,
         sceneHint: '责罚已经落地，她表面不敢逆，心底却未必肯服。',
         options: buildDefaultFallbackOptions(payload.actionId),
       };
@@ -421,9 +421,9 @@ const buildDefaultFallbackDraft = (payload: ConsortDialogueRequest): FallbackDia
         phase: 'continue',
         text:
           payload.actionResult?.includes('愿与您交好')
-            ? `${voiceHint}${payload.consortContext.name}静了片刻，终究还是向你低下眸：“若娘娘当真肯护着妾，妾也愿把这一份情记在心里。”`
+            ? `${voiceHint}${payload.consortContext.name}静了片刻，终究还是向你低下眸：“若小主当真肯护着妾，妾也愿把这一份情记在心里。”`
             : payload.actionResult?.includes('不会答应')
-              ? `${voiceHint}${payload.consortContext.name}避开了你的目光，答得很轻：“娘娘的好意，妾不敢领。眼下再近一步，只怕比先前更难收场。”`
+              ? `${voiceHint}${payload.consortContext.name}避开了你的目光，答得很轻：“小主的好意，妾不敢领。眼下再近一步，只怕比先前更难收场。”`
               : `${voiceHint}${payload.consortContext.name}没有立刻点头，只道：“若真想结个善缘，妾愿慢慢看着。宫里的话，总不好一下说满。”`,
         sceneHint: '拉拢的结果已经明了，后面更适合顺着她的心门继续试探。',
         options: buildDefaultFallbackOptions(payload.actionId),
@@ -432,7 +432,7 @@ const buildDefaultFallbackDraft = (payload: ConsortDialogueRequest): FallbackDia
       return {
         mode: 'branch',
         phase: 'continue',
-        text: `${voiceHint}你把话引到${payload.smearTargetName ?? '旁人'}身上时，她指尖微微一顿：“宫里流言最会要命。娘娘既肯提这一句，妾自会记住，只是还要再看真假。”`,
+        text: `${voiceHint}你把话引到${payload.smearTargetName ?? '旁人'}身上时，她指尖微微一顿：“宫里流言最会要命。小主既肯提这一句，妾自会记住，只是还要再看真假。”`,
         sceneHint: '另一个名字已经被拉进这场对话，她会不会真站到你这边，还得看后面几句。',
         options: buildDefaultFallbackOptions(payload.actionId),
       };
@@ -440,7 +440,7 @@ const buildDefaultFallbackDraft = (payload: ConsortDialogueRequest): FallbackDia
       return {
         mode: 'branch',
         phase: 'continue',
-        text: `${voiceHint}${payload.consortContext.name}迎了你一礼，目光却没有立刻垂下：“娘娘今日亲来，想必不是只为看一眼茶案与宫灯。妾听着，娘娘尽可开口。”`,
+        text: `${voiceHint}${payload.consortContext.name}迎了你一礼，目光却没有立刻垂下：“小主今日亲来，想必不是只为看一眼茶案与宫灯。妾听着，小主尽可开口。”`,
         sceneHint: '先看她愿不愿意把话摊开，再决定是示好还是施压。',
         options: buildDefaultFallbackOptions(payload.actionId),
       };

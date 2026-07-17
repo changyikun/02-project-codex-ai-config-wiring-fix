@@ -75,10 +75,10 @@ describe('randomEventCatalog', () => {
 
   it('renders templates and keeps missing variables visible', () => {
     const text = renderRandomEventTemplate('请{{playerAddress}}见{{targetName}}，{{missing}}。', {
-      playerAddress: '娘娘',
+      playerAddress: '小主',
       targetName: '姚铃儿',
     });
-    expect(text).toContain('娘娘');
+    expect(text).toContain('小主');
     expect(text).toContain('{{missing}}');
     expect(findUnresolvedRandomEventVariables(text)).toEqual(['missing']);
   });

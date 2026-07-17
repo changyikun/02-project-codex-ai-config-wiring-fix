@@ -1373,7 +1373,7 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     expect(flow.hiddenStats.initialRank).toBe('嫔');
     expect(latestReport?.kind).toBe('month');
     expect(latestReport?.summary).toContain('当前位份：嫔，声望：980 / 750。');
-    expect(latestReport?.summary).toContain('上月未见娘娘入宫问安');
+    expect(latestReport?.summary).toContain('上月未见小主入宫问安');
     expect(latestReport?.summary).not.toContain('扣声望750');
 
     completePendingYangxinVerdict('palace-strife-heavy-month-end');
@@ -2046,6 +2046,11 @@ describe('gameFlowStore SaveGameV1 integration', () => {
     expect(flow.activeMapLocation).toBe('建章宫');
     expect(flow.state.flags[YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished]).toBe(true);
     expect(flow.state.flags[YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]).toBe(false);
+    expect(flow.permanentNpcRelationships.dowager).toMatchObject({
+      met: true,
+      lastDowagerGreetingMonthKey: `${flow.time.year}-${flow.time.month}`,
+      lastDowagerGreetingXunKey: `${flow.time.year}-${flow.time.month}-${flow.time.xun}`,
+    });
   });
 
   it('limits player-consort interactions per consort each xun', () => {

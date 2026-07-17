@@ -37,6 +37,21 @@ describe('actionNarrativeRuntime', () => {
     ).toBe('在殿内休息了片刻，感到神清气爽。');
   });
 
+  it('uses the fixed pulse text for chamber pulse checks', () => {
+    expect(
+      buildChamberActionNarrative({
+        actionId: 'pulse',
+        actionLabel: '请平安脉',
+        actionSummary: '健康 +5',
+        playerName: '谢令仪',
+        residenceName: '椒房殿',
+        timeLabel: '1年1月1旬上午',
+      }),
+    ).toBe(
+      '请过平安脉，太医恭谨上前，以丝帕覆于腕间，凝神诊了片刻，提笔开了一道平补方剂，照方煎服，气色渐润，身子也觉得松快多了。',
+    );
+  });
+
   it('builds transition feedback for map movement and returning chamber', () => {
     expect(buildMapTransitionNarrative({ kind: 'enter-map', fromResidence: '椒房殿' })).toContain('出殿');
     expect(buildMapTransitionNarrative({ kind: 'enter-location', locationName: '御花园' })).toContain('御花园');

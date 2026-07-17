@@ -5,7 +5,7 @@ import type { OpeningDialogueRequest, OpeningDialogueResponse } from '../../type
 import { buildPalaceDialoguePrompt } from './dialogueSystemPrompt';
 
 const titleByFamily = (family: string): string => {
-  if (family.includes('皇后') || family.includes('镇国公')) return '娘娘';
+  if (family.includes('皇后') || family.includes('镇国公')) return '小主';
   if (family.includes('和亲公主')) return '公主';
   if (family.includes('罪臣')) return '姑娘';
   return '小主';
