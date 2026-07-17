@@ -56,6 +56,8 @@ describe('numericCatalog', () => {
   it('loads route profiles and route stats from csv', () => {
     const yingluo = getRouteInitialProfileConfig('yingluoyeting');
     expect(yingluo.residenceDisplay).toBe('储秀宫西偏殿');
+    expect(yingluo.prestigeRange).toEqual([0, 0]);
+    expect(yingluo.initialRankOptions).toEqual(['官女子']);
     expect(resolveRouteInitialPointsTotal('chenyuansucuo', '和亲公主')).toBe(0);
     expect(resolveRouteInitialPointsTotal('lanyinxuguo', '镇国公嫡女')).toBe(16);
     expect(resolveRouteInitialPointsTotal('lanyinxuguo', '正二品武官庶女')).toBe(23);

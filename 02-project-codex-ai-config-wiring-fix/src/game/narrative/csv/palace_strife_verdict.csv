@@ -5,7 +5,7 @@ id,group,routeId,locationId,actorKey,actionId,variant,order,speakerIdentity,spea
 "yangxin.verdict.statement.suspect.player","yangxin-verdict","","养心殿","player","statement","suspect-player","4","定罪候选人","你","player","dialogue-left","养心殿","你垂首听裁，只求皇上看明案中轻重。","","玩家本人陈情"
 "yangxin.verdict.statement.suspect.consort","yangxin-verdict","","养心殿","consort","statement","suspect-consort","5","定罪候选人","{{suspectName}}","consort","stage","养心殿","{{suspectName}}俯身回话，称自己并非全无分辨之处，只愿皇上酌情从轻。","","NPC 定罪候选人陈情"
 "yangxin.verdict.statement.framed","yangxin-verdict","","养心殿","framed","statement","framed","6","被嫁祸者","{{framedDisplayName}}","consort","stage","养心殿","{{framedDisplayName}}提及案中嫁祸痕迹，请求养心殿不要只看表面线索。","","裁断被嫁祸者发言"
-"yangxin.verdict.statement.jiaojiao","yangxin-verdict","","养心殿","jiaojiao","statement","player-support","7","贴身宫女","娇娇","jiaojiao","stage","养心殿","奴婢只敢照实回禀：娘娘近来行止，宫中已有多处传言。若皇上要重罚，也请容奴婢把可证之处说全。","","裁断娇娇发言"
+"yangxin.verdict.statement.jiaojiao","yangxin-verdict","","养心殿","jiaojiao","statement","player-support","7","贴身宫女","娇娇","jiaojiao","stage","养心殿","奴婢只敢照实回禀：主子近来行止，宫中已有多处传言。若皇上要重罚，也请容奴婢把可证之处说全。","","裁断娇娇发言"
 "yangxin.verdict.choice.self","yangxin-verdict","","养心殿","emperor","player-choice","self","8","裁断者","皇帝","emperor","stage","养心殿","皇帝将案卷合上，准你在裁断落下前为自己说最后一句。你要如何自处？","","玩家本人为定罪候选人"
 "yangxin.verdict.choice.witness","yangxin-verdict","","养心殿","emperor","player-choice","witness","9","裁断者","皇帝","emperor","stage","养心殿","皇帝将案卷合上，准你在裁断落下前说最后一句。你要如何回话？","","玩家旁听或求情"
 "yangxin.verdict.result.default","yangxin-verdict","","养心殿","emperor","result","default","10","裁断者","皇帝","emperor","stage","养心殿","皇帝已经落下裁断，命内廷照此执行。","","裁断结果默认"

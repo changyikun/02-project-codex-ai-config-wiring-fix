@@ -82,6 +82,9 @@ import {
 } from '../lib/dowagerAudienceRuntime';
 import { resolveNpcRelationMatrixForActivities } from '../lib/npcRelationRuntime';
 import { resolveNightlyService, resolvePlayerNightlyServiceEvent } from '../lib/nightlyServiceRuntime';
+import { YINGLUOYETING_FIRST_NIGHT_SERVICE_SCRIPT_ID } from '../lib/yingluoyetingFirstNightServiceRuntime';
+import { YINGLUOYETING_PRESTIGE_MAP_GUIDE_SCRIPT_ID } from '../lib/yingluoyetingPrestigeMapGuideRuntime';
+import { YINGLUOYETING_STORY_FLAGS } from '../lib/yingluoyetingStoryRuntime';
 import {
   buildCraftWorkInstance,
   pickCraftWorkInspiration,
@@ -192,13 +195,20 @@ interface NumericFeedbackSignal {
 interface PendingOvernightReturn {
   id: string;
   origin: 'map' | 'chamber';
-  reason: 'deep-night' | 'stamina';
+  reason: 'deep-night';
 }
 
 interface PendingViewTransitionCleanup {
   targetView: CurrentView;
   clearMapLocation?: boolean;
   resetChamberPanel?: boolean;
+}
+
+interface YingluoyetingPrestigeMapGuideRuntimeState {
+  scriptId: typeof YINGLUOYETING_PRESTIGE_MAP_GUIDE_SCRIPT_ID;
+  active: boolean;
+  stepIndex: number;
+  prestigeAwarded: boolean;
 }
 
 interface AdvanceTimeOptions {
@@ -286,6 +296,7 @@ export interface GameFlowStore {
   latestSettlementReportId?: string;
   lastSeenSettlementReportId?: string;
   numericFeedbackSignal: NumericFeedbackSignal;
+  yingluoyetingPrestigeMapGuide?: YingluoyetingPrestigeMapGuideRuntimeState;
   pendingOvernightReturn?: PendingOvernightReturn;
   pendingViewTransitionCleanup?: PendingViewTransitionCleanup;
   activeBlockingNarratives: Record<string, true>;
@@ -295,6 +306,7 @@ export interface GameFlowStore {
   closeChamberPanel: () => void;
   setActiveAffairsSource: (source: AffairSourceLabel) => void;
   enterMainChamber: (location?: MapAreaId | null, entryTime?: PalaceTimeState) => void;
+  completeYingluoyetingOpeningToBedchamber: () => void;
   enterMapMain: () => void;
   completeViewTransitionCleanup: () => void;
   setRoute: (routeId: GameNumericsState['routeId']) => void;
@@ -391,6 +403,9 @@ export interface GameFlowStore {
   acknowledgeSettlementReport: (reportId?: string) => void;
   acknowledgeNightlyServiceNotice: () => void;
   finalizePendingNightlyService: (choices: Array<NightlyServiceInteractionActionId | NightlyServiceInteractionChoice>) => void;
+  advanceYingluoyetingPrestigeMapGuide: () => void;
+  awardYingluoyetingPrestigeMapGuidePrestige: (amount: number) => void;
+  completeYingluoyetingPrestigeMapGuide: () => void;
   spendFamilyAid: () => { success: boolean; message: string };
   startPalaceStrifeCase: (input: PalaceStrifeStartInput) => PalaceStrifeResolution;
   bribePalaceStrifeCase: (caseId: string, silverSpent: number) => { success: boolean; message: string };
@@ -1428,6 +1443,7 @@ const createInitialGameFlowFields = (currentView: CurrentView): Partial<GameFlow
   latestSettlementReportId: undefined,
   lastSeenSettlementReportId: undefined,
   numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
+  yingluoyetingPrestigeMapGuide: undefined,
   pendingOvernightReturn: undefined,
   pendingViewTransitionCleanup: undefined,
   activeBlockingNarratives: {},
@@ -1482,6 +1498,7 @@ const restoreSaveGameV1Fields = (saveGame: SaveGameV1): Partial<GameFlowStore> =
   latestSettlementReportId: saveGame.world.latestSettlementReportId,
   lastSeenSettlementReportId: saveGame.world.lastSeenSettlementReportId,
   numericFeedbackSignal: { sequence: 0, bucket: 'chamber-action' },
+  yingluoyetingPrestigeMapGuide: undefined,
   pendingOvernightReturn: undefined,
   activeBlockingNarratives: {},
 });
@@ -1546,6 +1563,27 @@ export const useGameFlowStore = create<GameFlowStore>()(
           activeMapLocationEntryTime: location ? entryTime : undefined,
           pendingViewTransitionCleanup: undefined,
         }),
+      completeYingluoyetingOpeningToBedchamber: () =>
+        set((current) => ({
+          currentView: 'bedchamber',
+          scene: 'activity',
+          activeChamberPanel: 'main',
+          activeMapLocation: undefined,
+          activeMapLocationEntryTime: undefined,
+          pendingViewTransitionCleanup: undefined,
+          state: {
+            ...current.state,
+            nextMonthlyExpenseStrategy: undefined,
+            flags: {
+              ...current.state.flags,
+              openingGuideFinished: true,
+              mapGuideFinished: true,
+              yingluoyetingFirstMorningGuideFinished: true,
+              bedchamberIntroShown: true,
+              [YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]: true,
+            },
+          },
+        })),
       enterMapMain: () =>
         set((current) => {
           const shouldDelayCleanup = current.currentView === 'bedchamber' && Boolean(current.activeMapLocation);
@@ -3085,8 +3123,38 @@ export const useGameFlowStore = create<GameFlowStore>()(
                 current.palaceBanquetProgress.lastRegistrationNoticeSeasonKey,
                 current.palaceBanquetProgress.lastResolvedSeasonKey,
               );
+          const shouldStartYingluoyetingFirstNightService =
+            enteredNight &&
+            current.state.routeId === 'yingluoyeting' &&
+            Boolean(current.state.flags.openingGuideFinished) &&
+            !current.state.flags[YINGLUOYETING_STORY_FLAGS.firstNightServicePlayed] &&
+            !current.nightlyService.pendingEvent;
+          const firstNightServicePendingEvent = shouldStartYingluoyetingFirstNightService
+            ? {
+                id: `nightly-yingluoyeting-${getCurrentXunKey(current.time)}-first-night-service-pending`,
+                scriptId: YINGLUOYETING_FIRST_NIGHT_SERVICE_SCRIPT_ID,
+                timeKey: getCurrentXunKey(current.time),
+                year: current.time.year,
+                month: current.time.month,
+                xun: current.time.xun,
+                outcome: 'player-service' as const,
+                playerName: current.state.name,
+                rankLabel:
+                  normalizeTrackedPlayerRankLabel(current.hiddenStats.initialRank) ??
+                  resolvePlayerRankByPrestige(current.state.prestige),
+                playerAge: current.state.age,
+                initialInterest: 0,
+                currentInterest: 0,
+                interactionCount: 0,
+                maxInteractions: 0,
+                selectedActionIds: [],
+                stage: 'notice' as const,
+              }
+            : null;
           const shouldResolveNightlyService =
-            !palaceBanquetSettlement && (enteredNight || (xunTransitions > 0 && !current.nightlyService.pendingMorningLines));
+            !firstNightServicePendingEvent &&
+            !palaceBanquetSettlement &&
+            (enteredNight || (xunTransitions > 0 && !current.nightlyService.pendingMorningLines));
           const nightlyServiceSettlement =
             shouldResolveNightlyService
               ? resolveNightlyService({
@@ -3108,7 +3176,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
                   rolls: current.nightlyService.queuedRolls,
                 })
               : null;
-          const hasPendingPlayerNightlyService = Boolean(nightlyServiceSettlement?.pendingEvent);
+          const hasPendingPlayerNightlyService = Boolean(nightlyServiceSettlement?.pendingEvent || firstNightServicePendingEvent);
           const npcRelationSettlement =
             xunTransitions > 0
               ? resolveNpcRelationMatrixForActivities(current.npcRelationMatrix, Object.values(current.npcActivity.entries))
@@ -3201,7 +3269,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
               : null;
           const reportIndexOffset = rankPromotionReport ? 1 : 0;
           const shouldUpdatePlayerStats = monthTransitions > 0 || shouldApplyLateNightPenalty;
-          const nextState = xunTransitions > 0 || nightlyServiceSettlement || palaceBanquetSettlement
+          const nextState = xunTransitions > 0 || nightlyServiceSettlement || palaceBanquetSettlement || firstNightServicePendingEvent
             ? {
                 ...current.state,
                 stamina: xunTransitions > 0 ? resolveXunStartingStamina() : current.state.stamina,
@@ -3235,6 +3303,12 @@ export const useGameFlowStore = create<GameFlowStore>()(
                 familyAidBonus: familyQuarterSettlements > 0 ? 0 : current.state.familyAidBonus ?? 0,
                 familyAidPrestigePending:
                   familyQuarterSettlements > 0 ? 0 : current.state.familyAidPrestigePending ?? 0,
+                flags: firstNightServicePendingEvent
+                  ? {
+                      ...current.state.flags,
+                      [YINGLUOYETING_STORY_FLAGS.firstNightServicePlayed]: true,
+                    }
+                  : current.state.flags,
               }
             : current.state;
           const baseNextConcubines =
@@ -3413,7 +3487,15 @@ export const useGameFlowStore = create<GameFlowStore>()(
                 : {}),
             },
             nightlyService:
-              nightlyServiceSettlement
+              firstNightServicePendingEvent
+                ? {
+                    ...current.nightlyService,
+                    pendingEvent: firstNightServicePendingEvent,
+                    pendingNotice: undefined,
+                    pendingMorningLines: undefined,
+                    queuedRolls: undefined,
+                  }
+                : nightlyServiceSettlement
                 ? {
                     ...current.nightlyService,
                     playerNightFavorGauge: nightlyServiceSettlement.nextPlayerNightFavorGauge,
@@ -3467,6 +3549,51 @@ export const useGameFlowStore = create<GameFlowStore>()(
           const pendingEvent = current.nightlyService.pendingEvent;
           if (!pendingEvent) {
             return current;
+          }
+          if (pendingEvent.scriptId === YINGLUOYETING_FIRST_NIGHT_SERVICE_SCRIPT_ID) {
+            const nextTime = getNextXunMorning(current.time);
+            const nextState = {
+              ...current.state,
+              stamina: resolveXunStartingStamina(),
+              flags: {
+                ...current.state.flags,
+                [YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]: false,
+                [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideStarted]: true,
+                [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished]: false,
+              },
+            };
+            const nextEmperorInteraction = ensureEmperorInteractionProgress(
+              current.emperorInteraction,
+              nextState.routeId,
+              nextTime,
+              current.emperorInteraction.mood,
+            );
+
+            return {
+              state: nextState,
+              hiddenStats: current.hiddenStats,
+              nightlyService: {
+                ...current.nightlyService,
+                pendingEvent: undefined,
+                pendingNotice: undefined,
+                pendingMorningLines: undefined,
+              },
+              emperorInteraction: nextEmperorInteraction,
+              time: nextTime,
+              currentView: 'bedchamber',
+              scene: 'activity',
+              activeChamberPanel: 'main',
+              yingluoyetingPrestigeMapGuide: {
+                scriptId: YINGLUOYETING_PRESTIGE_MAP_GUIDE_SCRIPT_ID,
+                active: true,
+                stepIndex: 0,
+                prestigeAwarded: false,
+              },
+              activeMapLocation: undefined,
+              activeMapLocationEntryTime: undefined,
+              activeAffairsSource: DEFAULT_AFFAIRS_SOURCE,
+              mapEventText: '',
+            };
           }
           const actionChoices = choices.map((choice) => (typeof choice === 'string' ? { actionId: choice } : choice));
 
@@ -3575,6 +3702,67 @@ export const useGameFlowStore = create<GameFlowStore>()(
             latestSettlementReportId,
           };
         }),
+      advanceYingluoyetingPrestigeMapGuide: () =>
+        set((current) => {
+          const guide = current.yingluoyetingPrestigeMapGuide;
+          if (!guide?.active) {
+            return current;
+          }
+
+          return {
+            yingluoyetingPrestigeMapGuide: {
+              ...guide,
+              stepIndex: guide.stepIndex + 1,
+            },
+          };
+        }),
+      awardYingluoyetingPrestigeMapGuidePrestige: (amount) =>
+        set((current) => {
+          const guide = current.yingluoyetingPrestigeMapGuide;
+          if (!guide?.active || guide.prestigeAwarded || amount === 0) {
+            return current;
+          }
+          const nextPrestige = normalizePrestige(current.state.prestige + amount);
+
+          return {
+            state: {
+              ...current.state,
+              prestige: nextPrestige,
+            },
+            hiddenStats: {
+              ...current.hiddenStats,
+              prestige: nextPrestige,
+            },
+            numericFeedbackSignal: {
+              sequence: current.numericFeedbackSignal.sequence + 1,
+              bucket: 'chamber-action',
+            },
+            yingluoyetingPrestigeMapGuide: {
+              ...guide,
+              prestigeAwarded: true,
+            },
+          };
+        }),
+      completeYingluoyetingPrestigeMapGuide: () =>
+        set((current) => ({
+          currentView: 'bedchamber',
+          scene: 'activity',
+          activeChamberPanel: 'main',
+          activeMapLocation: '建章宫',
+          activeMapLocationEntryTime: current.time,
+          activeAffairsSource: DEFAULT_AFFAIRS_SOURCE,
+          mapEventText: '',
+          state: {
+            ...current.state,
+            flags: {
+              ...current.state.flags,
+              [YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]: false,
+              [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideStarted]: true,
+              [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished]: true,
+            },
+          },
+          yingluoyetingPrestigeMapGuide: undefined,
+        })),
       spendFamilyAid: () => {
         const current = get();
         if ((current.state.familyAidBonus ?? 0) > 0) {

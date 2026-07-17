@@ -430,6 +430,7 @@ export interface NightlyServiceNightNotice {
 
 export interface NightlyServicePendingEvent {
   id: string;
+  scriptId?: 'yingluoyeting-first-night-service';
   timeKey: string;
   year: number;
   month: number;
@@ -437,6 +438,7 @@ export interface NightlyServicePendingEvent {
   outcome: 'player-service' | 'player-companion';
   playerName: string;
   rankLabel: string;
+  playerAge?: number;
   initialInterest: number;
   currentInterest: number;
   interactionCount: number;

@@ -6,6 +6,11 @@ import {
   NIGHTLY_SERVICE_INTERACTION_ACTIONS,
   resolveNightlyServiceChoiceDelta,
 } from '../../game/lib/nightlyServiceRuntime';
+import {
+  buildYingluoyetingFirstNightServiceSteps,
+  YINGLUOYETING_FIRST_NIGHT_SERVICE_SCRIPT_ID,
+  type YingluoyetingFirstNightServiceStep,
+} from '../../game/lib/yingluoyetingFirstNightServiceRuntime';
 import type {
   ConcubineProfile,
   NightlyServiceGentleBranchId,
@@ -18,8 +23,10 @@ import { requireNonConsortNpcProfile } from '../../game/npcs/npcCatalog';
 
 const EMPEROR_PROFILE = requireNonConsortNpcProfile('rongan');
 const EUNUCH_PROFILE = requireNonConsortNpcProfile('palace-eunuch');
+const JIAOJIAO_PROFILE = requireNonConsortNpcProfile('jiaojiao');
 const EMPEROR_PORTRAIT_SRC = EMPEROR_PROFILE.portraitSrc ?? '';
 const EUNUCH_PORTRAIT_SRC = EUNUCH_PROFILE.portraitSrc ?? '';
+const JIAOJIAO_PORTRAIT_SRC = JIAOJIAO_PROFILE.portraitSrc ?? '';
 const YANGXIN_BACKGROUND_SRC = '/assets/routes/backgrounds/shiqin.png';
 export const OVERNIGHT_TRANSITION_MS = 900;
 export const OVERNIGHT_BLACK_COVER_RATIO = 0.34;
@@ -81,6 +88,19 @@ export function NightlyServiceEventView({
   const [latestChoice, setLatestChoice] = useState<NightlyServiceInteractionChoice | null>(null);
   const [gentleSelectionStep, setGentleSelectionStep] = useState<GentleSelectionStep | null>(null);
   const [chooseIntroVisible, setChooseIntroVisible] = useState(true);
+  const [scriptedStepIndex, setScriptedStepIndex] = useState(0);
+  const isYingluoyetingFirstNightService = pendingEvent.scriptId === YINGLUOYETING_FIRST_NIGHT_SERVICE_SCRIPT_ID;
+  const firstNightServiceSteps = useMemo(
+    () =>
+      isYingluoyetingFirstNightService
+        ? buildYingluoyetingFirstNightServiceSteps({
+            playerName: pendingEvent.playerName,
+            rankLabel: pendingEvent.rankLabel,
+            age: pendingEvent.playerAge ?? 17,
+          })
+        : [],
+    [isYingluoyetingFirstNightService, pendingEvent.playerAge, pendingEvent.playerName, pendingEvent.rankLabel],
+  );
 
   const currentInterest = useMemo(
     () =>
@@ -95,6 +115,10 @@ export function NightlyServiceEventView({
   const hasThirdPartyChoice = selectedChoices.some((choice) => choice.actionId === 'gentle' && (choice.gentleBranchId === 'praise' || choice.gentleBranchId === 'smear'));
   const friendlyConsorts = concubines.filter((consort) => consort.status === 'live' && Number(consort.stats.relationToPlayer ?? 0) > 0);
   const hostileConsorts = concubines.filter((consort) => consort.status === 'live' && Number(consort.stats.relationToPlayer ?? 0) < 0);
+
+  useEffect(() => {
+    setScriptedStepIndex(0);
+  }, [pendingEvent.id]);
 
   const resolvePortrait = (segment: DialoguePortraitSegment): DialoguePortraitConfig | undefined => {
     if (segment.characterName === playerName && playerPortrait) {
@@ -169,6 +193,90 @@ export function NightlyServiceEventView({
     const timer = window.setTimeout(() => onComplete(selectedChoices), OVERNIGHT_BLACK_COVER_MS);
     return () => window.clearTimeout(timer);
   }, [onComplete, phase, selectedChoices]);
+
+  const currentScriptedStep = firstNightServiceSteps[scriptedStepIndex];
+
+  useEffect(() => {
+    if (!isYingluoyetingFirstNightService || !currentScriptedStep?.transition || !currentScriptedStep.completesStory) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => onComplete([]), OVERNIGHT_TRANSITION_MS);
+    return () => window.clearTimeout(timer);
+  }, [currentScriptedStep, isYingluoyetingFirstNightService, onComplete]);
+
+  const resolveFirstNightPortrait = (step: YingluoyetingFirstNightServiceStep | undefined) => {
+    if (!step?.portraitKey) {
+      return undefined;
+    }
+
+    if (step.portraitKey === 'jiaojiao') {
+      return (
+        <img
+          src={JIAOJIAO_PORTRAIT_SRC}
+          alt={JIAOJIAO_PROFILE.displayName}
+          className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant"
+        />
+      );
+    }
+
+    if (step.portraitKey === 'taijian') {
+      return (
+        <img
+          src={EUNUCH_PORTRAIT_SRC}
+          alt={EUNUCH_PROFILE.displayName}
+          className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--eunuch"
+        />
+      );
+    }
+
+    return (
+      <img
+        src={EMPEROR_PORTRAIT_SRC}
+        alt={EMPEROR_PROFILE.displayName}
+        className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--emperor"
+      />
+    );
+  };
+
+  if (isYingluoyetingFirstNightService && currentScriptedStep?.transition) {
+    return (
+      <section className="nightly-service-event nightly-service-event--overnight nightly-service-event--fade-in" aria-label="一夜过去">
+        <div className="nightly-service-event__blackout" />
+      </section>
+    );
+  }
+
+  if (isYingluoyetingFirstNightService && currentScriptedStep) {
+    const portrait = resolveFirstNightPortrait(currentScriptedStep);
+
+    return (
+      <section className="nightly-service-event nightly-service-event--scripted nightly-service-event--fade-in" aria-label="第一日侍寝剧情">
+        <div
+          key={currentScriptedStep.background}
+          className="nightly-service-event__background"
+          style={{ backgroundImage: `url("${currentScriptedStep.background}")` }}
+        />
+        <GlobalDialogueStage
+          className="global-dialogue-stage--nightly-service"
+          dialogueClassName="palace-dialogue-box--chamber"
+          sceneLabel={currentScriptedStep.narrationName ?? currentScriptedStep.speakerName}
+          portraitLabel={portrait ? `${currentScriptedStep.speakerName}立绘` : '旁白无立绘'}
+          portrait={portrait}
+          ariaLabel="第一日侍寝剧情"
+          characterIdentity={currentScriptedStep.speakerIdentity}
+          characterName={currentScriptedStep.speakerName}
+          narrationName={currentScriptedStep.narrationName}
+          content={currentScriptedStep.text}
+          splitQuotedDialogue={false}
+          onNextAction={() => {
+            setScriptedStepIndex((current) => Math.min(current + 1, firstNightServiceSteps.length - 1));
+          }}
+          numericFeedbackBucket="nightly-service"
+        />
+      </section>
+    );
+  }
 
   if (phase === 'overnight') {
     return (

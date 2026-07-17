@@ -12,6 +12,9 @@ export const YINGLUOYETING_EVIDENCE_ITEM_IDS = {
 
 export const YINGLUOYETING_STORY_FLAGS = {
   openingHaremFirstMeetPending: 'yingluo_opening_harem_first_meet_pending',
+  firstNightServicePlayed: 'yingluo_first_night_service_played',
+  prestigeMapGuideStarted: 'yingluo_prestige_map_guide_started',
+  prestigeMapGuideFinished: 'yingluo_prestige_map_guide_finished',
   chenFirstMeetDone: 'yingluo_02_chen_first_meet_done',
   chenFirstMeetPlayed: 'yingluo_02_chen_first_meet_played',
   chenWanningMet: 'yingluo_chen_wanning_met',

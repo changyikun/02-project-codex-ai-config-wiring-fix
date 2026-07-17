@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
-import { GUIDE_TENDENCY_OPTIONS } from '../config/palaceUi';
+import { CHAMBER_HOME_ACTION_LAYOUTS, GUIDE_TENDENCY_OPTIONS } from '../config/palaceUi';
 import { buildOpeningNarrativeContext } from '../game/data/openingNarrativeProfiles';
 import { requestOpeningLocalDialogue, buildLocalOpeningDialogue, buildOpeningDialogueFromCsv } from '../game/lib/openingDialogueRuntime';
 import {
   buildYingluoyetingOpeningRewardBundle,
+  personalizeYingluoyetingOpeningSteps,
   resolveYingluoyetingOpeningPerformanceTier,
   YINGLUOYETING_OPENING_CHOICE_STEPS,
   YINGLUOYETING_OPENING_PERFORMANCE_STEPS,
@@ -26,6 +27,20 @@ const npcName = '娇娇';
 const YINGLUOYETING_OPENING_REWARD_GRANTED_FLAG = 'yingluoyetingOpeningRewardGranted';
 const OPENING_BACKGROUND_FADE_MS = 650;
 const OPENING_BLACK_COVER_RATIO = 0.34;
+const OPENING_CHAMBER_BUTTON_INTRO_DURATION_MS = 900;
+const OPENING_CHAMBER_BUTTON_INTRO_DELAY_MS = 720;
+const OPENING_CHAMBER_CONTROL_INTRO_DURATION_MS = 1000;
+const OPENING_CHAMBER_FINAL_DETAILS_DELAY_MS = 1000;
+const OPENING_CHAMBER_BACKGROUND_PREFIX = '/assets/routes/home/';
+const skillLabelMap: Record<string, string> = {
+  poetry: '诗词',
+  painting: '丹青',
+  talent: '乐理',
+  embroidery: '刺绣',
+  medicine: '药理',
+  politics: '政治',
+};
+const ATTRIBUTE_STATS_FINALIZED_FLAG = 'attributeStatsFinalized';
 const expenseExplanationOption = {
   id: 'expense-explanation',
   label: '先问清用度',
@@ -116,8 +131,33 @@ const isDefaultMiddleAgedPalaceMaidSpeaker = (identity: string, name: string): b
   return identity.includes('宫人') || name.includes('宫人') || identity.includes('掖庭掌事');
 };
 
+const resolveSkillDisplayValue = (rawValue: number, statsFinalized: boolean): number => {
+  if (!Number.isFinite(rawValue)) {
+    return 0;
+  }
+
+  return Math.round(statsFinalized || Math.abs(rawValue) > 10 ? rawValue : rawValue * 10);
+};
+
+const getCultivationSkillColor = (value: number): string => {
+  if (value >= 80) return '#B46A3C';
+  if (value >= 60) return '#8A668E';
+  if (value >= 35) return '#4F789E';
+  if (value > 0) return '#5F8B80';
+  return '#A4A0A0';
+};
+
 export function OpeningDialogueView() {
-  const { state, hiddenStats, time, selectedRoute, patchState, enterMapMain, grantInventoryItem } = useGameFlowStore();
+  const {
+    state,
+    hiddenStats,
+    time,
+    selectedRoute,
+    patchState,
+    enterMapMain,
+    completeYingluoyetingOpeningToBedchamber,
+    grantInventoryItem,
+  } = useGameFlowStore();
   const [history, setHistory] = useState<Array<{ speaker: string; text: string }>>([]);
   const [turn, setTurn] = useState(1);
   const [showingExpenseExplanation, setShowingExpenseExplanation] = useState(false);
@@ -125,6 +165,7 @@ export function OpeningDialogueView() {
   const [selectedYetingOpeningChoice, setSelectedYetingOpeningChoice] = useState<YingluoyetingOpeningChoiceId | undefined>();
   const [showingYetingExpenseChoice, setShowingYetingExpenseChoice] = useState(false);
   const [isDelayedOpeningPortraitReady, setIsDelayedOpeningPortraitReady] = useState(true);
+  const [openingChamberIntroUi, setOpeningChamberIntroUi] = useState<'training-buttons' | 'status' | 'jiaojiao' | undefined>();
   const playerTitle = resolvePlayerTitle(state.family, state.routeId);
   const narrativeContext = useMemo(() => buildOpeningNarrativeContext(state.routeId), [state.routeId]);
   const isYingluoyetingOpening = state.routeId === 'yingluoyeting';
@@ -133,18 +174,25 @@ export function OpeningDialogueView() {
     [state.stats],
   );
   const yetingOpeningSteps = useMemo(
-    () => [
-      ...YINGLUOYETING_OPENING_STORY_STEPS.slice(0, 9),
-      ...YINGLUOYETING_OPENING_PERFORMANCE_STEPS[yetingOpeningTier],
-      YINGLUOYETING_OPENING_STORY_STEPS[9],
-      YINGLUOYETING_OPENING_STORY_STEPS[10],
-      ...(selectedYetingOpeningChoice ? YINGLUOYETING_OPENING_CHOICE_STEPS[selectedYetingOpeningChoice] : []),
-      ...YINGLUOYETING_OPENING_STORY_STEPS.slice(11),
-    ],
-    [selectedYetingOpeningChoice, yetingOpeningTier],
+    () =>
+      personalizeYingluoyetingOpeningSteps(
+        [
+          ...YINGLUOYETING_OPENING_STORY_STEPS.slice(0, 9),
+          ...YINGLUOYETING_OPENING_PERFORMANCE_STEPS[yetingOpeningTier],
+          YINGLUOYETING_OPENING_STORY_STEPS[9],
+          YINGLUOYETING_OPENING_STORY_STEPS[10],
+          ...(selectedYetingOpeningChoice ? YINGLUOYETING_OPENING_CHOICE_STEPS[selectedYetingOpeningChoice] : []),
+          ...YINGLUOYETING_OPENING_STORY_STEPS.slice(11),
+        ],
+        { playerName: state.name },
+      ),
+    [selectedYetingOpeningChoice, state.name, yetingOpeningTier],
   );
   const activeYetingOpeningStep = isYingluoyetingOpening && !showingYetingExpenseChoice ? yetingOpeningSteps[yetingOpeningStepIndex] : undefined;
   const isYetingBlackTransition = activeYetingOpeningStep?.transition === 'black';
+  const isOpeningDialogueHidden = Boolean(isYetingBlackTransition || activeYetingOpeningStep?.hideDialogue);
+  const shouldShowOpeningStatusBar =
+    !isYingluoyetingOpening || openingChamberIntroUi === 'status' || openingChamberIntroUi === 'jiaojiao';
   const shouldDelayActiveOpeningPortrait = Boolean(
     activeYetingOpeningStep?.delayPortraitUntilBackgroundSettled && !isDelayedOpeningPortraitReady,
   );
@@ -191,6 +239,7 @@ export function OpeningDialogueView() {
   const sceneBackground = isYetingBlackTransition
     ? blackTransitionSceneBackground ?? currentSceneBackgroundRef.current
     : targetSceneBackground;
+  const isOpeningChamberPreview = sceneBackground.includes(OPENING_CHAMBER_BACKGROUND_PREFIX);
   const immediatePreviousSceneBackground = currentSceneBackgroundRef.current !== sceneBackground ? currentSceneBackgroundRef.current : undefined;
   const transitionPreviousSceneBackground = immediatePreviousSceneBackground ?? previousSceneBackground;
 
@@ -216,6 +265,7 @@ export function OpeningDialogueView() {
       setSelectedYetingOpeningChoice(undefined);
       setShowingYetingExpenseChoice(false);
       setShowingExpenseExplanation(false);
+      setOpeningChamberIntroUi(undefined);
       setDialogueTurn(buildLocalOpeningDialogue(buildRequest(5, [])));
       setLoading(false);
       return;
@@ -282,6 +332,15 @@ export function OpeningDialogueView() {
     (state.routeId === 'yingluoyeting' && turn <= 4 ? (turn >= 4 ? '后宫宫道' : dialogueTurn.speakerName) : state.residenceName);
   const quotedOpeningSpeaker = resolveQuotedOpeningSpeaker(state.routeId, turn, state.name);
   const playerPortrait = selectedRoute?.portrait ?? routePortraitById[state.routeId];
+  const skillStats = useMemo(
+    () =>
+      ['poetry', 'painting', 'talent', 'embroidery', 'medicine', 'politics'].map((key) => ({
+        key,
+        label: skillLabelMap[key],
+        value: resolveSkillDisplayValue(Number(state.stats[key] ?? 0), Boolean(state.flags[ATTRIBUTE_STATS_FINALIZED_FLAG])),
+      })),
+    [state.flags, state.stats],
+  );
 
   useEffect(() => {
     if (!activeYetingOpeningStep?.autoAdvanceMs) {
@@ -294,6 +353,24 @@ export function OpeningDialogueView() {
 
     return () => window.clearTimeout(timer);
   }, [activeYetingOpeningStep?.autoAdvanceMs, activeYetingOpeningStep?.id, yetingOpeningSteps.length]);
+
+  useEffect(() => {
+    if (activeYetingOpeningStep?.chamberIntroUi) {
+      setOpeningChamberIntroUi(activeYetingOpeningStep.chamberIntroUi);
+    }
+  }, [activeYetingOpeningStep?.chamberIntroUi, activeYetingOpeningStep?.id]);
+
+  useEffect(() => {
+    if (!activeYetingOpeningStep?.completesOpening) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      completeYingluoyetingOpeningToBedchamber();
+    }, activeYetingOpeningStep.autoAdvanceMs ?? 0);
+
+    return () => window.clearTimeout(timer);
+  }, [activeYetingOpeningStep, completeYingluoyetingOpeningToBedchamber]);
 
   useEffect(() => {
     if (!isYetingBlackTransition || !activeYetingOpeningStep?.autoAdvanceMs) {
@@ -365,15 +442,20 @@ export function OpeningDialogueView() {
     }
 
     if (activeYetingOpeningStep) {
+      const jumpStepId = activeYetingOpeningStep.nextStepId ?? activeYetingOpeningStep.returnToStepId;
+      if (jumpStepId) {
+        const jumpIndex = yetingOpeningSteps.findIndex((step) => step.id === jumpStepId);
+        if (jumpIndex >= 0) {
+          setYetingOpeningStepIndex(jumpIndex);
+          return;
+        }
+      }
+
       if (yetingOpeningStepIndex < yetingOpeningSteps.length - 1) {
         setYetingOpeningStepIndex((current) => current + 1);
         return;
       }
 
-      const payload = buildRequest(5, history);
-      setTurn(5);
-      setShowingYetingExpenseChoice(true);
-      setDialogueTurn(buildLocalOpeningDialogue(payload));
       return;
     }
 
@@ -394,8 +476,36 @@ export function OpeningDialogueView() {
 
   const handleSelectTendency = (optionId: string) => {
     if (activeYetingOpeningStep?.options?.some((option) => option.id === optionId)) {
-      setSelectedYetingOpeningChoice(optionId as YingluoyetingOpeningChoiceId);
-      setYetingOpeningStepIndex((current) => current + 1);
+      if (optionId === 'go-out' || optionId === 'wait-inside') {
+        setSelectedYetingOpeningChoice(optionId as YingluoyetingOpeningChoiceId);
+        setYetingOpeningStepIndex((current) => current + 1);
+        return;
+      }
+
+      if (optionId === 'first-morning-expense-explanation') {
+        const explanationIndex = yetingOpeningSteps.findIndex((step) => step.id === 'first-morning-expense-explanation');
+        if (explanationIndex >= 0) {
+          setYetingOpeningStepIndex(explanationIndex);
+        }
+        return;
+      }
+
+      const selectedOption = GUIDE_TENDENCY_OPTIONS.find((option) => option.id === optionId);
+      if (selectedOption) {
+        patchState({
+          openingTendency: selectedOption.openingTendency,
+          monthlyExpenseStrategy: selectedOption.id,
+          nextMonthlyExpenseStrategy: undefined,
+          flags: {
+            ...state.flags,
+            [YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]: true,
+          },
+        });
+        const responseIndex = yetingOpeningSteps.findIndex((step) => step.id === `first-morning-expense-${optionId}`);
+        if (responseIndex >= 0) {
+          setYetingOpeningStepIndex(responseIndex);
+        }
+      }
       return;
     }
 
@@ -435,13 +545,13 @@ export function OpeningDialogueView() {
       <div className="opening-dialogue__frame">
         <div
           key={sceneBackground}
-          className={`opening-dialogue__background opening-dialogue__background--current${transitionPreviousSceneBackground ? ' opening-dialogue__background--entering' : ''}`}
+          className={`opening-dialogue__background opening-dialogue__background--current${transitionPreviousSceneBackground ? ' opening-dialogue__background--entering' : ''}${isOpeningChamberPreview ? ' opening-dialogue__background--chamber-preview' : ''}`}
           style={{ backgroundImage: `url("${sceneBackground}")` }}
         />
         {transitionPreviousSceneBackground ? (
           <div
             key={backgroundFadeKey}
-            className="opening-dialogue__background opening-dialogue__background--previous"
+            className={`opening-dialogue__background opening-dialogue__background--previous${isOpeningChamberPreview ? ' opening-dialogue__background--chamber-preview' : ''}`}
             style={{ backgroundImage: `url("${transitionPreviousSceneBackground}")` }}
             aria-hidden="true"
           />
@@ -454,9 +564,104 @@ export function OpeningDialogueView() {
           />
         ) : null}
         {!isYetingBlackTransition ? <PetalEffect /> : null}
-        {!isYetingBlackTransition ? <PalaceStatusBar /> : null}
+        {!isYetingBlackTransition && shouldShowOpeningStatusBar ? (
+          <PalaceStatusBar
+            className={isYingluoyetingOpening ? 'palace-status--intro-visible' : undefined}
+            style={
+              isYingluoyetingOpening
+                ? ({ '--chamber-intro-duration': `${OPENING_CHAMBER_CONTROL_INTRO_DURATION_MS}ms` } as CSSProperties)
+                : undefined
+            }
+          />
+        ) : null}
 
-        {!isYetingBlackTransition ? <GlobalDialogueStage
+        {openingChamberIntroUi ? (
+          <section className="chamber-main__scene-actions chamber-main__scene-actions--opening-intro" aria-label="寝殿行动">
+            {CHAMBER_HOME_ACTION_LAYOUTS.filter((layout) => layout.orientation === 'vertical' && layout.id !== 'pulse').map((layout, index) => (
+              <button
+                key={layout.id}
+                type="button"
+                aria-label={layout.label}
+                className={`chamber-main__scene-button chamber-main__scene-button--${layout.orientation} chamber-main__scene-button--intro-visible`}
+                style={{
+                  top: layout.top,
+                  left: layout.left,
+                  width: layout.width,
+                  height: layout.height,
+                  '--chamber-intro-delay': `${index * OPENING_CHAMBER_BUTTON_INTRO_DELAY_MS}ms`,
+                  '--chamber-intro-duration': `${OPENING_CHAMBER_BUTTON_INTRO_DURATION_MS}ms`,
+                } as CSSProperties}
+                disabled
+              >
+                <span>
+                  {[...layout.label].map((character, characterIndex) => (
+                    <span key={`${layout.id}-${characterIndex}`} className="chamber-main__scene-button-char">
+                      {character}
+                    </span>
+                  ))}
+                </span>
+              </button>
+            ))}
+            {openingChamberIntroUi === 'jiaojiao' ? (
+              <button
+                type="button"
+                className="chamber-main__jiaojiao-entry chamber-main__jiaojiao-entry--intro-visible"
+                aria-label="吩咐娇娇"
+                style={{ '--chamber-intro-duration': `${OPENING_CHAMBER_CONTROL_INTRO_DURATION_MS}ms` } as CSSProperties}
+                disabled
+              >
+                <img src={npcPortrait} alt="" aria-hidden="true" />
+                <span>吩咐娇娇</span>
+              </button>
+            ) : null}
+          </section>
+        ) : null}
+        {openingChamberIntroUi === 'jiaojiao' && playerPortrait ? (
+          <section
+            className="chamber-main__portrait-stage opening-dialogue__intro-chamber-portrait opening-dialogue__intro-delayed"
+            aria-label="玩家立绘"
+            style={{
+              '--opening-intro-delay': `${OPENING_CHAMBER_FINAL_DETAILS_DELAY_MS}ms`,
+              '--opening-intro-duration': `${OPENING_CHAMBER_CONTROL_INTRO_DURATION_MS}ms`,
+            } as CSSProperties}
+          >
+            <img src={playerPortrait} alt={state.name} className="chamber-main__portrait" />
+          </section>
+        ) : null}
+        {openingChamberIntroUi === 'jiaojiao' ? (
+          <section
+            className="chamber-main__title-bar opening-dialogue__intro-title-bar opening-dialogue__intro-delayed"
+            aria-label="开场寝居信息"
+            style={{
+              '--opening-intro-delay': `${OPENING_CHAMBER_FINAL_DETAILS_DELAY_MS}ms`,
+              '--opening-intro-duration': `${OPENING_CHAMBER_CONTROL_INTRO_DURATION_MS}ms`,
+            } as CSSProperties}
+          >
+            <div className="chamber-main__title-chip">{`${hiddenStats.initialRank ?? '宫妃'} ${state.name}`}</div>
+            <div className="chamber-main__residence-chip">{state.residenceName}</div>
+          </section>
+        ) : null}
+        {openingChamberIntroUi === 'jiaojiao' ? (
+          <section
+            className="chamber-main__skills-strip opening-dialogue__intro-delayed"
+            aria-label="开场技能属性"
+            style={{
+              '--opening-intro-delay': `${OPENING_CHAMBER_FINAL_DETAILS_DELAY_MS}ms`,
+              '--opening-intro-duration': `${OPENING_CHAMBER_CONTROL_INTRO_DURATION_MS}ms`,
+            } as CSSProperties}
+          >
+            <div className="chamber-main__skills">
+              {skillStats.map((skill) => (
+                <div key={skill.key} className="chamber-main__skill-item">
+                  <span>{skill.label}</span>
+                  <strong style={{ color: getCultivationSkillColor(skill.value) }}>{skill.value}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {!isOpeningDialogueHidden ? <GlobalDialogueStage
           sceneLabel="开场对话立绘舞台"
           portraitLabel={isNarrationTurn ? '旁白无立绘' : '娇娇立绘'}
           portrait={

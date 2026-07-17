@@ -46,6 +46,14 @@ describe('csvNarrativeLoader', () => {
     expect(renderedEntry.text).toContain('椒房殿');
   });
 
+  it('uses 主子 instead of 娘娘 in 娇娇 spoken narrative lines', () => {
+    const jiaojiaoLinesWithNiangniang = narrativeEntries
+      .filter((entry) => entry.actorKey === 'jiaojiao' || entry.speakerName === '娇娇')
+      .filter((entry) => entry.text.includes('娘娘'));
+
+    expect(jiaojiaoLinesWithNiangniang).toEqual([]);
+  });
+
   it('keeps unresolved placeholders visible for tests to catch', () => {
     const text = renderNarrativeText('opening.default.turn1', { playerTitle: '皇后娘娘' });
     expect(findUnresolvedNarrativeVariables(text)).toContain('npcName');

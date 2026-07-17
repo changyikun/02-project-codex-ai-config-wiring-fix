@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 
 const CALENDAR_FLIP_DURATION_MS = 640;
@@ -58,7 +58,12 @@ const renderCalendarPage = (
   </div>
 );
 
-export function PalaceStatusBar() {
+interface PalaceStatusBarProps {
+  className?: string;
+  style?: CSSProperties;
+}
+
+export function PalaceStatusBar({ className, style }: PalaceStatusBarProps = {}) {
   const time = useGameFlowStore((store) => store.time);
   const state = useGameFlowStore((store) => store.state);
 
@@ -127,7 +132,7 @@ export function PalaceStatusBar() {
   );
 
   return (
-    <section className="palace-status" aria-label="时间状态">
+    <section className={`palace-status${className ? ` ${className}` : ''}`} style={style} aria-label="时间状态">
       <ul className="palace-status__list">
         <li
           className={`palace-status__item palace-status__item--time${

@@ -7,6 +7,8 @@ import { numericInventoryItems } from '../numerics/numericCatalog';
 import { CONSORT_INTERACTION_ACTION_LIMIT_PER_XUN } from '../lib/consortVisitRuntime';
 import { createEmperorInteractionProgress } from '../lib/emperorActivityRuntime';
 import { PLAYER_PALACE_STRIFE_TARGET_ID } from '../lib/palaceStrifeRuntime';
+import { YINGLUOYETING_FIRST_NIGHT_SERVICE_SCRIPT_ID } from '../lib/yingluoyetingFirstNightServiceRuntime';
+import { YINGLUOYETING_PRESTIGE_MAP_GUIDE_SCRIPT_ID } from '../lib/yingluoyetingPrestigeMapGuideRuntime';
 import { YINGLUOYETING_STORY_FLAGS } from '../lib/yingluoyetingStoryRuntime';
 import { SAVE_GAME_SCHEMA_VERSION, SAVE_GAME_STORAGE_KEY } from '../save/saveGameV1';
 import { useGameFlowStore } from './gameFlowStore';
@@ -1766,9 +1768,284 @@ describe('gameFlowStore SaveGameV1 integration', () => {
 
     const flow = useGameFlowStore.getState();
     expect(flow.state.flags.pregnant).toBe(true);
-    expect(flow.settlementReports.find((report) => report.title === '2年3月第3旬清晨通报')?.lines.join(' ')).toContain(
+    expect(flow.settlementReports.filter((report) => !report.chronicleOnly).flatMap((report) => report.lines).join(' ')).toContain(
       '太医请脉',
     );
+  });
+
+  it('starts the Yingluoyeting first-night scripted service when dusk enters night', () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      state: {
+        ...state.state,
+        routeId: 'yingluoyeting',
+        name: '柳如是',
+        age: 20,
+        favor: 0,
+        trueHeart: 0,
+        prestige: 0,
+        flags: {
+          ...state.state.flags,
+          openingGuideFinished: true,
+          pregnant: false,
+        },
+      },
+      hiddenStats: {
+        ...state.hiddenStats,
+        favor: 0,
+        trueHeart: 0,
+        prestige: 0,
+        initialRank: '官女子',
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 4,
+        slot: '傍晚',
+        slotProgress: 0,
+      },
+      nightlyService: {
+        playerNightFavorGauge: 80,
+        emperorMood: 40,
+        reports: [],
+        queuedRolls: {
+          alone: 1,
+          player: 100,
+          pool: 1,
+          interest: 80,
+          pregnancy: 1,
+        },
+      },
+      settlementReports: [],
+      latestSettlementReportId: undefined,
+    }));
+
+    useGameFlowStore.getState().advanceTime(1);
+
+    const flow = useGameFlowStore.getState();
+    expect(flow.time.slot).toBe('夜晚');
+    expect(flow.nightlyService.pendingEvent).toMatchObject({
+      scriptId: YINGLUOYETING_FIRST_NIGHT_SERVICE_SCRIPT_ID,
+      playerName: '柳如是',
+      rankLabel: '官女子',
+      playerAge: 20,
+    });
+    expect(flow.nightlyService.pendingNotice).toBeUndefined();
+    expect(flow.nightlyService.playerNightFavorGauge).toBe(80);
+    expect(flow.state.flags[YINGLUOYETING_STORY_FLAGS.firstNightServicePlayed]).toBe(true);
+    expect(flow.settlementReports.filter((report) => !report.chronicleOnly)).toHaveLength(0);
+  });
+
+  it('finishes the Yingluoyeting first-night scripted service without nightly settlement effects', () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      state: {
+        ...state.state,
+        routeId: 'yingluoyeting',
+        name: '柳如是',
+        age: 20,
+        stamina: 1,
+        favor: 12,
+        trueHeart: 3,
+        prestige: 0,
+        flags: {
+          ...state.state.flags,
+          openingGuideFinished: true,
+          pregnant: false,
+          [YINGLUOYETING_STORY_FLAGS.firstNightServicePlayed]: true,
+        },
+      },
+      hiddenStats: {
+        ...state.hiddenStats,
+        favor: 12,
+        trueHeart: 3,
+        prestige: 0,
+        initialRank: '官女子',
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 5,
+        slot: '夜晚',
+        slotProgress: 0,
+      },
+      nightlyService: {
+        playerNightFavorGauge: 80,
+        emperorMood: 40,
+        reports: [],
+        pendingEvent: {
+          id: 'nightly-yingluoyeting-1-1-1-first-night-service-pending',
+          scriptId: YINGLUOYETING_FIRST_NIGHT_SERVICE_SCRIPT_ID,
+          timeKey: '1-1-1',
+          year: 1,
+          month: 1,
+          xun: 1,
+          outcome: 'player-service',
+          playerName: '柳如是',
+          rankLabel: '官女子',
+          playerAge: 20,
+          initialInterest: 0,
+          currentInterest: 0,
+          interactionCount: 0,
+          maxInteractions: 0,
+          selectedActionIds: [],
+          stage: 'notice',
+        },
+        pendingNotice: undefined,
+        pendingMorningLines: undefined,
+      },
+      settlementReports: [],
+      latestSettlementReportId: undefined,
+    }));
+
+    useGameFlowStore.getState().finalizePendingNightlyService([]);
+
+    const flow = useGameFlowStore.getState();
+    expect(flow.time).toMatchObject({ year: 1, month: 1, xun: 2, slot: '清晨' });
+    expect(flow.currentView).toBe('bedchamber');
+    expect(flow.scene).toBe('activity');
+    expect(flow.nightlyService.pendingEvent).toBeUndefined();
+    expect(flow.nightlyService.pendingNotice).toBeUndefined();
+    expect(flow.nightlyService.pendingMorningLines).toBeUndefined();
+    expect(flow.nightlyService.playerNightFavorGauge).toBe(80);
+    expect(flow.nightlyService.reports).toHaveLength(0);
+    expect(flow.state).toMatchObject({
+      favor: 12,
+      trueHeart: 3,
+      prestige: 0,
+    });
+    expect(flow.state.flags.pregnant).toBe(false);
+    expect(flow.settlementReports.filter((report) => !report.chronicleOnly)).toHaveLength(0);
+  });
+
+  it('starts the Yingluoyeting prestige map guide after the first-night scripted service', () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      state: {
+        ...state.state,
+        routeId: 'yingluoyeting',
+        name: '柳如是',
+        age: 20,
+        stamina: 1,
+        favor: 12,
+        trueHeart: 3,
+        prestige: 0,
+        flags: {
+          ...state.state.flags,
+          openingGuideFinished: true,
+          pregnant: false,
+          [YINGLUOYETING_STORY_FLAGS.firstNightServicePlayed]: true,
+          [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideStarted]: false,
+          [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished]: false,
+        },
+      },
+      hiddenStats: {
+        ...state.hiddenStats,
+        favor: 12,
+        trueHeart: 3,
+        prestige: 0,
+        initialRank: '官女子',
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 5,
+        slot: '夜晚',
+        slotProgress: 0,
+      },
+      nightlyService: {
+        playerNightFavorGauge: 80,
+        emperorMood: 40,
+        reports: [],
+        pendingEvent: {
+          id: 'nightly-yingluoyeting-1-1-1-first-night-service-pending',
+          scriptId: YINGLUOYETING_FIRST_NIGHT_SERVICE_SCRIPT_ID,
+          timeKey: '1-1-1',
+          year: 1,
+          month: 1,
+          xun: 1,
+          outcome: 'player-service',
+          playerName: '柳如是',
+          rankLabel: '官女子',
+          playerAge: 20,
+          initialInterest: 0,
+          currentInterest: 0,
+          interactionCount: 0,
+          maxInteractions: 0,
+          selectedActionIds: [],
+          stage: 'notice',
+        },
+        pendingNotice: undefined,
+        pendingMorningLines: undefined,
+      },
+    }));
+
+    useGameFlowStore.getState().finalizePendingNightlyService([]);
+
+    const flow = useGameFlowStore.getState();
+    expect(flow.state.flags[YINGLUOYETING_STORY_FLAGS.prestigeMapGuideStarted]).toBe(true);
+    expect(flow.state.flags[YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished]).toBeFalsy();
+    expect(flow.yingluoyetingPrestigeMapGuide).toMatchObject({
+      scriptId: YINGLUOYETING_PRESTIGE_MAP_GUIDE_SCRIPT_ID,
+      active: true,
+      stepIndex: 0,
+      prestigeAwarded: false,
+    });
+    expect(flow.currentView).toBe('bedchamber');
+    expect(flow.time).toMatchObject({ year: 1, month: 1, xun: 2, slot: '清晨' });
+    expect(flow.state.prestige).toBe(0);
+  });
+
+  it('awards first-night prestige guide prestige only once and completes into Jianzhang Palace', () => {
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'map-main',
+      scene: 'map',
+      activeMapLocation: undefined,
+      state: {
+        ...state.state,
+        routeId: 'yingluoyeting',
+        prestige: 0,
+        flags: {
+          ...state.state.flags,
+          [YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]: true,
+          [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideStarted]: true,
+          [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished]: false,
+        },
+      },
+      hiddenStats: {
+        ...state.hiddenStats,
+        prestige: 0,
+      },
+      yingluoyetingPrestigeMapGuide: {
+        scriptId: YINGLUOYETING_PRESTIGE_MAP_GUIDE_SCRIPT_ID,
+        active: true,
+        stepIndex: 0,
+        prestigeAwarded: false,
+      },
+    }));
+
+    useGameFlowStore.getState().awardYingluoyetingPrestigeMapGuidePrestige(10);
+    useGameFlowStore.getState().awardYingluoyetingPrestigeMapGuidePrestige(10);
+    useGameFlowStore.getState().completeYingluoyetingPrestigeMapGuide();
+
+    const flow = useGameFlowStore.getState();
+    expect(flow.state.prestige).toBe(10);
+    expect(flow.hiddenStats.prestige).toBe(10);
+    expect(flow.yingluoyetingPrestigeMapGuide).toBeUndefined();
+    expect(flow.currentView).toBe('bedchamber');
+    expect(flow.activeMapLocation).toBe('建章宫');
+    expect(flow.state.flags[YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished]).toBe(true);
+    expect(flow.state.flags[YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]).toBe(false);
   });
 
   it('limits player-consort interactions per consort each xun', () => {

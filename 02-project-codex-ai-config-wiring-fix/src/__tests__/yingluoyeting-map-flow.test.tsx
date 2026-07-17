@@ -11,6 +11,10 @@ import { buildInitialConcubineRoster } from '../game/data/concubineRoster';
 import { cloneInitialInventory } from '../game/data/inventoryPresets';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
 import {
+  YINGLUOYETING_PRESTIGE_MAP_GUIDE_SCRIPT_ID,
+  buildYingluoyetingPrestigeMapGuideSteps,
+} from '../game/lib/yingluoyetingPrestigeMapGuideRuntime';
+import {
   YINGLUOYETING_EVIDENCE_ITEM_IDS,
   YINGLUOYETING_STORY_FLAGS,
 } from '../game/lib/yingluoyetingStoryRuntime';
@@ -76,6 +80,7 @@ const resetToYingluoyetingMap = () => {
     palaceStrifeCases: [],
     latestSettlementReportId: undefined,
     lastSeenSettlementReportId: undefined,
+    yingluoyetingPrestigeMapGuide: undefined,
   }));
 };
 
@@ -94,6 +99,160 @@ describe('影落掖庭地图主线体验', () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+  it('shows only the outside sidebar target during the prestige map guide chamber handoff', async () => {
+    const guideSteps = buildYingluoyetingPrestigeMapGuideSteps({
+      playerName: '沉璧',
+      rankLabel: '官女子',
+      age: 17,
+    });
+    const forceMapExitStepIndex = guideSteps.findIndex((step) => step.phase === 'force-map-exit');
+
+    useGameFlowStore.setState((current) => ({
+      ...current,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      state: {
+        ...current.state,
+        flags: {
+          ...current.state.flags,
+          openingGuideFinished: true,
+          mapGuideFinished: true,
+          yingluoyetingFirstMorningGuideFinished: true,
+          [YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]: true,
+          [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideStarted]: true,
+          [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished]: false,
+        },
+      },
+      yingluoyetingPrestigeMapGuide: {
+        scriptId: YINGLUOYETING_PRESTIGE_MAP_GUIDE_SCRIPT_ID,
+        active: true,
+        stepIndex: forceMapExitStepIndex,
+        prestigeAwarded: true,
+      },
+    }));
+
+    const { container } = render(<App />);
+
+    const outsideButton = screen.getByRole('button', { name: '外出' });
+    expect(outsideButton).toHaveClass('is-guide-target');
+    expect(container.querySelector('.chamber-main__prestige-guide-mask')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '殿内小憩' })).not.toBeInTheDocument();
+
+    fireEvent.click(outsideButton);
+
+    expect(useGameFlowStore.getState().currentView).toBe('map-main');
+    expect(useGameFlowStore.getState().yingluoyetingPrestigeMapGuide?.stepIndex).toBe(forceMapExitStepIndex + 1);
+    expect(await screen.findByLabelText('声望与大地图引导')).toBeInTheDocument();
+    expect(screen.queryByLabelText('后宫主线剧情')).not.toBeInTheDocument();
+    expect(screen.queryByText(/陈婉宁/)).not.toBeInTheDocument();
+  });
+
+  it('keeps Jianzhang Palace above the mask and the map sidebar below it during the prestige map guide', () => {
+    const guideSteps = buildYingluoyetingPrestigeMapGuideSteps({
+      playerName: '沉璧',
+      rankLabel: '官女子',
+      age: 17,
+    });
+    const forceJianzhanggongStepIndex = guideSteps.findIndex((step) => step.phase === 'force-jianzhanggong');
+
+    useGameFlowStore.setState((current) => ({
+      ...current,
+      currentView: 'map-main',
+      scene: 'map',
+      activeChamberPanel: 'main',
+      activeMapUtilityPanel: null,
+      activeMapLocation: undefined,
+      state: {
+        ...current.state,
+        flags: {
+          ...current.state.flags,
+          mapGuideFinished: true,
+          [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideStarted]: true,
+          [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished]: false,
+        },
+      },
+      yingluoyetingPrestigeMapGuide: {
+        scriptId: YINGLUOYETING_PRESTIGE_MAP_GUIDE_SCRIPT_ID,
+        active: true,
+        stepIndex: forceJianzhanggongStepIndex,
+        prestigeAwarded: true,
+      },
+    }));
+
+    const { container } = render(<App />);
+
+    expect(container.querySelector('.map-main__prestige-guide-mask')).toBeInTheDocument();
+    expect(container.querySelector('.palace-sidebar--map')).toHaveClass('is-prestige-guide-obscured');
+    expect(container.querySelector('.map-main__hotspot-layer')).toHaveClass('is-prestige-guide-active');
+    expect(screen.getByRole('button', { name: '建章宫' })).toHaveClass('is-guide-target');
+  });
+
+  it('does not auto-play the deprecated Chen Wanning meet after the prestige map guide has started', async () => {
+    useGameFlowStore.setState((current) => ({
+      ...current,
+      currentView: 'map-main',
+      scene: 'map',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      state: {
+        ...current.state,
+        flags: {
+          ...current.state.flags,
+          mapGuideFinished: true,
+          [YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending]: true,
+          [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideStarted]: true,
+          [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished]: true,
+        },
+      },
+      yingluoyetingPrestigeMapGuide: undefined,
+    }));
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('后宫主线剧情')).not.toBeInTheDocument();
+    });
+    expect(screen.queryByText(/陈婉宁/)).not.toBeInTheDocument();
+    expect(useGameFlowStore.getState().currentView).toBe('map-main');
+  });
+
+  it('keeps the chamber sidebar visible after returning home once the prestige map guide is finished', async () => {
+    useGameFlowStore.setState((current) => ({
+      ...current,
+      currentView: 'map-main',
+      scene: 'map',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      state: {
+        ...current.state,
+        flags: {
+          ...current.state.flags,
+          openingGuideFinished: true,
+          mapGuideFinished: true,
+          yingluoyetingFirstMorningGuideFinished: true,
+          [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideStarted]: true,
+          [YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished]: true,
+        },
+      },
+      yingluoyetingPrestigeMapGuide: undefined,
+    }));
+
+    const { container } = render(<App />);
+
+    const returnButton = container.querySelector<HTMLButtonElement>('.palace-sidebar--map [data-menu-id="return"]');
+    expect(returnButton).not.toBeNull();
+    fireEvent.click(returnButton as HTMLButtonElement);
+
+    expect(useGameFlowStore.getState().currentView).toBe('bedchamber');
+    await waitFor(() => {
+      expect(container.querySelector('.chamber-main')).toBeInTheDocument();
+    });
+    expect(container.querySelector('[data-view-transition-key="bedchamber"]')).toBeInTheDocument();
+    expect(container.querySelector('.palace-sidebar--chamber')).toBeInTheDocument();
+    expect(container.querySelector('.palace-sidebar--chamber [data-menu-id="map-main"]')).toBeInTheDocument();
   });
 
   it('renders the time-matched spring map and keeps Yeting as a normal location', () => {
@@ -115,7 +274,20 @@ describe('影落掖庭地图主线体验', () => {
     expect(screen.queryByRole('button', { name: '掖庭院' })).not.toBeInTheDocument();
   });
 
-  it('enters cold palace story from the map and grants old testimony evidence through existing state and inventory', async () => {
+  it('shows the locked toast for unopened map locations without entering the subscene', async () => {
+    const { container } = render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '冷宫' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('暂未解锁');
+    const mapBackground = container.querySelector('.map-main__background') as HTMLElement;
+    expect(mapBackground).not.toHaveClass('is-location-scene');
+    expect(useGameFlowStore.getState().currentView).toBe('map-main');
+    expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined();
+    expect(screen.queryByLabelText('冷宫主线剧情')).not.toBeInTheDocument();
+  });
+
+  it.skip('enters cold palace story from the map and grants old testimony evidence through existing state and inventory', async () => {
     const { container } = render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: '冷宫' }));
@@ -144,7 +316,7 @@ describe('影落掖庭地图主线体验', () => {
     expect(store.inventory.some((item) => item.itemId === YINGLUOYETING_EVIDENCE_ITEM_IDS.oldTestimony)).toBe(true);
   });
 
-  it('enters Tai Hospital old prescription story after cold palace evidence and grants original prescription', async () => {
+  it.skip('enters Tai Hospital old prescription story after cold palace evidence and grants original prescription', async () => {
     useGameFlowStore.setState((current) => ({
       ...current,
       time: {
@@ -176,7 +348,7 @@ describe('影落掖庭地图主线体验', () => {
     expect(store.inventory.some((item) => item.itemId === YINGLUOYETING_EVIDENCE_ITEM_IDS.originalPrescription)).toBe(true);
   });
 
-  it('enters kitchen storage story after prescription mismatch and grants storage transfer list', async () => {
+  it.skip('enters kitchen storage story after prescription mismatch and grants storage transfer list', async () => {
     useGameFlowStore.setState((current) => ({
       ...current,
       time: {
@@ -234,7 +406,7 @@ describe('影落掖庭地图主线体验', () => {
     expect(screen.queryByRole('button', { name: '长春宫' })).not.toBeInTheDocument();
   });
 
-  it('keeps Chen Wanning first meet on the harem entrance without exposing Changchun Palace', async () => {
+  it.skip('keeps Chen Wanning first meet on the harem entrance without exposing Changchun Palace', async () => {
     useGameFlowStore.setState((current) => ({
       ...current,
       time: {
@@ -268,7 +440,7 @@ describe('影落掖庭地图主线体验', () => {
     expect(screen.getByAltText('陈婉宁')).toHaveAttribute('src', '/assets/characters/women/chenwanning.png');
   });
 
-  it('enters harem palace overview after Chen Wanning first meet is completed from the harem map entrance', async () => {
+  it.skip('enters harem palace overview after Chen Wanning first meet is completed from the harem map entrance', async () => {
     const { container } = render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: '后宫' }));

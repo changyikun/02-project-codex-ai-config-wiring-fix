@@ -5,7 +5,7 @@ import type { PalaceTimeState } from '../../game/types';
 export interface TimedLocationActionOutcome {
   previousTime: PalaceTimeState;
   shouldSleep: boolean;
-  reason: 'deep-night' | 'stamina';
+  reason: 'deep-night';
 }
 
 interface TimedLocationActionOptions {
@@ -29,7 +29,7 @@ export const useLocationActionFlow = () => {
         patchState({ stamina: nextStamina });
       }
 
-      const shouldSleep = time.slot === '深夜' || nextStamina <= 0;
+      const shouldSleep = time.slot === '深夜';
       if (!shouldSleep) {
         advanceTime(1);
       }
@@ -37,7 +37,7 @@ export const useLocationActionFlow = () => {
       return {
         previousTime: time,
         shouldSleep,
-        reason: nextStamina <= 0 ? 'stamina' : 'deep-night',
+        reason: 'deep-night',
       };
     },
     [advanceTime, patchState, state.stamina, time],

@@ -55,6 +55,8 @@ import {
 } from '../game/lib/actionNarrativeRuntime';
 import { craftWorkQualityLabels } from '../game/lib/craftWorkRuntime';
 import { isJiaojiaoSpokenText } from '../game/lib/dialoguePresentation';
+import { buildYingluoyetingPrestigeMapGuideSteps } from '../game/lib/yingluoyetingPrestigeMapGuideRuntime';
+import { YINGLUOYETING_STORY_FLAGS } from '../game/lib/yingluoyetingStoryRuntime';
 import { getPendingNpcPlayerVisit } from '../game/lib/npcActivityRuntime';
 import { isEmperorPublicEncounterAvailable } from '../game/lib/emperorActivityRuntime';
 import { isDowagerAudienceOpenSlot } from '../game/lib/dowagerAudienceRuntime';
@@ -106,7 +108,9 @@ const ASSISTANT_PORTRAIT_SRC = JIAOJIAO_PROFILE.portraitSrc ?? '';
 const EUNUCH_PORTRAIT_SRC = PALACE_EUNUCH_PROFILE.portraitSrc ?? '';
 const EMPEROR_PORTRAIT_SRC = EMPEROR_PROFILE.portraitSrc ?? '';
 const YUQIAN_SHIWEI_PORTRAIT_SRC = '/assets/characters/men/yuqianshiwei.png';
-const JIAOJIAO_COMMAND_PROMPT = '娘娘，有何吩咐？';
+const JIAOJIAO_COMMAND_PROMPT = '主子，有何吩咐？';
+const JIAOJIAO_UNLOCKED_COMMANDS = new Set(['查看属性', '道具管理', '调整用度', 'dismiss']);
+const JIAOJIAO_LOCKED_TOAST_TEXT = '暂未解锁';
 const EXPENSE_EXPLANATION_OPTION_ID = 'expense-explanation';
 const CHAMBER_BACKGROUND_CROSSFADE_MS = 680;
 const chamberCraftWorkTypes: Partial<Record<string, CraftWorkType>> = {
@@ -138,9 +142,19 @@ const buildChamberBackgroundStyle = (backgroundImage?: string): CSSProperties | 
       }
     : undefined;
 
+const buildOpeningBedchamberBridgeStyle = (backgroundImage?: string): CSSProperties | undefined =>
+  backgroundImage
+    ? {
+        backgroundImage: `url("${backgroundImage}")`,
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: 'cover',
+      }
+    : undefined;
+
 const buildOvernightReminderEntry = (
   origin: 'map' | 'chamber',
-  reason: 'deep-night' | 'stamina',
+  reason: 'deep-night',
   residenceName: string,
 ): NarrativeEntry =>
   renderNarrativeEntry(`overnight.reminder.${origin}.${reason}`, {
@@ -179,7 +193,11 @@ const buildNpcPlayerVisitResult = (visitorName: string, choiceId: NpcPlayerVisit
   return `你借身体乏累婉言送客。${visitorName}没有当场失态，只把未尽的话收了回去，离殿时脚步比来时轻了些。`;
 };
 
-export function ChamberMainView() {
+interface ChamberMainViewProps {
+  openingBedchamberBridge?: boolean;
+}
+
+export function ChamberMainView({ openingBedchamberBridge = false }: ChamberMainViewProps) {
   const {
     state,
     hiddenStats,
@@ -209,6 +227,9 @@ export function ChamberMainView() {
     nightlyService,
     finalizePendingNightlyService,
     acknowledgeNightlyServiceNotice,
+    yingluoyetingPrestigeMapGuide,
+    advanceYingluoyetingPrestigeMapGuide,
+    awardYingluoyetingPrestigeMapGuidePrestige,
     settlementReports,
     latestSettlementReportId,
     lastSeenSettlementReportId,
@@ -230,8 +251,9 @@ export function ChamberMainView() {
   const { beginTimedLocationAction, finishTimedLocationAction } = useLocationActionFlow();
   const [dialogueText, setDialogueText] = useState('');
   const [dialoguePresentation, setDialoguePresentation] = useState<ChamberDialoguePresentation | null>(null);
+  const [showOpeningBedchamberBridge, setShowOpeningBedchamberBridge] = useState(openingBedchamberBridge);
   const [overnightTransitionPhase, setOvernightTransitionPhase] = useState<OvernightTransitionPhase>('hidden');
-  const [overnightTransitionReason, setOvernightTransitionReason] = useState<'deep-night' | 'stamina' | undefined>(undefined);
+  const [overnightTransitionReason, setOvernightTransitionReason] = useState<'deep-night' | undefined>(undefined);
   const [endXunAfterNightNotice, setEndXunAfterNightNotice] = useState(false);
   const [expenseStrategyPanelOpen, setExpenseStrategyPanelOpen] = useState(false);
   const [utilityReturnPanel, setUtilityReturnPanel] = useState<ChamberPanelId | null>(null);
@@ -246,10 +268,14 @@ export function ChamberMainView() {
   const [jianzhangNoticeText, setJianzhangNoticeText] = useState('');
   const [jianzhangAudienceMode, setJianzhangAudienceMode] = useState<'dowager' | null>(null);
   const [activeCraftWorkActionId, setActiveCraftWorkActionId] = useState<string | null>(null);
+  const [lockedJiaojiaoCommandId, setLockedJiaojiaoCommandId] = useState<string | null>(null);
+  const [jiaojiaoUnlockToast, setJiaojiaoUnlockToast] = useState('');
   const [pendingChamberDialogueAction, setPendingChamberDialogueAction] =
     useState<PendingChamberDialogueAction>(null);
   const overnightTransitionRunKeyRef = useRef<string | null>(null);
   const suppressNextYangxinEntryNarrativeRef = useRef(false);
+  const lockedJiaojiaoCommandTimerRef = useRef<number | null>(null);
+  const jiaojiaoUnlockToastTimerRef = useRef<number | null>(null);
   const isResidenceLocation = activeMapLocation === state.residenceName;
   const isOutsideScene = Boolean(activeMapLocation && !isResidenceLocation);
   const isJianzhangAudience = activeChamberPanel === 'main' && activeMapLocation === '建章宫' && jianzhangAudienceMode === 'dowager';
@@ -300,6 +326,10 @@ export function ChamberMainView() {
   const [pendingSceneBackground, setPendingSceneBackground] = useState<string | undefined>();
   const chamberBackgroundStyle = useMemo<CSSProperties | undefined>(
     () => buildChamberBackgroundStyle(displayedSceneBackground),
+    [displayedSceneBackground],
+  );
+  const openingBedchamberBridgeStyle = useMemo<CSSProperties | undefined>(
+    () => buildOpeningBedchamberBridgeStyle(displayedSceneBackground),
     [displayedSceneBackground],
   );
   const fadingChamberBackgroundStyle = useMemo<CSSProperties | undefined>(
@@ -705,8 +735,36 @@ export function ChamberMainView() {
     pendingSceneBackground,
   ]);
 
+  useEffect(() => {
+    if (!showOpeningBedchamberBridge) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setShowOpeningBedchamberBridge(false);
+    }, 720);
+
+    return () => window.clearTimeout(timer);
+  }, [showOpeningBedchamberBridge]);
+
   const handleSidebar = (buttonId: string) => {
+    if (isPrestigeMapGuideForceMapExit) {
+      if (buttonId === 'map-main') {
+        advanceYingluoyetingPrestigeMapGuide();
+        setPendingChamberDialogueAction(null);
+        setDialogueText('');
+        setMapEventText('');
+        closeChamberPanel();
+        enterMapMain();
+      }
+      return;
+    }
+
     if (isChamberUiInteractionLocked) {
+      return;
+    }
+
+    if (isPrestigeMapGuideChamberStep && activePrestigeMapGuideStep?.text) {
       return;
     }
 
@@ -740,7 +798,7 @@ export function ChamberMainView() {
     }
   };
 
-  const beginOvernightTransition = (reason?: 'deep-night' | 'stamina') => {
+  const beginOvernightTransition = (reason?: 'deep-night') => {
     enterMainChamber();
     setPendingChamberDialogueAction(null);
     setDialogueText('');
@@ -755,6 +813,11 @@ export function ChamberMainView() {
       isNightlyOverlayActive ||
       dialogueText
     ) {
+      return;
+    }
+
+    if (pendingOvernightReturn.reason !== 'deep-night') {
+      clearOvernightReturn();
       return;
     }
 
@@ -850,7 +913,7 @@ export function ChamberMainView() {
     }
     const hasTimeCost = Boolean(action.timeCost && action.timeCost > 0);
     const nextStamina = Math.max(0, state.stamina - (action.staminaCost ?? 0));
-    const shouldSleepAfterAction = hasTimeCost && (time.slot === '深夜' || nextStamina <= 0);
+    const shouldSleepAfterAction = hasTimeCost && time.slot === '深夜';
     if (time.slot !== '深夜') {
       advanceTime(action.timeCost ?? 1);
     }
@@ -875,6 +938,10 @@ export function ChamberMainView() {
 
   const handleTrainingAction = (actionId: string) => {
     if (isChamberUiInteractionLocked) {
+      return;
+    }
+
+    if (isPrestigeMapGuideChamberStep) {
       return;
     }
 
@@ -997,6 +1064,10 @@ export function ChamberMainView() {
       return;
     }
 
+    if (isPrestigeMapGuideChamberStep) {
+      return;
+    }
+
     const openUtilityPanel = (panel: ChamberPanelId) => {
       setUtilityReturnPanel(activeChamberPanel === 'jiaojiao' ? 'jiaojiao' : null);
       openChamberPanel(panel);
@@ -1051,20 +1122,55 @@ export function ChamberMainView() {
       return;
     }
 
+    if (isPrestigeMapGuideChamberStep) {
+      return;
+    }
+
+    setLockedJiaojiaoCommandId(null);
+    setJiaojiaoUnlockToast('');
     openChamberPanel('jiaojiao');
     setPendingChamberDialogueAction(null);
     setDialogueText('');
   };
 
+  const showLockedJiaojiaoCommandFeedback = (commandId: string) => {
+    if (lockedJiaojiaoCommandTimerRef.current) {
+      window.clearTimeout(lockedJiaojiaoCommandTimerRef.current);
+    }
+    if (jiaojiaoUnlockToastTimerRef.current) {
+      window.clearTimeout(jiaojiaoUnlockToastTimerRef.current);
+    }
+
+    setLockedJiaojiaoCommandId(commandId);
+    setJiaojiaoUnlockToast(JIAOJIAO_LOCKED_TOAST_TEXT);
+    lockedJiaojiaoCommandTimerRef.current = window.setTimeout(() => {
+      setLockedJiaojiaoCommandId(null);
+      lockedJiaojiaoCommandTimerRef.current = null;
+    }, 520);
+    jiaojiaoUnlockToastTimerRef.current = window.setTimeout(() => {
+      setJiaojiaoUnlockToast('');
+      jiaojiaoUnlockToastTimerRef.current = null;
+    }, 1800);
+  };
+
   const handleJiaojiaoCommand = (commandId: string) => {
+    if (!JIAOJIAO_UNLOCKED_COMMANDS.has(commandId)) {
+      showLockedJiaojiaoCommandFeedback(commandId);
+      return;
+    }
+
     if (commandId === 'dismiss') {
       setUtilityReturnPanel(null);
+      setLockedJiaojiaoCommandId(null);
+      setJiaojiaoUnlockToast('');
       closeChamberPanel();
       setPendingChamberDialogueAction(null);
       setDialogueText('');
       return;
     }
 
+    setLockedJiaojiaoCommandId(null);
+    setJiaojiaoUnlockToast('');
     handleBottomTool(commandId);
   };
 
@@ -1098,9 +1204,8 @@ export function ChamberMainView() {
     }
 
     if (pendingChamberDialogueAction === 'overnight-reminder') {
-      const reason = state.stamina <= 0 ? 'stamina' : 'deep-night';
       setPendingChamberDialogueAction('overnight-transition');
-      setDialogueFromEntry(buildOvernightReminderEntry('chamber', reason, state.residenceName));
+      setDialogueFromEntry(buildOvernightReminderEntry('chamber', 'deep-night', state.residenceName));
       return;
     }
 
@@ -1197,6 +1302,18 @@ export function ChamberMainView() {
     setNpcPlayerVisitResultText('');
   }, [pendingNpcPlayerVisit?.id]);
 
+  useEffect(
+    () => () => {
+      if (lockedJiaojiaoCommandTimerRef.current) {
+        window.clearTimeout(lockedJiaojiaoCommandTimerRef.current);
+      }
+      if (jiaojiaoUnlockToastTimerRef.current) {
+        window.clearTimeout(jiaojiaoUnlockToastTimerRef.current);
+      }
+    },
+    [],
+  );
+
   const locationSpecialActions: SubsceneActionEntry[] = [];
   if (shouldShowZhengyangWait) {
     locationSpecialActions.push({
@@ -1236,6 +1353,45 @@ export function ChamberMainView() {
           },
         ]
       : [];
+  const isFirstMorningCompactChamber = Boolean(
+    state.flags.yingluoyetingFirstMorningGuideFinished && !state.flags[YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished],
+  );
+  const prestigeMapGuideSteps = useMemo(
+    () =>
+      buildYingluoyetingPrestigeMapGuideSteps({
+        playerName: state.name,
+        rankLabel: hiddenStats.initialRank ?? '官女子',
+        age: state.age,
+      }),
+    [hiddenStats.initialRank, state.age, state.name],
+  );
+  const prestigeMapGuideRuntimeActive = Boolean(
+    state.routeId === 'yingluoyeting' &&
+      !state.flags[YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished] &&
+      yingluoyetingPrestigeMapGuide?.active,
+  );
+  const activePrestigeMapGuideStep =
+    prestigeMapGuideRuntimeActive && yingluoyetingPrestigeMapGuide && yingluoyetingPrestigeMapGuide.stepIndex < prestigeMapGuideSteps.length
+      ? prestigeMapGuideSteps[yingluoyetingPrestigeMapGuide.stepIndex]
+      : undefined;
+  const isPrestigeMapGuideChamberStep =
+    activePrestigeMapGuideStep?.phase === 'chamber-prestige' || activePrestigeMapGuideStep?.phase === 'force-map-exit';
+  const isPrestigeMapGuideForceMapExit = activePrestigeMapGuideStep?.phase === 'force-map-exit';
+  const shouldShowChamberSidebar = !shouldHideChamberUiForNightlyOverlay && (!isFirstMorningCompactChamber || isPrestigeMapGuideForceMapExit);
+  const shouldShowChamberMainActions =
+    !shouldHideChamberUiForNightlyOverlay && showResidenceUi && activeChamberPanel === 'main' && !isPrestigeMapGuideForceMapExit;
+
+  useEffect(() => {
+    const prestigeDelta = activePrestigeMapGuideStep?.effect?.prestigeDelta ?? 0;
+    if (!isPrestigeMapGuideChamberStep || !prestigeDelta) {
+      return;
+    }
+    awardYingluoyetingPrestigeMapGuidePrestige(prestigeDelta);
+  }, [
+    activePrestigeMapGuideStep?.effect?.prestigeDelta,
+    awardYingluoyetingPrestigeMapGuidePrestige,
+    isPrestigeMapGuideChamberStep,
+  ]);
 
   return (
     <main className={`chamber-main palace-stage-shell ${isHaremPanelActive ? 'is-harem-open' : ''} ${isJiaojiaoPanel ? 'is-jiaojiao-open' : ''}`}>
@@ -1243,6 +1399,13 @@ export function ChamberMainView() {
         <div className="chamber-main__background chamber-main__background--current" style={chamberBackgroundStyle} />
         {fadingSceneBackground ? (
           <div className="chamber-main__background chamber-main__background--previous" style={fadingChamberBackgroundStyle} />
+        ) : null}
+        {showOpeningBedchamberBridge ? (
+          <div
+            data-testid="opening-bedchamber-visual-bridge"
+            className="chamber-main__opening-bridge"
+            style={openingBedchamberBridgeStyle}
+          />
         ) : null}
         <PalaceStatusBar />
 
@@ -1305,15 +1468,46 @@ export function ChamberMainView() {
           </section>
         ) : null}
 
-        {!shouldHideChamberUiForNightlyOverlay ? (
-        <nav className="palace-sidebar palace-sidebar--chamber" aria-label="寝殿左侧功能栏">
+        {isPrestigeMapGuideChamberStep && activePrestigeMapGuideStep?.text ? (
+          <GlobalDialogueStage
+            sceneLabel={activePrestigeMapGuideStep.speakerName}
+            portraitLabel={activePrestigeMapGuideStep.portraitKey === 'jiaojiao' ? '娇娇立绘' : '旁白无立绘'}
+            portrait={
+              activePrestigeMapGuideStep.portraitKey === 'jiaojiao' ? (
+                <img src={ASSISTANT_PORTRAIT_SRC} alt="娇娇" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant" />
+              ) : undefined
+            }
+            ariaLabel="声望与大地图引导"
+            className={`global-dialogue-stage--chamber ${
+              activePrestigeMapGuideStep.portraitKey === 'jiaojiao' ? 'global-dialogue-stage--assistant' : 'global-dialogue-stage--narration'
+            }`}
+            dialogueClassName="palace-dialogue-box--chamber"
+            characterIdentity={activePrestigeMapGuideStep.speakerIdentity}
+            characterName={activePrestigeMapGuideStep.speakerName}
+            content={activePrestigeMapGuideStep.text}
+            onNextAction={advanceYingluoyetingPrestigeMapGuide}
+            numericFeedbackBucket="chamber-action"
+          />
+        ) : null}
+
+        {isPrestigeMapGuideForceMapExit ? <div className="chamber-main__prestige-guide-mask" aria-hidden="true" /> : null}
+
+        {shouldShowChamberSidebar ? (
+        <nav
+          className={`palace-sidebar palace-sidebar--chamber ${
+            isPrestigeMapGuideForceMapExit ? 'is-prestige-guide-active is-prestige-guide-entering' : ''
+          }`}
+          aria-label="寝殿左侧功能栏"
+        >
           {CHAMBER_SIDEBAR_BUTTONS.map((button) => {
             const label = isOutsideScene && button.id === 'map-main' ? '回宫' : button.label;
             return (
               <button
                 key={button.id}
                 type="button"
-                className={`palace-sidebar__diamond ${activeChamberPanel === button.id ? 'is-active' : ''}`}
+                className={`palace-sidebar__diamond ${activeChamberPanel === button.id ? 'is-active' : ''} ${
+                  isPrestigeMapGuideForceMapExit && button.id === 'map-main' ? 'is-guide-target' : ''
+                }`}
                 data-menu-id={button.id}
                 style={{ top: button.top }}
                 onClick={() => handleSidebar(button.id)}
@@ -1332,14 +1526,16 @@ export function ChamberMainView() {
           </section>
         ) : null}
 
-        {!shouldHideChamberUiForNightlyOverlay && showResidenceUi && activeChamberPanel === 'main' ? (
+        {shouldShowChamberMainActions ? (
           <>
             <section className="chamber-main__portrait-stage" aria-label="玩家立绘">
               {selectedRoute ? <img src={selectedRoute.portrait} alt={selectedRoute.label} className="chamber-main__portrait" /> : null}
             </section>
 
             <section className="chamber-main__scene-actions" aria-label="寝殿行动">
-              {CHAMBER_HOME_ACTION_LAYOUTS.map((layout) => (
+              {CHAMBER_HOME_ACTION_LAYOUTS.filter((layout) =>
+                !isFirstMorningCompactChamber || (layout.orientation === 'vertical' && layout.id !== 'pulse'),
+              ).map((layout) => (
                 <button
                   key={layout.id}
                   type="button"
@@ -1364,7 +1560,12 @@ export function ChamberMainView() {
                   </span>
                 </button>
               ))}
-              <button type="button" className="chamber-main__jiaojiao-entry" aria-label="吩咐娇娇" onClick={handleOpenJiaojiaoPanel}>
+              <button
+                type="button"
+                className="chamber-main__jiaojiao-entry"
+                aria-label="吩咐娇娇"
+                onClick={handleOpenJiaojiaoPanel}
+              >
                 <img src={ASSISTANT_PORTRAIT_SRC} alt="" aria-hidden="true" />
                 <span>吩咐娇娇</span>
               </button>
@@ -1387,28 +1588,39 @@ export function ChamberMainView() {
           <section className="chamber-main__jiaojiao-panel" aria-label="吩咐娇娇选项">
             <img src={ASSISTANT_PORTRAIT_SRC} alt="" aria-hidden="true" className="chamber-main__jiaojiao-portrait" />
             <section className="chamber-main__jiaojiao-prompt" aria-label="娇娇吩咐提示">
-              <header>贴身宫女 · 娇娇</header>
               <p>{JIAOJIAO_COMMAND_PROMPT}</p>
             </section>
-            {JIAOJIAO_COMMAND_LAYOUTS.map((layout) => (
-              <button
-                key={layout.id}
-                type="button"
-                aria-label={layout.label}
-                className={`chamber-main__scene-button chamber-main__scene-button--${layout.orientation} ${
-                  layout.id === 'dismiss' ? 'chamber-main__scene-button--dismiss' : ''
-                }`}
-                style={{
-                  top: layout.top,
-                  left: layout.left,
-                  width: layout.width,
-                  height: layout.height,
-                }}
-                onClick={() => handleJiaojiaoCommand(layout.id)}
-              >
-                <span>{layout.label}</span>
-              </button>
-            ))}
+            {jiaojiaoUnlockToast ? (
+              <aside className="numeric-change-toast-layer" aria-live="polite">
+                <div className="numeric-change-toast" role="status" aria-label="娇娇功能提示">
+                  <span>{jiaojiaoUnlockToast}</span>
+                </div>
+              </aside>
+            ) : null}
+            {JIAOJIAO_COMMAND_LAYOUTS.map((layout) => {
+              const isUnlocked = JIAOJIAO_UNLOCKED_COMMANDS.has(layout.id);
+              const isLockedShaking = lockedJiaojiaoCommandId === layout.id;
+              return (
+                <button
+                  key={layout.id}
+                  type="button"
+                  aria-label={layout.label}
+                  aria-disabled={isUnlocked ? undefined : true}
+                  className={`chamber-main__scene-button chamber-main__scene-button--${layout.orientation} ${
+                    layout.id === 'dismiss' ? 'chamber-main__scene-button--dismiss' : ''
+                  } ${isUnlocked ? '' : 'chamber-main__scene-button--locked'} ${isLockedShaking ? 'is-shaking' : ''}`}
+                  style={{
+                    top: layout.top,
+                    left: layout.left,
+                    width: layout.width,
+                    height: layout.height,
+                  }}
+                  onClick={() => handleJiaojiaoCommand(layout.id)}
+                >
+                  <span>{layout.label}</span>
+                </button>
+              );
+            })}
           </section>
         ) : null}
 

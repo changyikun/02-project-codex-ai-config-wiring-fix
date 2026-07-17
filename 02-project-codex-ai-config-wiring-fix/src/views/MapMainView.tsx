@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { AffairsPanelView, BondPanelView, ChroniclePanelView } from '../components/chamber/ChamberUtilityViews';
 import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
 import { PromotionEdictStage } from '../components/dialogue/PromotionEdictStage';
@@ -14,6 +14,7 @@ import { getConcubinePortraitPath } from '../game/data/concubineRoster';
 import { buildMapTransitionNarrative } from '../game/lib/actionNarrativeRuntime';
 import { isJiaojiaoSpokenText } from '../game/lib/dialoguePresentation';
 import { canAccessHotSpringByPrestige } from '../game/lib/rankRuntime';
+import { buildYingluoyetingPrestigeMapGuideSteps } from '../game/lib/yingluoyetingPrestigeMapGuideRuntime';
 import {
   applyYingluoyetingStoryChoice,
   resolveYingluoyetingMapEvent,
@@ -28,8 +29,12 @@ import { narrativeEntryToPresentation } from '../game/narrative/narrativeDialogu
 const MAP_GUIDE_LINE_IDS = ['map.guide.line1', 'map.guide.line2'] as const;
 type MapUtilityPanelId = Extract<ChamberPanelId, 'consorts' | 'stats' | 'chronicle' | 'bond' | 'harem' | 'affairs'>;
 const ASSISTANT_PORTRAIT_SRC = '/assets/characters/women/jiaojiao.png';
+const DOWAGER_PORTRAIT_SRC = '/assets/characters/women/taihou.png';
 const CHEN_WANNING_PORTRAIT_SRC = getConcubinePortraitPath('陈婉宁');
 const OLD_PALACE_MAID_PORTRAIT_SRC = '/assets/characters/women/laogongren.png';
+const UNLOCKED_MAP_HOTSPOT_IDS = new Set<MapHotspotConfig['id']>(['妙音堂', '宫门', '建章宫', '御花园', '掖庭院', '养心殿']);
+const LOCKED_LOCATION_TOAST_TEXT = '暂未解锁';
+const LOCKED_LOCATION_TOAST_MS = 2400;
 
 const renderHotspotLabel = (label: string, vertical?: boolean) => {
   if (!vertical) {
@@ -149,6 +154,9 @@ export function MapMainView() {
     grantInventoryItem,
     patchConcubineById,
     acknowledgeSettlementReport,
+    yingluoyetingPrestigeMapGuide,
+    advanceYingluoyetingPrestigeMapGuide,
+    completeYingluoyetingPrestigeMapGuide,
   } = useGameFlowStore();
   const [guideStep, setGuideStep] = useState(0);
   const [selectedHotspotId, setSelectedHotspotId] = useState<MapHotspotConfig['id'] | null>(null);
@@ -160,7 +168,35 @@ export function MapMainView() {
   const [yingluoyetingResultText, setYingluoyetingResultText] = useState('');
   const [yingluoyetingResultHint, setYingluoyetingResultHint] = useState('');
   const [activeMapUtilityPanel, setActiveMapUtilityPanel] = useState<MapUtilityPanelId | null>(null);
-  const guideActive = !state.flags.mapGuideFinished;
+  const [lockedLocationToastId, setLockedLocationToastId] = useState('');
+  const lockedLocationToastTimerRef = useRef<number | null>(null);
+  const prestigeMapGuideSteps = useMemo(
+    () =>
+      buildYingluoyetingPrestigeMapGuideSteps({
+        playerName: state.name,
+        rankLabel: hiddenStats.initialRank ?? '官女子',
+        age: state.age,
+      }),
+    [hiddenStats.initialRank, state.age, state.name],
+  );
+  const prestigeMapGuideRuntimeActive = Boolean(
+    state.routeId === 'yingluoyeting' &&
+      !state.flags[YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished] &&
+      yingluoyetingPrestigeMapGuide?.active,
+  );
+  const activePrestigeMapGuideStep =
+    prestigeMapGuideRuntimeActive && yingluoyetingPrestigeMapGuide && yingluoyetingPrestigeMapGuide.stepIndex < prestigeMapGuideSteps.length
+      ? prestigeMapGuideSteps[yingluoyetingPrestigeMapGuide.stepIndex]
+      : undefined;
+  const guideActive = !state.flags.mapGuideFinished && !prestigeMapGuideRuntimeActive;
+  const isPrestigeMapGuideMapStep = Boolean(
+    activePrestigeMapGuideStep &&
+      (activePrestigeMapGuideStep.phase === 'map-jiaojiao' ||
+        activePrestigeMapGuideStep.phase === 'force-jianzhanggong' ||
+        activePrestigeMapGuideStep.phase === 'dowager-first-meet'),
+  );
+  const isPrestigeMapGuideForceJianzhanggong = activePrestigeMapGuideStep?.phase === 'force-jianzhanggong';
+  const isPrestigeMapGuideDowagerScene = activePrestigeMapGuideStep?.phase === 'dowager-first-meet';
   const openingHaremFirstMeetPending = Boolean(
     state.routeId === 'yingluoyeting' && state.flags[YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending],
   );
@@ -179,8 +215,8 @@ export function MapMainView() {
       ? HAREM_OUTSIDE_BACKGROUND
       : LOCATION_SCENE_BACKGROUNDS[activeYingluoyetingEvent.locationId]
     : undefined;
-  const mapBackgroundImage = activeYingluoyetingBackground ?? resolveMapBackgroundImage(time.slot);
-  const locationSceneActive = Boolean(activeYingluoyetingEvent);
+  const mapBackgroundImage = activePrestigeMapGuideStep?.background ?? activeYingluoyetingBackground ?? resolveMapBackgroundImage(time.slot);
+  const locationSceneActive = Boolean(activeYingluoyetingEvent || isPrestigeMapGuideDowagerScene);
   const activeYingluoyetingDialogueIsResult = Boolean(yingluoyetingResultText);
   const activeYingluoyetingDialogueUsesChenWanning = activeYingluoyetingEvent?.portraitKey === 'chenwanning';
   const activeYingluoyetingDialogueUsesOldPalaceMaid =
@@ -249,7 +285,10 @@ export function MapMainView() {
     isJiaojiaoMapDialogue ? 'global-dialogue-stage--assistant' : 'global-dialogue-stage--narration'
   }`;
   const isMapDialogueBlocking = Boolean(
-    (dialogueText && !selectedHotspot) || showSettlementReport || activeYingluoyetingEvent,
+    (dialogueText && !selectedHotspot) ||
+      showSettlementReport ||
+      activeYingluoyetingEvent ||
+      (isPrestigeMapGuideMapStep && activePrestigeMapGuideStep?.text),
   );
   const isMapInteractionBlocked = Boolean(isMapDialogueBlocking || activeMapUtilityPanel);
 
@@ -261,11 +300,34 @@ export function MapMainView() {
     setYingluoyetingResultHint('');
   };
 
+  const showLockedLocationToast = () => {
+    if (lockedLocationToastTimerRef.current !== null) {
+      window.clearTimeout(lockedLocationToastTimerRef.current);
+    }
+    setLockedLocationToastId(`locked-location-${Date.now()}`);
+    lockedLocationToastTimerRef.current = window.setTimeout(() => {
+      setLockedLocationToastId('');
+      lockedLocationToastTimerRef.current = null;
+    }, LOCKED_LOCATION_TOAST_MS);
+  };
+
+  useEffect(
+    () => () => {
+      if (lockedLocationToastTimerRef.current !== null) {
+        window.clearTimeout(lockedLocationToastTimerRef.current);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     if (
       state.routeId !== 'yingluoyeting' ||
       !state.flags.mapGuideFinished ||
       !state.flags[YINGLUOYETING_STORY_FLAGS.openingHaremFirstMeetPending] ||
+      state.flags[YINGLUOYETING_STORY_FLAGS.prestigeMapGuideStarted] ||
+      state.flags[YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished] ||
+      prestigeMapGuideRuntimeActive ||
       activeYingluoyetingEvent ||
       yingluoyetingResultText
     ) {
@@ -304,11 +366,18 @@ export function MapMainView() {
     enterMainChamber,
     inventory,
     patchState,
+    prestigeMapGuideRuntimeActive,
     setMapEventText,
     state,
     time,
     yingluoyetingResultText,
   ]);
+
+  useEffect(() => {
+    if (activePrestigeMapGuideStep?.completesStory && !activePrestigeMapGuideStep.text) {
+      completeYingluoyetingPrestigeMapGuide();
+    }
+  }, [activePrestigeMapGuideStep?.completesStory, activePrestigeMapGuideStep?.text, completeYingluoyetingPrestigeMapGuide]);
 
   const finishGuide = () => {
     const shouldEnterOpeningHaremFirstMeet = Boolean(
@@ -328,8 +397,30 @@ export function MapMainView() {
     enterMainChamber();
   };
 
+  const handlePrestigeMapGuideNext = () => {
+    if (!prestigeMapGuideRuntimeActive || !yingluoyetingPrestigeMapGuide) {
+      return;
+    }
+
+    const nextStep = prestigeMapGuideSteps[yingluoyetingPrestigeMapGuide.stepIndex + 1];
+    if (!nextStep) {
+      completeYingluoyetingPrestigeMapGuide();
+      return;
+    }
+    if (nextStep.completesStory && !nextStep.text) {
+      completeYingluoyetingPrestigeMapGuide();
+      return;
+    }
+
+    advanceYingluoyetingPrestigeMapGuide();
+  };
+
   const handleSidebar = (buttonId: string) => {
     if (isMapDialogueBlocking) {
+      return;
+    }
+
+    if (isPrestigeMapGuideMapStep) {
       return;
     }
 
@@ -418,13 +509,30 @@ export function MapMainView() {
       return;
     }
 
+    if (isPrestigeMapGuideMapStep) {
+      if (isPrestigeMapGuideForceJianzhanggong && hotspotId === '建章宫') {
+        setSelectedHotspotId(null);
+        setMapEventText('');
+        advanceYingluoyetingPrestigeMapGuide();
+      }
+      return;
+    }
+
     if (guideActive) {
-      setMapEventText('先把地图和入口认熟，待会儿回寝殿后，娘娘再随时外出。');
+      setMapEventText('先把地图和入口认熟，待会儿回寝殿后，主子再随时外出。');
       return;
     }
 
     const hotspot = mapHotspots.find((entry) => entry.id === hotspotId);
     if (!hotspot) {
+      return;
+    }
+
+    if (!UNLOCKED_MAP_HOTSPOT_IDS.has(hotspot.id)) {
+      resetYingluoyetingEvent();
+      setSelectedHotspotId(null);
+      setMapEventText('');
+      showLockedLocationToast();
       return;
     }
 
@@ -524,7 +632,18 @@ export function MapMainView() {
         />
         <PalaceStatusBar />
 
-        <nav className="palace-sidebar palace-sidebar--map" aria-label="大地图常驻入口">
+        {lockedLocationToastId ? (
+          <aside className="numeric-change-toast-layer" aria-live="polite">
+            <div key={lockedLocationToastId} className="numeric-change-toast" role="status">
+              <span>{LOCKED_LOCATION_TOAST_TEXT}</span>
+            </div>
+          </aside>
+        ) : null}
+
+        <nav
+          className={`palace-sidebar palace-sidebar--map ${isPrestigeMapGuideForceJianzhanggong ? 'is-prestige-guide-obscured' : ''}`}
+          aria-label="大地图常驻入口"
+        >
           {MAP_SIDEBAR_BUTTONS.map((button) => (
             <button
               key={button.id}
@@ -539,8 +658,13 @@ export function MapMainView() {
           ))}
         </nav>
 
+        {isPrestigeMapGuideForceJianzhanggong ? <div className="map-main__prestige-guide-mask" aria-hidden="true" /> : null}
+
         {!locationSceneActive && !activeMapUtilityPanel ? (
-          <section className="map-main__hotspot-layer" aria-label="宫廷地图">
+          <section
+            className={`map-main__hotspot-layer ${isPrestigeMapGuideForceJianzhanggong ? 'is-prestige-guide-active' : ''}`}
+            aria-label="宫廷地图"
+          >
             {mapHotspots.map((hotspot) => (
               <button
                 key={hotspot.id}
@@ -549,6 +673,8 @@ export function MapMainView() {
                   hotspot.emphasis === 'large' ? 'is-large' : ''
                 } ${selectedHotspotId === hotspot.id ? 'is-active' : ''} ${
                   hotspot.id === state.residenceName ? 'is-player-residence' : ''
+                } ${
+                  isPrestigeMapGuideForceJianzhanggong && hotspot.id === '建章宫' ? 'is-guide-target' : ''
                 }`}
                 aria-label={hotspot.label}
                 data-label-length={Array.from(hotspot.label).length}
@@ -668,7 +794,40 @@ export function MapMainView() {
           />
         ) : null}
 
-        {(dialogueText || guideActive) && !selectedHotspot && !showSettlementReport ? (
+        {isPrestigeMapGuideMapStep && activePrestigeMapGuideStep?.text && !showSettlementReport ? (
+          <GlobalDialogueStage
+            sceneLabel={activePrestigeMapGuideStep.speakerName}
+            portraitLabel={
+              activePrestigeMapGuideStep.portraitKey === 'jiaojiao'
+                ? '娇娇立绘'
+                : activePrestigeMapGuideStep.portraitKey === 'taihou'
+                  ? '太后立绘'
+                  : '旁白无立绘'
+            }
+            portrait={
+              activePrestigeMapGuideStep.portraitKey === 'jiaojiao' ? (
+                <img src={ASSISTANT_PORTRAIT_SRC} alt="娇娇" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant" />
+              ) : activePrestigeMapGuideStep.portraitKey === 'taihou' ? (
+                <img src={DOWAGER_PORTRAIT_SRC} alt="太后" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--consort" />
+              ) : undefined
+            }
+            ariaLabel="声望与大地图引导"
+            className={`global-dialogue-stage--map ${
+              activePrestigeMapGuideStep.portraitKey === 'jiaojiao' || activePrestigeMapGuideStep.portraitKey === 'taihou'
+                ? 'global-dialogue-stage--assistant'
+                : 'global-dialogue-stage--narration'
+            }`}
+            dialogueClassName="palace-dialogue-box--map"
+            characterIdentity={activePrestigeMapGuideStep.speakerIdentity}
+            characterName={activePrestigeMapGuideStep.speakerName}
+            content={activePrestigeMapGuideStep.text}
+            highlightText={activePrestigeMapGuideStep.highlightText}
+            onNextAction={handlePrestigeMapGuideNext}
+            numericFeedbackBucket="map-event"
+          />
+        ) : null}
+
+        {(dialogueText || guideActive) && !selectedHotspot && !showSettlementReport && !isPrestigeMapGuideMapStep ? (
           <GlobalDialogueStage
             sceneLabel="地图引导场景"
             portraitLabel={isJiaojiaoMapDialogue ? '娇娇立绘' : '旁白无立绘'}

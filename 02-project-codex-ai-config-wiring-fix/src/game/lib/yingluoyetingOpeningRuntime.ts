@@ -1,13 +1,15 @@
 import { numericInventoryItems } from '../numerics/numericCatalog';
 import type { InventoryItem } from '../types';
+import { resolvePlayerSurname } from './playerNameRuntime';
 
 const PAGE_BREAK = '\n<<PAGE_BREAK>>\n';
 
 export type YingluoyetingOpeningPerformanceTier = 'low' | 'middle' | 'high';
 export type YingluoyetingOpeningChoiceId = 'go-out' | 'wait-inside';
+export type YingluoyetingOpeningChamberIntroUi = 'training-buttons' | 'status' | 'jiaojiao';
 
 export interface YingluoyetingOpeningOption {
-  id: YingluoyetingOpeningChoiceId;
+  id: string;
   label: string;
 }
 
@@ -23,6 +25,11 @@ export interface YingluoyetingOpeningStep {
   autoAdvanceMs?: number;
   transition?: 'black';
   options?: readonly YingluoyetingOpeningOption[];
+  nextStepId?: string;
+  returnToStepId?: string;
+  hideDialogue?: boolean;
+  chamberIntroUi?: YingluoyetingOpeningChamberIntroUi;
+  completesOpening?: boolean;
 }
 
 export interface YingluoyetingOpeningReward {
@@ -47,6 +54,7 @@ const BACKGROUNDS = {
   chuyuLi: '/assets/routes/backgrounds/chuyu_li.png',
   shabbyRoom: '/assets/routes/backgrounds/loushi.png',
   chamberNight: '/assets/routes/home/home_yeting_night%20till%20latenight.png',
+  chamberDawn: '/assets/routes/home/home_yeting_dawn%20till%20dask.png',
 } as const;
 
 const narrationStep = (
@@ -191,9 +199,9 @@ export const YINGLUOYETING_OPENING_STORY_STEPS: readonly YingluoyetingOpeningSte
     text: [
       '他伸手取了绢帛。指节在灯下白得像冷玉，然后转过身来，面对着你。',
       '你跪了下去。额头触地，双手举过头顶，掌心朝上。',
-      '"沉氏女沉璧，念在其温婉知礼，才艺可嘉，今册为选侍，赐居储秀宫西偏殿，即日迁入。钦此。"',
+      '"沉氏女沉璧，念在其温婉知礼，才艺可嘉，今册为官女子，赐居储秀宫西偏殿，即日迁入。钦此。"',
       '他的声音不高不低，一个字一个字地从上方传来，尾音里似乎还带着若有似无的笑意。你跪在地上，额头抵着冰凉的地面，听见自己的心跳声盖过了掖庭的夜风。',
-      '那卷明黄色的绢帛被轻轻放入你掌心。指尖擦过你的指腹——凉的，像玉。然后他收回手，退后半步："恭喜沉选侍。往后便是在册的主子了。"',
+      '那卷明黄色的绢帛被轻轻放入你掌心。指尖擦过你的指腹——凉的，像玉。然后他收回手，退后半步："恭喜沉姑娘。往后便是在册的主子了。"',
       '你捧着那卷圣旨，指节微微泛白——悬了一整夜的心，仿佛终于落回了实处。你跪伏在地，双手举过头顶。',
       '“奴婢接旨。”',
       '你抬起头看他，他正垂着眼，那张狐狸似的面容上带着一丝淡淡的笑意，像浮在冰面上的薄霜，看得见，摸不着。他没有多停留，侧身向身后瞥了一眼：“这是拨给您使唤的宫女，叫娇娇。”然后袍角一旋，带着两个小太监转身离去。',
@@ -232,16 +240,189 @@ export const YINGLUOYETING_OPENING_STORY_STEPS: readonly YingluoyetingOpeningSte
       '夜深了。娇娇替你在新居里点好了灯，铺好了床褥，又跑前跑后地烧了一壶热水端来。',
       '你坐在窗边，望着窗外那一方被宫墙切割得四四方方的夜空。月是一弯极薄的钩子，悬在飞檐翘角之上，泠泠地散着清光。',
       '手中握着那卷明黄色的圣旨，绢帛的触感冰凉而光滑。',
-      '从今日起，你是选侍沉氏了。不再是无依无靠的掖庭罪奴。',
+      '从今日起，你是官女子了。不再是无依无靠的掖庭罪奴。',
       '可你心里明白得很——这深宫里的每一寸金砖下面，都埋着数不清的白骨。今夜你踏出了第一步，往后是福是祸，无人知晓。',
       '你低头看了看圣旨上那枚朱红的御印，忽然想起父亲曾经教你写字时说过的话——',
       '“璧者，玉也。玉在石中，其光内蕴。终有一日，会有人识得它的。”',
       '父亲。你轻轻闭上眼，将那卷圣旨贴在胸口。',
       '你会活下去，会查清一切。',
       '远处灯火通明，而你站在这头，终于有了往那头走的资格。',
-      '——第一章·完——',
     ].join(PAGE_BREAK),
     { narrationName: '储秀宫西偏殿' },
+  ),
+  narrationStep(
+    'time-passes-before-first-morning',
+    BACKGROUNDS.chamberDawn,
+    '',
+    { narrationName: '一夜过去', transition: 'black', autoAdvanceMs: 3600 },
+  ),
+  narrationStep(
+    'first-morning-wakeup',
+    BACKGROUNDS.chamberDawn,
+    [
+      '天光从窗纸的缝隙里透进来，薄薄的，带着一丝初春的清寒。',
+      '你醒来时，听见门被轻轻推开，接着是极轻的脚步声。然后帘子被人掀开一角，一颗圆圆的脑袋探了进来。',
+    ].join(PAGE_BREAK),
+    { narrationName: '储秀宫西偏殿' },
+  ),
+  {
+    id: 'first-morning-wakeup-jiaojiao',
+    background: BACKGROUNDS.chamberDawn,
+    speakerIdentity: '娇娇',
+    speakerName: '娇娇',
+    portraitKey: 'jiaojiao',
+    text: [
+      '“主子醒了？”',
+      '娇娇的声音压得低，尾音却藏不住那股子雀跃。她见你睁着眼，整个人便像一朵被日光晒开的花，簌簌地绽开了——一溜烟走进来，手里捧着一只铜盆，热气腾腾地往上冒。',
+      '“奴婢给您打了热水。”她将铜盆搁在架子上，又转身从柜中取出一方新帕子，叠得整整齐齐的，放在盆沿，“水是刚烧的，奴婢没兑凉水，烫是烫了些，但擦脸最舒服。”',
+      '她说这些话的时候始终背对着你，手上动作不停，从柜子里翻出昨夜的圣旨，又将它小心地移到桌案的正中央，仿佛那卷明黄色的绢帛是什么了不得的圣物。然后她回过身来，看见你已经坐起身，眼睛便弯成了月牙儿。',
+      '“主子昨夜睡得好不好？这屋里的被褥薄了些，奴婢今儿想法子给您再添一床——”',
+      '她说得眉飞色舞，忽然停住了。像是想起什么重要的事，那只正在铺被的手悬在了半空中。',
+      '“对了，主子。”她转过身来，双手交握在身前，神情忽然正经了几分——',
+      '“有一桩正事，奴婢得先问过您。”',
+      '“主子如今是新封的官女子，每月都有月俸银子和份例用度。这银子怎么花、花多少，是要自己拿主意的。”',
+      '“主子若是拿不准，奴婢也可以给主子一一细说。”',
+    ].join(PAGE_BREAK),
+  },
+  {
+    id: 'first-morning-expense-choice',
+    background: BACKGROUNDS.chamberDawn,
+    speakerIdentity: '娇娇',
+    speakerName: '娇娇',
+    portraitKey: 'jiaojiao',
+    text: '她说完了，便安静下来，一双眼睛亮晶晶地望着你，等着你的主意。',
+    options: [
+      { id: 'frugal', label: '节衣缩食' },
+      { id: 'balanced', label: '量入为出' },
+      { id: 'luxury', label: '锦衣玉食' },
+      { id: 'first-morning-expense-explanation', label: '解释一下' },
+    ],
+  },
+  {
+    id: 'first-morning-expense-frugal',
+    background: BACKGROUNDS.chamberDawn,
+    speakerIdentity: '娇娇',
+    speakerName: '娇娇',
+    portraitKey: 'jiaojiao',
+    text: '“奴婢明白了，就照主子说的办。”娇娇点点头，利落地把那方帕子叠好搁回盆沿。',
+    nextStepId: 'first-morning-after-expense',
+  },
+  {
+    id: 'first-morning-expense-balanced',
+    background: BACKGROUNDS.chamberDawn,
+    speakerIdentity: '娇娇',
+    speakerName: '娇娇',
+    portraitKey: 'jiaojiao',
+    text: '“嗳，奴婢知道了。”她应得轻快，像是早就等着这个答案。',
+    nextStepId: 'first-morning-after-expense',
+  },
+  {
+    id: 'first-morning-expense-luxury',
+    background: BACKGROUNDS.chamberDawn,
+    speakerIdentity: '娇娇',
+    speakerName: '娇娇',
+    portraitKey: 'jiaojiao',
+    text: '“奴婢明白了，就按主子的意思来。”她说完，唇角弯了一下，那笑意里带着一点“我就知道您不是寻常人”的意味。',
+    nextStepId: 'first-morning-after-expense',
+  },
+  {
+    id: 'first-morning-expense-explanation',
+    background: BACKGROUNDS.chamberDawn,
+    speakerIdentity: '娇娇',
+    speakerName: '娇娇',
+    portraitKey: 'jiaojiao',
+    text: [
+      '娇娇笑了笑，像是早就等着你问这一句。她放下手里的帕子，认真地转过身来，对着你掰开手指头，一条一条地说：',
+      '“头一档，每月用月俸四分之一。好处是省银两，一年下来能攒下不少家底。坏处是——起居上难免紧巴些。”她顿了顿，声音放软了些，“该撑的体面撑不住，旁人看在眼里，有损主子声望。”（每月声望-5，健康-1）',
+      '“第二档，每月用月俸一半。说不上多体面，也不至于寒酸。日子过得稳当，不出错。”（数值无变化）',
+      '“第三档，每月用月俸四分之三。花销重些，但起居上撑得住，衣裳吃食都体面。”（每月声望+10，健康+1）',
+      '“主子若是拿定了主意，奴婢便照您说的去办。”',
+    ].join(PAGE_BREAK),
+    returnToStepId: 'first-morning-expense-choice',
+  },
+  narrationStep(
+    'first-morning-after-expense',
+    BACKGROUNDS.chamberDawn,
+    [
+      '问清了用度，娇娇利落地转过身去忙活了。',
+      '晨光从半开的窗外透进来，落在窗台上，落在桌上那卷明黄色的圣旨上，也落在娇娇忙碌的侧影上。光很薄，像是初春的水面，还没有热起来，但已经有了温度。',
+      '你低头看了一眼自己的手。',
+      '掖庭的粗活是做不完的。浆洗、洒扫、整理杂物，一天下来手指总是红肿胀痛，夜里蜷在被子里也伸不直。那时候你总想，若是有一天不用再洗那些粗布衣裳了，这双手会用来做什么。',
+      '桌上那卷明黄色的绢帛在晨光里泛着温润的光，朱印鲜红，压着“册为官女子”五个字。',
+      '你轻轻攥了攥拳，又松开。',
+    ].join(PAGE_BREAK),
+    { narrationName: '储秀宫西偏殿' },
+  ),
+  narrationStep(
+    'first-morning-after-expense-call',
+    BACKGROUNDS.chamberDawn,
+    [
+      '“娇娇。”',
+    ].join(PAGE_BREAK),
+    { narrationName: '储秀宫西偏殿' },
+  ),
+  {
+    id: 'first-morning-after-expense-jiaojiao',
+    background: BACKGROUNDS.chamberDawn,
+    speakerIdentity: '娇娇',
+    speakerName: '娇娇',
+    portraitKey: 'jiaojiao',
+    text: [
+      '“嗳，主子。”她回过头来。',
+      '你顿了顿，像是在找一个合适的说法。片刻后你问她：“妃嫔们平日……都做些什么？”',
+      '娇娇原本正弯腰替你收拾床褥，听见这话，手底下的动作没停，只是偏过半边脸来看你，那神情像是听见了什么有意思的问题。她把被角掖好，拍了拍手，转过身来：“主子问到这个，那奴婢就仔细跟您说说。”',
+    ].join(PAGE_BREAK),
+  },
+  narrationStep(
+    'first-morning-show-training-buttons',
+    BACKGROUNDS.chamberDawn,
+    '',
+    { narrationName: '储秀宫西偏殿', hideDialogue: true, chamberIntroUi: 'training-buttons', autoAdvanceMs: 4600 },
+  ),
+  narrationStep(
+    'first-morning-training-explain',
+    BACKGROUNDS.chamberDawn,
+    '“平日在寝居内：主子可以泼墨作画、调制香薰、诵读经典、镂月裁云、习舞奏乐。每样做起来都花体力、耗时辰，但做了便有进益，不会白费。”',
+    { narrationName: '储秀宫西偏殿' },
+  ),
+  narrationStep(
+    'first-morning-show-status',
+    BACKGROUNDS.chamberDawn,
+    '',
+    { narrationName: '储秀宫西偏殿', hideDialogue: true, chamberIntroUi: 'status', autoAdvanceMs: 1400 },
+  ),
+  {
+    id: 'first-morning-status-explain',
+    background: BACKGROUNDS.chamberDawn,
+    speakerIdentity: '娇娇',
+    speakerName: '娇娇',
+    portraitKey: 'jiaojiao',
+    text: [
+      '“右上角记录您持有的体力，银两，还有如今的时辰。”',
+      '“一年十二月，一个月分三旬，每旬有七个时辰。”',
+      '“体力每旬会自动回复，也可以通过小憩回复部分体力。”',
+      '“至于银两，除了每月内务府按位份发放的月俸，奴婢听说宫里还有些别的门道能赚银子。具体怎么个赚法，主子往后自己慢慢摸索，娇娇也不全晓得。”',
+    ].join(PAGE_BREAK),
+  },
+  {
+    id: 'first-morning-jiaojiao-dismiss',
+    background: BACKGROUNDS.chamberDawn,
+    speakerIdentity: '娇娇',
+    speakerName: '娇娇',
+    portraitKey: 'jiaojiao',
+    text: '她说完了，笑嘻嘻地退到门边，侧身站着：“总之呢，主子想做什么都可以。奴婢先退下了，有事随时吩咐奴婢便是。”',
+  },
+  narrationStep(
+    'first-morning-show-jiaojiao',
+    BACKGROUNDS.chamberDawn,
+    '',
+    {
+      narrationName: '储秀宫西偏殿',
+      hideDialogue: true,
+      chamberIntroUi: 'jiaojiao',
+      autoAdvanceMs: 3000,
+      completesOpening: true,
+    },
   ),
 ];
 
@@ -317,6 +498,24 @@ export const YINGLUOYETING_OPENING_CHOICE_STEPS: Record<YingluoyetingOpeningChoi
   ],
 };
 
+export const personalizeYingluoyetingOpeningSteps = (
+  steps: readonly YingluoyetingOpeningStep[],
+  input: { playerName: string },
+): YingluoyetingOpeningStep[] => {
+  const playerName = input.playerName.trim() || '沉璧';
+  const playerSurname = resolvePlayerSurname(playerName, '沉');
+
+  return steps.map((step) => ({
+    ...step,
+    text: step.text
+      .replaceAll('乐人沉璧', `乐人${playerName}`)
+      .replaceAll('沉氏女沉璧', `${playerSurname}氏女${playerName}`)
+      .replaceAll('沉璧这孩子', `${playerName}这孩子`)
+      .replaceAll('沉姑娘', `${playerSurname}姑娘`)
+      .replaceAll('沉小女', `${playerSurname}小女`),
+  }));
+};
+
 export const YINGLUOYETING_OPENING_PERFORMANCE_STEPS: Record<YingluoyetingOpeningPerformanceTier, readonly YingluoyetingOpeningStep[]> = {
   high: [
     narrationStep(
@@ -324,8 +523,8 @@ export const YINGLUOYETING_OPENING_PERFORMANCE_STEPS: Record<YingluoyetingOpenin
     BACKGROUNDS.banquet,
     [
       '你起身。阖目一瞬，再睁眼时，眸中已是一片澄明。',
-      '乐声再起，你旋身而舞。舞姿如行云掠水，身段轻盈得像是没有分量，广袖翻飞间，衣袂在空中划出流畅的弧。她每一步都踩在宫商角徵的转折处，乐理造诣之深，让她整支舞与乐声浑然一体，仿佛不是她在伴乐，而是乐在随她而起。',
-      '满殿的目光开始凝聚。有妃嫔手中杯盏停在半途，忘了饮下。有朝臣忍不住微微倾身。太乐署的乐师们指尖一顿，几乎要停下演奏来看她——那腰肢的每一折、指尖的每一捻，都在无声地诉说一段故国旧梦般的哀婉与孤清。',
+      '乐声再起，你旋身而舞。舞姿如行云掠水，身段轻盈得像是没有分量，广袖翻飞间，衣袂在空中划出流畅的弧。你每一步都踩在宫商角徵的转折处，乐理造诣之深，让整支舞与你的乐声浑然一体，仿佛不是你在伴乐，而是乐在随你而起。',
+      '满殿的目光开始凝聚。有妃嫔手中杯盏停在半途，忘了饮下。有朝臣忍不住微微倾身。太乐署的乐师们指尖一顿，几乎要停下演奏来看你——你的腰肢每一折、指尖每一捻，都在无声地诉说一段故国旧梦般的哀婉与孤清。',
       '殿中静得只剩下乐声和衣袂拂风之声。',
       '最后一个旋身落地，青色的裙摆如荷叶般铺开，你微微侧首，低眉敛目，呼吸未乱，只是胸口起伏微微加快了些许。',
       '短暂的寂静后，不知是谁率先击了一掌。',

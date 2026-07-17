@@ -5,6 +5,7 @@ import { getDialogueRootStyle } from './config/dialogueConfig';
 import { NumericChangeToastLayer } from './components/status/NumericChangeToastLayer';
 import { getConcubineDisplayRankText } from './game/data/concubineRoster';
 import { installPalaceDebugConsole } from './game/lib/debugConsole';
+import { YINGLUOYETING_STORY_FLAGS } from './game/lib/yingluoyetingStoryRuntime';
 import { useGameFlowStore } from './game/store/gameFlowStore';
 import type { ConcubineProfile, MapAreaId, NpcActivityIntent, NpcActivityPurpose } from './game/types';
 import { AttributeAssignmentView } from './views/AttributeAssignmentView';
@@ -62,6 +63,13 @@ export default function App() {
   const completeViewTransitionCleanup = useGameFlowStore((state) => state.completeViewTransitionCleanup);
   const startNewGame = useGameFlowStore((state) => state.startNewGame);
   const resumeLastSave = useGameFlowStore((state) => state.resumeLastSave);
+  const openingGuideFinished = useGameFlowStore((state) => Boolean(state.state.flags.openingGuideFinished));
+  const yingluoyetingFirstMorningGuideFinished = useGameFlowStore((state) =>
+    Boolean(state.state.flags.yingluoyetingFirstMorningGuideFinished),
+  );
+  const yingluoyetingPrestigeMapGuideFinished = useGameFlowStore((state) =>
+    Boolean(state.state.flags[YINGLUOYETING_STORY_FLAGS.prestigeMapGuideFinished]),
+  );
   const time = useGameFlowStore((state) => state.time);
   const activeMapLocation = useGameFlowStore((state) => state.activeMapLocation);
   const npcActivity = useGameFlowStore((state) => state.npcActivity);
@@ -71,7 +79,22 @@ export default function App() {
   const [startSceneNoticeKey, setStartSceneNoticeKey] = useState(0);
   const startSceneNoticeTimerRef = useRef<number | null>(null);
   const npcActivityDebugLoggedXunRef = useRef<string | null>(null);
+  const previousViewRef = useRef(currentView);
   const dialogueRootStyle = getDialogueRootStyle();
+  const previousView = previousViewRef.current;
+  const isOpeningToBedchamberTransition = previousView === 'opening-dialogue' && currentView === 'bedchamber';
+  const isOpeningBedchamberFlowView =
+    currentView === 'opening-dialogue' ||
+    (currentView === 'bedchamber' &&
+      openingGuideFinished &&
+      yingluoyetingFirstMorningGuideFinished &&
+      !yingluoyetingPrestigeMapGuideFinished);
+  const viewTransitionKey = isOpeningBedchamberFlowView ? 'opening-bedchamber-flow' : currentView;
+  const usesInstantViewTransition = isOpeningBedchamberFlowView || isOpeningToBedchamberTransition;
+
+  useEffect(() => {
+    previousViewRef.current = currentView;
+  }, [currentView]);
 
   useEffect(() => {
     if (import.meta.env.PROD || import.meta.env.MODE === 'test') {
@@ -201,7 +224,7 @@ export default function App() {
       case 'map-main':
         return <MapMainView />;
       case 'bedchamber':
-        return <ChamberMainView />;
+        return <ChamberMainView openingBedchamberBridge={isOpeningToBedchamberTransition} />;
       default:
         return <StartScene notice={startSceneNotice} noticeKey={startSceneNoticeKey} onAction={handleStartSceneAction} />;
     }
@@ -211,11 +234,17 @@ export default function App() {
     <>
       <AnimatePresence mode="wait" onExitComplete={completeViewTransitionCleanup}>
         <motion.div
-          key={currentView}
+          key={viewTransitionKey}
           data-dialogue-root="locked"
-          initial={{ opacity: 0 }}
+          data-view-transition-key={viewTransitionKey}
+          data-view-transition-mode={usesInstantViewTransition ? 'instant' : 'fade'}
+          initial={isOpeningToBedchamberTransition ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={
+            currentView === 'opening-dialogue'
+              ? { opacity: 1, transition: { duration: 0 } }
+              : { opacity: 0 }
+          }
           transition={{ duration: currentView === 'start' ? 0.3 : 0.35 }}
           style={dialogueRootStyle}
         >

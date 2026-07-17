@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConcubineProfile, NightlyServicePendingEvent } from '../../game/types';
+import { YINGLUOYETING_FIRST_NIGHT_SERVICE_SCRIPT_ID } from '../../game/lib/yingluoyetingFirstNightServiceRuntime';
 import { NightlyServiceEventView } from './NightlyServiceEventView';
 
 const pendingEvent: NightlyServicePendingEvent = {
@@ -141,5 +142,94 @@ describe('NightlyServiceEventView', () => {
       { actionId: 'poetry' },
       { actionId: 'gentle', gentleBranchId: 'praise', targetConsortId: 'ally-chen' },
     ]);
+  });
+
+  it('plays the Yingluoyeting first-night script without generic interaction controls', () => {
+    const onComplete = vi.fn();
+    const scriptedPendingEvent: NightlyServicePendingEvent = {
+      ...pendingEvent,
+      id: 'nightly-yingluoyeting-1-1-1-first-night-service-pending',
+      scriptId: YINGLUOYETING_FIRST_NIGHT_SERVICE_SCRIPT_ID,
+      playerName: '柳如是',
+      rankLabel: '官女子',
+      playerAge: 20,
+      initialInterest: 0,
+      currentInterest: 0,
+      maxInteractions: 0,
+      selectedActionIds: [],
+    };
+
+    render(
+      <NightlyServiceEventView
+        pendingEvent={scriptedPendingEvent}
+        playerName="柳如是"
+        playerPortrait="/assets/player/lanyinxuguo-cutout.png"
+        onComplete={onComplete}
+      />,
+    );
+
+    expect(screen.getByText(/主子！主子！养心殿来人了/)).toBeInTheDocument();
+    expect(screen.queryByText(/兴致/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('养心殿侍寝操作')).not.toBeInTheDocument();
+    expect((document.querySelector('.nightly-service-event__background') as HTMLElement).style.backgroundImage).toContain(
+      'home_yeting_night%20till%20latenight.png',
+    );
+
+    clickDialogueToEnd();
+    clickDialogueContent();
+    expect(screen.getByText(/陛下口谕，宣官女子柳如是今夜往养心殿侍寝/)).toBeInTheDocument();
+    expect(screen.getByAltText('内侍')).toHaveAttribute('src', '/assets/characters/men/taijian.png');
+
+    for (let index = 0; index < 6; index += 1) {
+      clickDialogueToEnd();
+      clickDialogueContent();
+    }
+    expect((document.querySelector('.nightly-service-event__background') as HTMLElement).style.backgroundImage).toContain(
+      'hougong_outside_night.png',
+    );
+
+    for (let index = 0; index < 20 && !screen.queryByLabelText('一夜过去'); index += 1) {
+      clickDialogueToEnd();
+      clickDialogueContent();
+    }
+    expect(screen.getByLabelText('一夜过去')).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(900);
+    });
+    expect(onComplete).toHaveBeenCalledWith([]);
+  });
+
+  it('keeps the scripted background mounted when only the portrait changes', () => {
+    const scriptedPendingEvent: NightlyServicePendingEvent = {
+      ...pendingEvent,
+      id: 'nightly-yingluoyeting-1-1-1-first-night-service-pending',
+      scriptId: YINGLUOYETING_FIRST_NIGHT_SERVICE_SCRIPT_ID,
+      playerName: '柳如是',
+      rankLabel: '官女子',
+      playerAge: 20,
+      initialInterest: 0,
+      currentInterest: 0,
+      maxInteractions: 0,
+      selectedActionIds: [],
+    };
+
+    render(
+      <NightlyServiceEventView
+        pendingEvent={scriptedPendingEvent}
+        playerName="柳如是"
+        playerPortrait="/assets/player/lanyinxuguo-cutout.png"
+        onComplete={vi.fn()}
+      />,
+    );
+
+    const initialBackground = document.querySelector('.nightly-service-event__background');
+    expect(initialBackground).toBeInTheDocument();
+
+    clickDialogueToEnd();
+    clickDialogueContent();
+
+    expect(document.querySelector('.nightly-service-event__background')).toBe(initialBackground);
+    expect(screen.getByAltText('内侍')).toBeInTheDocument();
   });
 });

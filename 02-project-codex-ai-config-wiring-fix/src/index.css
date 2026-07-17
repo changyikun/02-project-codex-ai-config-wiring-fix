@@ -69,6 +69,25 @@ textarea,
     radial-gradient(circle at 50% 35%, rgba(234, 194, 132, 0.16), transparent 42%);
 }
 
+.nightly-service-event--scripted .nightly-service-event__background {
+  filter: none;
+  animation: nightly-service-background-fade-in 620ms ease-out both;
+}
+
+.nightly-service-event--scripted .nightly-service-event__background::after {
+  background: none;
+}
+
+@keyframes nightly-service-background-fade-in {
+  0% {
+    opacity: 0.08;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
 .nightly-service-event__interest {
   position: absolute;
   top: 74px;
@@ -1817,6 +1836,18 @@ button {
   animation: opening-background-fade-out 650ms ease both;
 }
 
+.opening-dialogue__background--chamber-preview {
+  filter: none;
+  transform: none;
+}
+
+.opening-dialogue__background--chamber-preview::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
+}
+
 @keyframes opening-background-fade-in {
   0% {
     opacity: 0;
@@ -2550,6 +2581,26 @@ button {
   animation: chamber-background-fade-out 680ms ease forwards;
 }
 
+.chamber-main__opening-bridge {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  filter: none;
+  transform: none;
+  animation: opening-bedchamber-bridge-fade-out 720ms ease forwards;
+}
+
+.chamber-main__opening-bridge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
+}
+
 @keyframes chamber-background-fade-out {
   from {
     opacity: 1;
@@ -2561,6 +2612,20 @@ button {
     opacity: 0;
     filter: blur(2px);
     transform: scale(1.015);
+  }
+}
+
+@keyframes opening-bedchamber-bridge-fade-out {
+  0% {
+    opacity: 1;
+  }
+
+  64% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
   }
 }
 
@@ -2648,6 +2713,19 @@ button {
   position: absolute;
   inset: 0;
   z-index: 10;
+}
+
+.map-main__hotspot-layer.is-prestige-guide-active {
+  z-index: 18;
+}
+
+.map-main__hotspot-layer.is-prestige-guide-active .map-main__hotspot:not(.is-guide-target) {
+  opacity: 0.38;
+  filter: grayscale(0.45);
+}
+
+.palace-sidebar--map.is-prestige-guide-obscured {
+  z-index: 8;
 }
 
 .map-main__hotspot {
@@ -2901,6 +2979,49 @@ button {
   filter: saturate(1.08) brightness(1.04) drop-shadow(0 16px 18px rgba(54, 27, 28, 0.24));
 }
 
+.chamber-main__scene-button--locked {
+  opacity: 0.48;
+  cursor: not-allowed;
+  filter: grayscale(0.72) brightness(0.86) drop-shadow(0 9px 10px rgba(54, 27, 28, 0.12));
+}
+
+.chamber-main__scene-button--locked:hover {
+  transform: none;
+  filter: grayscale(0.72) brightness(0.86) drop-shadow(0 9px 10px rgba(54, 27, 28, 0.12));
+}
+
+.chamber-main__scene-button--locked.is-shaking {
+  animation: chamber-locked-button-shake 420ms ease both;
+}
+
+@keyframes chamber-locked-button-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  18% {
+    transform: translateX(-5px);
+  }
+
+  36% {
+    transform: translateX(5px);
+  }
+
+  54% {
+    transform: translateX(-4px);
+  }
+
+  72% {
+    transform: translateX(4px);
+  }
+}
+
+.chamber-main__scene-button--intro-visible {
+  animation: chamber-intro-control-fade-in var(--chamber-intro-duration, 520ms) ease-out both;
+  animation-delay: var(--chamber-intro-delay, 0ms);
+}
+
 .chamber-main__scene-button--dismiss {
   background-image: var(--palace-button-horizontal-soft);
   color: #5a1a13;
@@ -2974,6 +3095,38 @@ button {
   filter: drop-shadow(0 11px 13px rgba(68, 39, 42, 0.24)) saturate(1.03);
 }
 
+.chamber-main__jiaojiao-entry--intro-visible,
+.palace-status--intro-visible {
+  animation: chamber-intro-control-fade-in var(--chamber-intro-duration, 520ms) ease-out both;
+  animation-delay: var(--chamber-intro-delay, 0ms);
+}
+
+.opening-dialogue__intro-title-bar {
+  animation: chamber-intro-control-fade-in var(--opening-intro-duration, 520ms) ease-out both;
+  animation-delay: var(--opening-intro-delay, 0ms);
+  z-index: 31;
+}
+
+.opening-dialogue__intro-chamber-portrait {
+  animation: chamber-intro-control-fade-in var(--opening-intro-duration, 520ms) ease-out both;
+  animation-delay: var(--opening-intro-delay, 0ms);
+}
+
+.opening-dialogue__intro-delayed {
+  animation-delay: var(--opening-intro-delay, 0ms) !important;
+  animation-duration: var(--opening-intro-duration, 520ms) !important;
+}
+
+@keyframes chamber-intro-control-fade-in {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
 .chamber-main__jiaojiao-portrait {
   position: absolute;
   left: 16.4%;
@@ -2989,42 +3142,35 @@ button {
 
 .chamber-main__jiaojiao-prompt {
   position: absolute;
-  left: 43.8%;
-  top: 13.8%;
-  width: 31%;
-  min-height: 10.6%;
+  left: 47.1%;
+  top: 16.4%;
+  width: 22%;
+  aspect-ratio: 959 / 225;
+  min-height: 0;
   z-index: 25;
   display: flex;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 14px 22px 15px;
-  border: 1px solid rgba(130, 74, 82, 0.32);
-  border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgba(255, 248, 242, 0.94), rgba(248, 225, 220, 0.9)),
-    rgba(255, 244, 238, 0.92);
-  box-shadow:
-    0 14px 24px rgba(92, 41, 47, 0.18),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.34);
+  padding: 10px clamp(24px, 2.35vw, 38px) 4px;
+  border: 0;
+  border-radius: 0;
+  background: url('/assets/routes/buttons/menu/hengkuang1.png') center / contain no-repeat;
+  box-shadow: none;
+  filter: drop-shadow(0 12px 14px rgba(61, 25, 20, 0.16));
   color: #4b151d;
   font-family: 'STKaiti', 'KaiTi', serif;
+  text-align: center;
   pointer-events: none;
-}
-
-.chamber-main__jiaojiao-prompt header {
-  color: #8b4d56;
-  font-size: clamp(15px, 1.18vw, 18px);
-  font-weight: 700;
-  line-height: 1.1;
 }
 
 .chamber-main__jiaojiao-prompt p {
   margin: 0;
   color: #48151d;
-  font-size: clamp(22px, 2vw, 31px);
+  font-size: clamp(20px, 1.72vw, 27px);
   font-weight: 800;
-  line-height: 1.15;
+  line-height: 1;
+  transform: translateY(clamp(4px, 0.36vw, 7px));
 }
 
 .chamber-main__skills-strip {
@@ -3117,8 +3263,8 @@ button {
 }
 
 .chamber-main__expense-choice-overlay .palace-dialogue-box__option.is-active {
-  border-color: #8f323b;
-  background: rgba(143, 50, 59, 0.12);
+  border-color: transparent;
+  background: url('/assets/routes/buttons/menu/hengkuang6.png') center / contain no-repeat;
 }
 
 .chamber-main__expense-choice-overlay.global-dialogue-stage__options {
@@ -4684,13 +4830,13 @@ button {
   flex: 1;
   min-width: 180px;
   height: 69px;
-  background: #fff4f6;
-  border: 1px solid rgba(212, 175, 55, 0.4);
-  border-radius: 12px;
-  padding: 12px 18px;
+  background: url('/assets/routes/buttons/menu/hengkuang7.png') center / contain no-repeat;
+  border: 0;
+  border-radius: 0;
+  padding: 0 18px;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(104, 49, 69, 0.15);
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -4704,14 +4850,19 @@ button {
   transform: translateY(-2px);
 }
 
+.palace-dialogue-box__option:hover:not(:disabled),
+.palace-dialogue-box__option.is-active {
+  background-image: url('/assets/routes/buttons/menu/hengkuang6.png');
+}
+
 .palace-dialogue-box__option span {
   font-family: 'STKaiti', 'KaiTi', serif;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 800;
   display: block;
   width: 100%;
   color: #241616;
-  line-height: 1.2;
+  line-height: 1;
   text-align: center;
 }
 
@@ -4826,6 +4977,61 @@ button {
 
 .map-main__hotspot.is-vertical.is-player-residence {
   background: transparent;
+}
+
+.chamber-main__prestige-guide-mask,
+.map-main__prestige-guide-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+  background: rgba(22, 18, 20, 0.48);
+}
+
+.palace-sidebar.is-prestige-guide-active .palace-sidebar__diamond:not(.is-guide-target) {
+  --prestige-guide-sidebar-opacity: 0.34;
+  opacity: 0.34;
+  filter: grayscale(0.45);
+}
+
+.palace-sidebar.is-prestige-guide-entering .palace-sidebar__diamond {
+  animation: prestige-guide-sidebar-enter 780ms ease both;
+}
+
+.palace-sidebar.is-prestige-guide-entering .palace-sidebar__diamond:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.palace-sidebar.is-prestige-guide-entering .palace-sidebar__diamond:nth-child(2) {
+  animation-delay: 160ms;
+}
+
+.palace-sidebar.is-prestige-guide-entering .palace-sidebar__diamond:nth-child(3) {
+  animation-delay: 320ms;
+}
+
+.palace-sidebar.is-prestige-guide-entering .palace-sidebar__diamond:nth-child(4) {
+  animation-delay: 480ms;
+}
+
+.palace-sidebar__diamond.is-guide-target,
+.map-main__hotspot.is-guide-target {
+  z-index: 18;
+  box-shadow:
+    0 0 0 2px rgba(246, 220, 158, 0.86),
+    0 0 24px rgba(246, 220, 158, 0.52);
+}
+
+@keyframes prestige-guide-sidebar-enter {
+  from {
+    opacity: 0;
+    translate: 0 -18px;
+  }
+
+  to {
+    opacity: var(--prestige-guide-sidebar-opacity, 1);
+    translate: 0 0;
+  }
 }
 
 .map-main__event-card--gongmen {
@@ -6332,16 +6538,25 @@ button {
 
 .player-stats-view {
   position: absolute;
-  left: 104px;
-  right: 22px;
-  top: 74px;
-  bottom: 18px;
-  border-radius: 28px;
+  left: 50%;
+  right: auto;
+  top: 13.8%;
+  bottom: auto;
+  width: min(86vw, 1320px);
+  aspect-ratio: 1631 / 892;
+  transform: translateX(-50%);
+  border-radius: 0;
   overflow: hidden;
-  background: url('/assets/routes/buttons/menu/caidan.png') center / 100% 100% no-repeat;
+  background: url('/assets/routes/buttons/menu/caidan.png') center / contain no-repeat;
   border: none;
-  box-shadow: 0 24px 42px rgba(83, 54, 45, 0.18);
+  box-shadow: none;
   isolation: isolate;
+  --player-panel-left: clamp(54px, 5.2vw, 80px);
+  --player-panel-info-width: min(60%, 760px);
+  --player-ui-ink: #64333f;
+  --player-ui-muted: #866266;
+  --player-ui-pink: #d78d9e;
+  --player-ui-pink-dark: #bd6f84;
 }
 
 .player-stats-view__veil {
@@ -6351,199 +6566,321 @@ button {
   pointer-events: none;
 }
 
-.player-stats-view__chips {
+.player-stats-view__title {
   position: absolute;
-  left: 92px;
-  right: 206px;
-  top: 24px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 212px));
-  gap: 16px;
-  align-items: start;
-  z-index: 1;
-}
-
-.player-stats-view__chips .concubine-list-view__chip {
-  min-height: 46px;
-  justify-content: center;
-  padding: 4px 14px;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  overflow: visible;
-  text-overflow: clip;
-}
-
-.player-stats-view__chips .concubine-list-view__chip-main {
-  gap: 8px;
-}
-
-.player-stats-view__chips .concubine-list-view__chip-rank,
-.player-stats-view__chips .concubine-list-view__chip-name,
-.player-stats-view__chips .concubine-list-view__chip--secondary {
+  left: calc(var(--player-panel-left) + 4px);
+  top: 4.7%;
+  z-index: 2;
+  min-width: 224px;
+  height: 48px;
+  margin: 0;
+  padding: 4px 44px 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  background: url('/assets/routes/buttons/menu/xuanzhong.png') center / contain no-repeat;
+  color: #873c4c;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: clamp(24px, 1.8vw, 31px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-shadow: 0 1px 0 rgba(255, 247, 236, 0.9);
+}
+
+.player-stats-view__info-list {
+  position: absolute;
+  left: var(--player-panel-left);
+  top: 14.5%;
+  width: min(30%, 340px);
+  display: grid;
+  gap: 10px;
+  z-index: 2;
+}
+
+.player-stats-view__info-list h3 {
+  margin: 0 0 4px;
+  color: #8e4051;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: clamp(24px, 1.72vw, 30px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+.player-stats-view__info-row {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 20px;
+  min-height: 28px;
+  color: var(--player-ui-ink);
+  font-family: 'STKaiti', 'KaiTi', serif;
   line-height: 1.2;
+}
+
+.player-stats-view__info-row span {
+  color: #8b5d64;
+  font-size: clamp(18px, 1.2vw, 21px);
   white-space: nowrap;
 }
 
-.player-stats-view__chips .concubine-list-view__chip--secondary {
-  color: #7a4c56;
-  font-family: 'STKaiti', 'KaiTi', serif;
+.player-stats-view__info-row strong {
+  color: var(--player-ui-ink);
+  font-size: clamp(18px, 1.22vw, 22px);
   font-weight: 700;
+  padding-left: 4px;
+  white-space: nowrap;
 }
 
 .player-stats-view__metric-board {
   position: absolute;
-  left: 84px;
-  top: 118px;
-  width: min(52%, 660px);
+  left: clamp(382px, 30.8vw, 468px);
+  top: 13.8%;
+  width: min(33%, 430px);
   display: grid;
-  gap: 12px;
-  z-index: 1;
+  grid-template-columns: 1fr;
+  gap: 7px;
+  z-index: 2;
+}
+
+.player-stats-view__section-title {
+  margin: 0 0 2px;
+  color: #8e4454;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: clamp(20px, 1.38vw, 25px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-shadow: 0 1px 0 rgba(255, 247, 236, 0.9);
 }
 
 .player-stats-view__metric-board .concubine-list-view__metric-row-group {
-  gap: 12px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 7px;
 }
 
 .player-stats-view__metric-board .concubine-list-view__metric-row-group--2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
 }
 
 .player-stats-view__metric-board .concubine-list-view__metric-card {
+  width: 100%;
   min-height: 34px;
+  height: 34px;
   padding: 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  grid-template-columns: 78px minmax(118px, 1fr) 60px;
-  gap: 14px;
+  grid-template-columns: 70px 205px 46px;
+  gap: 10px;
+  filter: none;
 }
 
 .player-stats-view__metric-board .concubine-list-view__metric-card.is-text-only {
   min-height: 34px;
+  height: 34px;
 }
 
 .player-stats-view__metric-board .concubine-list-view__metric-copy span {
-  font-size: 18px;
+  color: var(--player-ui-ink);
+  font-size: clamp(16px, 1.1vw, 20px);
 }
 
 .player-stats-view__metric-board .concubine-list-view__metric-copy strong {
-  color: #7b3f4a;
-  font-size: 18px;
+  color: #8b4050;
+  font-size: clamp(16px, 1.08vw, 19px);
+  font-weight: 800;
 }
 
 .player-stats-view__metric-board .concubine-list-view__metric-meter {
-  height: 5px;
-  background: rgba(126, 122, 124, 0.16);
+  width: 205px;
+  justify-self: start;
+  height: 6px;
+  background: rgba(132, 102, 106, 0.16);
 }
 
 .player-stats-view__metric-board .concubine-list-view__metric-meter-fill {
-  background: var(--metric-fill, linear-gradient(90deg, rgba(222, 157, 170, 0.78), rgba(196, 112, 136, 0.82)));
+  background: linear-gradient(90deg, rgba(232, 151, 164, 0.82), rgba(201, 106, 129, 0.88));
 }
 
 .player-stats-view__metric-board .concubine-list-view__metric-card.is-text-only .concubine-list-view__metric-copy strong {
-  line-height: 1.35;
+  grid-column: 2 / 4;
+  text-align: left;
+  line-height: 1.08;
+  white-space: nowrap;
 }
 
 .player-stats-view__social-board {
   position: absolute;
-  left: 84px;
-  right: 402px;
-  bottom: 90px;
+  left: var(--player-panel-left);
+  top: 57.5%;
+  width: min(29%, 352px);
   display: grid;
-  gap: 12px;
-  z-index: 1;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  z-index: 2;
+}
+
+.player-stats-view__social-board .player-stats-view__section-title {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
 }
 
 .player-stats-view__social-group {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  gap: 14px;
+  grid-template-columns: 54px minmax(0, 1fr);
+  min-height: 74px;
+  padding: 0;
+  gap: 10px;
   align-items: start;
+  background: transparent;
+  filter: none;
 }
 
 .player-stats-view__social-group > span {
-  padding-top: 8px;
-  color: #6f3442;
+  padding-top: 7px;
+  color: #8e4454;
   font-family: 'STSong', 'SimSun', serif;
-  font-size: 22px;
+  font-size: clamp(18px, 1.3vw, 22px);
   line-height: 1.1;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
 }
 
-.player-stats-view__social-board .concubine-list-view__social-pills {
-  min-height: 44px;
-  padding: 4px 0;
+.player-stats-view__relationship-list {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  min-height: 58px;
+  gap: 8px 10px;
+}
+
+.player-stats-view__relationship-avatar {
+  display: grid;
+  justify-items: center;
+  width: 54px;
+  gap: 4px;
+  color: #6d4f55;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: 13px;
+  line-height: 1;
+  text-align: center;
+}
+
+.player-stats-view__relationship-avatar img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: top center;
+  background: rgba(255, 248, 235, 0.76);
+  box-shadow: 0 5px 10px rgba(84, 52, 48, 0.12);
+}
+
+.player-stats-view__relationship-empty {
+  align-self: center;
+  color: rgba(93, 37, 44, 0.72);
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: 16px;
 }
 
 .player-stats-view__note {
   position: absolute;
-  left: 84px;
-  right: 174px;
-  bottom: 24px;
-  min-height: 52px;
+  left: clamp(74px, 6.5vw, 108px);
+  right: clamp(230px, 23vw, 360px);
+  top: auto;
+  bottom: 7.4%;
+  width: auto;
+  min-height: 0;
   margin: 0;
-  padding: 14px 18px;
-  border-radius: 18px;
-  background: rgba(255, 250, 240, 0.68);
-  box-shadow:
-    0 10px 18px rgba(111, 65, 61, 0.06),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.46);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   color: #7a4d49;
   font-family: 'STKaiti', 'KaiTi', serif;
   font-size: 17px;
   line-height: 1.55;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px 14px;
-  align-items: center;
+  z-index: 6;
+  display: block;
+}
+
+.player-stats-view__note .player-stats-view__section-title {
+  display: none;
 }
 
 .player-stats-view__skill-list {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
+  align-items: center;
+  gap: clamp(18px, 2.1vw, 34px);
   min-width: 0;
+  min-height: 50px;
+  padding: 0 clamp(64px, 5.2vw, 84px) 0 clamp(34px, 3vw, 52px);
+  background: rgba(255, 249, 238, 0.78);
+  box-shadow:
+    0 8px 16px rgba(88, 54, 49, 0.1),
+    inset 0 0 0 1px rgba(201, 169, 142, 0.18);
+  overflow: visible;
+}
+
+.player-stats-view__skill-list::after {
+  content: '';
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  width: 106px;
+  height: 72px;
+  transform: translateY(-50%);
+  background: url('/assets/routes/buttons/menu/taohua_upleft.png') right center / contain no-repeat;
+  pointer-events: none;
 }
 
 .player-stats-view__skill-item {
   position: relative;
   display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  color: #6b3b40;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 0;
+  padding: 0;
+  gap: 4px;
+  color: var(--player-ui-ink);
+  background: transparent;
+  filter: none;
   white-space: nowrap;
 }
 
 .player-stats-view__skill-item strong {
-  color: #4d1d23;
-  font-size: 17px;
+  color: #5b8990;
+  font-size: clamp(16px, 1.1vw, 19px);
+  font-weight: 800;
+  line-height: 1;
 }
 
 .player-stats-view__note-meta {
-  color: #8a5b55;
-  white-space: nowrap;
+  display: none;
+}
+
+.player-stats-view__chips {
+  display: none;
 }
 
 .player-stats-view__portrait-stage {
   position: absolute;
-  right: 62px;
-  top: 122px;
-  width: min(34%, 390px);
-  bottom: 86px;
+  right: 3.6%;
+  top: 8.4%;
+  width: min(37.5%, 500px);
+  bottom: 2.4%;
   display: flex;
   align-items: stretch;
   justify-content: center;
-  z-index: 1;
+  z-index: 3;
 }
 
 .player-stats-view__portrait-frame {
   width: 100%;
+  height: 100%;
   border-radius: 0;
   border: none;
   background: transparent;
@@ -6555,11 +6892,13 @@ button {
 }
 
 .player-stats-view__portrait {
-  width: 100%;
+  width: auto;
   height: 100%;
+  max-width: 100%;
   object-fit: contain;
   object-position: center bottom;
-  filter: drop-shadow(0 16px 18px rgba(67, 42, 46, 0.2));
+  opacity: 1;
+  filter: drop-shadow(0 18px 18px rgba(67, 42, 46, 0.18));
 }
 
 .player-stats-view__portrait-empty {
@@ -6572,15 +6911,19 @@ button {
 
 .player-stats-view__close {
   position: absolute;
-  right: 28px;
-  bottom: 18px;
-  width: 126px;
-  height: 118px;
+  right: 3.8%;
+  bottom: 4.2%;
+  width: 80px;
+  height: 78px;
   border: none;
-  background: url('/assets/routes/buttons/back.png') center / contain no-repeat;
-  color: transparent;
+  background: url('/assets/routes/buttons/menu/yuanniu1.png') center / contain no-repeat;
+  color: #873c4c;
   cursor: pointer;
   z-index: 12;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: 23px;
+  font-weight: 800;
+  line-height: 1;
   filter: drop-shadow(0 10px 14px rgba(88, 44, 51, 0.2));
   transition:
     transform 180ms ease,
@@ -6588,6 +6931,7 @@ button {
 }
 
 .player-stats-view__close:hover {
+  background-image: url('/assets/routes/buttons/menu/yuanniu2.png');
   transform: translateY(-2px) scale(1.02);
   filter: drop-shadow(0 14px 18px rgba(88, 44, 51, 0.26));
 }
@@ -6600,70 +6944,99 @@ button {
 
 @media (max-width: 1120px) {
   .player-stats-view {
-    left: 88px;
-    right: 14px;
-    top: 82px;
-    bottom: 14px;
+    left: 50%;
+    right: auto;
+    top: 12.8%;
+    bottom: auto;
+    width: calc(100vw - 108px);
+    transform: translateX(-50%);
+    --player-panel-left: 28px;
+    --player-panel-info-width: calc(100% - 330px);
   }
 
-  .player-stats-view__chips {
-    left: 28px;
-    right: 132px;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .player-stats-view__title {
+    left: 24px;
+    top: 18px;
   }
 
-  .player-stats-view__chips .concubine-list-view__chip-rank,
-  .player-stats-view__chips .concubine-list-view__chip-name,
-  .player-stats-view__chips .concubine-list-view__chip--secondary {
-    font-size: 17px;
+  .player-stats-view__info-list {
+    left: var(--player-panel-left);
+    top: 14.5%;
+    width: 286px;
+  }
+
+  .player-stats-view__info-row {
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 14px;
   }
 
   .player-stats-view__metric-board {
-    left: 28px;
-    top: 108px;
-    width: calc(100% - 342px);
+    left: 330px;
+    top: 13.8%;
+    width: calc(100% - 600px);
+  }
+
+  .player-stats-view__metric-board .concubine-list-view__metric-card {
+    grid-template-columns: 64px minmax(150px, 1fr) 46px;
+  }
+
+  .player-stats-view__metric-board .concubine-list-view__metric-meter {
+    width: 100%;
   }
 
   .player-stats-view__portrait-stage {
-    right: 24px;
-    width: 268px;
+    right: 3.2%;
+    top: 8.4%;
+    width: 36%;
+    bottom: 2.4%;
   }
 
   .player-stats-view__social-board {
-    left: 28px;
-    right: 314px;
+    left: var(--player-panel-left);
+    top: 57.5%;
+    width: 250px;
   }
 
   .player-stats-view__note {
     left: 28px;
-    right: 130px;
+    right: 285px;
+    top: auto;
+    bottom: 7.2%;
+    width: auto;
   }
 
   .player-stats-view__close {
     right: 10px;
     bottom: 2px;
-    width: 108px;
-    height: 96px;
+    width: 78px;
+    height: 76px;
+    font-size: 21px;
   }
 }
 
 @media (max-width: 960px) {
   .player-stats-view {
-    border-radius: 22px;
+    border-radius: 0;
+    --player-panel-left: 18px;
+    --player-panel-info-width: calc(100% - 36px);
+    overflow-y: auto;
   }
 
-  .player-stats-view__chips {
-    right: 24px;
-    top: 16px;
-    gap: 10px;
-    grid-template-columns: 1fr;
+  .player-stats-view__title {
+    left: 16px;
+    top: 14px;
+  }
+
+  .player-stats-view__info-list {
+    left: var(--player-panel-left);
+    top: 68px;
+    width: var(--player-panel-info-width);
   }
 
   .player-stats-view__metric-board {
-    left: 18px;
-    right: 18px;
-    top: 188px;
-    width: auto;
+    left: var(--player-panel-left);
+    top: 252px;
+    width: var(--player-panel-info-width);
   }
 
   .player-stats-view__metric-board .concubine-list-view__metric-row-group--2 {
@@ -6671,13 +7044,14 @@ button {
   }
 
   .player-stats-view__metric-board .concubine-list-view__metric-card {
-    grid-template-columns: 74px minmax(72px, 1fr) 54px;
+    grid-template-columns: 68px minmax(72px, 1fr) 50px;
   }
 
   .player-stats-view__social-board {
-    left: 18px;
-    right: 18px;
-    bottom: 124px;
+    left: var(--player-panel-left);
+    top: 658px;
+    width: var(--player-panel-info-width);
+    grid-template-columns: 1fr;
   }
 
   .player-stats-view__social-group {
@@ -6695,14 +7069,16 @@ button {
   }
 
   .player-stats-view__note {
-    left: 18px;
-    right: 118px;
-    bottom: 18px;
+    left: var(--player-panel-left);
+    top: 850px;
+    bottom: auto;
+    width: calc(100% - 128px);
     font-size: 14px;
     grid-template-columns: 1fr;
   }
 
   .player-stats-view__skill-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px 10px;
   }
 
@@ -6714,8 +7090,9 @@ button {
   .player-stats-view__close {
     right: 8px;
     bottom: 8px;
-    width: 92px;
-    height: 82px;
+    width: 76px;
+    height: 74px;
+    font-size: 20px;
   }
 }
 
@@ -7982,23 +8359,24 @@ button {
 .palace-stage-shell .palace-dialogue-box__option {
   min-width: 240px;
   height: 106px;
-  padding: 0 42px 12px;
+  padding: 0 42px;
   border: 0;
   border-radius: 0;
-  background: url('/assets/routes/buttons/materials-202606041509/material-202606041509-016.png') center / 100% 100% no-repeat;
+  background: url('/assets/routes/buttons/menu/hengkuang7.png') center / contain no-repeat;
   box-shadow: none;
   filter: drop-shadow(0 8px 8px rgba(66, 25, 22, 0.2));
 }
 
-.palace-stage-shell .palace-dialogue-box__option:nth-child(2n) {
-  background-image: url('/assets/routes/buttons/materials-202606041509/material-202606041509-017.png');
+.palace-stage-shell .palace-dialogue-box__option:hover:not(:disabled),
+.palace-stage-shell .palace-dialogue-box__option.is-active {
+  background-image: url('/assets/routes/buttons/menu/hengkuang6.png');
 }
 
 .palace-stage-shell .palace-dialogue-box__option span {
   color: #5f2024;
   font-family: 'STKaiti', 'KaiTi', serif;
-  font-size: 21px;
-  line-height: 1.18;
+  font-size: 25px;
+  line-height: 1;
   text-shadow: 0 1px 0 rgba(255, 244, 225, 0.78);
 }
 
@@ -10268,21 +10646,22 @@ button {
   max-width: 260px !important;
   min-height: 86px !important;
   height: 86px !important;
-  padding: 0 32px 10px !important;
+  padding: 0 32px !important;
   border: 0 !important;
   border-radius: 0 !important;
-  background: url('/assets/routes/buttons/materials-202606041509/material-202606041509-016.png') center / 100% 100% no-repeat !important;
+  background: url('/assets/routes/buttons/menu/hengkuang7.png') center / contain no-repeat !important;
   box-shadow: none !important;
 }
 
-[data-dialogue-root='locked'] .palace-stage-shell .palace-dialogue-box__option:nth-child(2n) {
-  background-image: url('/assets/routes/buttons/materials-202606041509/material-202606041509-017.png') !important;
+[data-dialogue-root='locked'] .palace-stage-shell .palace-dialogue-box__option:hover:not(:disabled),
+[data-dialogue-root='locked'] .palace-stage-shell .palace-dialogue-box__option.is-active {
+  background-image: url('/assets/routes/buttons/menu/hengkuang6.png') !important;
 }
 
 [data-dialogue-root='locked'] .palace-stage-shell .palace-dialogue-box__option span {
   color: #5f2024 !important;
-  font-size: 20px !important;
-  line-height: 1.18 !important;
+  font-size: 23px !important;
+  line-height: 1 !important;
 }
 
 [data-dialogue-root='locked'] .palace-stage-shell .palace-dialogue-box__next {
@@ -10578,6 +10957,11 @@ button {
   background: url('/assets/routes/buttons/menu/hengkuang1.png') center / contain no-repeat !important;
   box-shadow: none !important;
   filter: drop-shadow(0 12px 14px rgba(61, 25, 20, 0.16));
+}
+
+[data-dialogue-root='locked'] .chamber-main__jiaojiao-prompt {
+  background-position: center !important;
+  background-size: contain !important;
 }
 
 [data-dialogue-root='locked'] .kitchen-view__menu-buttons button,

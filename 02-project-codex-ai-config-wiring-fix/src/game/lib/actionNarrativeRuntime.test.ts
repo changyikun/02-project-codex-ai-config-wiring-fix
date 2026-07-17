@@ -24,6 +24,19 @@ describe('actionNarrativeRuntime', () => {
     expect(narrative).not.toContain('丹青 +2');
   });
 
+  it('uses the fixed rest text for chamber naps', () => {
+    expect(
+      buildChamberActionNarrative({
+        actionId: 'nap',
+        actionLabel: '殿内小憩',
+        actionSummary: '闭目养神',
+        playerName: '谢令仪',
+        residenceName: '椒房殿',
+        timeLabel: '1年1月1旬上午',
+      }),
+    ).toBe('在殿内休息了片刻，感到神清气爽。');
+  });
+
   it('builds transition feedback for map movement and returning chamber', () => {
     expect(buildMapTransitionNarrative({ kind: 'enter-map', fromResidence: '椒房殿' })).toContain('出殿');
     expect(buildMapTransitionNarrative({ kind: 'enter-location', locationName: '御花园' })).toContain('御花园');

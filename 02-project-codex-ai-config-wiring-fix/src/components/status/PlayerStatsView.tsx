@@ -21,6 +21,7 @@ import {
   convertTemperamentPoints,
 } from '../../config/formulas';
 import { getRarityColor } from '../../game/lib/bedchamberRuntime';
+import { getConcubinePortraitPath } from '../../game/data/concubineRoster';
 import { getPlayerAttributeFieldConfig, getPlayerStatusFieldConfig } from '../../game/numerics/numericCatalog';
 import type { ConcubineProfile, GameNumericsState, HiddenStatsState, RouteSelectionProfile } from '../../game/types';
 import { AttributeHelpButton } from './AttributeHelpButton';
@@ -275,6 +276,13 @@ interface PlayerStatsViewProps {
 
 export function PlayerStatsView({ state, hiddenStats, selectedRoute, concubines, onClose }: PlayerStatsViewProps) {
   const metricRows = useMemo(() => buildMetricRows(state, hiddenStats), [hiddenStats, state]);
+  const visibleMetricRows = useMemo(
+    () =>
+      metricRows
+        .map((row) => row.filter((metric) => metric.key !== 'family' && metric.key !== 'children'))
+        .filter((row) => row.length > 0),
+    [metricRows],
+  );
   const skillRows = useMemo(() => buildSkillRows(state), [state]);
   const conditionLabel = useMemo(() => resolvePlayerConditionLabel(state), [state]);
   const [activeHelpKey, setActiveHelpKey] = useState<string | null>(null);
@@ -288,8 +296,7 @@ export function PlayerStatsView({ state, hiddenStats, selectedRoute, concubines,
       concubines
         .filter((concubine) => concubine.status === 'live' && concubine.stats.relationToPlayer > 0)
         .sort((left, right) => right.stats.relationToPlayer - left.stats.relationToPlayer)
-        .slice(0, 4)
-        .map((concubine) => `${concubine.rankLabel} ${concubine.name}`),
+        .slice(0, 4),
     [concubines],
   );
 
@@ -298,28 +305,40 @@ export function PlayerStatsView({ state, hiddenStats, selectedRoute, concubines,
       concubines
         .filter((concubine) => concubine.status === 'live' && concubine.stats.relationToPlayer < 0)
         .sort((left, right) => left.stats.relationToPlayer - right.stats.relationToPlayer)
-        .slice(0, 4)
-        .map((concubine) => `${concubine.rankLabel} ${concubine.name}`),
+        .slice(0, 4),
     [concubines],
+  );
+
+  const infoRows = useMemo(
+    () => [
+      ['当前位份', hiddenStats.initialRank ?? '宫妃'],
+      ['居所', state.residenceName],
+      ['状态', conditionLabel],
+      ['家世', state.family],
+      ['年龄', `${state.age}`],
+      ['子嗣', '暂无记载'],
+    ],
+    [conditionLabel, hiddenStats.initialRank, state.age, state.family, state.residenceName],
   );
 
   return (
     <section className="player-stats-view" aria-label="个人属性面板">
       <div className="player-stats-view__veil" aria-hidden="true" />
+      <h2 className="player-stats-view__title">个人属性</h2>
 
-      <div className="player-stats-view__chips" aria-label="当前人物信息栏">
-        <div className="concubine-list-view__chip concubine-list-view__chip--primary">
-          <div className="concubine-list-view__chip-main">
-            <span className="concubine-list-view__chip-rank">{hiddenStats.initialRank ?? '宫妃'}</span>
-            <span className="concubine-list-view__chip-name">{state.name}</span>
+      <section className="player-stats-view__info-list" aria-label="当前人物信息">
+        <h3>{state.name}</h3>
+        {infoRows.map(([label, value]) => (
+          <div key={label} className="player-stats-view__info-row">
+            <span>{label}</span>
+            <strong>{value}</strong>
           </div>
-        </div>
-        <div className="concubine-list-view__chip concubine-list-view__chip--secondary">{state.residenceName}</div>
-        <div className="concubine-list-view__chip concubine-list-view__chip--secondary">{`状态 ${conditionLabel}`}</div>
-      </div>
+        ))}
+      </section>
 
       <section className="player-stats-view__metric-board" aria-label="个人核心属性">
-        {metricRows.map((row, rowIndex) => (
+        <h3 className="player-stats-view__section-title">基础信息</h3>
+        {visibleMetricRows.map((row, rowIndex) => (
           <div
             key={`player-metric-row-${rowIndex}`}
             className={`concubine-list-view__metric-row-group concubine-list-view__metric-row-group--${row.length}`}
@@ -374,38 +393,42 @@ export function PlayerStatsView({ state, hiddenStats, selectedRoute, concubines,
       </section>
 
       <section className="player-stats-view__social-board" aria-label="人际关系">
+        <h3 className="player-stats-view__section-title">宫中关系</h3>
         <article className="player-stats-view__social-group">
           <span>交好</span>
-          <div className="concubine-list-view__social-pills">
+          <div className="player-stats-view__relationship-list">
             {allies.length > 0 ? (
-              allies.map((name) => (
-                <span key={name} className="concubine-list-view__social-pill is-ally">
-                  {name}
+              allies.map((consort) => (
+                <span key={consort.id} className="player-stats-view__relationship-avatar">
+                  <img src={getConcubinePortraitPath(consort.portraitId)} alt="" />
+                  <span>{consort.name}</span>
                 </span>
               ))
             ) : (
-              <span className="concubine-list-view__social-empty">暂无明显交好对象</span>
+              <span className="player-stats-view__relationship-empty">暂无明显交好对象</span>
             )}
           </div>
         </article>
 
         <article className="player-stats-view__social-group">
           <span>交恶</span>
-          <div className="concubine-list-view__social-pills">
+          <div className="player-stats-view__relationship-list">
             {rivals.length > 0 ? (
-              rivals.map((name) => (
-                <span key={name} className="concubine-list-view__social-pill is-rival">
-                  {name}
+              rivals.map((consort) => (
+                <span key={consort.id} className="player-stats-view__relationship-avatar">
+                  <img src={getConcubinePortraitPath(consort.portraitId)} alt="" />
+                  <span>{consort.name}</span>
                 </span>
               ))
             ) : (
-              <span className="concubine-list-view__social-empty">暂无明显交恶对象</span>
+              <span className="player-stats-view__relationship-empty">暂无明显交恶对象</span>
             )}
           </div>
         </article>
       </section>
 
       <section className="player-stats-view__note" aria-label="个人技艺与状态">
+        <h3 className="player-stats-view__section-title">技艺</h3>
         <div className="player-stats-view__skill-list" aria-label="个人技艺属性">
           {skillRows.map((skill) => (
             <span key={skill.key} className="player-stats-view__skill-item">
@@ -428,7 +451,6 @@ export function PlayerStatsView({ state, hiddenStats, selectedRoute, concubines,
             </span>
           ))}
         </div>
-        <span className="player-stats-view__note-meta">{`年龄 ${state.age}，体力 ${state.stamina}`}</span>
       </section>
 
       <section className="player-stats-view__portrait-stage" aria-label={`${state.name}立绘`}>

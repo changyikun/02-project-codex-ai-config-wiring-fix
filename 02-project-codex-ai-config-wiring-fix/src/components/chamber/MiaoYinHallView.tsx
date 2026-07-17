@@ -579,11 +579,11 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
   const finishRandomEvent = (eventId: string) => {
     completeRandomEventById(eventId);
     const fallbackOutcome: TimedLocationActionOutcome | null =
-      time.slot === '深夜' || state.stamina <= 0
+      time.slot === '深夜'
         ? {
             previousTime: time,
             shouldSleep: true,
-            reason: state.stamina <= 0 ? 'stamina' : 'deep-night',
+            reason: 'deep-night',
           }
         : null;
     const outcome = pendingTimedActionOutcomeRef.current ?? pendingTimedActionOutcome ?? fallbackOutcome;
