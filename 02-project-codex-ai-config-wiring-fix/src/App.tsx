@@ -3,9 +3,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { MAP_HOTSPOTS } from './config/palaceUi';
 import { getDialogueRootStyle } from './config/dialogueConfig';
 import { NumericChangeToastLayer } from './components/status/NumericChangeToastLayer';
+import { DialogueAudioSettingsProvider } from './components/dialogue/DialogueAudioSettingsContext';
 import { getConcubineDisplayRankText } from './game/data/concubineRoster';
 import { installPalaceDebugConsole } from './game/lib/debugConsole';
 import { YINGLUOYETING_STORY_FLAGS } from './game/lib/yingluoyetingStoryRuntime';
+import { useGameAudio } from './game/audio/useGameAudio';
 import { useGameFlowStore } from './game/store/gameFlowStore';
 import type { ConcubineProfile, MapAreaId, NpcActivityIntent, NpcActivityPurpose } from './game/types';
 import { AttributeAssignmentView } from './views/AttributeAssignmentView';
@@ -75,6 +77,10 @@ export default function App() {
   const npcActivity = useGameFlowStore((state) => state.npcActivity);
   const concubines = useGameFlowStore((state) => state.concubines);
   const customConsorts = useGameFlowStore((state) => state.customConsorts);
+  const gameAudio = useGameAudio({
+    autoStart: import.meta.env.MODE !== 'test',
+    enableUiSfx: import.meta.env.MODE !== 'test',
+  });
   const [startSceneNotice, setStartSceneNotice] = useState('');
   const [startSceneNoticeKey, setStartSceneNoticeKey] = useState(0);
   const startSceneNoticeTimerRef = useRef<number | null>(null);
@@ -214,7 +220,15 @@ export default function App() {
   const renderCurrentView = () => {
     switch (currentView) {
       case 'start':
-        return <StartScene notice={startSceneNotice} noticeKey={startSceneNoticeKey} onAction={handleStartSceneAction} />;
+        return (
+          <StartScene
+            notice={startSceneNotice}
+            noticeKey={startSceneNoticeKey}
+            audioSettings={{ musicVolume: gameAudio.musicVolume, sfxVolume: gameAudio.sfxVolume }}
+            onAudioSettingsChange={gameAudio.setAudioSettings}
+            onAction={handleStartSceneAction}
+          />
+        );
       case 'route-selection':
         return <RouteSelectionView />;
       case 'attribute-assignment':
@@ -226,7 +240,15 @@ export default function App() {
       case 'bedchamber':
         return <ChamberMainView openingBedchamberBridge={isOpeningToBedchamberTransition} />;
       default:
-        return <StartScene notice={startSceneNotice} noticeKey={startSceneNoticeKey} onAction={handleStartSceneAction} />;
+        return (
+          <StartScene
+            notice={startSceneNotice}
+            noticeKey={startSceneNoticeKey}
+            audioSettings={{ musicVolume: gameAudio.musicVolume, sfxVolume: gameAudio.sfxVolume }}
+            onAudioSettingsChange={gameAudio.setAudioSettings}
+            onAction={handleStartSceneAction}
+          />
+        );
     }
   };
 
@@ -248,7 +270,12 @@ export default function App() {
           transition={{ duration: currentView === 'start' ? 0.3 : 0.35 }}
           style={dialogueRootStyle}
         >
-          {renderCurrentView()}
+          <DialogueAudioSettingsProvider
+            audioSettings={{ musicVolume: gameAudio.musicVolume, sfxVolume: gameAudio.sfxVolume }}
+            onAudioSettingsChange={gameAudio.setAudioSettings}
+          >
+            {renderCurrentView()}
+          </DialogueAudioSettingsProvider>
         </motion.div>
       </AnimatePresence>
       <NumericChangeToastLayer />

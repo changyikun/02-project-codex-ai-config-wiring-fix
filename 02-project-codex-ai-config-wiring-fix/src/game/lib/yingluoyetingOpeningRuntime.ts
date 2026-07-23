@@ -159,7 +159,7 @@ export const YINGLUOYETING_OPENING_STORY_STEPS: readonly YingluoyetingOpeningSte
     BACKGROUNDS.banquet,
     [
       '“倒是个美人胚子。”他说。语气平淡，像是在评价今日的茶汤是否煮得恰好。',
-      '那沉默短得像是错觉。我甚至不确定自己是否真的看到了那一丝涟漪。',
+      '那沉默短得像是错觉。你甚至不确定自己是否真的看到了那一丝涟漪。',
       '“开始吧。”',
     ].join(PAGE_BREAK),
     { narrationName: '殿心' },

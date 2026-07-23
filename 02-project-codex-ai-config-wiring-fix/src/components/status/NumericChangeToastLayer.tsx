@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { playConfiguredSfx } from '../../game/audio/gameAudio';
 import { attributeFields } from '../../game/data/config';
 import { type GameFlowStore, useGameFlowStore } from '../../game/store/gameFlowStore';
 import type { ConcubineProfile, ConcubineStats, GameNumericsState, InventoryItem, NumericFeedbackBucket } from '../../game/types';
@@ -11,6 +12,7 @@ interface NumericChangeToast {
 type NumericSnapshot = Record<string, { label: string; value: number; trackMissingAsZero?: boolean }>;
 
 interface QueuedNumericChange {
+  key: string;
   change: string;
   bucket: NumericFeedbackBucket;
 }
@@ -230,6 +232,7 @@ export function NumericChangeToastLayer() {
       queuedChangesRef.current = [
         ...queuedChangesRef.current,
         ...changes.map((change) => ({
+          key: change.key,
           change: change.change,
           bucket: classifyNumericFeedbackBucket(nextStore, change),
         })),
@@ -245,12 +248,16 @@ export function NumericChangeToastLayer() {
 
   useEffect(() => {
     const bucket = numericFeedbackSignal.bucket;
-    const matchingChanges = queuedChangesRef.current.filter((entry) => entry.bucket === bucket).map((entry) => entry.change);
+    const matchingEntries = queuedChangesRef.current.filter((entry) => entry.bucket === bucket);
+    const matchingChanges = matchingEntries.map((entry) => entry.change);
     if (matchingChanges.length === 0) {
       return;
     }
 
     queuedChangesRef.current = queuedChangesRef.current.filter((entry) => entry.bucket !== bucket);
+    if (matchingEntries.some((entry) => entry.key === 'silver')) {
+      playConfiguredSfx('cost');
+    }
     pushVisibleToasts(matchingChanges);
   }, [numericFeedbackSignal]);
 

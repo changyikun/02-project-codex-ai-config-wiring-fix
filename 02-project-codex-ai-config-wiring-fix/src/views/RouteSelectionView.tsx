@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useMemo, useState } from 'react';
 import { buildRouteProfiles } from '../game/data/routeProfiles';
+import { getStoredSfxVolume } from '../game/audio/gameAudio';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
 import type { RouteSelectionProfile } from '../game/types';
 
@@ -11,6 +12,11 @@ interface RouteSelectionViewProps {
 const playableRouteId: RouteSelectionProfile['id'] = 'yingluoyeting';
 
 const playStampFeedback = () => {
+  const sfxVolume = getStoredSfxVolume();
+  if (sfxVolume <= 0) {
+    return;
+  }
+
   if (navigator.vibrate) {
     navigator.vibrate(18);
   }
@@ -27,7 +33,7 @@ const playStampFeedback = () => {
   oscillator.frequency.setValueAtTime(180, audioContext.currentTime);
   oscillator.frequency.exponentialRampToValueAtTime(110, audioContext.currentTime + 0.08);
   gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.22, audioContext.currentTime + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.22 * sfxVolume, audioContext.currentTime + 0.01);
   gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.14);
   oscillator.connect(gain);
   gain.connect(audioContext.destination);

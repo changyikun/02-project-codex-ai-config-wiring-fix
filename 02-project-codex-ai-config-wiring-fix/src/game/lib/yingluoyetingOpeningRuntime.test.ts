@@ -88,6 +88,7 @@ describe('yingluoyeting opening runtime', () => {
 
   it('keeps player-focused performance narration in second person', () => {
     const highPerformanceText = YINGLUOYETING_OPENING_PERFORMANCE_STEPS.high.map((step) => step.text).join('\n');
+    const openingText = YINGLUOYETING_OPENING_STORY_STEPS.map((step) => step.text).join('\n');
 
     expect(highPerformanceText).toContain('你每一步都踩在宫商角徵的转折处');
     expect(highPerformanceText).toContain('仿佛不是你在伴乐，而是乐在随你而起');
@@ -95,6 +96,8 @@ describe('yingluoyeting opening runtime', () => {
     expect(highPerformanceText).not.toContain('她每一步都踩在宫商角徵的转折处');
     expect(highPerformanceText).not.toContain('不是她在伴乐');
     expect(highPerformanceText).not.toContain('演奏来看她');
+    expect(openingText).toContain('\u4f60\u751a\u81f3\u4e0d\u786e\u5b9a\u81ea\u5df1\u662f\u5426\u771f\u7684\u770b\u5230\u4e86\u90a3\u4e00\u4e1d\u6d9f\u6f2a');
+    expect(openingText).not.toContain('\u6211\u751a\u81f3\u4e0d\u786e\u5b9a\u81ea\u5df1\u662f\u5426\u771f\u7684\u770b\u5230\u4e86\u90a3\u4e00\u4e1d\u6d9f\u6f2a');
   });
 
   it('splits the performance call onto the lamp scene before returning to the banquet scene', () => {

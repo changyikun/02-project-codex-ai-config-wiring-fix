@@ -1,4 +1,6 @@
 import { useState, type CSSProperties } from 'react';
+import { GameSettingsDialog } from '../components/settings/GameSettingsDialog';
+import { DEFAULT_AUDIO_SETTINGS, type AudioSettings } from '../game/audio/gameAudio';
 const menuItems = [
   { id: '开始', label: '开始', title: '开始新的篇章', ariaLabel: '开始新游戏' },
   { id: '前尘', label: '前尘', title: '查看前尘往事', ariaLabel: '前尘成就回顾' },
@@ -29,6 +31,8 @@ interface StartSceneProps {
   title?: string;
   notice?: string;
   noticeKey?: number;
+  audioSettings?: AudioSettings;
+  onAudioSettingsChange?: (settings: AudioSettings) => void;
   onAction?: (action: string) => void;
 }
 
@@ -37,19 +41,29 @@ export function StartScene({
   title = '凤华录',
   notice,
   noticeKey = 0,
+  audioSettings = DEFAULT_AUDIO_SETTINGS,
+  onAudioSettingsChange,
   onAction,
 }: StartSceneProps) {
   const [confirmingNewGame, setConfirmingNewGame] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const stageStyle = {
     ['--start-scene-bg' as string]: `url('${backgroundImage ?? '/assets/start-scene-bg-hq.png'}')`,
     ['--start-scene-logo-mask' as string]: "url('/assets/fenghualu-mask.png')",
   } as CSSProperties;
   const handleMenuAction = (action: string) => {
     if (action === '开始') {
+      setSettingsOpen(false);
       setConfirmingNewGame(true);
       return;
     }
+    if (action === '设置') {
+      setConfirmingNewGame(false);
+      setSettingsOpen(true);
+      return;
+    }
     setConfirmingNewGame(false);
+    setSettingsOpen(false);
     onAction?.(action);
   };
 
@@ -113,6 +127,7 @@ export function StartScene({
                   className="start-scene__menu-button"
                   title={item.title}
                   aria-label={item.ariaLabel}
+                  data-audio-sfx={item.id === '设置' ? 'panel-open' : undefined}
                   onClick={() => handleMenuAction(item.id)}
                 >
                   <span className="start-scene__menu-label">{item.label}</span>
@@ -142,6 +157,15 @@ export function StartScene({
               </div>
             </div>
           </section>
+        ) : null}
+
+        {settingsOpen ? (
+          <GameSettingsDialog
+            idPrefix="start-scene"
+            audioSettings={audioSettings}
+            onAudioSettingsChange={onAudioSettingsChange}
+            onClose={() => setSettingsOpen(false)}
+          />
         ) : null}
       </div>
     </main>

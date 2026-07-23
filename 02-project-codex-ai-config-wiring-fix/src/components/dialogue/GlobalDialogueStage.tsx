@@ -5,6 +5,7 @@ import type { NumericFeedbackBucket } from '../../game/types';
 import { GlobalDialogue } from './PalaceDialogueBox';
 
 const DIALOGUE_PAGE_CHAR_LIMIT = 80;
+const FAST_FORWARD_ADVANCE_MS = 160;
 export const DIALOGUE_EXPLICIT_PAGE_BREAK = '\n<<PAGE_BREAK>>\n';
 const narrationIdentity = '场景旁白';
 const quotedTextPattern = /“([^”]+)”/g;
@@ -285,6 +286,7 @@ export function GlobalDialogueStage({
   );
   const [segmentIndex, setSegmentIndex] = useState(0);
   const [pageIndex, setPageIndex] = useState(0);
+  const [fastForwardActive, setFastForwardActive] = useState(false);
   const previousContentRef = useRef(content);
   const boundedSegmentIndex = Math.min(segmentIndex, scriptSegments.length - 1);
   const currentSegment =
@@ -356,6 +358,33 @@ export function GlobalDialogueStage({
     }
   };
 
+  useEffect(() => {
+    if (!fastForwardActive) {
+      return undefined;
+    }
+
+    if (busy || controlsDisabled || hasOptions) {
+      setFastForwardActive(false);
+      return undefined;
+    }
+
+    if (!hasMorePages && !hasMoreSegments && !onNextAction) {
+      setFastForwardActive(false);
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (hasMorePages || hasMoreSegments) {
+        handleAdvancePageOrSegment();
+        return;
+      }
+
+      onNextAction?.();
+    }, FAST_FORWARD_ADVANCE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [busy, controlsDisabled, currentContent, fastForwardActive, hasOptions, hasMorePages, hasMoreSegments, onNextAction]);
+
   return (
     <section className={rootClassName} aria-label={sceneLabel} data-dialogue-lock={DIALOGUE_CONFIG.lockVersion}>
       <div className="global-dialogue-stage__interaction-lock" aria-hidden="true" />
@@ -397,6 +426,8 @@ export function GlobalDialogueStage({
         controlsDisabled={controlsDisabled}
         contentDisabled={hasOptions}
         typewriter={typewriter}
+        fastForwardActive={fastForwardActive}
+        onToggleFastForward={() => setFastForwardActive((current) => !current)}
       />
     </section>
   );

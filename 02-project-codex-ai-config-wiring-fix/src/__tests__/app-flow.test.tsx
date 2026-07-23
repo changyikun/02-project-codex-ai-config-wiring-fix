@@ -2,6 +2,7 @@
 
 import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
 import { CONSORT_DIALOGUE_TIMEOUT_MS } from '../ai/consortDialogueAgent';
@@ -25,6 +26,7 @@ import { buildInitialNpcActivityState } from '../game/lib/npcActivityRuntime';
 import { YINGLUOYETING_STORY_FLAGS } from '../game/lib/yingluoyetingStoryRuntime';
 import { SAVE_GAME_STORAGE_KEY } from '../game/save/saveGameV1';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
+import type { AudioSettings } from '../game/audio/gameAudio';
 
 const resetFlowStore = () => {
   const defaultFavorTier = getFavorTierByValue(50);
@@ -339,7 +341,9 @@ describe('App 主流程切换', () => {
     fireEvent.click(within(routeList).getByRole('button', { name: playableRoute.label }));
     fireEvent.click(await screen.findByRole('button', { name: '确定' }));
 
-    expect(await screen.findByRole('button', { name: '确认进入剧情' })).toBeInTheDocument();
+    const confirmStory = await screen.findByRole('button', { name: '确认进入剧情' });
+    expect(confirmStory).toBeInTheDocument();
+    expect(confirmStory).toHaveTextContent('入宫');
   });
 
   it('开始新游戏会二级确认、清空旧存档并创建新存档', async () => {
@@ -530,10 +534,34 @@ describe('App 主流程切换', () => {
 
     expect(await screen.findByRole('status')).toHaveTextContent('当前功能试玩版未开放');
     expect(screen.getByRole('button', { name: '开始新游戏' })).toBeInTheDocument();
+  });
+
+  it('开始页设置会打开音量面板并保存滑块设置', async () => {
+    render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: '打开设置' }));
 
-    expect(await screen.findByRole('status')).toHaveTextContent('当前功能试玩版未开放');
+    const dialog = await screen.findByRole('dialog', { name: '游戏设置' });
+    expect(dialog).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+    const musicSlider = within(dialog).getByRole('slider', { name: '音乐音量' });
+    const sfxSlider = within(dialog).getByRole('slider', { name: '音效音量' });
+    expect(musicSlider).toHaveValue('70');
+    expect(sfxSlider).toHaveValue('70');
+
+    fireEvent.change(musicSlider, { target: { value: '35' } });
+    fireEvent.change(sfxSlider, { target: { value: '82' } });
+
+    expect(musicSlider).toHaveValue('35');
+    expect(sfxSlider).toHaveValue('82');
+    expect(localStorage.getItem('palace-ai-game.audio-settings.v1')).toBe(
+      JSON.stringify({ musicVolume: 0.35, sfxVolume: 0.82 }),
+    );
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '关闭设置' }));
+
+    expect(screen.queryByRole('dialog', { name: '游戏设置' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '开始新游戏' })).toBeInTheDocument();
   });
 
@@ -821,6 +849,116 @@ describe('App 主流程切换', () => {
 
     fireEvent.click(contentLayer as Element);
     expect(onNextAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('对话框工具栏可打开设置面板并调整音量，点击按钮不推进正文', () => {
+    const onNextAction = vi.fn();
+    const onAudioSettingsChange = vi.fn();
+    const audioSettings: AudioSettings = { musicVolume: 0.7, sfxVolume: 0.7 };
+
+    render(
+      <GlobalDialogue
+        characterIdentity="场景旁白"
+        characterName="寝殿"
+        content="窗外灯影晃了晃。"
+        onNextAction={onNextAction}
+        typewriter={false}
+        audioSettings={audioSettings}
+        onAudioSettingsChange={onAudioSettingsChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '设置' }));
+
+    expect(onNextAction).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog', { name: '游戏设置' });
+    const musicSlider = within(dialog).getByRole('slider', { name: '音乐音量' });
+    const sfxSlider = within(dialog).getByRole('slider', { name: '音效音量' });
+
+    fireEvent.change(musicSlider, { target: { value: '42' } });
+    fireEvent.change(sfxSlider, { target: { value: '64' } });
+
+    expect(onAudioSettingsChange).toHaveBeenCalledWith({ musicVolume: 0.42, sfxVolume: 0.7 });
+    expect(onAudioSettingsChange).toHaveBeenCalledWith({ musicVolume: 0.7, sfxVolume: 0.64 });
+  });
+
+  it('全局对话舞台快进会翻完分页并在分支选项前停止', () => {
+    vi.useFakeTimers();
+    const onSelectOption = vi.fn();
+
+    render(
+      <GlobalDialogueStage
+        sceneLabel="测试剧情舞台"
+        portraitLabel="测试立绘"
+        characterIdentity="场景旁白"
+        characterName="冷宫"
+        content={[
+          '冷宫门前的铜锁早已生锈。',
+          '这里没有人高声说话，连落叶被踩碎的声音都显得突兀。',
+          '檐下有个老宫人正在扫灰。她看见你，并没有立刻行礼，只把扫帚往身后一收。',
+          '“姑娘又来了。”',
+        ].join('\n')}
+        options={[{ id: 'take', label: '只收下残抄' }]}
+        onSelectOption={onSelectOption}
+        typewriter={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '快进' }));
+
+    act(() => {
+      vi.advanceTimersByTime(1200);
+    });
+
+    expect(screen.getByText(/姑娘又来了/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '只收下残抄' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '快进' })).toBeInTheDocument();
+    expect(onSelectOption).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
+  });
+
+  it('全局对话舞台快进会跨普通下一句推进，并在自然结尾停止', async () => {
+    vi.useFakeTimers();
+
+    const LinearFastForwardHarness = () => {
+      const lines = ['第一句，灯火微摇。', '第二句，帘影落下。', '第三句，殿中归于安静。'];
+      const [lineIndex, setLineIndex] = useState(0);
+      return (
+        <GlobalDialogueStage
+          sceneLabel="测试线性剧情"
+          portraitLabel="测试立绘"
+          characterIdentity="场景旁白"
+          characterName="寝殿"
+          content={lines[lineIndex]}
+          onNextAction={lineIndex < lines.length - 1 ? () => setLineIndex((current) => current + 1) : undefined}
+          typewriter={false}
+        />
+      );
+    };
+
+    render(<LinearFastForwardHarness />);
+
+    fireEvent.click(screen.getByRole('button', { name: '快进' }));
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(screen.getByText('第二句，帘影落下。')).toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(screen.getByText('第三句，殿中归于安静。')).toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(screen.getByRole('button', { name: '快进' })).toBeInTheDocument();
+
+    expect(screen.getByText('第三句，殿中归于安静。')).toBeInTheDocument();
+
+    vi.useRealTimers();
   });
 
   it('全局对话舞台会把长段剧情分页展示，翻完前不显示分支选项', () => {

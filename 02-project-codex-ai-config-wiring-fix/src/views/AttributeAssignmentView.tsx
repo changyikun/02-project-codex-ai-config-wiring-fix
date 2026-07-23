@@ -326,9 +326,9 @@ export function AttributeAssignmentView() {
               setCurrentView('opening-dialogue');
             }}
             aria-label="确认进入剧情"
-            title="确认"
+            title="入宫"
           >
-            确认
+            入宫
           </button>
           <button
             type="button"

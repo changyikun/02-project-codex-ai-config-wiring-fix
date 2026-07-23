@@ -1,4 +1,5 @@
-import { useMemo, useState, type AnimationEvent } from 'react';
+import { useEffect, useMemo, useState, type AnimationEvent } from 'react';
+import { playConfiguredSfx, type SfxKey } from '../../game/audio/gameAudio';
 import type { SettlementReport } from '../../game/types';
 import { renderNarrativeEntry } from '../../game/narrative/narrativeCatalog';
 import { GlobalDialogueStage } from './GlobalDialogueStage';
@@ -9,6 +10,7 @@ const RIGHT_SCROLL_SRC = '/assets/routes/buttons/materials-202606231052/material
 const SHENG_GLYPH_SRC = '/assets/routes/buttons/materials-202606231052/material-202606231107-018.png';
 const ZHI_GLYPH_SRC = '/assets/routes/buttons/materials-202606231052/material-202606231107-019.png';
 const EUNUCH_PORTRAIT_SRC = '/assets/characters/men/taijian.png';
+const HIGH_RANK_PROMOTION_PATTERN = /晋为(?:妃|贵妃|皇贵妃|皇后)(?:[，。；\s]|$)/u;
 
 const normalizeEdictLine = (line: string): string =>
   line
@@ -123,6 +125,9 @@ const buildEdictColumns = (report: SettlementReport): EdictColumn[] => [
   { text: '钦此。', kind: 'seal' },
 ];
 
+const getPromotionSfxKey = (report: SettlementReport): SfxKey =>
+  HIGH_RANK_PROMOTION_PATTERN.test(report.lines.join(' ')) ? 'level-up-higher' : 'level-up';
+
 interface PromotionEdictStageProps {
   report: SettlementReport;
   onComplete: () => void;
@@ -132,8 +137,15 @@ export function PromotionEdictStage({ report, onComplete }: PromotionEdictStageP
   const [phase, setPhase] = useState<'summon' | 'edict'>('summon');
   const [isReadyToClose, setIsReadyToClose] = useState(false);
   const edictColumns = useMemo(() => buildEdictColumns(report), [report]);
+  const promotionSfxKey = useMemo(() => getPromotionSfxKey(report), [report]);
   const summonEntry = useMemo(() => renderNarrativeEntry('rank.promotion.summon'), []);
   const rootClassName = ['promotion-edict-stage', isReadyToClose ? 'promotion-edict-stage--ready' : ''].filter(Boolean).join(' ');
+
+  useEffect(() => {
+    if (phase === 'edict') {
+      playConfiguredSfx(promotionSfxKey);
+    }
+  }, [phase, promotionSfxKey]);
 
   const handleAnimationEnd = (event: AnimationEvent<HTMLDivElement>) => {
     if (event.animationName && event.animationName !== 'promotion-edict-unfold') {

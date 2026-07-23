@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { DIALOGUE_CONFIG } from '../../config/dialogueConfig';
+import { GameSettingsDialog } from '../settings/GameSettingsDialog';
+import { useDialogueAudioSettings } from './DialogueAudioSettingsContext';
 
 const TYPEWRITER_INTERVAL_MS = 16;
 const DEFAULT_TYPEWRITER_ENABLED = !(import.meta.env?.MODE === 'test' || import.meta.env?.VITEST);
@@ -28,6 +30,10 @@ const DEFAULT_TYPEWRITER_ENABLED = !(import.meta.env?.MODE === 'test' || import.
  *   controlsDisabled?: boolean
  *   contentDisabled?: boolean
  *   typewriter?: boolean
+ *   fastForwardActive?: boolean
+ *   onToggleFastForward?: (() => void) | undefined
+ *   audioSettings?: import('../../game/audio/gameAudio').AudioSettings
+ *   onAudioSettingsChange?: ((settings: import('../../game/audio/gameAudio').AudioSettings) => void) | undefined
  * }} props
  */
 export function GlobalDialogue({
@@ -45,17 +51,25 @@ export function GlobalDialogue({
   controlsDisabled = busy,
   contentDisabled = false,
   typewriter = DEFAULT_TYPEWRITER_ENABLED,
+  fastForwardActive = false,
+  onToggleFastForward,
+  audioSettings,
+  onAudioSettingsChange,
 }) {
+  const dialogueAudioSettings = useDialogueAudioSettings();
+  const resolvedAudioSettings = audioSettings ?? dialogueAudioSettings.audioSettings;
+  const resolvedAudioSettingsChange = onAudioSettingsChange ?? dialogueAudioSettings.onAudioSettingsChange;
   const rootClassName = ['palace-dialogue-box', className].filter(Boolean).join(' ');
   const hasOptions = options.length > 0;
   const contentText = content ?? '';
   const contentChars = useMemo(() => Array.from(contentText), [contentText]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [visibleCharCount, setVisibleCharCount] = useState(0);
   const shouldUseTypewriter = typewriter && contentChars.length > 0;
-  const isContentComplete = !shouldUseTypewriter || visibleCharCount >= contentChars.length;
+  const isContentComplete = fastForwardActive || !shouldUseTypewriter || visibleCharCount >= contentChars.length;
   const displayedContent = useMemo(
-    () => (shouldUseTypewriter ? contentChars.slice(0, visibleCharCount).join('') : contentText),
-    [contentChars, contentText, shouldUseTypewriter, visibleCharCount],
+    () => (fastForwardActive || !shouldUseTypewriter ? contentText : contentChars.slice(0, visibleCharCount).join('')),
+    [contentChars, contentText, fastForwardActive, shouldUseTypewriter, visibleCharCount],
   );
   const showOptions = hasOptions && isContentComplete;
   const contentInteractionDisabled = contentDisabled || showOptions;
@@ -115,6 +129,21 @@ export function GlobalDialogue({
     }
   };
 
+  const stopToolClick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const toggleSettings = (event) => {
+    stopToolClick(event);
+    setSettingsOpen(true);
+  };
+
+  const toggleFastForward = (event) => {
+    stopToolClick(event);
+    onToggleFastForward?.();
+  };
+
   return (
     <section
       className={rootClassName}
@@ -139,6 +168,47 @@ export function GlobalDialogue({
         </div>
       ) : null}
 
+      <div className="palace-dialogue-box__tools" aria-label="对话工具">
+        <button
+          type="button"
+          className="palace-dialogue-box__tool-button palace-dialogue-box__tool-button--settings"
+          data-audio-sfx="panel-open"
+          onClick={toggleSettings}
+        >
+          <span className="palace-dialogue-box__tool-icon" aria-hidden="true" />
+          <span className="palace-dialogue-box__tool-text">设置</span>
+        </button>
+        {onToggleFastForward ? (
+          <button
+            type="button"
+            className={`palace-dialogue-box__tool-button palace-dialogue-box__tool-button--fast-forward${
+              fastForwardActive ? ' is-active' : ''
+            }`}
+            aria-pressed={fastForwardActive}
+            onClick={toggleFastForward}
+          >
+            <span className="palace-dialogue-box__tool-icon" aria-hidden="true" />
+            <span className="palace-dialogue-box__tool-text">
+              {fastForwardActive ? (
+                <>
+                  <span className="palace-dialogue-box__tool-label">快进</span>
+                  <span className="palace-dialogue-box__tool-suffix">
+                    中
+                    <span className="palace-dialogue-box__fast-forward-dots" aria-hidden="true">
+                      <span className="palace-dialogue-box__fast-forward-dot">.</span>
+                      <span className="palace-dialogue-box__fast-forward-dot">.</span>
+                      <span className="palace-dialogue-box__fast-forward-dot">.</span>
+                    </span>
+                  </span>
+                </>
+              ) : (
+                <span className="palace-dialogue-box__tool-label">快进</span>
+              )}
+            </span>
+          </button>
+        ) : null}
+      </div>
+
       <div
         className="palace-dialogue-box__content"
         onClick={handleContentClick}
@@ -162,6 +232,15 @@ export function GlobalDialogue({
           </div>
         </div>
       </div>
+      {settingsOpen ? (
+        <GameSettingsDialog
+          idPrefix="dialogue-settings"
+          variant="dialogue"
+          audioSettings={resolvedAudioSettings}
+          onAudioSettingsChange={resolvedAudioSettingsChange}
+          onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
     </section>
   );
 }
