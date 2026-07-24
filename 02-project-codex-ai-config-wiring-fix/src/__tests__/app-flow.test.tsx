@@ -6712,6 +6712,58 @@ describe('App 主流程切换', () => {
     expect(onLeave).toHaveBeenCalledWith({ shouldAdvanceTime: true });
   });
 
+  it('养心殿求见成功后即使未互动离开也会推进时辰', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    const concubines = buildInitialConcubineRoster('lanyinxuguo');
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        favor: 60,
+        trueHeart: 40,
+        prestige: 2500,
+        flags: {
+          bedchamberIntroShown: true,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        ...state.hiddenStats,
+        favor: 60,
+        trueHeart: 40,
+        prestige: 2500,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      concubines,
+      inventory: cloneInitialInventory(),
+    }));
+    const onLeave = vi.fn();
+
+    render(
+      <EmperorAudiencePanel
+        source="yangxin-request"
+        location="养心殿"
+        concubines={concubines}
+        skipRequest
+        onLeave={onLeave}
+      />,
+    );
+
+    expect(await screen.findByLabelText('皇帝 日间会面')).toBeInTheDocument();
+    await clickDialogueAdvance();
+    fireEvent.click(screen.getByText('返回').closest('button') as HTMLButtonElement);
+
+    expect(onLeave).toHaveBeenCalledWith({ shouldAdvanceTime: true });
+  });
+
   it('正阳门等待下朝会推进时辰', async () => {
     const defaultFavorTier = getFavorTierByValue(50);
     useGameFlowStore.setState((state) => ({

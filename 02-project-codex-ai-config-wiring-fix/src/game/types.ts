@@ -768,6 +768,7 @@ export interface MusicHallProgressState {
   lastAmbientText?: string;
   musicianScoreGiftAffinityCheckpoint?: number;
   dancerScoreGiftAffinityCheckpoint?: number;
+  lastSubmittedBanquetScoreId?: string;
   lastSubmittedMusicScoreId?: string;
   lastPracticedMusicScoreId?: string;
   lastPracticedDanceScoreId?: string;
@@ -791,6 +792,7 @@ export interface MusicScoreMasteryState {
 export interface PalaceBanquetSubmittedScore {
   itemId: string;
   name: string;
+  scoreKind?: 'music' | 'dance';
   color?: string;
   rarity?: string;
   difficulty?: number;
@@ -802,6 +804,7 @@ export interface PalaceBanquetResultState {
   seasonKey: string;
   completedAt: PalaceTimeState;
   scoreName?: string;
+  scoreKind?: 'music' | 'dance';
   completionPercent: number;
   difficulty?: number;
   performanceCap?: number;

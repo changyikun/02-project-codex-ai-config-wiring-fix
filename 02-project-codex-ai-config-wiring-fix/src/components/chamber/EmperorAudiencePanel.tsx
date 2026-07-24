@@ -82,7 +82,7 @@ export function EmperorAudiencePanel({ source, location, concubines, skipRequest
   const dialogueActive = phase === 'request' || phase === 'intro' || phase === 'feedback' || phase === 'farewell';
 
   const finishAudience = () => {
-    onLeave({ shouldAdvanceTime: interactionCount > 0 });
+    onLeave({ shouldAdvanceTime: source === 'yangxin-request' || interactionCount > 0 });
   };
 
   const markInteractionConsumed = () => {

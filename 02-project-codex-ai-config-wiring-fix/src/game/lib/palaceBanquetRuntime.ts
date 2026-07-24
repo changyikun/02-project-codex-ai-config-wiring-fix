@@ -4,20 +4,42 @@ import {
   MUSIC_SCORE_PERFECT_THRESHOLD_PERCENT,
 } from '../../config/constants';
 import {
+  isDanceScoreItem,
+  isMusicScoreItem,
+} from '../data/inventoryPresets';
+import {
   resolveMusicScoreDifficulty,
   resolveMusicScorePerformanceCap,
   resolveMusicScorePerformanceScore,
-  resolveMusicScoreQualityLabel,
+  resolvePracticeScoreQualityLabel,
 } from './musicScoreRuntime';
 import type {
   GameNumericsState,
+  InventoryItem,
   MusicHallProgressState,
   PalaceBanquetProgressState,
   PalaceBanquetResultState,
+  PalaceBanquetSubmittedScore,
   PalaceTimeState,
 } from '../types';
 
 const clampPercent = (value: number): number => Math.max(0, Math.min(200, Math.round(value)));
+type PalaceBanquetScoreKind = NonNullable<PalaceBanquetSubmittedScore['scoreKind']>;
+
+export const getPalaceBanquetEligibleScores = (inventory: readonly InventoryItem[]): InventoryItem[] =>
+  inventory.filter((item) => (isMusicScoreItem(item) || isDanceScoreItem(item)) && item.quantity > 0);
+
+export const resolvePalaceBanquetScoreKind = (
+  score?: Pick<PalaceBanquetSubmittedScore, 'scoreKind' | 'itemId'>,
+): PalaceBanquetScoreKind => {
+  if (score?.scoreKind === 'dance') {
+    return 'dance';
+  }
+  if (score?.scoreKind === 'music') {
+    return 'music';
+  }
+  return score?.itemId.startsWith('dance-score') ? 'dance' : 'music';
+};
 
 export interface PalaceBanquetResolutionInput {
   state: GameNumericsState;
@@ -41,7 +63,22 @@ export const resolvePalaceBanquet = ({
 }: PalaceBanquetResolutionInput): PalaceBanquetResolution => {
   const submittedScore =
     palaceBanquetProgress.submittedScore?.seasonKey === seasonKey ? palaceBanquetProgress.submittedScore : undefined;
-  const submittedMastery = submittedScore ? musicHallProgress.musicScoreMastery?.[submittedScore.itemId] : undefined;
+  const scoreKind = submittedScore ? resolvePalaceBanquetScoreKind(submittedScore) : undefined;
+  const scoreNoun = scoreKind === 'dance' ? '舞谱' : '曲谱';
+  const performanceVerb = scoreKind === 'dance' ? '献舞' : '献艺';
+  const perfectJudgementLine =
+    scoreKind === 'dance'
+      ? '一舞既终，席间片刻无声，随后赞声才低低漫开。'
+      : '一曲既终，席间片刻无声，随后赞声才低低漫开。';
+  const qualifiedJudgementLine =
+    scoreKind === 'dance'
+      ? '舞步稳稳收住，虽未压尽满堂锋芒，却也足够教人记下。'
+      : '曲意稳稳收住，虽未压尽满堂锋芒，却也足够教人记下。';
+  const submittedMastery = submittedScore
+    ? scoreKind === 'dance'
+      ? musicHallProgress.danceScoreMastery?.[submittedScore.itemId]
+      : musicHallProgress.musicScoreMastery?.[submittedScore.itemId]
+    : undefined;
   const difficulty = submittedScore
     ? submittedMastery?.difficulty ?? submittedScore.difficulty ?? resolveMusicScoreDifficulty(submittedScore.color, submittedScore.rarity)
     : undefined;
@@ -72,21 +109,22 @@ export const resolvePalaceBanquet = ({
     : 0;
 
   const performanceLine = submittedScore
-    ? `你以《${submittedScore.name}》应宫宴献艺，${resolveMusicScoreQualityLabel(
+    ? `你以《${submittedScore.name}》应宫宴${performanceVerb}，${resolvePracticeScoreQualityLabel(
+        scoreKind ?? 'music',
         submittedScore.color,
         submittedScore.rarity,
       )}的难度与平日练习一并落到席间。`
-    : '你未向妙音堂登记曲谱，本届宫宴只按常例随班入席，并无单独献艺。';
+    : '你未向妙音堂登记曲谱或舞谱，本届宫宴只按常例随班入席，并无单独献艺。';
   const scoreLine = submittedScore
-    ? `曲谱完成度：${completionPercent}%，难度：${difficulty ?? 0}，表现上限：${performanceCap}，本场表现分：${performanceScore}。`
-    : '本届没有登记曲谱，未计算单独献艺表现。';
+    ? `${scoreNoun}完成度：${completionPercent}%，难度：${difficulty ?? 0}，表现上限：${performanceCap}，本场表现分：${performanceScore}。`
+    : '本届没有登记曲谱或舞谱，未计算单独献艺表现。';
   const judgementLine =
     performanceScore >= MUSIC_SCORE_PERFECT_THRESHOLD_PERCENT
-      ? '一曲既终，席间片刻无声，随后赞声才低低漫开。'
+      ? perfectJudgementLine
       : performanceScore >= MUSIC_SCORE_COMPLETION_REQUIRED_PERCENT
-        ? '曲意稳稳收住，虽未压尽满堂锋芒，却也足够教人记下。'
+        ? qualifiedJudgementLine
         : submittedScore
-          ? '曲谱虽已登记，临场仍显生涩，司乐女官只按常例记名。'
+          ? `${scoreNoun}虽已登记，临场仍显生涩，司乐女官只按常例记名。`
           : '宫宴灯火如昼，你这一席没有额外出挑，也没有招来错处。';
   const prestigeLine =
     prestigeDelta > 0
@@ -101,6 +139,7 @@ export const resolvePalaceBanquet = ({
       seasonKey,
       completedAt,
       scoreName: submittedScore?.name,
+      scoreKind,
       completionPercent,
       difficulty,
       performanceCap: submittedScore ? performanceCap : undefined,

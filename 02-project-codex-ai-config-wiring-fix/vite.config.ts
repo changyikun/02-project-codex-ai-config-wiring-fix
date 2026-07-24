@@ -1,11 +1,35 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import type { Plugin } from 'vite';
+
+const DEFAULT_WEB_PUBLIC_ASSET_BASE = '/feng-hua-lu/';
+
+const normalizePublicAssetBase = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === '/') {
+    return '/';
+  }
+
+  if (trimmed === './') {
+    return './';
+  }
+
+  const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return withLeadingSlash.endsWith('/') ? withLeadingSlash : `${withLeadingSlash}/`;
+};
+
+export const resolvePublicAssetBase = (mode: string, env: Record<string, string | undefined>): string => {
+  if (mode === 'app') {
+    return './';
+  }
+
+  return normalizePublicAssetBase(env.VITE_PUBLIC_ASSET_BASE ?? DEFAULT_WEB_PUBLIC_ASSET_BASE);
+};
 
 /**
  * Vite 插件：自动为硬编码的 /assets/ 路径添加 base 前缀
  */
-function assetBaseRewriter(base: string): Plugin {
+export function assetBaseRewriter(base: string): Plugin {
   return {
     name: 'vite-plugin-asset-base-rewriter',
     apply: 'build',
@@ -21,9 +45,9 @@ function assetBaseRewriter(base: string): Plugin {
 }
 
 export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), 'VITE_');
   const isAppBuild = mode === 'app';
-  const webBase = '/feng-hua-lu/';
-  const base = isAppBuild ? './' : webBase;
+  const base = resolvePublicAssetBase(mode, env);
 
   return {
     base,

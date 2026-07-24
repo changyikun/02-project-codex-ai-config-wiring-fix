@@ -17,7 +17,6 @@ import {
   resolveMusicScoreMastery,
   resolveMusicScorePractice,
   resolvePracticeScoreQualityLabel,
-  resolveMusicScoreQualityLabel,
 } from '../../game/lib/musicScoreRuntime';
 import { getNumericRuleValue } from '../../game/numerics/numericCatalog';
 import { getNpcActivitiesAtLocation } from '../../game/lib/npcActivityRuntime';
@@ -36,6 +35,7 @@ import {
   resolvePalaceBanquetSeasonKeyForTime,
   resolvePalaceBanquetYearForTime,
 } from '../../game/lib/palaceBanquetSchedule';
+import { getPalaceBanquetEligibleScores } from '../../game/lib/palaceBanquetRuntime';
 import { renderNarrativeEntry } from '../../game/narrative/narrativeCatalog';
 import { narrativeEntryToDialogueFields } from '../../game/narrative/narrativeDialogueAdapter';
 import {
@@ -236,6 +236,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     () => inventory.filter((item) => isDanceScoreItem(item) && item.quantity > 0),
     [inventory],
   );
+  const ownedBanquetScores = useMemo(() => getPalaceBanquetEligibleScores(inventory), [inventory]);
   const ownedMusicScoreMastery = useMemo(
     () =>
       ownedMusicScores.map((item) => ({
@@ -251,6 +252,22 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
         mastery: resolveMusicScoreMastery(item, musicHallProgress, musicHallProgress.danceScoreMastery),
       })),
     [musicHallProgress, ownedDanceScores],
+  );
+  const ownedBanquetScoreMastery = useMemo(
+    () =>
+      ownedBanquetScores.map((item) => {
+        const scoreKind: 'music' | 'dance' = isDanceScoreItem(item) ? 'dance' : 'music';
+        return {
+          item,
+          scoreKind,
+          mastery: resolveMusicScoreMastery(
+            item,
+            musicHallProgress,
+            scoreKind === 'dance' ? musicHallProgress.danceScoreMastery : musicHallProgress.musicScoreMastery,
+          ),
+        };
+      }),
+    [musicHallProgress, ownedBanquetScores],
   );
   const giftableInventory = useMemo(
     () => inventory.filter((item) => isConsortGiftItem(item) && !item.isQuestItem).sort((left, right) => left.price - right.price),
@@ -705,8 +722,8 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
       });
       return;
     }
-    if (ownedMusicScores.length === 0) {
-      showActionResult('你手里还没有可用的曲谱。', {
+    if (ownedBanquetScores.length === 0) {
+      showActionResult('你手里还没有可用的曲谱或舞谱。', {
         previousTime: time,
         shouldSleep: false,
         reason: 'deep-night',
@@ -717,15 +734,22 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
   };
 
   const handleSubmitMusicScore = (itemId: string) => {
-    const selectedItem = ownedMusicScores.find((item) => item.itemId === itemId);
+    const selectedItem = ownedBanquetScores.find((item) => item.itemId === itemId);
     if (!selectedItem) {
       setShowSignUpPicker(false);
       return;
     }
-    const mastery = resolveMusicScoreMastery(selectedItem, musicHallProgress);
+    const scoreKind: 'music' | 'dance' = isDanceScoreItem(selectedItem) ? 'dance' : 'music';
+    const scoreNoun = scoreKind === 'dance' ? '舞谱' : '曲谱';
+    const mastery = resolveMusicScoreMastery(
+      selectedItem,
+      musicHallProgress,
+      scoreKind === 'dance' ? musicHallProgress.danceScoreMastery : musicHallProgress.musicScoreMastery,
+    );
     patchMusicHallProgress({
       signUpCount: musicHallProgress.signUpCount + 1,
-      lastSubmittedMusicScoreId: itemId,
+      lastSubmittedBanquetScoreId: itemId,
+      ...(scoreKind === 'music' ? { lastSubmittedMusicScoreId: itemId } : {}),
     });
     patchPalaceBanquetProgress({
       currentSeasonKey: palaceBanquetSeasonKey,
@@ -733,6 +757,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
       submittedScore: {
         itemId,
         name: selectedItem.name,
+        scoreKind,
         color: selectedItem.color,
         rarity: selectedItem.rarity,
         difficulty: mastery.difficulty,
@@ -746,7 +771,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
         locationId: 'miaoyin-hall',
         actionId: 'sign-up',
         actionLabel: '宴席报名',
-        resultText: `你递交《${selectedItem.name}》，当前完成度${mastery.masteryPercent}%。曲谱仍留在手中。`,
+        resultText: `你递交《${selectedItem.name}》，当前完成度${mastery.masteryPercent}%。${scoreNoun}仍留在手中。`,
       }),
       { previousTime: time, shouldSleep: false, reason: 'deep-night' },
     );
@@ -1031,14 +1056,14 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
       ) : null}
 
       {showSignUpPicker ? (
-        <div className="miaoyin-view__picker-backdrop" role="dialog" aria-label="妙音堂曲谱报名">
+        <div className="miaoyin-view__picker-backdrop" role="dialog" aria-label="妙音堂宫宴报名">
           <div className="miaoyin-view__picker">
-            <h3>登记曲谱报名</h3>
-            <p>{`本届宫宴定于${banquetEventTime.month}月第${banquetEventTime.xun}旬${banquetEventTime.slot}。请选择一张曲谱登记。`}</p>
+            <h3>登记宫宴报名</h3>
+            <p>{`本届宫宴定于${banquetEventTime.month}月第${banquetEventTime.xun}旬${banquetEventTime.slot}。请选择一张曲谱或舞谱登记。`}</p>
             <div className="miaoyin-view__picker-list">
-              {ownedMusicScoreMastery.map(({ item, mastery }) => (
+              {ownedBanquetScoreMastery.map(({ item, scoreKind, mastery }) => (
                 <button key={item.itemId} type="button" onClick={() => handleSubmitMusicScore(item.itemId)}>
-                  {`${item.name}｜${resolveMusicScoreQualityLabel(item.color, item.rarity)}｜完成度 ${mastery.masteryPercent}%｜表现上限 ${
+                  {`${item.name}｜${resolvePracticeScoreQualityLabel(scoreKind, item.color, item.rarity)}｜完成度 ${mastery.masteryPercent}%｜表现上限 ${
                     mastery.performanceCap ?? 0
                   }`}
                 </button>
